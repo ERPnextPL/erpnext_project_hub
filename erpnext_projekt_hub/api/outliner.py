@@ -31,27 +31,108 @@ def _get_incomplete_subtasks(task_name: str) -> list:
 
 @frappe.whitelist()
 def get_projects():
-	"""Get list of all projects with task counts."""
-	projects = frappe.get_all(
-		"Project",
-		filters={"status": ["!=", "Cancelled"]},
-		fields=[
-			"name",
-			"project_name",
-			"status",
-			"percent_complete",
-			"expected_start_date",
-			"expected_end_date",
-			"priority",
-		],
-		order_by="modified desc",
-	)
+	"""
+	Get list of projects based on user role:
+	- Projects Manager / System Manager: sees all projects (except Cancelled)
+	- Projects User: sees only projects where they have tasks assigned or are project members
+	
+	Returns projects grouped by status (active vs completed).
+	"""
+	user = frappe.session.user
+	user_roles = frappe.get_roles(user)
+	
+	# Check if user has manager role
+	is_manager = "Projects Manager" in user_roles or "System Manager" in user_roles or "Administrator" in user_roles
+	
+	# Base filters - exclude Cancelled projects
+	filters = {"status": ["!=", "Cancelled"]}
+	
+	if is_manager:
+		# Managers see all non-cancelled projects
+		projects = frappe.get_all(
+			"Project",
+			filters=filters,
+			fields=[
+				"name",
+				"project_name",
+				"status",
+				"percent_complete",
+				"expected_start_date",
+				"expected_end_date",
+				"priority",
+			],
+			order_by="status asc, modified desc",
+		)
+	else:
+		# Regular users - get projects where they have tasks or are members
+		
+		# 1. Get projects where user has assigned tasks
+		projects_with_tasks = frappe.db.sql("""
+			SELECT DISTINCT t.project
+			FROM `tabTask` t
+			WHERE t.project IS NOT NULL
+			AND t._assign LIKE %s
+		""", (f'%{user}%',), as_dict=True)
+		
+		project_names_from_tasks = [p["project"] for p in projects_with_tasks if p["project"]]
+		
+		# 2. Get projects where user is a member (via Project User child table)
+		projects_as_member = frappe.db.sql("""
+			SELECT DISTINCT pu.parent as project
+			FROM `tabProject User` pu
+			WHERE pu.user = %s
+			AND pu.parenttype = 'Project'
+		""", (user,), as_dict=True)
+		
+		project_names_from_membership = [p["project"] for p in projects_as_member if p["project"]]
+		
+		# Combine both lists
+		all_user_projects = list(set(project_names_from_tasks + project_names_from_membership))
+		
+		if not all_user_projects:
+			return {"active": [], "completed": [], "is_manager": False}
+		
+		# Get project details
+		projects = frappe.get_all(
+			"Project",
+			filters={
+				"name": ["in", all_user_projects],
+				"status": ["!=", "Cancelled"]
+			},
+			fields=[
+				"name",
+				"project_name",
+				"status",
+				"percent_complete",
+				"expected_start_date",
+				"expected_end_date",
+				"priority",
+			],
+			order_by="status asc, modified desc",
+		)
 
-	# Add task count for each project
+	# Add task count and user's task count for each project
 	for project in projects:
 		project["task_count"] = frappe.db.count("Task", {"project": project["name"]})
-
-	return projects
+		
+		# Count user's assigned tasks in this project
+		if not is_manager:
+			user_tasks = frappe.db.sql("""
+				SELECT COUNT(*) as count
+				FROM `tabTask`
+				WHERE project = %s AND _assign LIKE %s
+			""", (project["name"], f'%{user}%'), as_dict=True)
+			project["user_task_count"] = user_tasks[0]["count"] if user_tasks else 0
+	
+	# Separate active and completed projects
+	active_projects = [p for p in projects if p["status"] != "Completed"]
+	completed_projects = [p for p in projects if p["status"] == "Completed"]
+	
+	return {
+		"active": active_projects,
+		"completed": completed_projects,
+		"is_manager": is_manager
+	}
 
 
 @frappe.whitelist()
