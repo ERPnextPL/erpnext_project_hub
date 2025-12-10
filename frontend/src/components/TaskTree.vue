@@ -44,13 +44,17 @@ function handleDragEnd(evt) {
 	draggedTask.value = null
 }
 
+const highlightedTasks = ref(new Set())
+
 async function handleTaskUpdate(taskName, updates) {
 	try {
 		await store.updateTask(taskName, updates)
 	} catch (error) {
-		// Show error message from backend (e.g., incomplete subtasks)
+		// Check if this is an incomplete subtasks error
+		const errorMsg = error.message || 'Failed to update task'
+		const isSubtaskError = errorMsg.includes('subtask') || errorMsg.includes('not completed')
+		
 		if (window.frappe) {
-			const errorMsg = error.message || 'Failed to update task'
 			// Parse Frappe error message if available
 			let displayMsg = errorMsg
 			try {
@@ -61,9 +65,55 @@ async function handleTaskUpdate(taskName, updates) {
 			} catch (e) {
 				// Use original message
 			}
-			frappe.show_alert({ message: displayMsg, indicator: 'red' })
+			
+			// Show as info (blue) for subtask errors, red for others
+			frappe.show_alert({ 
+				message: displayMsg, 
+				indicator: isSubtaskError ? 'blue' : 'red' 
+			})
+			
+			// Highlight incomplete subtasks
+			if (isSubtaskError) {
+				highlightIncompleteSubtasks(taskName)
+			}
 		}
 	}
+}
+
+function highlightIncompleteSubtasks(parentTaskName) {
+	// Find all subtasks of this parent
+	const findSubtasks = (taskName) => {
+		const subtasks = []
+		store.tasks.forEach(task => {
+			if (task.parent_task === taskName) {
+				subtasks.push(task)
+				// Recursively find children
+				subtasks.push(...findSubtasks(task.name))
+			}
+		})
+		return subtasks
+	}
+	
+	const subtasks = findSubtasks(parentTaskName)
+	const incompleteSubtasks = subtasks.filter(t => 
+		t.status !== 'Completed' && t.status !== 'Cancelled'
+	)
+	
+	// Expand parent to show subtasks
+	if (!store.expandedTasks.has(parentTaskName)) {
+		store.toggleExpand(parentTaskName)
+	}
+	
+	// Highlight incomplete subtasks
+	highlightedTasks.value.clear()
+	incompleteSubtasks.forEach(task => {
+		highlightedTasks.value.add(task.name)
+	})
+	
+	// Remove highlights after 3 seconds
+	setTimeout(() => {
+		highlightedTasks.value.clear()
+	}, 3000)
 }
 
 function handleTaskClick(task) {
@@ -136,6 +186,7 @@ async function handleTimeLogSave(timelogData) {
 						<TaskRow
 							:task="task"
 							:level="task.level || 0"
+							:highlighted="highlightedTasks.has(task.name)"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"

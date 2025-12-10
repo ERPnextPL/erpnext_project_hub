@@ -142,6 +142,45 @@ function handleClickOutside(event) {
 	}
 }
 
+// Drag & Drop handlers
+const dragOverMilestone = ref(null)
+
+function handleDragOver(event, milestoneName) {
+	event.preventDefault()
+	event.dataTransfer.dropEffect = 'move'
+	dragOverMilestone.value = milestoneName
+}
+
+function handleDragLeave(event, milestoneName) {
+	if (event.currentTarget.contains(event.relatedTarget)) return
+	if (dragOverMilestone.value === milestoneName) {
+		dragOverMilestone.value = null
+	}
+}
+
+async function handleDrop(event, milestoneName) {
+	event.preventDefault()
+	dragOverMilestone.value = null
+	
+	const taskName = event.dataTransfer.getData('text/plain')
+	if (!taskName) return
+	
+	// Find the task
+	const task = store.tasks.find(t => t.name === taskName)
+	if (!task) return
+	
+	try {
+		await store.assignTaskToMilestone(taskName, milestoneName)
+		if (window.frappe) {
+			frappe.show_alert({ message: 'Task assigned to milestone', indicator: 'green' })
+		}
+	} catch (error) {
+		if (window.frappe) {
+			frappe.show_alert({ message: 'Failed to assign task', indicator: 'red' })
+		}
+	}
+}
+
 onMounted(() => {
 	document.addEventListener('click', handleClickOutside)
 })
@@ -201,10 +240,15 @@ onMounted(() => {
 				v-for="milestone in store.milestones"
 				:key="milestone.name"
 				@click="handleMilestoneClick(milestone)"
+				@dragover="handleDragOver($event, milestone.name)"
+				@dragleave="handleDragLeave($event, milestone.name)"
+				@drop="handleDrop($event, milestone.name)"
 				:class="[
 					'p-3 rounded-lg border-2 cursor-pointer transition-all relative',
 					store.activeMilestoneFilter === milestone.name
 						? 'border-blue-500 bg-blue-50 shadow-sm'
+						: dragOverMilestone === milestone.name
+						? 'border-blue-400 bg-blue-50 shadow-md scale-102'
 						: 'border-transparent hover:bg-gray-50'
 				]"
 				:style="{ borderLeftColor: getBorderColor(milestone), borderLeftWidth: '4px' }"

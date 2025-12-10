@@ -179,11 +179,28 @@ def update_task(task_name: str, **kwargs):
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
 				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
-			frappe.throw(
+			
+			# Show as info message instead of error
+			frappe.msgprint(
 				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(
 					len(incomplete_subtasks), subtask_names
-				)
+				),
+				title=_("Complete Subtasks First"),
+				indicator="blue"
 			)
+			# Return current task state without changes
+			return {
+				"name": task.name,
+				"subject": task.subject,
+				"status": task.status,
+				"priority": task.priority,
+				"parent_task": task.parent_task,
+				"is_group": task.is_group,
+				"exp_start_date": task.exp_start_date,
+				"exp_end_date": task.exp_end_date,
+				"progress": task.progress,
+				"description": task.description,
+			}
 
 	# Allowed fields to update
 	allowed_fields = [
@@ -303,11 +320,21 @@ def toggle_task_status(task_name: str):
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
 				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
-			frappe.throw(
+			
+			# Show as info message instead of error
+			frappe.msgprint(
 				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(
 					len(incomplete_subtasks), subtask_names
-				)
+				),
+				title=_("Complete Subtasks First"),
+				indicator="blue"
 			)
+			# Return current task state without changes
+			return {
+				"name": task.name,
+				"status": task.status,
+				"progress": task.progress,
+			}
 		task.status = "Completed"
 		task.progress = 100
 

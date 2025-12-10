@@ -89,8 +89,8 @@ website_route_rules = [
 # Installation
 # ------------
 
-# before_install = "erpnext_projekt_hub.install.before_install"
-# after_install = "erpnext_projekt_hub.install.after_install"
+before_install = "erpnext_projekt_hub.install.before_install"
+after_install = "erpnext_projekt_hub.install.after_install"
 
 # Uninstallation
 # ------------
