@@ -5,10 +5,12 @@ app_description = "New Project design in ERPnext"
 app_email = "krzysztof@erpetch.pl"
 app_license = "mit"
 
+export_python_type_annotations = True
+
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -43,10 +45,15 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {"Project": "public/js/project.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+
+# Website route rules for SPA
+website_route_rules = [
+	{"from_route": "/outliner/<path:app_path>", "to_route": "outliner"},
+]
 
 # Svg Icons
 # ------------------
@@ -137,13 +144,12 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Task": {
+		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
+		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash"
+	}
+}
 
 # Scheduled Tasks
 # ---------------
@@ -247,3 +253,8 @@ app_license = "mit"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+# Fixtures
+# --------
+fixtures = [
+    {"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
+]
