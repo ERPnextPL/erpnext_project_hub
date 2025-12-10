@@ -27,6 +27,10 @@ const props = defineProps({
 		type: Number,
 		default: 0,
 	},
+	highlighted: {
+		type: Boolean,
+		default: false,
+	},
 })
 
 const emit = defineEmits(['update', 'click', 'add-subtask', 'log-time'])
@@ -38,11 +42,18 @@ const editingField = ref(null)
 const editValue = ref('')
 const inputRef = ref(null)
 
+// Tooltip hint for milestone drag
+const showMilestoneHint = ref(false)
+const milestoneHintTimeout = ref(null)
+
 // Context menu
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 
-const hasChildren = computed(() => props.task.children?.length > 0)
+const hasChildren = computed(() => {
+	// Check if any task has this task as parent
+	return store.tasks.some(t => t.parent_task === props.task.name)
+})
 const isExpanded = computed(() => store.expandedTasks.has(props.task.name))
 
 const assignedUsers = computed(() => {
@@ -64,6 +75,12 @@ const firstAssignee = computed(() => {
 		email,
 		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, ' ')
 	}
+})
+
+const milestoneColor = computed(() => {
+	if (!props.task.milestone) return null
+	const milestone = store.milestones.find(m => m.name === props.task.milestone)
+	return milestone?.color || '#3b82f6' // Default blue if no color set
 })
 
 // Load metadata on mount
@@ -171,15 +188,83 @@ function handleKeydown(e) {
 	}
 }
 
-function cycleStatus() {
-	// Use first 4 statuses from store for cycling (typically Open, Working, Pending Review, Completed)
-	const cyclableStatuses = store.taskStatuses.slice(0, 4)
+async function cycleStatus() {
+	// Filter out non-workflow statuses like Overdue (Cancelled is included but has special handling)
+	const excludedStatuses = ['Overdue']
+	const cyclableStatuses = store.taskStatuses.filter(s => !excludedStatuses.includes(s))
+	
 	if (cyclableStatuses.length === 0) return
 	
 	const currentIndex = cyclableStatuses.indexOf(props.task.status)
-	const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % cyclableStatuses.length
+	
+	// If current status is not in cycle (e.g. it was Overdue), reset to first status (usually Open)
+	if (currentIndex === -1) {
+		emit('update', props.task.name, { status: cyclableStatuses[0] })
+		return
+	}
+
+	const nextIndex = (currentIndex + 1) % cyclableStatuses.length
 	const nextStatus = cyclableStatuses[nextIndex]
+	
+	// Special handling for Cancelled status
+	if (nextStatus === 'Cancelled') {
+		// Check if task has any subtasks
+		const subtasks = store.tasks.filter(t => t.parent_task === props.task.name)
+		if (subtasks.length > 0) {
+			await handleCancelWithSubtasks()
+			return
+		}
+	}
+	
 	emit('update', props.task.name, { status: nextStatus })
+}
+
+async function handleCancelWithSubtasks() {
+	// Count all subtasks recursively
+	const countSubtasks = (taskName) => {
+		let count = 0
+		store.tasks.forEach(task => {
+			if (task.parent_task === taskName) {
+				count++
+				count += countSubtasks(task.name)
+			}
+		})
+		return count
+	}
+	
+	const subtaskCount = countSubtasks(props.task.name)
+	
+	// Ask for confirmation
+	const confirmed = confirm(
+		`This task has ${subtaskCount} subtask${subtaskCount > 1 ? 's' : ''}.\n\n` +
+		`Cancelling this task will also cancel all subtasks.\n\n` +
+		`Do you want to continue?`
+	)
+	
+	if (!confirmed) return
+	
+	// Cancel the main task
+	emit('update', props.task.name, { status: 'Cancelled' })
+	
+	// Cancel all subtasks recursively
+	const cancelSubtasks = async (taskName) => {
+		const subtasks = store.tasks.filter(task => task.parent_task === taskName)
+		for (const subtask of subtasks) {
+			await store.updateTask(subtask.name, { status: 'Cancelled' })
+			// Recursively cancel children
+			await cancelSubtasks(subtask.name)
+		}
+	}
+	
+	await cancelSubtasks(props.task.name)
+	
+	// Show success message
+	if (window.frappe) {
+		frappe.show_alert({ 
+			message: `Task and ${subtaskCount} subtask${subtaskCount > 1 ? 's' : ''} cancelled`, 
+			indicator: 'orange' 
+		})
+	}
 }
 
 function showMenu(e) {
@@ -218,12 +303,45 @@ function logTime() {
 	emit('log-time', props.task)
 	showContextMenu.value = false
 }
+
+// Drag handlers for milestone assignment
+function handleDragStart(event) {
+	event.dataTransfer.effectAllowed = 'move'
+	event.dataTransfer.setData('text/plain', props.task.name)
+	showMilestoneHint.value = false
+	if (milestoneHintTimeout.value) {
+		clearTimeout(milestoneHintTimeout.value)
+	}
+}
+
+function handleDragEnd(event) {
+	// Cleanup if needed
+}
+
+function showHint() {
+	// Show hint for 3 seconds when hovering over milestone drag handle
+	showMilestoneHint.value = true
+	if (milestoneHintTimeout.value) {
+		clearTimeout(milestoneHintTimeout.value)
+	}
+	milestoneHintTimeout.value = setTimeout(() => {
+		showMilestoneHint.value = false
+	}, 3000)
+}
+
+function hideHint() {
+	if (milestoneHintTimeout.value) {
+		clearTimeout(milestoneHintTimeout.value)
+	}
+	showMilestoneHint.value = false
+}
 </script>
 
 <template>
 	<div
-		class="task-row grid grid-cols-12 gap-2 px-4 py-2 items-center cursor-pointer group border-l-2"
+		class="task-row grid grid-cols-12 gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all"
 		:class="[
+			highlighted ? 'highlight-pulse' : '',
 			level === 0 ? 'bg-white hover:bg-gray-50 border-transparent' : 
 			level === 1 ? 'bg-gray-50/50 hover:bg-gray-100/50 border-blue-200/40' : 
 			'bg-gray-100/30 hover:bg-gray-100/60 border-blue-300/30'
@@ -234,7 +352,10 @@ function logTime() {
 		<!-- Task name with indent -->
 		<div class="col-span-5 flex items-center gap-1 min-w-0">
 			<!-- Drag handle -->
-			<div class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2">
+			<div 
+				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
+				title="Drag to reorder tasks"
+			>
 				<GripVertical class="w-4 h-4 text-gray-400" />
 			</div>
 
@@ -265,11 +386,45 @@ function logTime() {
 			</div>
 
 			<!-- Task subject -->
-			<div class="flex-1 min-w-0 flex items-center gap-1">
-				<!-- Milestone indicator -->
+			<div class="flex-1 min-w-0 flex items-center gap-1 relative">
+				<!-- Milestone drag handle (available for all tasks) -->
+				<div
+					draggable="true"
+					@dragstart="handleDragStart"
+					@dragend="handleDragEnd"
+					@mouseenter="showHint"
+					@mouseleave="hideHint"
+					@click.stop
+					class="milestone-drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-0.5 -ml-1 relative"
+					:title="task.milestone ? '◆ Drag this diamond to change milestone' : '◆ Drag this diamond to assign to milestone'"
+				>
+					<Diamond 
+						:class="[
+							'w-3 h-3 flex-shrink-0',
+							!task.milestone && 'text-gray-400'
+						]"
+						:style="task.milestone && milestoneColor ? { color: milestoneColor } : {}"
+					/>
+					
+					<!-- Hint tooltip -->
+					<Transition name="fade">
+						<div
+							v-if="showMilestoneHint"
+							class="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap"
+						>
+							<div class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2">
+								<Diamond class="w-3 h-3" />
+								<span>Drag this diamond to assign to milestone</span>
+							</div>
+						</div>
+					</Transition>
+				</div>
+				
+				<!-- Milestone indicator (always visible if assigned) -->
 				<Diamond 
 					v-if="task.milestone" 
-					class="w-3 h-3 text-blue-500 flex-shrink-0" 
+					class="w-3 h-3 flex-shrink-0" 
+					:style="{ color: milestoneColor }"
 					:title="'Milestone: ' + task.milestone"
 				/>
 				
@@ -423,3 +578,31 @@ function logTime() {
 		</Teleport>
 	</div>
 </template>
+
+<style scoped>
+@keyframes pulse-highlight {
+	0%, 100% {
+		background-color: rgb(239 246 255); /* blue-50 */
+		border-left-color: rgb(59 130 246); /* blue-500 */
+	}
+	50% {
+		background-color: rgb(219 234 254); /* blue-100 */
+		border-left-color: rgb(37 99 235); /* blue-600 */
+	}
+}
+
+.highlight-pulse {
+	animation: pulse-highlight 1s ease-in-out 3;
+	border-left-width: 4px !important;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+	transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+	opacity: 0;
+}
+</style>

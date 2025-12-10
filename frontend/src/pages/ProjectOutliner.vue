@@ -52,11 +52,32 @@ function getTodayDate() {
 	return today.toISOString().split('T')[0]
 }
 
-const filteredTasks = computed(() => {
-	// Start with milestone-filtered tasks if a milestone filter is active
-	let result = store.activeMilestoneFilter 
+// Flattened tasks with levels for proper indentation
+const flattenedTasksWithFilters = computed(() => {
+	// Start with milestone-filtered tasks if active
+	let baseTasks = store.activeMilestoneFilter 
 		? store.tasksFilteredByMilestone 
 		: store.tasks
+	
+	// Build flattened tree from filtered tasks
+	const buildFlattenedTree = (tasks) => {
+		const taskMap = new Map(tasks.map(t => [t.name, t]))
+		const roots = tasks.filter(t => !t.parent_task || !taskMap.has(t.parent_task))
+		const result = []
+		
+		const addWithChildren = (task, level = 0) => {
+			result.push({ ...task, level })
+			if (store.expandedTasks.has(task.name)) {
+				const children = tasks.filter(t => t.parent_task === task.name)
+				children.forEach(child => addWithChildren(child, level + 1))
+			}
+		}
+		
+		roots.forEach(task => addWithChildren(task))
+		return result
+	}
+	
+	let result = buildFlattenedTree(baseTasks)
 
 	// Apply additional filters
 	if (activeFilters.value.status) {
@@ -74,14 +95,6 @@ const filteredTasks = computed(() => {
 	}
 
 	return result
-})
-
-// Filtered task tree for display
-const filteredTaskTree = computed(() => {
-	if (store.activeMilestoneFilter) {
-		return store.taskTreeFilteredByMilestone
-	}
-	return store.taskTree
 })
 </script>
 
@@ -184,7 +197,7 @@ const filteredTaskTree = computed(() => {
 
 				<div v-else-if="activeView === 'list'">
 					<TaskTree
-						:tasks="filteredTasks"
+						:tasks="flattenedTasksWithFilters"
 						:project-id="projectId"
 					/>
 				</div>

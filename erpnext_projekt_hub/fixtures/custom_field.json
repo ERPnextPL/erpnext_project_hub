@@ -1,0 +1,15 @@
+[
+    {
+        "name": "Task-milestone",
+        "doctype": "Custom Field",
+        "dt": "Task",
+        "fieldname": "milestone",
+        "fieldtype": "Link",
+        "options": "Project Milestone",
+        "label": "Milestone",
+        "insert_after": "is_milestone",
+        "in_list_view": 0,
+        "in_standard_filter": 1,
+        "description": "Link to Project Milestone"
+    }
+]

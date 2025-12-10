@@ -145,11 +145,41 @@ export const useTaskStore = defineStore('tasks', () => {
 			})
 			if (data) {
 				const index = tasks.value.findIndex(t => t.name === taskName)
+				
+				// Check if trying to complete but status didn't change (has incomplete subtasks)
+				if (updates.status === 'Completed' && data.status !== 'Completed') {
+					// Find incomplete subtasks
+					const findSubtasks = (parentName) => {
+						const subtasks = []
+						tasks.value.forEach(task => {
+							if (task.parent_task === parentName) {
+								subtasks.push(task)
+								subtasks.push(...findSubtasks(task.name))
+							}
+						})
+						return subtasks
+					}
+					
+					const subtasks = findSubtasks(taskName)
+					const incompleteSubtasks = subtasks.filter(t => 
+						t.status !== 'Completed' && t.status !== 'Cancelled'
+					)
+					
+					if (window.frappe && incompleteSubtasks.length > 0) {
+						const subtaskNames = incompleteSubtasks.slice(0, 3).map(t => t.subject).join(', ')
+						const moreCount = incompleteSubtasks.length > 3 ? ` and ${incompleteSubtasks.length - 3} more` : ''
+						frappe.show_alert({ 
+							message: `Cannot complete task. ${incompleteSubtasks.length} subtask(s) are not completed: ${subtaskNames}${moreCount}`, 
+							indicator: 'blue' 
+						})
+					}
+				}
+				
 				if (index !== -1) {
 					tasks.value[index] = { ...tasks.value[index], ...data }
 				}
 				// Refresh project data if status changed (affects percent_complete)
-				if (updates.status && project.value) {
+				if (updates.status && data.status === updates.status && project.value) {
 					await refreshProject()
 					// Also refresh milestones if task has milestone assigned
 					const task = tasks.value[index]
