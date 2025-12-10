@@ -15,6 +15,11 @@ import {
 	LayoutList,
 	Columns,
 	GanttChart,
+	PanelLeftClose,
+	PanelLeft,
+	CheckCircle2,
+	Circle,
+	Clock,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -28,10 +33,28 @@ const router = useRouter()
 const store = useTaskStore()
 
 const activeView = ref('list')
+const sidebarCollapsed = ref(false)
 const activeFilters = ref({
 	status: null,
 	priority: null,
 	assignee: null,
+})
+
+// Project progress statistics
+const projectStats = computed(() => {
+	const total = store.tasks.length
+	if (total === 0) return { total: 0, completed: 0, inProgress: 0, open: 0, percent: 0 }
+	
+	const completed = store.tasks.filter(t => t.status === 'Completed').length
+	const cancelled = store.tasks.filter(t => t.status === 'Cancelled').length
+	const inProgress = store.tasks.filter(t => t.status === 'Working' || t.status === 'Pending Review').length
+	const open = store.tasks.filter(t => t.status === 'Open').length
+	
+	// Calculate percent excluding cancelled tasks
+	const activeTotal = total - cancelled
+	const percent = activeTotal > 0 ? Math.round((completed / activeTotal) * 100) : 0
+	
+	return { total, completed, inProgress, open, cancelled, percent }
 })
 
 onMounted(() => {
@@ -177,20 +200,81 @@ const flattenedTasksWithFilters = computed(() => {
 
 		<!-- Main content -->
 		<div class="flex-1 flex overflow-hidden">
-			<!-- Left sidebar: Milestones + Filters -->
-			<aside class="w-64 bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto">
-				<!-- Milestones Panel -->
-				<MilestonePanel />
-				
-				<!-- Quick Filters -->
-				<QuickFilters
-					:project="store.project"
-					@filter-change="handleFilterChange"
-				/>
+			<!-- Left sidebar: Milestones + Filters (collapsible) -->
+			<aside 
+				:class="[
+					'bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto transition-all duration-300 ease-in-out relative',
+					sidebarCollapsed ? 'w-0 opacity-0' : 'w-64 opacity-100'
+				]"
+			>
+				<div class="w-64">
+					<!-- Milestones Panel -->
+					<MilestonePanel />
+					
+					<!-- Quick Filters -->
+					<QuickFilters
+						:project="store.project"
+						@filter-change="handleFilterChange"
+					/>
+				</div>
 			</aside>
+			
+			<!-- Sidebar toggle button -->
+			<button
+				@click="sidebarCollapsed = !sidebarCollapsed"
+				class="absolute left-0 top-1/2 -translate-y-1/2 z-30 bg-white border border-gray-200 rounded-r-lg p-1.5 shadow-sm hover:bg-gray-50 transition-all duration-300"
+				:class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
+				:title="sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'"
+			>
+				<PanelLeft v-if="sidebarCollapsed" class="w-4 h-4 text-gray-500" />
+				<PanelLeftClose v-else class="w-4 h-4 text-gray-500" />
+			</button>
 
 			<!-- Center: Task list -->
 			<main class="flex-1 overflow-y-auto">
+				<!-- Project Progress Bar -->
+				<div v-if="store.project && !store.loading" class="bg-white border-b border-gray-200 px-6 py-4">
+					<div class="flex items-center justify-between mb-3">
+						<div class="flex items-center gap-3">
+							<h2 class="text-sm font-semibold text-gray-700">Project Progress</h2>
+							<span class="text-2xl font-bold text-gray-900">{{ projectStats.percent }}%</span>
+						</div>
+						<div class="flex items-center gap-4 text-sm">
+							<div class="flex items-center gap-1.5">
+								<CheckCircle2 class="w-4 h-4 text-green-500" />
+								<span class="text-gray-600">{{ projectStats.completed }} completed</span>
+							</div>
+							<div class="flex items-center gap-1.5">
+								<Clock class="w-4 h-4 text-blue-500" />
+								<span class="text-gray-600">{{ projectStats.inProgress }} in progress</span>
+							</div>
+							<div class="flex items-center gap-1.5">
+								<Circle class="w-4 h-4 text-gray-400" />
+								<span class="text-gray-600">{{ projectStats.open }} open</span>
+							</div>
+						</div>
+					</div>
+					<!-- Progress bar -->
+					<div class="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+						<div 
+							class="h-full rounded-full transition-all duration-500 ease-out"
+							:class="[
+								projectStats.percent === 100 ? 'bg-green-500' : 
+								projectStats.percent >= 75 ? 'bg-emerald-500' :
+								projectStats.percent >= 50 ? 'bg-blue-500' :
+								projectStats.percent >= 25 ? 'bg-amber-500' : 'bg-gray-300'
+							]"
+							:style="{ width: projectStats.percent + '%' }"
+						></div>
+					</div>
+					<!-- Task count summary -->
+					<div class="mt-2 text-xs text-gray-500">
+						{{ projectStats.total }} total tasks
+						<span v-if="projectStats.cancelled > 0"> · {{ projectStats.cancelled }} cancelled</span>
+						<span v-if="store.activeMilestoneFilter"> · Filtered by milestone</span>
+					</div>
+				</div>
+
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
 					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
 				</div>
