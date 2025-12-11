@@ -50,6 +50,10 @@ const milestoneHintTimeout = ref(null)
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 
+// User assignment dropdown
+const showUserDropdown = ref(false)
+const userDropdownPosition = ref({ x: 0, y: 0 })
+
 const hasChildren = computed(() => {
 	// Check if any task has this task as parent
 	return store.tasks.some(t => t.parent_task === props.task.name)
@@ -267,6 +271,39 @@ async function handleCancelWithSubtasks() {
 	}
 }
 
+function showUserAssignDropdown(e) {
+	e.preventDefault()
+	e.stopPropagation()
+	userDropdownPosition.value = { x: e.clientX, y: e.clientY }
+	showUserDropdown.value = true
+
+	// Close on click outside
+	const closeDropdown = () => {
+		showUserDropdown.value = false
+		document.removeEventListener('click', closeDropdown)
+	}
+	setTimeout(() => document.addEventListener('click', closeDropdown), 0)
+}
+
+async function assignCurrentUser() {
+	const currentUser = window.frappe?.session?.user
+	if (currentUser) {
+		await store.assignTask(props.task.name, currentUser, 'add')
+		showUserDropdown.value = false
+		if (window.frappe) {
+			frappe.show_alert({ message: 'User assigned', indicator: 'green' })
+		}
+	}
+}
+
+async function assignUser(user) {
+	await store.assignTask(props.task.name, user, 'add')
+	showUserDropdown.value = false
+	if (window.frappe) {
+		frappe.show_alert({ message: 'User assigned', indicator: 'green' })
+	}
+}
+
 function showMenu(e) {
 	e.preventDefault()
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY }
@@ -481,11 +518,49 @@ function hideHint() {
 			</div>
 			<button
 				v-else
-				@click.stop
+				@click.stop="showUserAssignDropdown"
 				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+				title="Click to assign user"
 			>
 				<User class="w-4 h-4" />
 			</button>
+			
+			<!-- User assignment dropdown -->
+			<Teleport to="body">
+				<div
+					v-if="showUserDropdown"
+					class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-48"
+					:style="{ left: userDropdownPosition.x + 'px', top: userDropdownPosition.y + 'px' }"
+				>
+					<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">Assign User</div>
+					<button
+						@click="assignCurrentUser"
+						class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+					>
+						<User class="w-4 h-4" />
+						Assign to me
+					</button>
+					<div v-if="store.projectUsers.length > 0" class="border-t border-gray-100 mt-1 pt-1">
+						<button
+							v-for="user in store.projectUsers.slice(0, 5)"
+							:key="user.user"
+							@click="assignUser(user.user)"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+						>
+							<User class="w-4 h-4 text-gray-400" />
+							{{ user.full_name || user.user.split('@')[0] }}
+						</button>
+					</div>
+					<div class="border-t border-gray-100 mt-1 pt-1">
+						<button
+							@click="handleRowClick(); showUserDropdown = false"
+							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
+						>
+							More options...
+						</button>
+					</div>
+				</div>
+			</Teleport>
 		</div>
 
 		<!-- Due date -->

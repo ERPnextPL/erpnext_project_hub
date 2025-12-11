@@ -41,11 +41,11 @@ const activityTypes = computed(() => store.activityTypes)
 watch(() => props.show, (newVal) => {
 	if (newVal) {
 		resetForm()
-		// Set default date to today
+		// Set default date to today with 8:00 start and 8 hours
 		const today = new Date().toISOString().split('T')[0]
-		formData.value.from_time = `${today} 09:00:00`
-		formData.value.to_time = `${today} 17:00:00`
-		calculateHours()
+		formData.value.from_time = `${today}T08:00`
+		formData.value.hours = '8'
+		calculateToTime()
 	}
 })
 
@@ -59,14 +59,14 @@ function resetForm() {
 	}
 }
 
-function calculateHours() {
-	if (formData.value.from_time && formData.value.to_time) {
+function calculateToTime() {
+	if (formData.value.from_time && formData.value.hours) {
 		const from = new Date(formData.value.from_time)
-		const to = new Date(formData.value.to_time)
-		const diffMs = to - from
-		const diffHours = diffMs / (1000 * 60 * 60)
-		if (diffHours > 0) {
-			formData.value.hours = diffHours.toFixed(2)
+		const hours = parseFloat(formData.value.hours)
+		
+		if (!isNaN(hours) && hours > 0) {
+			const to = new Date(from.getTime() + hours * 60 * 60 * 1000)
+			formData.value.to_time = to.toISOString().slice(0, 16)
 		}
 	}
 }
@@ -78,11 +78,21 @@ function handleSave() {
 		return
 	}
 
+	// Validate max 24 hours
+	const hours = parseFloat(formData.value.hours)
+	if (hours > 24) {
+		frappe.show_alert({ message: 'Cannot log more than 24 hours in a single entry', indicator: 'red' })
+		return
+	}
+
 	// Validate activity type
 	if (!formData.value.activity_type || formData.value.activity_type.trim() === '') {
 		frappe.show_alert({ message: 'Please select an activity type', indicator: 'red' })
 		return
 	}
+
+	// Calculate to_time before saving
+	calculateToTime()
 
 	emit('save', {
 		task: props.task.name,
@@ -91,6 +101,18 @@ function handleSave() {
 		description: formData.value.description,
 		from_time: formData.value.from_time,
 		to_time: formData.value.to_time,
+	})
+}
+
+function formatDisplayTime(datetimeStr) {
+	if (!datetimeStr) return ''
+	const date = new Date(datetimeStr)
+	return date.toLocaleString('pl-PL', {
+		day: '2-digit',
+		month: '2-digit',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit'
 	})
 }
 
@@ -149,34 +171,32 @@ function handleClose() {
 									type="number"
 									step="0.25"
 									min="0"
+									max="24"
 									placeholder="e.g., 2.5"
+									@input="calculateToTime"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								/>
+								<p class="text-xs text-gray-500 mt-1">Maximum 24 hours per entry</p>
 							</div>
 
-							<!-- Time range (optional) -->
-							<div class="grid grid-cols-2 gap-3">
-								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-1">
-										From
-									</label>
-									<input
-										v-model="formData.from_time"
-										type="datetime-local"
-										@change="calculateHours"
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-									/>
-								</div>
-								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-1">
-										To
-									</label>
-									<input
-										v-model="formData.to_time"
-										type="datetime-local"
-										@change="calculateHours"
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-									/>
+							<!-- Start time -->
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">
+									Start Time
+								</label>
+								<input
+									v-model="formData.from_time"
+									type="datetime-local"
+									@change="calculateToTime"
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+								/>
+							</div>
+							
+							<!-- End time (calculated) -->
+							<div v-if="formData.to_time" class="bg-gray-50 rounded-md p-3">
+								<div class="flex items-center gap-2 text-sm text-gray-600">
+									<Clock class="w-4 h-4" />
+									<span>End Time: {{ formatDisplayTime(formData.to_time) }}</span>
 								</div>
 							</div>
 

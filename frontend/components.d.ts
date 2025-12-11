@@ -8,8 +8,10 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']
     MilestonePanel: typeof import('./src/components/MilestonePanel.vue')['default']
+    ProjectInfoPanel: typeof import('./src/components/ProjectInfoPanel.vue')['default']
     ProjectTeam: typeof import('./src/components/ProjectTeam.vue')['default']
     QuickAddTask: typeof import('./src/components/QuickAddTask.vue')['default']
     QuickFilters: typeof import('./src/components/QuickFilters.vue')['default']

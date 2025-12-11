@@ -111,7 +111,7 @@ def get_projects():
 			order_by="status asc, modified desc",
 		)
 
-	# Add task count and user's task count for each project
+	# Add task count, user's task count, assigned users count, and next milestone for each project
 	for project in projects:
 		project["task_count"] = frappe.db.count("Task", {"project": project["name"]})
 		
@@ -123,6 +123,46 @@ def get_projects():
 				WHERE project = %s AND _assign LIKE %s
 			""", (project["name"], f'%{user}%'), as_dict=True)
 			project["user_task_count"] = user_tasks[0]["count"] if user_tasks else 0
+		
+		# Count unique assigned users in project tasks
+		assigned_users_result = frappe.db.sql("""
+			SELECT _assign
+			FROM `tabTask`
+			WHERE project = %s AND _assign IS NOT NULL AND _assign != '[]'
+		""", (project["name"],), as_dict=True)
+		
+		unique_users = set()
+		for row in assigned_users_result:
+			if row.get("_assign"):
+				try:
+					import json
+					users = json.loads(row["_assign"])
+					if isinstance(users, list):
+						unique_users.update(users)
+				except:
+					pass
+		project["assigned_users_count"] = len(unique_users)
+		
+		# Get next milestone (closest future milestone_date)
+		next_milestone = frappe.db.sql("""
+			SELECT name, milestone_name, milestone_date
+			FROM `tabProject Milestone`
+			WHERE project = %s 
+			AND milestone_date >= CURDATE()
+			ORDER BY milestone_date ASC
+			LIMIT 1
+		""", (project["name"],), as_dict=True)
+		
+		if next_milestone:
+			project["next_milestone"] = next_milestone[0]["milestone_name"]
+			project["next_milestone_date"] = next_milestone[0]["milestone_date"]
+			# Calculate days remaining
+			from frappe.utils import date_diff, today
+			project["days_to_milestone"] = date_diff(next_milestone[0]["milestone_date"], today())
+		else:
+			project["next_milestone"] = None
+			project["next_milestone_date"] = None
+			project["days_to_milestone"] = None
 	
 	# Separate active and completed projects
 	active_projects = [p for p in projects if p["status"] != "Completed"]
@@ -173,6 +213,26 @@ def get_project_tasks(project: str):
 		order_by="parent_task, idx, creation",
 	)
 
+	# Get total hours from timesheets
+	total_hours = frappe.db.sql("""
+		SELECT COALESCE(SUM(tsd.hours), 0) as total_hours
+		FROM `tabTimesheet Detail` tsd
+		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+		WHERE tsd.project = %s AND ts.docstatus < 2
+	""", project, as_dict=1)
+	
+	# Get estimated hours from tasks
+	estimated_hours = frappe.db.sql("""
+		SELECT COALESCE(SUM(expected_time), 0) as estimated_hours
+		FROM `tabTask`
+		WHERE project = %s
+	""", project, as_dict=1)
+	
+	# Get customer name if customer is set
+	customer_name = None
+	if project_doc.customer:
+		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
+	
 	return {
 		"project": {
 			"name": project_doc.name,
@@ -181,6 +241,13 @@ def get_project_tasks(project: str):
 			"percent_complete": project_doc.percent_complete,
 			"expected_start_date": project_doc.expected_start_date,
 			"expected_end_date": project_doc.expected_end_date,
+			"actual_start_date": getattr(project_doc, 'actual_start_date', None),
+			"actual_end_date": getattr(project_doc, 'actual_end_date', None),
+			"customer": project_doc.customer,
+			"customer_name": customer_name,
+			"notes": getattr(project_doc, 'notes', None),
+			"total_hours": total_hours[0].get('total_hours', 0) if total_hours else 0,
+			"estimated_hours": estimated_hours[0].get('estimated_hours', 0) if estimated_hours else 0,
 		},
 		"tasks": tasks,
 	}

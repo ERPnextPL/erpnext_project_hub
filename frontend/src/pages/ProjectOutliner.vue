@@ -7,6 +7,8 @@ import TaskDetailPanel from '../components/TaskDetailPanel.vue'
 import QuickFilters from '../components/QuickFilters.vue'
 import ProjectTeam from '../components/ProjectTeam.vue'
 import MilestonePanel from '../components/MilestonePanel.vue'
+import ProjectInfoPanel from '../components/ProjectInfoPanel.vue'
+import KanbanBoard from '../components/KanbanBoard.vue'
 import {
 	ArrowLeft,
 	ChevronDown,
@@ -201,12 +203,29 @@ const flattenedTasksWithFilters = computed(() => {
 		<!-- Main content -->
 		<div class="flex-1 flex overflow-hidden">
 			<!-- Left sidebar: Milestones + Filters (collapsible) -->
-			<aside 
-				:class="[
-					'bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto transition-all duration-300 ease-in-out relative',
-					sidebarCollapsed ? 'w-0 opacity-0' : 'w-64 opacity-100'
-				]"
+			<!-- Sidebar toggle button (visible when collapsed) -->
+			<button
+				v-if="sidebarCollapsed"
+				@click="sidebarCollapsed = false"
+				class="flex-shrink-0 bg-white border-r border-gray-200 p-2 hover:bg-gray-50 transition-colors"
+				title="Show sidebar"
 			>
+				<PanelLeft class="w-4 h-4 text-gray-500" />
+			</button>
+			
+			<aside 
+				v-else
+				class="bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto w-64 relative"
+			>
+				<!-- Sidebar toggle button (pinned to right edge) -->
+				<button
+					@click="sidebarCollapsed = true"
+					class="absolute right-0 top-20 z-10 bg-white border border-gray-200 border-r-0 rounded-l-md p-1 shadow-sm hover:bg-gray-50"
+					title="Hide sidebar"
+				>
+					<PanelLeftClose class="w-4 h-4 text-gray-500" />
+				</button>
+				
 				<div class="w-64">
 					<!-- Milestones Panel -->
 					<MilestonePanel />
@@ -218,62 +237,12 @@ const flattenedTasksWithFilters = computed(() => {
 					/>
 				</div>
 			</aside>
-			
-			<!-- Sidebar toggle button -->
-			<button
-				@click="sidebarCollapsed = !sidebarCollapsed"
-				class="absolute left-0 top-1/2 -translate-y-1/2 z-30 bg-white border border-gray-200 rounded-r-lg p-1.5 shadow-sm hover:bg-gray-50 transition-all duration-300"
-				:class="sidebarCollapsed ? 'ml-0' : 'ml-64'"
-				:title="sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'"
-			>
-				<PanelLeft v-if="sidebarCollapsed" class="w-4 h-4 text-gray-500" />
-				<PanelLeftClose v-else class="w-4 h-4 text-gray-500" />
-			</button>
 
 			<!-- Center: Task list -->
 			<main class="flex-1 overflow-y-auto">
-				<!-- Project Progress Bar -->
-				<div v-if="store.project && !store.loading" class="bg-white border-b border-gray-200 px-6 py-4">
-					<div class="flex items-center justify-between mb-3">
-						<div class="flex items-center gap-3">
-							<h2 class="text-sm font-semibold text-gray-700">Project Progress</h2>
-							<span class="text-2xl font-bold text-gray-900">{{ projectStats.percent }}%</span>
-						</div>
-						<div class="flex items-center gap-4 text-sm">
-							<div class="flex items-center gap-1.5">
-								<CheckCircle2 class="w-4 h-4 text-green-500" />
-								<span class="text-gray-600">{{ projectStats.completed }} completed</span>
-							</div>
-							<div class="flex items-center gap-1.5">
-								<Clock class="w-4 h-4 text-blue-500" />
-								<span class="text-gray-600">{{ projectStats.inProgress }} in progress</span>
-							</div>
-							<div class="flex items-center gap-1.5">
-								<Circle class="w-4 h-4 text-gray-400" />
-								<span class="text-gray-600">{{ projectStats.open }} open</span>
-							</div>
-						</div>
-					</div>
-					<!-- Progress bar -->
-					<div class="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-						<div 
-							class="h-full rounded-full transition-all duration-500 ease-out"
-							:class="[
-								projectStats.percent === 100 ? 'bg-green-500' : 
-								projectStats.percent >= 75 ? 'bg-emerald-500' :
-								projectStats.percent >= 50 ? 'bg-blue-500' :
-								projectStats.percent >= 25 ? 'bg-amber-500' : 'bg-gray-300'
-							]"
-							:style="{ width: projectStats.percent + '%' }"
-						></div>
-					</div>
-					<!-- Task count summary -->
-					<div class="mt-2 text-xs text-gray-500">
-						{{ projectStats.total }} total tasks
-						<span v-if="projectStats.cancelled > 0"> · {{ projectStats.cancelled }} cancelled</span>
-						<span v-if="store.activeMilestoneFilter"> · Filtered by milestone</span>
-					</div>
-				</div>
+				<!-- Project Information Panel -->
+				<ProjectInfoPanel v-if="store.project && !store.loading" :project="store.project" />
+				
 
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
 					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -286,10 +255,12 @@ const flattenedTasksWithFilters = computed(() => {
 					/>
 				</div>
 
-				<div v-else-if="activeView === 'board'" class="p-6">
-					<p class="text-gray-500 text-center py-12">
-						Kanban board view coming soon...
-					</p>
+				<div v-else-if="activeView === 'board'" class="h-full">
+					<KanbanBoard
+						:tasks="flattenedTasksWithFilters"
+						:project-id="projectId"
+						@task-click="handleTaskClick"
+					/>
 				</div>
 
 				<div v-else-if="activeView === 'timeline'" class="p-6">
