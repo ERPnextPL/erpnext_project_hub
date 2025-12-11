@@ -10,7 +10,9 @@ import {
 	Archive,
 	ChevronDown,
 	Eye,
-	EyeOff
+	EyeOff,
+	Flag,
+	Clock
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -184,6 +186,37 @@ function getProgressColor(percent) {
 									<div v-if="project.user_task_count" class="flex items-center gap-1.5 text-blue-600">
 										<span>{{ project.user_task_count }} yours</span>
 									</div>
+								</div>
+
+								<!-- Assigned users count -->
+								<div v-if="project.assigned_users_count > 0" class="flex items-center gap-1.5 text-sm text-gray-500">
+									<Users class="w-4 h-4 text-purple-500" />
+									<span>{{ project.assigned_users_count }} {{ project.assigned_users_count === 1 ? 'person' : 'people' }}</span>
+								</div>
+
+								<!-- Next milestone -->
+								<div v-if="project.next_milestone" class="flex items-center gap-1.5 text-sm">
+									<Flag class="w-4 h-4 text-amber-500" />
+									<span 
+										:class="[
+											project.days_to_milestone < 0 ? 'text-red-600 font-medium' :
+											project.days_to_milestone <= 3 ? 'text-amber-600 font-medium' :
+											'text-gray-500'
+										]"
+									>
+										<template v-if="project.days_to_milestone < 0">
+											Milestone overdue
+										</template>
+										<template v-else-if="project.days_to_milestone === 0">
+											Milestone today
+										</template>
+										<template v-else-if="project.days_to_milestone === 1">
+											Milestone tomorrow
+										</template>
+										<template v-else>
+											{{ project.days_to_milestone }} days to milestone
+										</template>
+									</span>
 								</div>
 							</div>
 						</div>

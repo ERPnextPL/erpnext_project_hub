@@ -34,8 +34,40 @@ async function apiCall(method, params = {}) {
 	})
 	
 	const data = await response.json()
+	
+	// Display server messages if present
+	if (data._server_messages && window.frappe) {
+		try {
+			const messages = JSON.parse(data._server_messages)
+			if (Array.isArray(messages)) {
+				messages.forEach(msg => {
+					try {
+						const msgData = JSON.parse(msg)
+						if (msgData.message) {
+							frappe.show_alert({
+								message: msgData.message,
+								indicator: msgData.indicator || 'blue'
+							})
+						}
+					} catch (e) {
+						// If message is already a string, show it directly
+						if (typeof msg === 'string') {
+							frappe.show_alert({ message: msg, indicator: 'blue' })
+						}
+					}
+				})
+			}
+		} catch (e) {
+			console.error('Error parsing server messages:', e)
+		}
+	}
+	
 	if (!response.ok) {
-		throw new Error(data.exception || data._server_messages || 'API Error')
+		const errorMsg = data.exception || data._server_messages || 'API Error'
+		if (window.frappe) {
+			frappe.show_alert({ message: errorMsg, indicator: 'red' })
+		}
+		throw new Error(errorMsg)
 	}
 	return data.message
 }

@@ -1,0 +1,15 @@
+[
+	{
+		"doctype": "Workspace Shortcut",
+		"name": "Projects-Project Milestone",
+		"parent": "Projects",
+		"parenttype": "Workspace",
+		"parentfield": "shortcuts",
+		"type": "DocType",
+		"link_to": "Project Milestone",
+		"label": "Project Milestone",
+		"icon": "flag",
+		"color": "Orange",
+		"description": "Manage project milestones and track progress"
+	}
+]
