@@ -1246,3 +1246,330 @@ def get_milestone_tasks(milestone_name: str):
 def get_milestone_statuses():
 	"""Get available milestone statuses."""
 	return ["Open", "In Progress", "Completed", "Cancelled"]
+
+
+# =============================================================================
+# MY TASKS API - Tasks assigned to current user across all projects
+# =============================================================================
+
+
+@frappe.whitelist()
+def get_my_tasks(
+	status: str = None,
+	priority: str = None,
+	project: str = None,
+	due_filter: str = None,
+	search: str = None,
+	sort_by: str = "default",
+	limit: int = 100,
+	offset: int = 0,
+):
+	"""
+	Get all tasks assigned to the current user across all projects.
+	
+	Args:
+		status: Filter by status (comma-separated for multiple)
+		priority: Filter by priority (comma-separated for multiple)
+		project: Filter by project name
+		due_filter: 'today', 'week', 'overdue', 'all'
+		search: Search in subject
+		sort_by: 'default' (overdue first, then by due date), 'due_date', 'priority', 'modified'
+		limit: Number of results to return
+		offset: Offset for pagination
+	
+	Returns:
+		List of tasks with project info
+	"""
+	user = frappe.session.user
+	
+	# Build filters
+	filters = []
+	values = {"user": f'%"{user}"%'}
+	
+	# Base filter: assigned to current user
+	filters.append("t._assign LIKE %(user)s")
+	
+	# Status filter
+	if status:
+		status_list = [s.strip() for s in status.split(",") if s.strip()]
+		if status_list:
+			status_placeholders = ", ".join([f"%(status_{i})s" for i in range(len(status_list))])
+			filters.append(f"t.status IN ({status_placeholders})")
+			for i, s in enumerate(status_list):
+				values[f"status_{i}"] = s
+	
+	# Priority filter
+	if priority:
+		priority_list = [p.strip() for p in priority.split(",") if p.strip()]
+		if priority_list:
+			priority_placeholders = ", ".join([f"%(priority_{i})s" for i in range(len(priority_list))])
+			filters.append(f"t.priority IN ({priority_placeholders})")
+			for i, p in enumerate(priority_list):
+				values[f"priority_{i}"] = p
+	
+	# Project filter
+	if project:
+		filters.append("t.project = %(project)s")
+		values["project"] = project
+	
+	# Due date filter
+	if due_filter:
+		from frappe.utils import today, add_days
+		today_date = today()
+		
+		if due_filter == "today":
+			filters.append("t.exp_end_date = %(today)s")
+			values["today"] = today_date
+		elif due_filter == "week":
+			week_end = add_days(today_date, 7)
+			filters.append("t.exp_end_date BETWEEN %(today)s AND %(week_end)s")
+			values["today"] = today_date
+			values["week_end"] = week_end
+		elif due_filter == "overdue":
+			filters.append("t.exp_end_date < %(today)s AND t.status NOT IN ('Completed', 'Cancelled')")
+			values["today"] = today_date
+	
+	# Search filter
+	if search:
+		filters.append("t.subject LIKE %(search)s")
+		values["search"] = f"%{search}%"
+	
+	# Build WHERE clause
+	where_clause = " AND ".join(filters) if filters else "1=1"
+	
+	# Build ORDER BY clause
+	# Note: MariaDB doesn't support NULLS LAST, use ISNULL() or COALESCE instead
+	if sort_by == "due_date":
+		order_by = "ISNULL(t.exp_end_date), t.exp_end_date ASC, t.modified DESC"
+	elif sort_by == "priority":
+		order_by = """
+			CASE t.priority 
+				WHEN 'Urgent' THEN 1 
+				WHEN 'High' THEN 2 
+				WHEN 'Medium' THEN 3 
+				WHEN 'Low' THEN 4 
+				ELSE 5 
+			END ASC, ISNULL(t.exp_end_date), t.exp_end_date ASC
+		"""
+	elif sort_by == "modified":
+		order_by = "t.modified DESC"
+	else:
+		# Default: overdue first, then by due date, then by modified
+		from frappe.utils import today
+		values["sort_today"] = today()
+		order_by = """
+			CASE 
+				WHEN t.exp_end_date < %(sort_today)s AND t.status NOT IN ('Completed', 'Cancelled') THEN 0 
+				ELSE 1 
+			END ASC,
+			ISNULL(t.exp_end_date), t.exp_end_date ASC,
+			t.modified DESC
+		"""
+	
+	# Execute query
+	tasks = frappe.db.sql(f"""
+		SELECT 
+			t.name,
+			t.subject,
+			t.status,
+			t.priority,
+			t.project,
+			t.exp_start_date,
+			t.exp_end_date,
+			t.description,
+			t.progress,
+			t._assign,
+			t.modified,
+			t.creation,
+			p.project_name
+		FROM `tabTask` t
+		LEFT JOIN `tabProject` p ON t.project = p.name
+		WHERE {where_clause}
+		ORDER BY {order_by}
+		LIMIT %(limit)s OFFSET %(offset)s
+	""", {**values, "limit": int(limit), "offset": int(offset)}, as_dict=True)
+	
+	# Get total count for pagination
+	total_count = frappe.db.sql(f"""
+		SELECT COUNT(*) as count
+		FROM `tabTask` t
+		WHERE {where_clause}
+	""", values, as_dict=True)[0].get("count", 0)
+	
+	# Add overdue flag
+	from frappe.utils import getdate, today
+	today_date = getdate(today())
+	for task in tasks:
+		if task.get("exp_end_date"):
+			task["is_overdue"] = getdate(task["exp_end_date"]) < today_date and task["status"] not in ["Completed", "Cancelled"]
+		else:
+			task["is_overdue"] = False
+	
+	return {
+		"tasks": tasks,
+		"total": total_count,
+		"limit": limit,
+		"offset": offset,
+	}
+
+
+@frappe.whitelist()
+def get_my_tasks_projects():
+	"""
+	Get list of projects where current user has assigned tasks.
+	Used for project filter dropdown.
+	"""
+	user = frappe.session.user
+	
+	projects = frappe.db.sql("""
+		SELECT DISTINCT 
+			p.name,
+			p.project_name,
+			p.status,
+			COUNT(t.name) as task_count
+		FROM `tabTask` t
+		INNER JOIN `tabProject` p ON t.project = p.name
+		WHERE t._assign LIKE %s
+		AND p.status != 'Cancelled'
+		GROUP BY p.name, p.project_name, p.status
+		ORDER BY p.project_name
+	""", (f'%"{user}"%',), as_dict=True)
+	
+	return projects
+
+
+@frappe.whitelist()
+def quick_update_task(
+	task_name: str,
+	status: str = None,
+	priority: str = None,
+	exp_end_date: str = None,
+):
+	"""
+	Quick update for task status, priority, or due date.
+	Used for inline editing in My Tasks view.
+	Returns updated task data.
+	"""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+	
+	task = frappe.get_doc("Task", task_name)
+	
+	# Check if trying to set status to Completed
+	if status == "Completed":
+		incomplete_subtasks = _get_incomplete_subtasks(task_name)
+		if incomplete_subtasks:
+			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
+			if len(incomplete_subtasks) > 3:
+				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
+			
+			frappe.msgprint(
+				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(
+					len(incomplete_subtasks), subtask_names
+				),
+				title=_("Complete Subtasks First"),
+				indicator="blue"
+			)
+			# Return current task state without changes
+			return _get_task_response(task)
+	
+	# Update fields
+	if status is not None:
+		task.status = status
+		if status == "Completed":
+			task.progress = 100
+	
+	if priority is not None:
+		task.priority = priority
+	
+	if exp_end_date is not None:
+		task.exp_end_date = exp_end_date if exp_end_date else None
+	
+	task.save()
+	
+	return _get_task_response(task)
+
+
+def _get_task_response(task):
+	"""Helper to format task response with project info."""
+	from frappe.utils import getdate, today
+	
+	project_name = None
+	if task.project:
+		project_name = frappe.db.get_value("Project", task.project, "project_name")
+	
+	is_overdue = False
+	if task.exp_end_date:
+		is_overdue = getdate(task.exp_end_date) < getdate(today()) and task.status not in ["Completed", "Cancelled"]
+	
+	return {
+		"name": task.name,
+		"subject": task.subject,
+		"status": task.status,
+		"priority": task.priority,
+		"project": task.project,
+		"project_name": project_name,
+		"exp_start_date": task.exp_start_date,
+		"exp_end_date": task.exp_end_date,
+		"description": task.description,
+		"progress": task.progress,
+		"_assign": task._assign,
+		"modified": task.modified,
+		"is_overdue": is_overdue,
+	}
+
+
+@frappe.whitelist()
+def get_task_detail(task_name: str):
+	"""
+	Get full task details for drawer/edit view.
+	"""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+	
+	task = frappe.get_doc("Task", task_name)
+	
+	return _get_task_response(task)
+
+
+@frappe.whitelist()
+def create_my_task(
+	subject: str,
+	project: str,
+	priority: str = "Medium",
+	status: str = "Open",
+	exp_end_date: str = None,
+	description: str = None,
+):
+	"""
+	Create a new task and assign it to the current user.
+	"""
+	if not subject or not project:
+		frappe.throw(_("Subject and Project are required"))
+	
+	user = frappe.session.user
+	
+	# Create task
+	task = frappe.get_doc({
+		"doctype": "Task",
+		"subject": subject,
+		"project": project,
+		"priority": priority,
+		"status": status,
+		"exp_end_date": exp_end_date,
+		"description": description,
+	})
+	task.insert()
+	
+	# Assign to current user
+	from frappe.desk.form.assign_to import add as add_assignment
+	add_assignment({
+		"doctype": "Task",
+		"name": task.name,
+		"assign_to": [user],
+	})
+	
+	# Reload to get _assign field
+	task.reload()
+	
+	return _get_task_response(task)
