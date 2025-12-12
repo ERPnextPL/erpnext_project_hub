@@ -72,6 +72,10 @@ function handleFilterChange(filters) {
 	activeFilters.value = filters
 }
 
+function handleTaskClick(task) {
+	store.selectTask(task)
+}
+
 // Helper to get today's date in YYYY-MM-DD format
 function getTodayDate() {
 	const today = new Date()
@@ -272,13 +276,21 @@ const flattenedTasksWithFilters = computed(() => {
 				</div>
 			</main>
 
-			<!-- Right panel: Task details -->
+			<!-- Right panel: Task details with overlay -->
 			<Transition name="slide-over">
-				<TaskDetailPanel
-					v-if="store.selectedTask"
-					:task="store.selectedTask"
-					@close="store.clearSelection"
-				/>
+				<div v-if="store.selectedTask" class="fixed inset-0 z-30 flex justify-end">
+					<!-- Overlay - click to close -->
+					<div 
+						class="absolute inset-0 bg-black/20"
+						@click="store.clearSelection"
+					></div>
+					<!-- Panel -->
+					<TaskDetailPanel
+						:task="store.selectedTask"
+						@close="store.clearSelection"
+						class="relative z-10"
+					/>
+				</div>
 			</Transition>
 		</div>
 	</div>
