@@ -10,6 +10,8 @@ import {
 	Calendar,
 	GripVertical,
 	Plus,
+	ListTodo,
+	Flag,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -141,6 +143,19 @@ const priorityColors = {
 	'Medium': 'border-l-yellow-500',
 	'Low': 'border-l-gray-300',
 }
+
+const priorityBadgeColors = {
+	'Urgent': 'bg-red-100 text-red-700',
+	'High': 'bg-orange-100 text-orange-700',
+	'Medium': 'bg-yellow-100 text-yellow-700',
+	'Low': 'bg-gray-100 text-gray-600',
+}
+
+// Count subtasks for a task
+function getSubtaskCount(task) {
+	if (!props.tasks) return 0
+	return props.tasks.filter(t => t.parent_task === task.name).length
+}
 </script>
 
 <template>
@@ -199,9 +214,20 @@ const priorityColors = {
 							</p>
 						</div>
 
-						<!-- Task metadata -->
-						<div class="flex items-center justify-between mt-3">
-							<div class="flex items-center gap-2">
+						<!-- Task metadata row 1: Priority badge -->
+						<div v-if="task.priority" class="mt-2">
+							<span 
+								class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+								:class="priorityBadgeColors[task.priority] || 'bg-gray-100 text-gray-600'"
+							>
+								<Flag class="w-3 h-3" />
+								{{ task.priority }}
+							</span>
+						</div>
+
+						<!-- Task metadata row 2: Due date, subtasks, assignee -->
+						<div class="flex items-center justify-between mt-2">
+							<div class="flex items-center gap-2 flex-wrap">
 								<!-- Due date -->
 								<div 
 									v-if="task.exp_end_date && formatDate(task.exp_end_date)"
@@ -210,6 +236,15 @@ const priorityColors = {
 								>
 									<Calendar class="w-3 h-3" />
 									{{ formatDate(task.exp_end_date).text }}
+								</div>
+								
+								<!-- Subtasks count -->
+								<div 
+									v-if="getSubtaskCount(task) > 0"
+									class="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600"
+								>
+									<ListTodo class="w-3 h-3" />
+									{{ getSubtaskCount(task) }}
 								</div>
 							</div>
 
