@@ -23,8 +23,8 @@ const props = defineProps({
 const emit = defineEmits(['filter-change'])
 
 const store = useTaskStore()
-const activeStatus = ref(null)
-const activePriority = ref(null)
+const activeStatus = ref([]) // Array for multiselect
+const activePriority = ref([]) // Array for multiselect
 const activeAssignee = ref(null)
 const myTasksActive = ref(false)
 const dueTodayActive = ref(false)
@@ -35,12 +35,20 @@ const currentUser = computed(() => {
 })
 
 // Load metadata on mount
-onMounted(() => {
+onMounted(async () => {
 	if (store.taskStatuses.length === 0) {
-		store.fetchTaskStatuses()
+		await store.fetchTaskStatuses()
 	}
 	if (store.taskPriorities.length === 0) {
-		store.fetchTaskPriorities()
+		await store.fetchTaskPriorities()
+	}
+	
+	// Set default status filters - all except Cancelled and Closed
+	if (activeStatus.value.length === 0) {
+		activeStatus.value = store.taskStatuses.filter(
+			status => status !== 'Cancelled' && status !== 'Closed' && status !== 'Completed'
+		)
+		emitFilters()
 	}
 })
 
@@ -82,16 +90,30 @@ const priorities = computed(() => {
 })
 
 const hasActiveFilters = computed(() => {
-	return activeStatus.value || activePriority.value || activeAssignee.value || myTasksActive.value || dueTodayActive.value
+	return (activeStatus.value && activeStatus.value.length > 0) || 
+			(activePriority.value && activePriority.value.length > 0) || 
+			activeAssignee.value || 
+			myTasksActive.value || 
+			dueTodayActive.value
 })
 
 function toggleStatus(status) {
-	activeStatus.value = activeStatus.value === status ? null : status
+	const index = activeStatus.value.indexOf(status)
+	if (index > -1) {
+		activeStatus.value.splice(index, 1)
+	} else {
+		activeStatus.value.push(status)
+	}
 	emitFilters()
 }
 
 function togglePriority(priority) {
-	activePriority.value = activePriority.value === priority ? null : priority
+	const index = activePriority.value.indexOf(priority)
+	if (index > -1) {
+		activePriority.value.splice(index, 1)
+	} else {
+		activePriority.value.push(priority)
+	}
 	emitFilters()
 }
 
@@ -111,8 +133,8 @@ function toggleDueToday() {
 }
 
 function clearFilters() {
-	activeStatus.value = null
-	activePriority.value = null
+	activeStatus.value = []
+	activePriority.value = []
 	activeAssignee.value = null
 	myTasksActive.value = false
 	dueTodayActive.value = false
@@ -127,6 +149,7 @@ function emitFilters() {
 		dueToday: dueTodayActive.value,
 	})
 }
+
 </script>
 
 <template>
@@ -143,7 +166,7 @@ function emitFilters() {
 				class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
 			>
 				<X class="w-3 h-3" />
-				Clear
+				Clear all
 			</button>
 		</div>
 
@@ -178,7 +201,7 @@ function emitFilters() {
 				@click="toggleStatus('Overdue')"
 				:class="[
 					'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
-					activeStatus === 'Overdue' ? 'bg-red-50 text-red-700' : 'text-gray-700 hover:bg-gray-100',
+					activeStatus.includes('Overdue') ? 'bg-red-50 text-red-700' : 'text-gray-700 hover:bg-gray-100',
 				]"
 			>
 				<AlertCircle class="w-4 h-4 text-red-500" />
@@ -199,14 +222,20 @@ function emitFilters() {
 					:key="status.value"
 					@click="toggleStatus(status.value)"
 					:class="[
-						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left',
-						activeStatus === status.value
+						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left relative',
+						activeStatus.includes(status.value)
 							? 'bg-blue-50 text-blue-700'
 							: 'text-gray-700 hover:bg-gray-100',
 					]"
 				>
 					<component :is="status.icon" :class="['w-4 h-4', status.class]" />
 					{{ status.label }}
+					<!-- Check indicator for multiselect -->
+					<span v-if="activeStatus.includes(status.value)" class="ml-auto">
+						<svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+						</svg>
+					</span>
 				</button>
 			</div>
 		</div>
@@ -224,14 +253,20 @@ function emitFilters() {
 					:key="priority.value"
 					@click="togglePriority(priority.value)"
 					:class="[
-						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left',
-						activePriority === priority.value
+						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left relative',
+						activePriority.includes(priority.value)
 							? 'bg-blue-50 text-blue-700'
 							: 'text-gray-700 hover:bg-gray-100',
 					]"
 				>
 					<Flag :class="['w-4 h-4', priority.class]" />
 					{{ priority.label }}
+					<!-- Check indicator for multiselect -->
+					<span v-if="activePriority.includes(priority.value)" class="ml-auto">
+						<svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+						</svg>
+					</span>
 				</button>
 			</div>
 		</div>

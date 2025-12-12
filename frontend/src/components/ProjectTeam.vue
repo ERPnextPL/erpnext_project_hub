@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
 import { Users, Plus, X, User } from 'lucide-vue-next'
 
@@ -21,6 +21,11 @@ onMounted(async () => {
 	if (store.availableUsers.length === 0) {
 		await store.fetchUsers()
 	}
+})
+
+// Watch for changes in project team (triggered when user is assigned to task)
+watch(() => store.projectTeamRefreshTrigger, async () => {
+	await loadProjectUsers()
 })
 
 async function loadProjectUsers() {
