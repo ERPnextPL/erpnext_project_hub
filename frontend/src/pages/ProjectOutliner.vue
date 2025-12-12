@@ -37,9 +37,10 @@ const store = useTaskStore()
 const activeView = ref('list')
 const sidebarCollapsed = ref(false)
 const activeFilters = ref({
-	status: null,
-	priority: null,
+	status: [], // Array for multiselect
+	priority: [], // Array for multiselect
 	assignee: null,
+	dueToday: false,
 })
 
 // Project progress statistics
@@ -105,11 +106,12 @@ const flattenedTasksWithFilters = computed(() => {
 	let result = buildFlattenedTree(baseTasks)
 
 	// Apply additional filters
-	if (activeFilters.value.status) {
-		result = result.filter(t => t.status === activeFilters.value.status)
+	if (activeFilters.value.status && activeFilters.value.status.length > 0) {
+		result = result.filter(t => activeFilters.value.status.includes(t.status))
 	}
-	if (activeFilters.value.priority) {
-		result = result.filter(t => t.priority === activeFilters.value.priority)
+	
+	if (activeFilters.value.priority && activeFilters.value.priority.length > 0) {
+		result = result.filter(t => activeFilters.value.priority.includes(t.priority))
 	}
 	if (activeFilters.value.assignee) {
 		result = result.filter(t => t._assign?.includes(activeFilters.value.assignee))

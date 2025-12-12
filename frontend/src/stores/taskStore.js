@@ -79,6 +79,7 @@ export const useTaskStore = defineStore('tasks', () => {
 	const loading = ref(false)
 	const selectedTask = ref(null)
 	const expandedTasks = ref(new Set())
+	const projectTeamRefreshTrigger = ref(0)
 
 	// Computed - build tree structure
 	const taskTree = computed(() => {
@@ -328,6 +329,8 @@ export const useTaskStore = defineStore('tasks', () => {
 				if (selectedTask.value?.name === taskName) {
 					selectedTask.value._assign = data._assign
 				}
+				// Trigger project team refresh
+				projectTeamRefreshTrigger.value++
 			}
 			return data
 		} catch (error) {
@@ -633,6 +636,7 @@ export const useTaskStore = defineStore('tasks', () => {
 		taskPriorities,
 		milestones,
 		activeMilestoneFilter,
+		projectTeamRefreshTrigger,
 		// Computed
 		taskTree,
 		flattenedTasks,

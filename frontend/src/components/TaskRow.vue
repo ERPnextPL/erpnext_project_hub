@@ -540,15 +540,15 @@ function hideHint() {
 						<User class="w-4 h-4" />
 						Assign to me
 					</button>
-					<div v-if="store.projectUsers.length > 0" class="border-t border-gray-100 mt-1 pt-1">
+					<div v-if="store.availableUsers && store.availableUsers.length > 0" class="border-t border-gray-100 mt-1 pt-1">
 						<button
-							v-for="user in store.projectUsers.slice(0, 5)"
-							:key="user.user"
-							@click="assignUser(user.user)"
+							v-for="user in store.availableUsers.slice(0, 5)"
+							:key="user.name"
+							@click="assignUser(user.name)"
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
 						>
 							<User class="w-4 h-4 text-gray-400" />
-							{{ user.full_name || user.user.split('@')[0] }}
+							{{ user.full_name || user.name.split('@')[0] }}
 						</button>
 					</div>
 					<div class="border-t border-gray-100 mt-1 pt-1">

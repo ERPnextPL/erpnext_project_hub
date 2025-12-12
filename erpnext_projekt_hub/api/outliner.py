@@ -557,6 +557,31 @@ def assign_task(task_name: str, user: str = None, action: str = "add"):
 			"name": task_name,
 			"assign_to": [user],
 		})
+		
+		# Auto-assign user to project if not already assigned
+		task = frappe.get_doc("Task", task_name)
+		if task.project:
+			# Check if user is already assigned to the project
+			existing = frappe.db.exists("Project User", {
+				"parent": task.project,
+				"user": user
+			})
+			
+			if not existing:
+				# Add user to project
+				try:
+					project_user = frappe.get_doc({
+						"doctype": "Project User",
+						"parent": task.project,
+						"parenttype": "Project",
+						"parentfield": "users",
+						"user": user
+					})
+					project_user.insert(ignore_permissions=True)
+					frappe.db.commit()
+				except Exception as e:
+					frappe.log_error(f"Failed to auto-assign user {user} to project {task.project}: {str(e)}")
+					
 	elif action == "remove" and user:
 		remove_assignment("Task", task_name, user)
 	elif action == "clear":
