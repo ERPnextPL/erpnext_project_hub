@@ -58,6 +58,33 @@ const timelogForm = ref({
 	from_time: '',
 })
 
+const showSubtaskForm = ref(false)
+const subtaskSubject = ref('')
+const newTaskParentTask = ref(null)
+
+const initialForm = ref(null)
+
+function normalizeFormForCompare(v) {
+	return {
+		subject: (v?.subject || '').trim(),
+		project: v?.project || '',
+		status: v?.status || 'Open',
+		priority: v?.priority || 'Medium',
+		exp_end_date: v?.exp_end_date || '',
+		description: (v?.description || '').trim(),
+	}
+}
+
+function setInitialFormSnapshot() {
+	initialForm.value = normalizeFormForCompare(form.value)
+}
+
+const isDirty = computed(() => {
+	if (!initialForm.value) return false
+	const current = normalizeFormForCompare(form.value)
+	return JSON.stringify(current) !== JSON.stringify(initialForm.value)
+})
+
 // Status and priority options
 const statusOptions = [
 	{ value: 'Open', label: 'Otwarte', icon: Circle, class: 'text-blue-600' },
@@ -91,6 +118,7 @@ watch(() => props.task, async (newTask) => {
 			exp_end_date: newTask.exp_end_date || '',
 			description: newTask.description || '',
 		}
+		setInitialFormSnapshot()
 		// Load timelogs for existing task
 		if (!props.isNew && newTask.name) {
 			timelogsLoading.value = true
@@ -106,22 +134,62 @@ watch(() => props.task, async (newTask) => {
 // Reset form for new task
 watch(() => props.isNew, (isNew) => {
 	if (isNew) {
+		const preset = store.drawerPreset || {}
+		newTaskParentTask.value = preset.parent_task || null
 		form.value = {
 			subject: '',
-			project: store.projects.length > 0 ? store.projects[0].name : '',
-			status: 'Open',
-			priority: 'Medium',
-			exp_end_date: '',
+			project: preset.project || (store.projects.length > 0 ? store.projects[0].name : ''),
+			status: preset.status || 'Open',
+			priority: preset.priority || 'Medium',
+			exp_end_date: preset.exp_end_date || '',
 			description: '',
 		}
 		errors.value = {}
+		showSubtaskForm.value = false
+		subtaskSubject.value = ''
+		setInitialFormSnapshot()
 	}
 })
+
+watch(
+	[() => props.isOpen, () => store.drawerAction],
+	([isOpen, action]) => {
+		if (!isOpen) return
+		if (!action) return
+		if (action.type === 'timelog') {
+			openTimeLogForm()
+			store.clearDrawerAction()
+		}
+	},
+	{ deep: true }
+)
 
 // Handle escape key
 function handleKeydown(e) {
 	if (e.key === 'Escape' && props.isOpen) {
 		emit('close')
+	}
+}
+
+async function createSubtask() {
+	const subject = subtaskSubject.value.trim()
+	if (!props.task?.name || !props.task?.project) return
+	if (props.task.status === 'Completed' || props.task.status === 'Cancelled') return
+	if (!subject) return
+
+	try {
+		await store.createTask({
+			subject,
+			project: props.task.project,
+			parent_task: props.task.name,
+			status: props.task.status,
+			priority: props.task.priority,
+			exp_end_date: props.task.exp_end_date || null,
+		})
+		subtaskSubject.value = ''
+		showSubtaskForm.value = false
+	} catch (e) {
+		// handled by store/api
 	}
 }
 
@@ -173,6 +241,7 @@ async function handleSave() {
 			await store.createTask({
 				subject: form.value.subject.trim(),
 				project: form.value.project,
+				parent_task: newTaskParentTask.value,
 				status: form.value.status,
 				priority: form.value.priority,
 				exp_end_date: form.value.exp_end_date || null,
@@ -238,18 +307,18 @@ async function handleSaveTimelog() {
 	}
 
 	try {
-		// Calculate to_time
-		const from = new Date(timelogForm.value.from_time)
 		const hours = parseFloat(timelogForm.value.hours)
-		const to = new Date(from.getTime() + hours * 60 * 60 * 1000)
+		// IMPORTANT: keep local time (do not use toISOString) to avoid timezone shift
+		const fromStr = dayjs(timelogForm.value.from_time).format('YYYY-MM-DD HH:mm:ss')
+		const toStr = dayjs(timelogForm.value.from_time).add(hours, 'hour').format('YYYY-MM-DD HH:mm:ss')
 		
 		await store.createTimelog({
 			task: props.task.name,
 			hours: hours,
 			activity_type: timelogForm.value.activity_type,
 			description: timelogForm.value.description,
-			from_time: timelogForm.value.from_time,
-			to_time: to.toISOString().slice(0, 16),
+			from_time: fromStr,
+			to_time: toStr,
 		})
 		
 		showTimeLogForm.value = false
@@ -444,6 +513,50 @@ function formatDateTime(dateStr) {
 							></textarea>
 						</div>
 
+						<!-- Subtasks (create) -->
+						<div v-if="!isNew && task" class="pt-4 border-t border-gray-200">
+							<div class="flex items-center justify-between mb-2">
+								<h3 class="text-sm font-medium text-gray-700 flex items-center gap-2">
+									<CheckCircle2 class="w-4 h-4" />
+									Podzadania
+								</h3>
+								<button
+									@click="showSubtaskForm = !showSubtaskForm"
+									class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+								>
+									<Plus class="w-3.5 h-3.5" />
+									Dodaj
+								</button>
+							</div>
+
+							<div v-if="showSubtaskForm" class="bg-gray-50 rounded-lg p-3 space-y-3" @click.stop>
+								<div>
+									<label class="block text-xs font-medium text-gray-600 mb-1">Nazwa podzadania</label>
+									<input
+										v-model="subtaskSubject"
+										type="text"
+										class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+										placeholder="Np. Przygotować dokumentację..."
+										@keydown.enter.prevent="createSubtask"
+									/>
+								</div>
+								<div class="flex justify-end gap-2">
+									<button
+										@click="showSubtaskForm = false"
+										class="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
+									>
+										Anuluj
+									</button>
+									<button
+										@click="createSubtask"
+										class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+									>
+										Dodaj
+									</button>
+								</div>
+							</div>
+						</div>
+
 						<!-- Time Logs (for existing tasks) -->
 						<div v-if="!isNew && task" class="pt-4 border-t border-gray-200">
 							<div class="flex items-center justify-between mb-3">
@@ -575,7 +688,7 @@ function formatDateTime(dateStr) {
 					</div>
 
 					<!-- Footer -->
-					<div class="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+					<div v-if="isDirty" class="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
 						<div>
 							<!-- TODO: Delete button -->
 						</div>

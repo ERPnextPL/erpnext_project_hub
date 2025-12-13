@@ -10,6 +10,8 @@ import {
 	Flag,
 	Calendar,
 	Folder,
+	CornerDownRight,
+	Plus,
 	ChevronRight,
 } from 'lucide-vue-next'
 
@@ -22,6 +24,8 @@ const props = defineProps({
 
 const store = useMyTasksStore()
 const isUpdating = ref(false)
+const showSubtaskForm = ref(false)
+const subtaskSubject = ref('')
 
 // Status config
 const statusConfig = {
@@ -81,6 +85,22 @@ async function toggleComplete(e) {
 function openTask() {
 	store.selectTask(props.task)
 }
+
+async function createSubtask() {
+	const subject = subtaskSubject.value.trim()
+	if (!subject) return
+	try {
+		await store.createTask({
+			subject,
+			project: props.task.project,
+			parent_task: props.task.name,
+		})
+		subtaskSubject.value = ''
+		showSubtaskForm.value = false
+	} catch (e) {
+		// handled by store/api
+	}
+}
 </script>
 
 <template>
@@ -118,6 +138,41 @@ function openTask() {
 				>
 					{{ task.subject }}
 				</h3>
+
+				<div
+					v-if="task.parent_task"
+					class="flex items-center gap-1 text-xs text-gray-500 mb-2"
+					:title="task.parent_subject || task.parent_task"
+				>
+					<CornerDownRight class="w-3.5 h-3.5 flex-shrink-0" />
+					<span class="truncate">Podzadanie: {{ task.parent_subject || task.parent_task }}</span>
+				</div>
+
+				<div v-if="canAddSubtask" class="mb-2">
+					<button
+						@click.stop="showSubtaskForm = !showSubtaskForm"
+						class="text-xs text-gray-500 hover:text-gray-700 hover:underline inline-flex items-center gap-1"
+					>
+						<Plus class="w-3.5 h-3.5" />
+						Dodaj podzadanie
+					</button>
+				</div>
+
+				<div v-if="showSubtaskForm" class="mb-3 flex items-center gap-2" @click.stop>
+					<input
+						v-model="subtaskSubject"
+						type="text"
+						class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+						placeholder="Nazwa podzadania..."
+						@keydown.enter.prevent="createSubtask"
+					/>
+					<button
+						@click="createSubtask"
+						class="px-2.5 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+					>
+						Dodaj
+					</button>
+				</div>
 
 				<!-- Meta row -->
 				<div class="flex flex-wrap items-center gap-2 text-sm">
