@@ -66,9 +66,17 @@ function calculateToTime() {
 		
 		if (!isNaN(hours) && hours > 0) {
 			const to = new Date(from.getTime() + hours * 60 * 60 * 1000)
-			formData.value.to_time = to.toISOString().slice(0, 16)
+			// Keep local time string (YYYY-MM-DDTHH:mm) for preview
+			const pad = (n) => String(n).padStart(2, '0')
+			formData.value.to_time = `${to.getFullYear()}-${pad(to.getMonth() + 1)}-${pad(to.getDate())}T${pad(to.getHours())}:${pad(to.getMinutes())}`
 		}
 	}
+}
+
+function toFrappeDateTime(datetimeLocalStr) {
+	if (!datetimeLocalStr) return ''
+	// Convert 'YYYY-MM-DDTHH:mm' to 'YYYY-MM-DD HH:mm:ss'
+	return `${datetimeLocalStr.replace('T', ' ')}:00`
 }
 
 function handleSave() {
@@ -99,8 +107,8 @@ function handleSave() {
 		hours: parseFloat(formData.value.hours),
 		activity_type: formData.value.activity_type,
 		description: formData.value.description,
-		from_time: formData.value.from_time,
-		to_time: formData.value.to_time,
+		from_time: toFrappeDateTime(formData.value.from_time),
+		to_time: toFrappeDateTime(formData.value.to_time),
 	})
 }
 

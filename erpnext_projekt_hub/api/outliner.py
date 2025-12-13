@@ -878,8 +878,18 @@ def delete_timelog(timelog_name: str):
 	if timesheet.owner != frappe.session.user:
 		frappe.throw(_("You can only delete your own time logs"))
 
-	# Remove the time log
-	timesheet.time_logs.remove(timelog)
+	# Remove the time log (match by name to avoid object identity issues)
+	row = None
+	for d in timesheet.time_logs:
+		if d.name == timelog_name:
+			row = d
+			break
+
+	# If row is already gone, treat as success (idempotent)
+	if not row:
+		return {"success": True}
+
+	timesheet.remove(row)
 	timesheet.save()
 
 	# If no more time logs, delete the timesheet
@@ -1371,6 +1381,8 @@ def get_my_tasks(
 		SELECT 
 			t.name,
 			t.subject,
+			t.parent_task,
+			parent.subject as parent_subject,
 			t.status,
 			t.priority,
 			t.project,
@@ -1383,6 +1395,7 @@ def get_my_tasks(
 			t.creation,
 			p.project_name
 		FROM `tabTask` t
+		LEFT JOIN `tabTask` parent ON t.parent_task = parent.name
 		LEFT JOIN `tabProject` p ON t.project = p.name
 		WHERE {where_clause}
 		ORDER BY {order_by}
@@ -1498,6 +1511,10 @@ def _get_task_response(task):
 	if task.project:
 		project_name = frappe.db.get_value("Project", task.project, "project_name")
 	
+	parent_subject = None
+	if getattr(task, "parent_task", None):
+		parent_subject = frappe.db.get_value("Task", task.parent_task, "subject")
+	
 	is_overdue = False
 	if task.exp_end_date:
 		is_overdue = getdate(task.exp_end_date) < getdate(today()) and task.status not in ["Completed", "Cancelled"]
@@ -1505,6 +1522,8 @@ def _get_task_response(task):
 	return {
 		"name": task.name,
 		"subject": task.subject,
+		"parent_task": getattr(task, "parent_task", None),
+		"parent_subject": parent_subject,
 		"status": task.status,
 		"priority": task.priority,
 		"project": task.project,
@@ -1536,6 +1555,7 @@ def get_task_detail(task_name: str):
 def create_my_task(
 	subject: str,
 	project: str,
+	parent_task: str = None,
 	priority: str = "Medium",
 	status: str = "Open",
 	exp_end_date: str = None,
@@ -1548,12 +1568,20 @@ def create_my_task(
 		frappe.throw(_("Subject and Project are required"))
 	
 	user = frappe.session.user
+
+	# If parent_task is provided, ensure it's a group task
+	if parent_task:
+		parent = frappe.get_doc("Task", parent_task)
+		if not parent.is_group:
+			parent.is_group = 1
+			parent.save()
 	
 	# Create task
 	task = frappe.get_doc({
 		"doctype": "Task",
 		"subject": subject,
 		"project": project,
+		"parent_task": parent_task,
 		"priority": priority,
 		"status": status,
 		"exp_end_date": exp_end_date,

@@ -91,6 +91,35 @@ function setProjectFilter(project) {
 
 <template>
 	<div class="space-y-4">
+		<!-- View options -->
+		<div>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Widok</h4>
+			<div class="flex flex-wrap gap-2">
+				<button
+					@click="store.toggleViewOption('groupByStatus')"
+					:class="[
+						'px-3 py-1.5 text-sm rounded-full border transition-colors',
+						store.viewOptions.groupByStatus
+							? 'bg-blue-50 border-blue-200 text-blue-700'
+							: 'border-gray-200 text-gray-600 hover:bg-gray-50'
+					]"
+				>
+					Grupuj po statusie
+				</button>
+				<button
+					@click="store.toggleViewOption('showHierarchy')"
+					:class="[
+						'px-3 py-1.5 text-sm rounded-full border transition-colors',
+						store.viewOptions.showHierarchy
+							? 'bg-blue-50 border-blue-200 text-blue-700'
+							: 'border-gray-200 text-gray-600 hover:bg-gray-50'
+					]"
+				>
+					Pokaż hierarchię
+				</button>
+			</div>
+		</div>
+
 		<!-- Due date presets -->
 		<div>
 			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Termin</h4>

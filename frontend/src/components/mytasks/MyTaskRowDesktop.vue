@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMyTasksStore } from '../../stores/myTasksStore'
 import dayjs from 'dayjs'
 import {
@@ -10,7 +10,10 @@ import {
 	Flag,
 	Calendar,
 	ChevronDown,
+	ChevronRight,
 	Folder,
+	CornerDownRight,
+	FileText,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -18,13 +21,48 @@ const props = defineProps({
 		type: Object,
 		required: true,
 	},
+	indentLevel: {
+		type: Number,
+		default: 0,
+	},
+	hierarchyEnabled: {
+		type: Boolean,
+		default: false,
+	},
+	hasChildren: {
+		type: Boolean,
+		default: false,
+	},
+	isExpanded: {
+		type: Boolean,
+		default: false,
+	},
 })
+
+const emit = defineEmits(['open-time-log-modal', 'toggle-expand'])
 
 const store = useMyTasksStore()
 
-const showStatusDropdown = ref(false)
-const showPriorityDropdown = ref(false)
 const isUpdating = ref(false)
+
+const isStatusDropdownOpen = computed(() => {
+	return store.inlineDropdown?.taskName === props.task.name && store.inlineDropdown?.type === 'status'
+})
+
+const isPriorityDropdownOpen = computed(() => {
+	return store.inlineDropdown?.taskName === props.task.name && store.inlineDropdown?.type === 'priority'
+})
+
+const showContextMenu = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+
+const canAddSubtask = computed(() => {
+	return props.task.status !== 'Completed' && props.task.status !== 'Cancelled'
+})
+
+function isTouchDevice() {
+	return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches
+}
 
 // Status config - shorter labels to fit in grid
 const statusConfig = {
@@ -70,7 +108,7 @@ const dateClass = computed(() => {
 })
 
 async function updateStatus(newStatus) {
-	showStatusDropdown.value = false
+	store.closeInlineDropdown()
 	if (newStatus === props.task.status) return
 	
 	isUpdating.value = true
@@ -82,7 +120,7 @@ async function updateStatus(newStatus) {
 }
 
 async function updatePriority(newPriority) {
-	showPriorityDropdown.value = false
+	store.closeInlineDropdown()
 	if (newPriority === props.task.priority) return
 	
 	isUpdating.value = true
@@ -97,29 +135,72 @@ function openTask() {
 	store.selectTask(props.task)
 }
 
-function closeDropdowns(e) {
-	if (!e.target.closest('.status-dropdown')) {
-		showStatusDropdown.value = false
+function showMenu(e) {
+	if (isTouchDevice()) return
+	e.preventDefault()
+	e.stopPropagation()
+	contextMenuPosition.value = { x: e.clientX, y: e.clientY }
+	showContextMenu.value = true
+
+	const closeMenu = (evt) => {
+		if (evt?.target?.closest?.('.mytasks-context-menu')) return
+		showContextMenu.value = false
+		document.removeEventListener('click', closeMenu)
 	}
-	if (!e.target.closest('.priority-dropdown')) {
-		showPriorityDropdown.value = false
-	}
+	setTimeout(() => document.addEventListener('click', closeMenu), 0)
 }
+
+function logTimeFromMenu() {
+	emit('open-time-log-modal', props.task)
+	showContextMenu.value = false
+}
+
+function addSubtaskFromMenu() {
+	if (!canAddSubtask.value) return
+	store.openNewSubtask(props.task)
+	showContextMenu.value = false
+}
+
+function handleDocumentClick(e) {
+	if (e.target.closest('.status-dropdown') || e.target.closest('.priority-dropdown')) {
+		return
+	}
+	store.closeInlineDropdown()
+}
+
+onMounted(() => {
+	document.addEventListener('click', handleDocumentClick)
+})
+
+onUnmounted(() => {
+	document.removeEventListener('click', handleDocumentClick)
+})
 </script>
 
 <template>
 	<div
 		@click="openTask"
+		@contextmenu="showMenu"
+		:style="props.indentLevel ? { paddingLeft: (props.indentLevel * 16) + 'px' } : undefined"
 		:class="[
 			'grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center',
 			isUpdating && 'opacity-60'
 		]"
 	>
 		<!-- Task subject -->
-		<div class="col-span-4 flex items-center gap-3 min-w-0">
+		<div class="col-span-4 flex items-start gap-3 min-w-0">
+			<button
+				v-if="props.hierarchyEnabled && props.hasChildren"
+				@click.stop="emit('toggle-expand', task.name)"
+				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors mt-0.5"
+				:title="props.isExpanded ? 'Zwiń podzadania' : 'Rozwiń podzadania'"
+			>
+				<ChevronDown v-if="props.isExpanded" class="w-4 h-4 text-gray-500" />
+				<ChevronRight v-else class="w-4 h-4 text-gray-500" />
+			</button>
 			<button
 				@click.stop="updateStatus(task.status === 'Completed' ? 'Open' : 'Completed')"
-				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors"
+				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors mt-0.5"
 				:title="task.status === 'Completed' ? 'Oznacz jako otwarte' : 'Oznacz jako ukończone'"
 			>
 				<CheckCircle2 
@@ -129,14 +210,24 @@ function closeDropdowns(e) {
 					]" 
 				/>
 			</button>
-			<span 
-				:class="[
-					'truncate',
-					task.status === 'Completed' && 'line-through text-gray-400'
-				]"
-			>
-				{{ task.subject }}
-			</span>
+			<div class="min-w-0">
+				<div
+					:class="[
+						'font-medium text-sm text-gray-900 truncate',
+						task.status === 'Completed' && 'line-through text-gray-400'
+					]"
+				>
+					{{ task.subject }}
+				</div>
+				<div
+					v-if="task.parent_task"
+					class="mt-0.5 flex items-center gap-1 text-xs text-gray-500 truncate"
+					:title="task.parent_subject || task.parent_task"
+				>
+					<CornerDownRight class="w-3.5 h-3.5 flex-shrink-0" />
+					<span class="truncate">Podzadanie: {{ task.parent_subject || task.parent_task }}</span>
+				</div>
+			</div>
 		</div>
 
 		<!-- Project -->
@@ -154,7 +245,7 @@ function closeDropdowns(e) {
 		<!-- Status -->
 		<div class="col-span-2 flex items-center relative status-dropdown" @click.stop>
 			<button
-				@click="showStatusDropdown = !showStatusDropdown"
+				@click="store.toggleInlineDropdown(task.name, 'status')"
 				:class="[
 					'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors',
 					currentStatus.bg,
@@ -169,7 +260,7 @@ function closeDropdowns(e) {
 			<!-- Status dropdown -->
 			<Transition name="fade">
 				<div
-					v-if="showStatusDropdown"
+					v-if="isStatusDropdownOpen"
 					class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 min-w-[140px]"
 				>
 					<button
@@ -191,7 +282,7 @@ function closeDropdowns(e) {
 		<!-- Priority -->
 		<div class="col-span-2 flex items-center relative priority-dropdown" @click.stop>
 			<button
-				@click="showPriorityDropdown = !showPriorityDropdown"
+				@click="store.toggleInlineDropdown(task.name, 'priority')"
 				:class="[
 					'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors hover:bg-gray-100',
 					currentPriority.class
@@ -205,7 +296,7 @@ function closeDropdowns(e) {
 			<!-- Priority dropdown -->
 			<Transition name="fade">
 				<div
-					v-if="showPriorityDropdown"
+					v-if="isPriorityDropdownOpen"
 					class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 min-w-[120px]"
 				>
 					<button
@@ -238,6 +329,34 @@ function closeDropdowns(e) {
 				</span>
 			</div>
 		</div>
+
+		<!-- Context menu -->
+		<Teleport to="body">
+			<div
+				v-if="showContextMenu"
+				class="mytasks-context-menu fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[180px]"
+				:style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
+			>
+				<button
+					@click="logTimeFromMenu"
+					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+				>
+					<Clock class="w-4 h-4" />
+					Dodaj czas
+				</button>
+				<button
+					@click="addSubtaskFromMenu"
+					:class="[
+						'w-full px-3 py-2 text-left text-sm flex items-center gap-2',
+						canAddSubtask ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-300 cursor-not-allowed'
+					]"
+					:disabled="!canAddSubtask"
+				>
+					<FileText class="w-4 h-4" />
+					Dodaj podzadanie
+				</button>
+			</div>
+		</Teleport>
 	</div>
 </template>
 

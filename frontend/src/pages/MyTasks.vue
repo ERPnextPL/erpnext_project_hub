@@ -18,6 +18,7 @@ import {
 import MyTaskFilters from '../components/mytasks/MyTaskFilters.vue'
 import MyTaskList from '../components/mytasks/MyTaskList.vue'
 import MyTaskDrawer from '../components/mytasks/MyTaskDrawer.vue'
+import TimeLogModal from '../components/TimeLogModal.vue'
 
 const router = useRouter()
 const store = useMyTasksStore()
@@ -25,7 +26,10 @@ const store = useMyTasksStore()
 const showFilters = ref(false)
 const searchInput = ref('')
 const viewMode = ref('list') // 'list' or 'kanban' (TODO)
-const showNewTaskDrawer = ref(false)
+
+// Time log modal state
+const showTimeLogModal = ref(false)
+const selectedTaskForTimeLog = ref(null)
 
 // Debounced search
 const debouncedSearch = useDebounceFn((value) => {
@@ -50,19 +54,36 @@ function handleRetry() {
 }
 
 function openNewTaskDrawer() {
-	store.selectedTask = null
-	showNewTaskDrawer.value = true
-	store.drawerOpen = true
+	store.openNewTask()
 }
 
 function handleDrawerClose() {
-	showNewTaskDrawer.value = false
 	store.closeDrawer()
 }
 
 function handleTaskCreated() {
-	showNewTaskDrawer.value = false
 	store.closeDrawer()
+}
+
+// Time log modal handlers
+function openTimeLogModal(task) {
+	selectedTaskForTimeLog.value = task
+	showTimeLogModal.value = true
+}
+
+async function handleTimeLogSave(timelogData) {
+	try {
+		await store.createTimelog(timelogData)
+		showTimeLogModal.value = false
+		selectedTaskForTimeLog.value = null
+		if (window.frappe) {
+			frappe.show_alert({ message: 'Czas zapisany', indicator: 'green' })
+		}
+	} catch (error) {
+		if (window.frappe) {
+			frappe.show_alert({ message: 'Błąd zapisu czasu', indicator: 'red' })
+		}
+	}
 }
 
 const isMobile = computed(() => {
@@ -269,16 +290,28 @@ const isMobile = computed(() => {
 			</div>
 
 			<!-- Task list -->
-			<MyTaskList v-else />
+			<MyTaskList 
+				v-else 
+				:on-open-time-log-modal="openTimeLogModal"
+			/>
 		</main>
 
 		<!-- Task Drawer -->
 		<MyTaskDrawer
 			:is-open="store.drawerOpen"
 			:task="store.selectedTask"
-			:is-new="showNewTaskDrawer"
+			:is-new="store.drawerMode === 'new'"
 			@close="handleDrawerClose"
 			@created="handleTaskCreated"
+		/>
+
+		<!-- Time Log Modal -->
+		<TimeLogModal
+			v-if="showTimeLogModal && selectedTaskForTimeLog"
+			:task="selectedTaskForTimeLog"
+			:show="showTimeLogModal"
+			@close="showTimeLogModal = false"
+			@save="handleTimeLogSave"
 		/>
 	</div>
 </template>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
 import TaskRow from './TaskRow.vue'
 import QuickAddTask from './QuickAddTask.vue'
@@ -22,6 +22,13 @@ const draggedTask = ref(null)
 const addingSubtaskTo = ref(null) // Track which task we're adding a subtask to
 const showTimeLogModal = ref(false)
 const selectedTaskForTimeLog = ref(null)
+
+function focusBottomQuickAdd() {
+	nextTick(() => {
+		const el = document.querySelector('.task-tree-bottom-quickadd .quick-add-input')
+		el?.focus()
+	})
+}
 
 function handleDragStart(evt) {
 	draggedTask.value = evt.item.__vue__?.task || null
@@ -126,11 +133,20 @@ function handleTaskCreated() {
 }
 
 function handleAddSubtask(parentTaskName) {
+	const parent = store.tasks.find(t => t.name === parentTaskName)
+	if (parent && (parent.status === 'Completed' || parent.status === 'Cancelled')) {
+		return
+	}
 	// Expand the parent task if it's not expanded
 	if (!store.expandedTasks.has(parentTaskName)) {
 		store.toggleExpand(parentTaskName)
 	}
 	addingSubtaskTo.value = parentTaskName
+}
+
+function handleAddTask() {
+	addingSubtaskTo.value = null
+	focusBottomQuickAdd()
 }
 
 function cancelAddSubtask() {
@@ -191,6 +207,7 @@ async function handleTimeLogSave(timelogData) {
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"
 							@log-time="handleLogTime"
+							@add-task="handleAddTask"
 						/>
 						<!-- Inline subtask input -->
 						<div v-if="addingSubtaskTo === task.name" class="bg-blue-50 border-l-2 border-blue-400">
@@ -209,7 +226,7 @@ async function handleTimeLogSave(timelogData) {
 		</div>
 
 		<!-- Quick add at bottom -->
-		<div class="border-t border-gray-200 bg-white">
+		<div class="task-tree-bottom-quickadd border-t border-gray-200 bg-white">
 			<QuickAddTask
 				:project-id="projectId"
 				:parent-task="null"
