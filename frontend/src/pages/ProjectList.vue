@@ -9,13 +9,9 @@ import {
 	CheckCircle2, 
 	Archive,
 	ChevronDown,
-	Eye,
-	EyeOff,
 	Flag,
-	Clock,
-	CheckSquare,
-	Sparkles,
 } from 'lucide-vue-next'
+import OutlinerNav from '../components/OutlinerNav.vue'
 
 const router = useRouter()
 const activeProjects = ref([])
@@ -78,33 +74,11 @@ function getProgressColor(percent) {
 						<Folder class="w-6 h-6 text-blue-600" />
 						<h1 class="text-xl font-semibold text-gray-900">Project Outliner</h1>
 					</div>
-					<div class="flex items-center gap-2 sm:gap-3">
-						<router-link
-							to="/outliner/my-tasks"
-							class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-						>
-							<CheckSquare class="w-4 h-4" />
-							<span class="hidden sm:inline">Moje zadania</span>
-						</router-link>
-						<router-link
-							to="/outliner/team-manager"
-							class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
-						>
-							<Users class="w-4 h-4" />
-							<span class="hidden sm:inline">Zespół</span>
-							<Sparkles class="w-3 h-3 text-amber-500" />
-						</router-link>
-						<router-link
-							to="/outliner/time-management"
-							class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-						>
-							<Clock class="w-4 h-4" />
-							<span class="hidden sm:inline">Czas pracy</span>
-							<Sparkles class="w-3 h-3 text-amber-500" />
-						</router-link>
+					<div class="flex items-center gap-3 sm:gap-4">
+						<OutlinerNav />
 						<a
 							href="/app"
-							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
 						>
 							← Back to Desk
 						</a>

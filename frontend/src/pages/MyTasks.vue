@@ -11,10 +11,10 @@ import {
 	X,
 	RefreshCw,
 	AlertCircle,
-	Folder,
 	LayoutList,
 	LayoutGrid,
 } from 'lucide-vue-next'
+import OutlinerNav from '../components/OutlinerNav.vue'
 import MyTaskFilters from '../components/mytasks/MyTaskFilters.vue'
 import MyTaskList from '../components/mytasks/MyTaskList.vue'
 import MyTaskDrawer from '../components/mytasks/MyTaskDrawer.vue'
@@ -110,17 +110,11 @@ const isMobile = computed(() => {
 							{{ store.total }}
 						</span>
 					</div>
-					<div class="flex items-center gap-2">
-						<router-link
-							to="/outliner"
-							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-						>
-							<Folder class="w-4 h-4" />
-							<span class="hidden sm:inline">Projekty</span>
-						</router-link>
+					<div class="flex items-center gap-3 sm:gap-4">
+						<OutlinerNav />
 						<a
 							href="/app"
-							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 ml-3"
+							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
 						>
 							← Back to Desk
 						</a>

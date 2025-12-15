@@ -106,17 +106,6 @@ function setProjectFilter(project) {
 				>
 					Grupuj po statusie
 				</button>
-				<button
-					@click="store.toggleViewOption('showHierarchy')"
-					:class="[
-						'px-3 py-1.5 text-sm rounded-full border transition-colors',
-						store.viewOptions.showHierarchy
-							? 'bg-blue-50 border-blue-200 text-blue-700'
-							: 'border-gray-200 text-gray-600 hover:bg-gray-50'
-					]"
-				>
-					Pokaż hierarchię
-				</button>
 			</div>
 		</div>
 

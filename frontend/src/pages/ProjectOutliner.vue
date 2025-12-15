@@ -23,6 +23,7 @@ import {
 	Circle,
 	Clock,
 } from 'lucide-vue-next'
+import OutlinerNav from '../components/OutlinerNav.vue'
 
 const props = defineProps({
 	projectId: {
@@ -134,7 +135,7 @@ const flattenedTasksWithFilters = computed(() => {
 		<!-- Header -->
 		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
 			<div class="px-4 sm:px-6 lg:px-8">
-				<div class="flex items-center justify-between h-14">
+				<div class="flex flex-wrap items-center justify-between gap-3 min-h-[56px]">
 					<!-- Left: Back + Project name -->
 					<div class="flex items-center gap-3">
 						<button
@@ -152,9 +153,10 @@ const flattenedTasksWithFilters = computed(() => {
 					</div>
 
 					<!-- Right: Team + View toggles -->
-					<div class="flex items-center gap-3">
+					<div class="flex items-center gap-3 flex-wrap justify-end">
 						<!-- Project Team -->
 						<ProjectTeam :project-id="projectId" />
+						<OutlinerNav />
 						
 						<div class="flex items-center bg-gray-100 rounded-lg p-0.5">
 							<button
