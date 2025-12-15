@@ -33,7 +33,7 @@ const props = defineProps({
 	},
 })
 
-const emit = defineEmits(['update', 'click', 'add-subtask', 'log-time'])
+const emit = defineEmits(['update', 'click', 'add-subtask', 'log-time', 'add-task'])
 
 const store = useTaskStore()
 
@@ -59,6 +59,10 @@ const hasChildren = computed(() => {
 	return store.tasks.some(t => t.parent_task === props.task.name)
 })
 const isExpanded = computed(() => store.expandedTasks.has(props.task.name))
+
+const canAddSubtask = computed(() => {
+	return props.task.status !== 'Completed' && props.task.status !== 'Cancelled'
+})
 
 const assignedUsers = computed(() => {
 	if (!props.task._assign) return []
@@ -305,6 +309,9 @@ async function assignUser(user) {
 }
 
 function showMenu(e) {
+	if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+		return
+	}
 	e.preventDefault()
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY }
 	showContextMenu.value = true
@@ -332,7 +339,13 @@ function openInDesk() {
 }
 
 function addSubtask() {
+	if (!canAddSubtask.value) return
 	emit('add-subtask', props.task.name)
+	showContextMenu.value = false
+}
+
+function addTask() {
+	emit('add-task', props.task.project)
 	showContextMenu.value = false
 }
 
@@ -621,6 +634,13 @@ function hideHint() {
 				:style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
 			>
 				<button
+					@click="addTask"
+					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+				>
+					<Plus class="w-4 h-4" />
+					Add Task
+				</button>
+				<button
 					@click="logTime"
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
@@ -628,6 +648,7 @@ function hideHint() {
 					Log Time
 				</button>
 				<button
+					v-if="canAddSubtask"
 					@click="addSubtask"
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>

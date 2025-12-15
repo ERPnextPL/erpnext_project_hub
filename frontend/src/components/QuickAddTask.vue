@@ -39,10 +39,18 @@ async function createTask() {
 
 	isCreating.value = true
 	try {
+		const parent = props.parentTask ? store.tasks.find(t => t.name === props.parentTask) : null
+		if (parent && (parent.status === 'Completed' || parent.status === 'Cancelled')) {
+			return
+		}
+
 		await store.createTask({
 			subject,
 			project: props.projectId,
 			parent_task: props.parentTask,
+			status: parent?.status,
+			priority: parent?.priority,
+			exp_end_date: parent?.exp_end_date || null,
 			// milestone: props.milestone, // if you have milestone field
 		})
 		inputValue.value = ''

@@ -243,31 +243,48 @@ async function handleSubtaskCreated() {
 				</div>
 
 				<!-- Status -->
-				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Status</label>
-					<select
-						v-model="editableTask.status"
-						@change="saveField('status', editableTask.status)"
-						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-					>
-						<option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+				<div>
+					<label class="text-sm text-gray-500 mb-2 block">Status</label>
+					<div class="grid grid-cols-2 gap-2">
+						<button
+							v-for="opt in statusOptions"
+							:key="opt.value"
+							@click="editableTask.status = opt.value; saveField('status', opt.value)"
+							:class="[
+								'flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors',
+								editableTask.status === opt.value
+									? 'border-blue-500 bg-blue-50 text-blue-700'
+									: 'border-gray-200 hover:bg-gray-50'
+							]"
+						>
+							<component :is="opt.icon" :class="['w-4 h-4', opt.value === editableTask.status ? 'text-blue-600' : 'text-gray-400']" />
 							{{ opt.label }}
-						</option>
-					</select>
+						</button>
+					</div>
 				</div>
 
 				<!-- Priority -->
-				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Priority</label>
-					<select
-						v-model="editableTask.priority"
-						@change="saveField('priority', editableTask.priority)"
-						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-					>
-						<option v-for="opt in priorityOptions" :key="opt.value" :value="opt.value">
+				<div>
+					<label class="text-sm text-gray-500 mb-2 block flex items-center gap-1">
+						<Flag class="w-3.5 h-3.5" />
+						Priority
+					</label>
+					<div class="grid grid-cols-2 gap-2">
+						<button
+							v-for="opt in priorityOptions"
+							:key="opt.value"
+							@click="editableTask.priority = opt.value; saveField('priority', opt.value)"
+							:class="[
+								'flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors',
+								editableTask.priority === opt.value
+									? 'border-blue-500 bg-blue-50 text-blue-700'
+									: 'border-gray-200 hover:bg-gray-50'
+							]"
+						>
+							<Flag :class="['w-4 h-4', opt.value === editableTask.priority ? 'text-blue-600' : 'text-gray-400']" />
 							{{ opt.label }}
-						</option>
-					</select>
+						</button>
+					</div>
 				</div>
 
 				<!-- Milestone -->
