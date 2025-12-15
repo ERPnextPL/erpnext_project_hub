@@ -1,6 +1,6 @@
 <script setup>
-import { RouterLink } from 'vue-router'
-import { Users, Lock, Sparkles, ArrowLeft } from 'lucide-vue-next'
+import { Users, Lock, Sparkles } from 'lucide-vue-next'
+import OutlinerNav from '../components/OutlinerNav.vue'
 </script>
 
 <template>
@@ -13,13 +13,15 @@ import { Users, Lock, Sparkles, ArrowLeft } from 'lucide-vue-next'
 						<Users class="w-6 h-6 text-purple-600" />
 						<h1 class="text-xl font-semibold text-gray-900">Zarządzanie zespołem</h1>
 					</div>
-					<RouterLink 
-						to="/outliner" 
-						class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-					>
-						<ArrowLeft class="w-4 h-4" />
-						Powrót
-					</RouterLink>
+					<div class="flex items-center gap-3 sm:gap-4">
+						<OutlinerNav />
+						<a
+							href="/app"
+							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
+						>
+							← Back to Desk
+						</a>
+					</div>
 				</div>
 			</div>
 		</header>
