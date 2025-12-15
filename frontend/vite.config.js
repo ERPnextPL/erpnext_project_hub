@@ -34,7 +34,8 @@ export default defineConfig({
 			output: {
 				// Use fixed filenames without hash for easier template integration
 				entryFileNames: 'assets/[name].js',
-				chunkFileNames: 'assets/[name].js',
+				// Chunk files must be hashed to avoid name collisions/caching issues (e.g. flag.js, archive.js)
+				chunkFileNames: 'assets/chunks/[name]-[hash].js',
 				assetFileNames: 'assets/[name].[ext]',
 				manualChunks: {
 					'frappe-ui': ['frappe-ui'],
