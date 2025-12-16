@@ -44,8 +44,8 @@ def get_projects():
 	# Check if user has manager role
 	is_manager = "Projects Manager" in user_roles or "System Manager" in user_roles or "Administrator" in user_roles
 	
-	# Base filters - exclude Cancelled projects
-	filters = {"status": ["!=", "Cancelled"]}
+	# Base filters - exclude Cancelled and Template projects
+	filters = {"status": ["not in", ["Cancelled", "Template"]]}
 	
 	if is_manager:
 		# Managers see all non-cancelled projects
@@ -97,7 +97,7 @@ def get_projects():
 			"Project",
 			filters={
 				"name": ["in", all_user_projects],
-				"status": ["!=", "Cancelled"]
+				"status": ["not in", ["Cancelled", "Template"]]
 			},
 			fields=[
 				"name",
@@ -254,6 +254,64 @@ def get_project_tasks(project: str):
 
 
 @frappe.whitelist()
+def update_project(project: str, expected_start_date: str = None, expected_end_date: str = None):
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+
+	if not frappe.has_permission("Project", "write", doc=project_doc):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if expected_start_date == "":
+		expected_start_date = None
+	if expected_end_date == "":
+		expected_end_date = None
+
+	# Update fields directly in database to avoid triggering notifications
+	if expected_start_date is not None:
+		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
+	if expected_end_date is not None:
+		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
+
+	# Get updated project data
+	project_doc.reload()
+
+	total_hours = frappe.db.sql("""
+		SELECT COALESCE(SUM(tsd.hours), 0) as total_hours
+		FROM `tabTimesheet Detail` tsd
+		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+		WHERE tsd.project = %s AND ts.docstatus < 2
+	""", project, as_dict=1)
+
+	estimated_hours = frappe.db.sql("""
+		SELECT COALESCE(SUM(expected_time), 0) as estimated_hours
+		FROM `tabTask`
+		WHERE project = %s
+	""", project, as_dict=1)
+
+	customer_name = None
+	if project_doc.customer:
+		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
+
+	return {
+		"name": project_doc.name,
+		"project_name": project_doc.project_name,
+		"status": project_doc.status,
+		"percent_complete": project_doc.percent_complete,
+		"expected_start_date": project_doc.expected_start_date,
+		"expected_end_date": project_doc.expected_end_date,
+		"actual_start_date": getattr(project_doc, 'actual_start_date', None),
+		"actual_end_date": getattr(project_doc, 'actual_end_date', None),
+		"customer": project_doc.customer,
+		"customer_name": customer_name,
+		"notes": getattr(project_doc, 'notes', None),
+		"total_hours": total_hours[0].get('total_hours', 0) if total_hours else 0,
+		"estimated_hours": estimated_hours[0].get('estimated_hours', 0) if estimated_hours else 0,
+	}
+
+
+@frappe.whitelist()
 def create_task(
 	subject: str,
 	project: str,
@@ -360,6 +418,7 @@ def update_task(task_name: str, **kwargs):
 		"progress",
 		"description",
 		"is_group",
+		"project",
 	]
 
 	for field in allowed_fields:
@@ -379,7 +438,23 @@ def update_task(task_name: str, **kwargs):
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
 		"description": task.description,
+		"project": task.project,
 	}
+
+
+@frappe.whitelist()
+def get_all_projects():
+	"""
+	Get list of all active projects for task project change dropdown.
+	Returns only non-cancelled and non-template projects.
+	"""
+	projects = frappe.get_all(
+		"Project",
+		filters={"status": ["not in", ["Cancelled", "Template"]]},
+		fields=["name", "project_name", "status"],
+		order_by="project_name asc",
+	)
+	return projects
 
 
 @frappe.whitelist()

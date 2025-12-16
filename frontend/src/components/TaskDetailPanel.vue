@@ -21,6 +21,7 @@ import {
 	Plus,
 	Trash2,
 	Diamond,
+	Folder,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -69,11 +70,14 @@ const statusIconMap = {
 	'Cancelled': Circle,
 }
 
+const disabledStatuses = ['Template']
+
 const statusOptions = computed(() => {
 	return store.taskStatuses.map(status => ({
 		value: status,
 		label: status,
-		icon: statusIconMap[status] || Circle
+		icon: statusIconMap[status] || Circle,
+		disabled: disabledStatuses.includes(status),
 	}))
 })
 
@@ -91,13 +95,34 @@ async function handleMilestoneChange(event) {
 		await store.assignTaskToMilestone(props.task.name, newMilestone)
 		if (window.frappe) {
 			frappe.show_alert({ 
-				message: newMilestone ? 'Task assigned to milestone' : 'Task removed from milestone', 
+				message: newMilestone ? 'Zadanie przypisane do kamienia milowego' : 'Zadanie usunięte z kamienia milowego', 
 				indicator: 'green' 
 			})
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Failed to update milestone', indicator: 'red' })
+			frappe.show_alert({ message: 'Nie udało się zaktualizować kamienia milowego', indicator: 'red' })
+		}
+	}
+}
+
+// Project change handling
+async function handleProjectChange() {
+	const newProject = editableTask.value.project
+	if (newProject === props.task.project) return
+	
+	try {
+		await store.updateTask(props.task.name, { project: newProject })
+		if (window.frappe) {
+			frappe.show_alert({ 
+				message: 'Projekt zadania został zmieniony', 
+				indicator: 'green' 
+			})
+		}
+	} catch (error) {
+		editableTask.value.project = props.task.project
+		if (window.frappe) {
+			frappe.show_alert({ message: 'Nie udało się zmienić projektu', indicator: 'red' })
 		}
 	}
 }
@@ -136,6 +161,7 @@ async function handleRemoveAssignee(user) {
 
 onMounted(() => {
 	store.fetchUsers()
+	store.fetchAllProjects()
 	loadTimelogs()
 })
 
@@ -249,9 +275,11 @@ async function handleSubtaskCreated() {
 						<button
 							v-for="opt in statusOptions"
 							:key="opt.value"
-							@click="editableTask.status = opt.value; saveField('status', opt.value)"
+							:disabled="opt.disabled"
+							@click="!opt.disabled && (editableTask.status = opt.value, saveField('status', opt.value))"
 							:class="[
 								'flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors',
+								opt.disabled ? 'opacity-50 cursor-not-allowed' : '',
 								editableTask.status === opt.value
 									? 'border-blue-500 bg-blue-50 text-blue-700'
 									: 'border-gray-200 hover:bg-gray-50'
@@ -267,7 +295,7 @@ async function handleSubtaskCreated() {
 				<div>
 					<label class="text-sm text-gray-500 mb-2 block flex items-center gap-1">
 						<Flag class="w-3.5 h-3.5" />
-						Priority
+						Priorytet
 					</label>
 					<div class="grid grid-cols-2 gap-2">
 						<button
@@ -291,14 +319,14 @@ async function handleSubtaskCreated() {
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
 						<Diamond class="w-3 h-3" />
-						Milestone
+						Kamień milowy
 					</label>
 					<select
 						:value="task.milestone || ''"
 						@change="handleMilestoneChange"
 						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
-						<option value="">No Milestone</option>
+						<option value="">Brak kamienia milowego</option>
 						<option 
 							v-for="milestone in store.milestones" 
 							:key="milestone.name" 
@@ -309,13 +337,34 @@ async function handleSubtaskCreated() {
 					</select>
 				</div>
 
+				<!-- Project -->
+				<div class="flex items-center gap-3">
+					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
+						<Folder class="w-3 h-3" />
+						Projekt
+					</label>
+					<select
+						v-model="editableTask.project"
+						@change="handleProjectChange"
+						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+					>
+						<option 
+							v-for="proj in store.allProjects" 
+							:key="proj.name" 
+							:value="proj.name"
+						>
+							{{ proj.project_name }}
+						</option>
+					</select>
+				</div>
+
 				<!-- Assignee -->
 				<div class="flex items-start gap-3">
-					<label class="text-sm text-gray-500 w-20 pt-2">Assignee</label>
+					<label class="text-sm text-gray-500 w-20 pt-2">Przypisany</label>
 					<div class="flex-1">
 						<UserSelect
 							:model-value="task._assign"
-							placeholder="Assign user..."
+							placeholder="Przypisz użytkownika..."
 							@add="handleAddAssignee"
 							@remove="handleRemoveAssignee"
 						/>
@@ -324,7 +373,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Due date -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Due date</label>
+					<label class="text-sm text-gray-500 w-20">Termin</label>
 					<input
 						v-model="editableTask.exp_end_date"
 						type="date"
@@ -335,7 +384,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Start date -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Start date</label>
+					<label class="text-sm text-gray-500 w-20">Data rozp.</label>
 					<input
 						v-model="editableTask.exp_start_date"
 						type="date"
@@ -346,7 +395,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Progress -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Progress</label>
+					<label class="text-sm text-gray-500 w-20">Postęp</label>
 					<div class="flex-1 flex items-center gap-2">
 						<input
 							v-model.number="editableTask.progress"
@@ -366,12 +415,12 @@ async function handleSubtaskCreated() {
 
 				<!-- Description -->
 				<div>
-					<label class="text-sm font-medium text-gray-700 mb-2 block">Description</label>
+					<label class="text-sm font-medium text-gray-700 mb-2 block">Opis</label>
 					<textarea
 						v-model="editableTask.description"
 						rows="4"
 						class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-						placeholder="Add a description..."
+						placeholder="Dodaj opis..."
 						@blur="saveField('description', editableTask.description)"
 					></textarea>
 				</div>
@@ -382,9 +431,9 @@ async function handleSubtaskCreated() {
 				<div>
 					<div class="flex items-center justify-between mb-3">
 						<div>
-							<h3 class="text-sm font-medium text-gray-700">Time Logs</h3>
+							<h3 class="text-sm font-medium text-gray-700">Rejestr czasu</h3>
 							<p v-if="currentTimelogs.total_hours > 0" class="text-xs text-gray-500 mt-0.5">
-								Total: {{ currentTimelogs.total_hours.toFixed(2) }} hours
+								Razem: {{ currentTimelogs.total_hours.toFixed(2) }} godz.
 							</p>
 						</div>
 						<button
@@ -392,7 +441,7 @@ async function handleSubtaskCreated() {
 							class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 						>
 							<Plus class="w-3.5 h-3.5" />
-							Log Time
+							Dodaj czas
 						</button>
 					</div>
 
@@ -401,7 +450,7 @@ async function handleSubtaskCreated() {
 					</div>
 
 					<div v-else-if="currentTimelogs.timelogs.length === 0" class="text-sm text-gray-500 text-center py-4">
-						No time logs yet
+						Brak wpisów czasu
 					</div>
 
 					<div v-else class="space-y-2">
@@ -440,7 +489,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Subtasks -->
 				<div>
-					<h3 class="text-sm font-medium text-gray-700 mb-2">Subtasks</h3>
+					<h3 class="text-sm font-medium text-gray-700 mb-2">Podzadania</h3>
 					<div v-if="task.children?.length > 0" class="space-y-1 mb-2">
 						<div
 							v-for="child in task.children"
@@ -463,11 +512,11 @@ async function handleSubtaskCreated() {
 						v-if="task.is_group"
 						:project-id="task.project"
 						:parent-task="task.name"
-						placeholder="Add subtask..."
+						placeholder="Dodaj podzadanie..."
 						@created="handleSubtaskCreated"
 					/>
 					<p v-else class="text-sm text-gray-500">
-						Mark as group task to add subtasks
+						Oznacz jako zadanie grupowe, aby dodać podzadania
 					</p>
 				</div>
 			</div>
@@ -476,8 +525,8 @@ async function handleSubtaskCreated() {
 		<!-- Footer -->
 		<div class="border-t border-gray-200 px-4 py-3">
 			<div class="flex items-center justify-between text-xs text-gray-500">
-				<span v-if="task.creation">Created {{ task.creation }}</span>
-				<span v-if="isSaving" class="text-blue-600">Saving...</span>
+				<span v-if="task.creation">Utworzono {{ task.creation }}</span>
+				<span v-if="isSaving" class="text-blue-600">Zapisywanie...</span>
 			</div>
 		</div>
 

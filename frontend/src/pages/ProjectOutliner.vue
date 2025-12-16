@@ -9,6 +9,7 @@ import ProjectTeam from '../components/ProjectTeam.vue'
 import MilestonePanel from '../components/MilestonePanel.vue'
 import ProjectInfoPanel from '../components/ProjectInfoPanel.vue'
 import KanbanBoard from '../components/KanbanBoard.vue'
+import TimelineView from '../components/TimelineView.vue'
 import {
 	ArrowLeft,
 	ChevronDown,
@@ -169,7 +170,7 @@ const flattenedTasksWithFilters = computed(() => {
 								]"
 							>
 								<LayoutList class="w-4 h-4" />
-								List
+								Lista
 							</button>
 							<button
 								@click="activeView = 'board'"
@@ -181,7 +182,7 @@ const flattenedTasksWithFilters = computed(() => {
 								]"
 							>
 								<Columns class="w-4 h-4" />
-								Board
+								Tablica
 							</button>
 							<button
 								@click="activeView = 'timeline'"
@@ -201,7 +202,7 @@ const flattenedTasksWithFilters = computed(() => {
 							:href="`/app/project/${projectId}`"
 							class="text-sm text-gray-500 hover:text-gray-700 ml-4"
 						>
-							Open in Desk →
+							Otwórz w Desk →
 						</a>
 					</div>
 				</div>
@@ -216,7 +217,7 @@ const flattenedTasksWithFilters = computed(() => {
 				v-if="sidebarCollapsed"
 				@click="sidebarCollapsed = false"
 				class="flex-shrink-0 bg-white border-r border-gray-200 p-2 hover:bg-gray-50 transition-colors"
-				title="Show sidebar"
+				title="Pokaż panel boczny"
 			>
 				<PanelLeft class="w-4 h-4 text-gray-500" />
 			</button>
@@ -229,7 +230,7 @@ const flattenedTasksWithFilters = computed(() => {
 				<button
 					@click="sidebarCollapsed = true"
 					class="absolute right-0 top-20 z-10 bg-white border border-gray-200 border-r-0 rounded-l-md p-1 shadow-sm hover:bg-gray-50"
-					title="Hide sidebar"
+					title="Ukryj panel boczny"
 				>
 					<PanelLeftClose class="w-4 h-4 text-gray-500" />
 				</button>
@@ -271,10 +272,12 @@ const flattenedTasksWithFilters = computed(() => {
 					/>
 				</div>
 
-				<div v-else-if="activeView === 'timeline'" class="p-6">
-					<p class="text-gray-500 text-center py-12">
-						Timeline/Gantt view coming soon...
-					</p>
+				<div v-else-if="activeView === 'timeline'" class="h-full">
+					<TimelineView
+						:tasks="flattenedTasksWithFilters"
+						:project-id="projectId"
+						@task-click="handleTaskClick"
+					/>
 				</div>
 			</main>
 

@@ -42,18 +42,18 @@ async function handleDelete(milestone, event) {
 	event.stopPropagation()
 	openMenuId.value = null
 	
-	if (!confirm(`Delete milestone "${milestone.milestone_name}"? Tasks will be unlinked but not deleted.`)) {
+	if (!confirm(`Usunąć kamień milowy "${milestone.milestone_name}"? Zadania zostaną odłączone, ale nie usunięte.`)) {
 		return
 	}
 
 	try {
 		await store.deleteMilestone(milestone.name)
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Milestone deleted', indicator: 'green' })
+			frappe.show_alert({ message: 'Kamień milowy usunięty', indicator: 'green' })
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Failed to delete milestone', indicator: 'red' })
+			frappe.show_alert({ message: 'Nie udało się usunąć kamienia milowego', indicator: 'red' })
 		}
 	}
 }
@@ -66,11 +66,11 @@ async function handleCreate(data) {
 		})
 		showCreateModal.value = false
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Milestone created', indicator: 'green' })
+			frappe.show_alert({ message: 'Kamień milowy utworzony', indicator: 'green' })
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Failed to create milestone', indicator: 'red' })
+			frappe.show_alert({ message: 'Nie udało się utworzyć kamienia milowego', indicator: 'red' })
 		}
 	}
 }
@@ -81,11 +81,11 @@ async function handleUpdate(data) {
 		showEditModal.value = false
 		editingMilestone.value = null
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Milestone updated', indicator: 'green' })
+			frappe.show_alert({ message: 'Kamień milowy zaktualizowany', indicator: 'green' })
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Failed to update milestone', indicator: 'red' })
+			frappe.show_alert({ message: 'Nie udało się zaktualizować kamienia milowego', indicator: 'red' })
 		}
 	}
 }
@@ -104,12 +104,12 @@ function getHealthColor(health) {
 
 function getHealthLabel(health) {
 	const labels = {
-		'completed': 'Done',
-		'on_track': 'On Track',
-		'at_risk': 'At Risk',
-		'overdue': 'Overdue',
-		'no_deadline': 'No Date',
-		'cancelled': 'Cancelled'
+		'completed': 'Ukończony',
+		'on_track': 'Na dobrej drodze',
+		'at_risk': 'Zagrożony',
+		'overdue': 'Przeterminowany',
+		'no_deadline': 'Brak terminu',
+		'cancelled': 'Anulowany'
 	}
 	return labels[health] || health
 }
@@ -172,11 +172,11 @@ async function handleDrop(event, milestoneName) {
 	try {
 		await store.assignTaskToMilestone(taskName, milestoneName)
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Task assigned to milestone', indicator: 'green' })
+			frappe.show_alert({ message: 'Zadanie przypisane do kamienia milowego', indicator: 'green' })
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Failed to assign task', indicator: 'red' })
+			frappe.show_alert({ message: 'Nie udało się przypisać zadania', indicator: 'red' })
 		}
 	}
 }
@@ -196,7 +196,7 @@ onMounted(() => {
 			<div class="flex items-center gap-2">
 				<Diamond class="w-4 h-4 text-blue-600" />
 				<h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-					Milestones
+					Kamienie milowe
 				</h3>
 				<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
 					{{ store.milestones.length }}
@@ -206,7 +206,7 @@ onMounted(() => {
 				<button
 					@click.stop="showCreateModal = true"
 					class="p-1 rounded hover:bg-gray-200 text-blue-600"
-					title="Add Milestone"
+					title="Dodaj kamień milowy"
 				>
 					<Plus class="w-4 h-4" />
 				</button>
@@ -223,14 +223,14 @@ onMounted(() => {
 			class="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between"
 		>
 			<span class="text-xs text-blue-700">
-				Filtering by milestone
+				Filtrowanie według kamienia milowego
 			</span>
 			<button
 				@click="store.clearMilestoneFilter()"
 				class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
 			>
 				<X class="w-3 h-3" />
-				Clear
+				Wyczyść
 			</button>
 		</div>
 
@@ -279,14 +279,14 @@ onMounted(() => {
 									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
 								>
 									<Edit2 class="w-3 h-3" />
-									Edit
+									Edytuj
 								</button>
 								<button
 									@click="handleDelete(milestone, $event)"
 									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 flex items-center gap-2"
 								>
 									<Trash2 class="w-3 h-3" />
-									Delete
+									Usuń
 								</button>
 							</div>
 						</Transition>
@@ -309,7 +309,7 @@ onMounted(() => {
 							{{ milestone.progress || 0 }}%
 						</span>
 						<span class="text-xs text-gray-500">
-							{{ milestone.completed_tasks || 0 }}/{{ milestone.total_tasks || 0 }} tasks
+							{{ milestone.completed_tasks || 0 }}/{{ milestone.total_tasks || 0 }} zadań
 						</span>
 					</div>
 				</div>
@@ -337,12 +337,12 @@ onMounted(() => {
 				class="text-center py-6 text-gray-500"
 			>
 				<Diamond class="w-8 h-8 mx-auto mb-2 opacity-30" />
-				<p class="text-sm">No milestones yet</p>
+				<p class="text-sm">Brak kamieni milowych</p>
 				<button
 					@click="showCreateModal = true"
 					class="text-xs text-blue-600 hover:underline mt-1"
 				>
-					Create your first milestone
+					Utwórz pierwszy kamień milowy
 				</button>
 			</div>
 		</div>

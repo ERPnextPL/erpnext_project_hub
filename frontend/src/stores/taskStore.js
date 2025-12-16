@@ -242,6 +242,22 @@ export const useTaskStore = defineStore('tasks', () => {
 		}
 	}
 
+	async function updateProject(projectName, updates) {
+		try {
+			const data = await apiCall('erpnext_projekt_hub.api.outliner.update_project', {
+				project: projectName,
+				...updates,
+			})
+			if (data) {
+				project.value = { ...(project.value || {}), ...data }
+				return data
+			}
+		} catch (error) {
+			console.error('Failed to update project:', error)
+			throw error
+		}
+	}
+
 	async function deleteTask(taskName) {
 		try {
 			await apiCall('erpnext_projekt_hub.api.outliner.delete_task', {
@@ -299,6 +315,20 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	function clearSelection() {
 		selectedTask.value = null
+	}
+
+	// All projects for task project change
+	const allProjects = ref([])
+
+	async function fetchAllProjects() {
+		try {
+			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_all_projects', {})
+			allProjects.value = data || []
+			return data
+		} catch (error) {
+			console.error('Failed to fetch all projects:', error)
+			return []
+		}
 	}
 
 	// User assignment functions
@@ -630,6 +660,7 @@ export const useTaskStore = defineStore('tasks', () => {
 		selectedTask,
 		expandedTasks,
 		availableUsers,
+		allProjects,
 		taskTimelogs,
 		activityTypes,
 		taskStatuses,
@@ -646,6 +677,7 @@ export const useTaskStore = defineStore('tasks', () => {
 		fetchTasks,
 		createTask,
 		updateTask,
+		updateProject,
 		deleteTask,
 		reorderTask,
 		toggleExpand,
@@ -659,6 +691,8 @@ export const useTaskStore = defineStore('tasks', () => {
 		fetchProjectUsers,
 		addProjectUser,
 		removeProjectUser,
+		// Projects
+		fetchAllProjects,
 		// Metadata
 		fetchActivityTypes,
 		fetchTaskStatuses,
