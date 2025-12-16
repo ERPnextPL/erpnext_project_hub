@@ -198,10 +198,16 @@ function handleKeydown(e) {
 
 async function cycleStatus() {
 	// Filter out non-workflow statuses like Overdue (Cancelled is included but has special handling)
-	const excludedStatuses = ['Overdue']
+	const excludedStatuses = ['Overdue', 'Template']
 	const cyclableStatuses = store.taskStatuses.filter(s => !excludedStatuses.includes(s))
 	
 	if (cyclableStatuses.length === 0) return
+	
+	if (props.task.status === 'Completed') {
+		const targetStatus = cyclableStatuses.includes('Working') ? 'Working' : cyclableStatuses[0]
+		emit('update', props.task.name, { status: targetStatus })
+		return
+	}
 	
 	const currentIndex = cyclableStatuses.indexOf(props.task.status)
 	
@@ -244,9 +250,9 @@ async function handleCancelWithSubtasks() {
 	
 	// Ask for confirmation
 	const confirmed = confirm(
-		`This task has ${subtaskCount} subtask${subtaskCount > 1 ? 's' : ''}.\n\n` +
-		`Cancelling this task will also cancel all subtasks.\n\n` +
-		`Do you want to continue?`
+		`To zadanie ma ${subtaskCount} podzadań.\n\n` +
+		`Anulowanie tego zadania spowoduje również anulowanie wszystkich podzadań.\n\n` +
+		`Czy chcesz kontynuować?`
 	)
 	
 	if (!confirmed) return
@@ -269,7 +275,7 @@ async function handleCancelWithSubtasks() {
 	// Show success message
 	if (window.frappe) {
 		frappe.show_alert({ 
-			message: `Task and ${subtaskCount} subtask${subtaskCount > 1 ? 's' : ''} cancelled`, 
+			message: `Zadanie i ${subtaskCount} podzadań zostało anulowane`, 
 			indicator: 'orange' 
 		})
 	}
@@ -295,7 +301,7 @@ async function assignCurrentUser() {
 		await store.assignTask(props.task.name, currentUser, 'add')
 		showUserDropdown.value = false
 		if (window.frappe) {
-			frappe.show_alert({ message: 'User assigned', indicator: 'green' })
+			frappe.show_alert({ message: 'Użytkownik przypisany', indicator: 'green' })
 		}
 	}
 }
@@ -304,7 +310,7 @@ async function assignUser(user) {
 	await store.assignTask(props.task.name, user, 'add')
 	showUserDropdown.value = false
 	if (window.frappe) {
-		frappe.show_alert({ message: 'User assigned', indicator: 'green' })
+		frappe.show_alert({ message: 'Użytkownik przypisany', indicator: 'green' })
 	}
 }
 
@@ -326,7 +332,7 @@ function showMenu(e) {
 
 async function deleteTask() {
 	if (hasChildren.value) {
-		if (!confirm('This task has subtasks. Delete all subtasks as well?')) {
+		if (!confirm('To zadanie ma podzadania. Usunąć również wszystkie podzadania?')) {
 			return
 		}
 	}
@@ -404,7 +410,7 @@ function hideHint() {
 			<!-- Drag handle -->
 			<div 
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
-				title="Drag to reorder tasks"
+				title="Przeciągnij, aby zmienić kolejność"
 			>
 				<GripVertical class="w-4 h-4 text-gray-400" />
 			</div>
@@ -446,7 +452,7 @@ function hideHint() {
 					@mouseleave="hideHint"
 					@click.stop
 					class="milestone-drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-0.5 -ml-1 relative"
-					:title="task.milestone ? '◆ Drag this diamond to change milestone' : '◆ Drag this diamond to assign to milestone'"
+					:title="task.milestone ? '◆ Przeciągnij, aby zmienić kamień milowy' : '◆ Przeciągnij, aby przypisać do kamienia milowego'"
 				>
 					<Diamond 
 						:class="[
@@ -464,7 +470,7 @@ function hideHint() {
 						>
 							<div class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2">
 								<Diamond class="w-3 h-3" />
-								<span>Drag this diamond to assign to milestone</span>
+								<span>Przeciągnij, aby przypisać do kamienia milowego</span>
 							</div>
 						</div>
 					</Transition>
@@ -475,7 +481,7 @@ function hideHint() {
 					v-if="task.milestone" 
 					class="w-3 h-3 flex-shrink-0" 
 					:style="{ color: milestoneColor }"
-					:title="'Milestone: ' + task.milestone"
+					:title="'Kamień milowy: ' + task.milestone"
 				/>
 				
 				<input
@@ -533,7 +539,7 @@ function hideHint() {
 				v-else
 				@click.stop="showUserAssignDropdown"
 				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-				title="Click to assign user"
+				title="Kliknij, aby przypisać użytkownika"
 			>
 				<User class="w-4 h-4" />
 			</button>
@@ -545,13 +551,13 @@ function hideHint() {
 					class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-48"
 					:style="{ left: userDropdownPosition.x + 'px', top: userDropdownPosition.y + 'px' }"
 				>
-					<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">Assign User</div>
+					<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">Przypisz użytkownika</div>
 					<button
 						@click="assignCurrentUser"
 						class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
 					>
 						<User class="w-4 h-4" />
-						Assign to me
+						Przypisz do mnie
 					</button>
 					<div v-if="store.availableUsers && store.availableUsers.length > 0" class="border-t border-gray-100 mt-1 pt-1">
 						<button
@@ -569,7 +575,7 @@ function hideHint() {
 							@click="handleRowClick(); showUserDropdown = false"
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
 						>
-							More options...
+							Więcej opcji...
 						</button>
 					</div>
 				</div>
@@ -634,18 +640,11 @@ function hideHint() {
 				:style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
 			>
 				<button
-					@click="addTask"
-					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-				>
-					<Plus class="w-4 h-4" />
-					Add Task
-				</button>
-				<button
 					@click="logTime"
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<Clock class="w-4 h-4" />
-					Log Time
+					Dodaj czas
 				</button>
 				<button
 					v-if="canAddSubtask"
@@ -653,14 +652,14 @@ function hideHint() {
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<Plus class="w-4 h-4" />
-					Add subtask
+					Dodaj podzadanie
 				</button>
 				<button
 					@click="openInDesk"
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<ExternalLink class="w-4 h-4" />
-					Open in Desk
+					Otwórz w Desk
 				</button>
 				<hr class="my-1 border-gray-200" />
 				<button
@@ -668,7 +667,7 @@ function hideHint() {
 					class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
 				>
 					<Trash2 class="w-4 h-4" />
-					Delete
+					Usuń
 				</button>
 			</div>
 		</Teleport>

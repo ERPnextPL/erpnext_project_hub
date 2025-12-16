@@ -82,20 +82,20 @@ function toFrappeDateTime(datetimeLocalStr) {
 function handleSave() {
 	// Validate hours
 	if (!formData.value.hours || parseFloat(formData.value.hours) <= 0) {
-		frappe.show_alert({ message: 'Please enter valid hours', indicator: 'red' })
+		frappe.show_alert({ message: 'Proszę podać prawidłową liczbę godzin', indicator: 'red' })
 		return
 	}
 
 	// Validate max 24 hours
 	const hours = parseFloat(formData.value.hours)
 	if (hours > 24) {
-		frappe.show_alert({ message: 'Cannot log more than 24 hours in a single entry', indicator: 'red' })
+		frappe.show_alert({ message: 'Nie można dodać więcej niż 24 godziny w jednym wpisie', indicator: 'red' })
 		return
 	}
 
 	// Validate activity type
 	if (!formData.value.activity_type || formData.value.activity_type.trim() === '') {
-		frappe.show_alert({ message: 'Please select an activity type', indicator: 'red' })
+		frappe.show_alert({ message: 'Proszę wybrać typ aktywności', indicator: 'red' })
 		return
 	}
 
@@ -150,7 +150,7 @@ function handleClose() {
 						<div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
 							<div class="flex items-center gap-2">
 								<Clock class="w-5 h-5 text-blue-600" />
-								<h3 class="text-lg font-semibold text-gray-900">Log Time</h3>
+								<h3 class="text-lg font-semibold text-gray-900">Dodaj czas</h3>
 							</div>
 							<button
 								@click="handleClose"
@@ -164,7 +164,7 @@ function handleClose() {
 						<div class="px-6 py-4 space-y-4">
 							<!-- Task info -->
 							<div class="bg-gray-50 rounded-md p-3">
-								<p class="text-sm text-gray-500 mb-1">Task</p>
+								<p class="text-sm text-gray-500 mb-1">Zadanie</p>
 								<p class="text-sm font-medium text-gray-900">{{ task.subject }}</p>
 								<p class="text-xs text-gray-500 mt-1">{{ task.name }}</p>
 							</div>
@@ -172,7 +172,7 @@ function handleClose() {
 							<!-- Hours -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									Hours <span class="text-red-500">*</span>
+									Godziny <span class="text-red-500">*</span>
 								</label>
 								<input
 									v-model="formData.hours"
@@ -184,13 +184,13 @@ function handleClose() {
 									@input="calculateToTime"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								/>
-								<p class="text-xs text-gray-500 mt-1">Maximum 24 hours per entry</p>
+								<p class="text-xs text-gray-500 mt-1">Maksymalnie 24 godziny na wpis</p>
 							</div>
 
 							<!-- Start time -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									Start Time
+									Czas rozpoczęcia
 								</label>
 								<input
 									v-model="formData.from_time"
@@ -204,21 +204,21 @@ function handleClose() {
 							<div v-if="formData.to_time" class="bg-gray-50 rounded-md p-3">
 								<div class="flex items-center gap-2 text-sm text-gray-600">
 									<Clock class="w-4 h-4" />
-									<span>End Time: {{ formatDisplayTime(formData.to_time) }}</span>
+									<span>Czas zakończenia: {{ formatDisplayTime(formData.to_time) }}</span>
 								</div>
 							</div>
 
 							<!-- Activity Type -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									Activity Type <span class="text-red-500">*</span>
+									Typ aktywności <span class="text-red-500">*</span>
 								</label>
 								<select
 									v-model="formData.activity_type"
 									required
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								>
-									<option value="" disabled>Select activity type...</option>
+									<option value="" disabled>Wybierz typ aktywności...</option>
 									<option v-for="type in activityTypes" :key="type" :value="type">
 										{{ type }}
 									</option>
@@ -228,12 +228,12 @@ function handleClose() {
 							<!-- Description -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									Description
+									Opis
 								</label>
 								<textarea
 									v-model="formData.description"
 									rows="3"
-									placeholder="What did you work on?"
+									placeholder="Nad czym pracowałeś?"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								></textarea>
 							</div>
@@ -245,13 +245,13 @@ function handleClose() {
 								@click="handleClose"
 								class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
 							>
-								Cancel
+								Anuluj
 							</button>
 							<button
 								@click="handleSave"
 								class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
 							>
-								Save Time Log
+								Zapisz
 							</button>
 						</div>
 					</div>

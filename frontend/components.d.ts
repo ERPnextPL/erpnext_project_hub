@@ -28,6 +28,7 @@ declare module 'vue' {
     TaskDetailPanel: typeof import('./src/components/TaskDetailPanel.vue')['default']
     TaskRow: typeof import('./src/components/TaskRow.vue')['default']
     TaskTree: typeof import('./src/components/TaskTree.vue')['default']
+    TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']
   }

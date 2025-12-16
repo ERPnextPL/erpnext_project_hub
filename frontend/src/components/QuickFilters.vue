@@ -29,6 +29,8 @@ const activeAssignee = ref(null)
 const myTasksActive = ref(false)
 const dueTodayActive = ref(false)
 
+const disabledStatuses = ['Template']
+
 // Get current user from Frappe session
 const currentUser = computed(() => {
 	return window.frappe?.session?.user || ''
@@ -46,7 +48,7 @@ onMounted(async () => {
 	// Set default status filters - all except Cancelled and Closed
 	if (activeStatus.value.length === 0) {
 		activeStatus.value = store.taskStatuses.filter(
-			status => status !== 'Cancelled' && status !== 'Closed' && status !== 'Completed'
+			status => status !== 'Cancelled' && status !== 'Closed' && status !== 'Completed' && !disabledStatuses.includes(status)
 		)
 		emitFilters()
 	}
@@ -74,9 +76,10 @@ const statuses = computed(() => {
 		const config = statusIconMap[status] || { icon: Circle, class: 'text-gray-500' }
 		return {
 			value: status,
-			label: status === 'Working' ? 'In Progress' : (status === 'Pending Review' ? 'Review' : status),
+			label: status === 'Working' ? 'W trakcie' : (status === 'Pending Review' ? 'Do przeglądu' : (status === 'Template' ? 'Szablon' : status)),
 			icon: config.icon,
-			class: config.class
+			class: config.class,
+			disabled: disabledStatuses.includes(status),
 		}
 	})
 })
@@ -98,6 +101,7 @@ const hasActiveFilters = computed(() => {
 })
 
 function toggleStatus(status) {
+	if (disabledStatuses.includes(status)) return
 	const index = activeStatus.value.indexOf(status)
 	if (index > -1) {
 		activeStatus.value.splice(index, 1)
@@ -158,7 +162,7 @@ function emitFilters() {
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2 text-sm font-medium text-gray-700">
 				<Filter class="w-4 h-4" />
-				Filters
+				Filtry
 			</div>
 			<button
 				v-if="hasActiveFilters"
@@ -166,7 +170,7 @@ function emitFilters() {
 				class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
 			>
 				<X class="w-3 h-3" />
-				Clear all
+				Wyczyść
 			</button>
 		</div>
 
@@ -181,7 +185,7 @@ function emitFilters() {
 				]"
 			>
 				<User :class="['w-4 h-4', myTasksActive ? 'text-blue-600' : 'text-gray-400']" />
-				My Tasks
+				Moje zadania
 			</button>
 
 			<!-- Due Today -->
@@ -193,7 +197,7 @@ function emitFilters() {
 				]"
 			>
 				<Calendar :class="['w-4 h-4', dueTodayActive ? 'text-amber-600' : 'text-gray-400']" />
-				Due Today
+				Na dzisiaj
 			</button>
 
 			<!-- Overdue -->
@@ -223,6 +227,7 @@ function emitFilters() {
 					@click="toggleStatus(status.value)"
 					:class="[
 						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left relative',
+						status.disabled ? 'opacity-50 cursor-not-allowed' : '',
 						activeStatus.includes(status.value)
 							? 'bg-blue-50 text-blue-700'
 							: 'text-gray-700 hover:bg-gray-100',
@@ -231,7 +236,7 @@ function emitFilters() {
 					<component :is="status.icon" :class="['w-4 h-4', status.class]" />
 					{{ status.label }}
 					<!-- Check indicator for multiselect -->
-					<span v-if="activeStatus.includes(status.value)" class="ml-auto">
+					<span v-if="activeStatus.includes(status.value) && !status.disabled" class="ml-auto">
 						<svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
 							<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
 						</svg>
@@ -245,7 +250,7 @@ function emitFilters() {
 		<!-- Priority filter -->
 		<div>
 			<h3 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-				Priority
+				Priorytet
 			</h3>
 			<div class="space-y-1">
 				<button
@@ -274,12 +279,12 @@ function emitFilters() {
 		<!-- Project info -->
 		<div v-if="project" class="pt-4 border-t border-gray-200">
 			<h3 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-				Project
+				Projekt
 			</h3>
 			<div class="text-sm text-gray-700">
 				<p class="font-medium">{{ project.project_name }}</p>
 				<p v-if="project.percent_complete !== null" class="text-gray-500 mt-1">
-					{{ project.percent_complete }}% complete
+					{{ project.percent_complete }}% ukończono
 				</p>
 			</div>
 		</div>

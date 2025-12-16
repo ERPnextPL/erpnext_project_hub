@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useTaskStore } from '../stores/taskStore'
 import { 
 	Calendar, 
 	Clock, 
@@ -19,7 +20,7 @@ const props = defineProps({
 })
 
 const formatDate = (dateStr) => {
-	if (!dateStr) return 'Not set'
+	if (!dateStr) return 'Nie ustawiono'
 	const date = new Date(dateStr)
 	return date.toLocaleDateString('pl-PL', {
 		day: '2-digit',
@@ -51,15 +52,48 @@ const isOverdue = computed(() => {
 
 const isExpanded = ref(false)
 
+const store = useTaskStore()
+const isSaving = ref(false)
+
+const editableExpectedStart = ref('')
+const editableExpectedEnd = ref('')
+
+watch(
+	() => props.project,
+	(p) => {
+		editableExpectedStart.value = p?.expected_start_date || ''
+		editableExpectedEnd.value = p?.expected_end_date || ''
+	},
+	{ immediate: true }
+)
+
 const toggleExpand = () => {
 	isExpanded.value = !isExpanded.value
+}
+
+async function saveDateField(field, value) {
+	isSaving.value = true
+	try {
+		await store.updateProject(props.project.name, { [field]: value })
+		if (window.frappe) {
+			frappe.show_alert({ message: 'Zapisano daty projektu', indicator: 'green' })
+		}
+	} catch (e) {
+		editableExpectedStart.value = props.project.expected_start_date || ''
+		editableExpectedEnd.value = props.project.expected_end_date || ''
+		if (window.frappe) {
+			frappe.show_alert({ message: 'Nie udało się zapisać dat projektu', indicator: 'red' })
+		}
+	} finally {
+		isSaving.value = false
+	}
 }
 </script>
 
 <template>
 	<div class="bg-white border-b border-gray-200">
 		<div class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50" @click="toggleExpand">
-			<h3 class="text-sm font-semibold text-gray-700">Project Information</h3>
+			<h3 class="text-sm font-semibold text-gray-700">Informacje o projekcie</h3>
 			<button class="p-1 rounded hover:bg-gray-200 transition-colors">
 				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500" />
 				<ChevronDown v-else class="w-4 h-4 text-gray-500" />
@@ -74,19 +108,33 @@ const toggleExpand = () => {
 				<div class="flex items-start gap-2">
 					<Calendar class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 					<div class="flex-1 min-w-0">
-						<div class="text-xs text-gray-500">Expected Start</div>
-						<div class="text-sm font-medium text-gray-900">
-							{{ formatDate(project.expected_start_date) }}
-						</div>
+						<div class="text-xs text-gray-500">Planowany start</div>
+						<input
+							v-model="editableExpectedStart"
+							type="date"
+							class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+							@change="saveDateField('expected_start_date', editableExpectedStart)"
+							:disabled="isSaving"
+						/>
+						<div class="text-xs text-gray-400 mt-0.5">{{ formatDate(project.expected_start_date) }}</div>
 					</div>
 				</div>
 				<div class="flex items-start gap-2">
 					<Calendar class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 					<div class="flex-1 min-w-0">
-						<div class="text-xs text-gray-500">Expected End</div>
+						<div class="text-xs text-gray-500">Planowany koniec</div>
 						<div class="text-sm font-medium" :class="isOverdue ? 'text-red-600' : 'text-gray-900'">
-							{{ formatDate(project.expected_end_date) }}
-							<span v-if="isOverdue" class="ml-1 text-xs">(Overdue)</span>
+							<input
+								v-model="editableExpectedEnd"
+								type="date"
+								class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+								@change="saveDateField('expected_end_date', editableExpectedEnd)"
+								:disabled="isSaving"
+							/>
+							<div class="text-xs text-gray-400 mt-0.5">
+								{{ formatDate(project.expected_end_date) }}
+								<span v-if="isOverdue" class="ml-1 text-xs">(Po terminie)</span>
+							</div>
 						</div>
 					</div>
 				</div>
