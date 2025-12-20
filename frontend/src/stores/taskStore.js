@@ -80,6 +80,7 @@ export const useTaskStore = defineStore('tasks', () => {
 	const selectedTask = ref(null)
 	const expandedTasks = ref(new Set())
 	const projectTeamRefreshTrigger = ref(0)
+	const projectsSettings = ref(null)
 
 	// Computed - build tree structure
 	const taskTree = computed(() => {
@@ -340,6 +341,18 @@ export const useTaskStore = defineStore('tasks', () => {
 			availableUsers.value = data || []
 		} catch (error) {
 			console.error('Failed to fetch users:', error)
+		}
+	}
+
+	async function fetchProjectsSettings() {
+		try {
+			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_projects_settings', {})
+			projectsSettings.value = data || {}
+			return data
+		} catch (error) {
+			console.error('Failed to fetch projects settings:', error)
+			projectsSettings.value = {}
+			return {}
 		}
 	}
 
@@ -668,6 +681,7 @@ export const useTaskStore = defineStore('tasks', () => {
 		milestones,
 		activeMilestoneFilter,
 		projectTeamRefreshTrigger,
+		projectsSettings,
 		// Computed
 		taskTree,
 		flattenedTasks,
@@ -693,6 +707,7 @@ export const useTaskStore = defineStore('tasks', () => {
 		removeProjectUser,
 		// Projects
 		fetchAllProjects,
+		fetchProjectsSettings,
 		// Metadata
 		fetchActivityTypes,
 		fetchTaskStatuses,

@@ -949,9 +949,12 @@ def delete_timelog(timelog_name: str):
 	timelog = frappe.get_doc("Timesheet Detail", timelog_name)
 	timesheet = frappe.get_doc("Timesheet", timelog.parent)
 
-	# Check if user owns this timesheet
+	# Check if user owns this timesheet or has admin privileges
 	if timesheet.owner != frappe.session.user:
-		frappe.throw(_("You can only delete your own time logs"))
+		# Allow System Manager and Administrator roles to delete any time logs
+		user_roles = frappe.get_roles(frappe.session.user)
+		if "System Manager" not in user_roles and "Administrator" not in user_roles:
+			frappe.throw(_("You can only delete your own time logs"))
 
 	# Remove the time log (match by name to avoid object identity issues)
 	row = None
@@ -1676,3 +1679,33 @@ def create_my_task(
 	task.reload()
 	
 	return _get_task_response(task)
+
+
+@frappe.whitelist()
+def get_projects_settings():
+	"""
+	Get Projects Settings including global default activity type.
+	Returns a dict with all settings values.
+	"""
+	try:
+		# Get the single Projects Settings document
+		settings = frappe.get_single("Projects Settings")
+		
+		return {
+			"default_activity_type": settings.get("default_activity_type"),
+			# Add other settings fields as needed
+			"ignore_workstation_time_overlap": settings.get("ignore_workstation_time_overlap", False),
+			"ignore_user_time_overlap": settings.get("ignore_user_time_overlap", False),
+			"ignore_employee_time_overlap": settings.get("ignore_employee_time_overlap", False),
+			"fetch_timesheet_in_sales_invoice": settings.get("fetch_timesheet_in_sales_invoice", False)
+		}
+	except Exception as e:
+		frappe.log_error(f"Error fetching Projects Settings: {str(e)}", "Projects Settings Error")
+		# Return default values if settings not found
+		return {
+			"default_activity_type": None,
+			"ignore_workstation_time_overlap": False,
+			"ignore_user_time_overlap": False,
+			"ignore_employee_time_overlap": False,
+			"fetch_timesheet_in_sales_invoice": False
+		}
