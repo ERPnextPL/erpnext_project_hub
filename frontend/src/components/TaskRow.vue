@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
 import {
 	GripVertical,
@@ -391,11 +391,26 @@ function hideHint() {
 	}
 	showMilestoneHint.value = false
 }
+
+// Close context menu when clicking outside
+function handleGlobalClick(event) {
+	if (showContextMenu.value && !event.target.closest('.context-menu-wrapper')) {
+		showContextMenu.value = false
+	}
+}
+
+onMounted(() => {
+	document.addEventListener('click', handleGlobalClick)
+})
+
+onUnmounted(() => {
+	document.removeEventListener('click', handleGlobalClick)
+})
 </script>
 
 <template>
 	<div
-		class="task-row grid grid-cols-12 gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all"
+		class="task-row grid grid-cols-12 gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all context-menu-wrapper"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
 			level === 0 ? 'bg-white hover:bg-gray-50 border-transparent' : 

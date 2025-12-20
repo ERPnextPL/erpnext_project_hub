@@ -3,7 +3,7 @@ import { ref, watch, onMounted, computed } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
 import QuickAddTask from './QuickAddTask.vue'
 import UserSelect from './UserSelect.vue'
-import TimeLogModal from './TimeLogModal.vue'
+import TimeLogModal from './TimeLogModal.vue?v=20241220-2030'
 import {
 	X,
 	ExternalLink,
@@ -509,15 +509,11 @@ async function handleSubtaskCreated() {
 						</div>
 					</div>
 					<QuickAddTask
-						v-if="task.is_group"
 						:project-id="task.project"
 						:parent-task="task.name"
 						placeholder="Dodaj podzadanie..."
 						@created="handleSubtaskCreated"
 					/>
-					<p v-else class="text-sm text-gray-500">
-						Oznacz jako zadanie grupowe, aby dodać podzadania
-					</p>
 				</div>
 			</div>
 		</div>

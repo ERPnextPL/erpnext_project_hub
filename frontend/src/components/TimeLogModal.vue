@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
 import { X, Clock, Calendar, FileText, Plus } from 'lucide-vue-next'
 
@@ -32,7 +32,21 @@ onMounted(() => {
 	if (store.activityTypes.length === 0) {
 		store.fetchActivityTypes()
 	}
+	// Add escape key listener
+	document.addEventListener('keydown', handleEscapeKey)
 })
+
+// Remove escape key listener on unmount
+onUnmounted(() => {
+	document.removeEventListener('keydown', handleEscapeKey)
+})
+
+// Handle escape key
+function handleEscapeKey(event) {
+	if (event.key === 'Escape' && props.show) {
+		handleClose()
+	}
+}
 
 // Activity types from store
 const activityTypes = computed(() => store.activityTypes)
@@ -41,11 +55,40 @@ const activityTypes = computed(() => store.activityTypes)
 watch(() => props.show, (newVal) => {
 	if (newVal) {
 		resetForm()
-		// Set default date to today with 8:00 start and 8 hours
-		const today = new Date().toISOString().split('T')[0]
-		formData.value.from_time = `${today}T08:00`
-		formData.value.hours = '8'
+		// Set default date to today with current time minus 1 hour
+		const now = new Date()
+		const endTime = new Date(now.getTime() - 60 * 60 * 1000) // Subtract 1 hour
+		const today = endTime.toISOString().split('T')[0]
+		const hours = String(endTime.getHours()).padStart(2, '0')
+		const minutes = String(endTime.getMinutes()).padStart(2, '0')
+		formData.value.from_time = `${today}T${hours}:${minutes}`
+		formData.value.hours = '1'
+		// Set default activity type from global settings
+		const globalDefaultActivityType = store.projectsSettings?.default_activity_type
+		
+		if (globalDefaultActivityType && activityTypes.value.includes(globalDefaultActivityType)) {
+			formData.value.activity_type = globalDefaultActivityType
+		} else if (activityTypes.value.includes('Wykonanie')) {
+			formData.value.activity_type = 'Wykonanie'
+		} else if (activityTypes.value.includes('Execution')) {
+			formData.value.activity_type = 'Execution'
+		}
 		calculateToTime()
+	}
+}, { immediate: true })
+
+// Watch for activity types to set default activity_type when they load
+watch(activityTypes, (newTypes) => {
+	if (props.show && newTypes.length > 0) {
+		const globalDefaultActivityType = store.projectsSettings?.default_activity_type
+		
+		if (globalDefaultActivityType && newTypes.includes(globalDefaultActivityType)) {
+			formData.value.activity_type = globalDefaultActivityType
+		} else if (newTypes.includes('Wykonanie')) {
+			formData.value.activity_type = 'Wykonanie'
+		} else if (newTypes.includes('Execution')) {
+			formData.value.activity_type = 'Execution'
+		}
 	}
 })
 

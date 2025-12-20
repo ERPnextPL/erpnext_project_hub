@@ -3,7 +3,7 @@ import { ref, nextTick } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
 import TaskRow from './TaskRow.vue'
 import QuickAddTask from './QuickAddTask.vue'
-import TimeLogModal from './TimeLogModal.vue'
+import TimeLogModal from './TimeLogModal.vue?v=20241220'
 import draggable from 'vuedraggable'
 
 const props = defineProps({
