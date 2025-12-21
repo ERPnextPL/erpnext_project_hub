@@ -257,6 +257,6 @@ doc_events = {
 # --------
 fixtures = [
     {"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
-    {"dt": "Workspace Link", "filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]]},
+    {"dt": "Workspace Link", "filters": [["parent", "=", "Projects"]]},
     {"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]]},
 ]
