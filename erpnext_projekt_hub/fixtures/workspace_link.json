@@ -1,1 +1,15 @@
-[]
+[
+	{
+		"doctype": "Workspace Link",
+		"name": "Projects-Project Hub",
+		"parent": "Projects",
+		"parenttype": "Workspace",
+		"parentfield": "links",
+		"type": "Link",
+		"link_to": "/project-hub",
+		"label": "Project Hub",
+		"icon": "folder",
+		"color": "Blue",
+		"description": "Access the Project Hub interface"
+	}
+]
