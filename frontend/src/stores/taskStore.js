@@ -136,7 +136,7 @@ export const useTaskStore = defineStore('tasks', () => {
 	async function fetchTasks(projectId) {
 		loading.value = true
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_project_tasks', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_project_tasks', {
 				project: projectId
 			})
 			if (data) {
@@ -156,7 +156,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function createTask(taskData) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.create_task', taskData)
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.create_task', taskData)
 			if (data) {
 				tasks.value.push(data)
 				// Refresh project to update percent_complete
@@ -173,7 +173,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function updateTask(taskName, updates) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.update_task', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.update_task', {
 				task_name: taskName,
 				...updates
 			})
@@ -232,7 +232,7 @@ export const useTaskStore = defineStore('tasks', () => {
 	async function refreshProject() {
 		if (!project.value) return
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_project_tasks', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_project_tasks', {
 				project: project.value.name
 			})
 			if (data && data.project) {
@@ -245,7 +245,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function updateProject(projectName, updates) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.update_project', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.update_project', {
 				project: projectName,
 				...updates,
 			})
@@ -261,7 +261,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function deleteTask(taskName) {
 		try {
-			await apiCall('erpnext_projekt_hub.api.outliner.delete_task', {
+			await apiCall('erpnext_projekt_hub.api.project_hub.delete_task', {
 				task_name: taskName
 			})
 			tasks.value = tasks.value.filter(t => t.name !== taskName)
@@ -277,7 +277,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function reorderTask(taskName, newParent, newIdx) {
 		try {
-			await apiCall('erpnext_projekt_hub.api.outliner.reorder_task', {
+			await apiCall('erpnext_projekt_hub.api.project_hub.reorder_task', {
 				task_name: taskName,
 				parent_task: newParent,
 				idx: newIdx
@@ -323,7 +323,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchAllProjects() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_all_projects', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_all_projects', {})
 			allProjects.value = data || []
 			return data
 		} catch (error) {
@@ -337,7 +337,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchUsers() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_users', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_users', {})
 			availableUsers.value = data || []
 		} catch (error) {
 			console.error('Failed to fetch users:', error)
@@ -346,7 +346,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchProjectsSettings() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_projects_settings', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_projects_settings', {})
 			projectsSettings.value = data || {}
 			return data
 		} catch (error) {
@@ -358,7 +358,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function assignTask(taskName, user, action = 'add') {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.assign_task', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.assign_task', {
 				task_name: taskName,
 				user: user,
 				action: action
@@ -384,7 +384,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchProjectUsers(projectName) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_project_users', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_project_users', {
 				project: projectName
 			})
 			return data || []
@@ -396,7 +396,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function addProjectUser(projectName, user) {
 		try {
-			await apiCall('erpnext_projekt_hub.api.outliner.add_project_user', {
+			await apiCall('erpnext_projekt_hub.api.project_hub.add_project_user', {
 				project: projectName,
 				user: user
 			})
@@ -409,7 +409,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function removeProjectUser(projectName, user) {
 		try {
-			await apiCall('erpnext_projekt_hub.api.outliner.remove_project_user', {
+			await apiCall('erpnext_projekt_hub.api.project_hub.remove_project_user', {
 				project: projectName,
 				user: user
 			})
@@ -432,7 +432,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchActivityTypes() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_activity_types', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_activity_types', {})
 			activityTypes.value = data || []
 			return data
 		} catch (error) {
@@ -445,7 +445,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchTaskStatuses() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_task_statuses', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_task_statuses', {})
 			taskStatuses.value = data || []
 			return data
 		} catch (error) {
@@ -458,7 +458,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchTaskPriorities() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_task_priorities', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_task_priorities', {})
 			taskPriorities.value = data || []
 			return data
 		} catch (error) {
@@ -471,7 +471,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchTaskTimelogs(taskName) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_task_timelogs', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_task_timelogs', {
 				task_name: taskName
 			})
 			taskTimelogs.value[taskName] = data
@@ -484,7 +484,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function createTimelog(timelogData) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.create_timelog', timelogData)
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.create_timelog', timelogData)
 			// Refresh timelogs for this task
 			if (timelogData.task) {
 				await fetchTaskTimelogs(timelogData.task)
@@ -498,7 +498,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function updateTimelog(timelogName, updates) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.update_timelog', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.update_timelog', {
 				timelog_name: timelogName,
 				...updates
 			})
@@ -511,7 +511,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function deleteTimelog(timelogName, taskName) {
 		try {
-			await apiCall('erpnext_projekt_hub.api.outliner.delete_timelog', {
+			await apiCall('erpnext_projekt_hub.api.project_hub.delete_timelog', {
 				timelog_name: timelogName
 			})
 			// Refresh timelogs for this task
@@ -531,7 +531,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function fetchMilestones(projectName) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_project_milestones', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_project_milestones', {
 				project: projectName
 			})
 			milestones.value = data || []
@@ -545,7 +545,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function createMilestone(milestoneData) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.create_milestone', milestoneData)
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.create_milestone', milestoneData)
 			// Refresh milestones list
 			if (milestoneData.project) {
 				await fetchMilestones(milestoneData.project)
@@ -559,7 +559,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function updateMilestone(milestoneName, updates) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.update_milestone', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.update_milestone', {
 				milestone_name: milestoneName,
 				...updates
 			})
@@ -576,7 +576,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function deleteMilestone(milestoneName) {
 		try {
-			await apiCall('erpnext_projekt_hub.api.outliner.delete_milestone', {
+			await apiCall('erpnext_projekt_hub.api.project_hub.delete_milestone', {
 				milestone_name: milestoneName
 			})
 			// Refresh milestones and tasks
@@ -597,7 +597,7 @@ export const useTaskStore = defineStore('tasks', () => {
 
 	async function assignTaskToMilestone(taskName, milestoneName) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.assign_task_to_milestone', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.assign_task_to_milestone', {
 				task_name: taskName,
 				milestone: milestoneName || ''
 			})

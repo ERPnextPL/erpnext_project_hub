@@ -18,12 +18,12 @@ const props = defineProps({
 
 const statusOrder = ['Overdue', 'Open', 'Working', 'Pending Review', 'Completed', 'Cancelled']
 const statusLabels = {
-	Overdue: 'Spóźnione',
-	Open: 'Otwarte',
-	Working: 'W trakcie',
-	'Pending Review': 'Do przeglądu',
-	Completed: 'Ukończone',
-	Cancelled: 'Anulowane',
+	Overdue: window.__('Overdue'),
+	Open: window.__('Open'),
+	Working: window.__('Working'),
+	'Pending Review': window.__('Pending Review'),
+	Completed: window.__('Completed'),
+	Cancelled: window.__('Cancelled'),
 }
 
 const tasksByName = computed(() => {
@@ -167,7 +167,7 @@ const sections = computed(() => {
 
 		<!-- Load more / pagination info -->
 		<div v-if="store.tasks.length > 0" class="mt-4 text-center text-sm text-gray-500">
-			Wyświetlono {{ store.tasks.length }} z {{ store.total }} zadań
+			{{ window.__('Showing') }} {{ store.tasks.length }} {{ window.__('of') }} {{ store.total }} {{ window.__('tasks') }}
 		</div>
 	</div>
 </template>

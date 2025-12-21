@@ -7,10 +7,10 @@ const route = useRoute()
 const router = useRouter()
 
 const navItems = [
-	{ key: 'projects', to: '/outliner', label: 'Projekty', icon: Folder, color: 'text-blue-600', bg: 'bg-blue-50' },
-	{ key: 'tasks', to: '/outliner/my-tasks', label: 'Zadania', icon: CheckSquare, color: 'text-blue-500', bg: 'bg-blue-50' },
-	{ key: 'team', to: '/outliner/team-manager', label: 'Zespół', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
-	{ key: 'time', to: '/outliner/time-management', label: 'Czas', icon: Clock, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+	{ key: 'projects', to: '/project-hub', label: window.__('Projects'), icon: Folder, color: 'text-blue-600', bg: 'bg-blue-50' },
+	{ key: 'tasks', to: '/project-hub/my-tasks', label: window.__('Tasks'), icon: CheckSquare, color: 'text-blue-500', bg: 'bg-blue-50' },
+	{ key: 'team', to: '/project-hub/team-manager', label: window.__('Team'), icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
+	{ key: 'time', to: '/project-hub/time-management', label: window.__('Time'), icon: Clock, color: 'text-emerald-600', bg: 'bg-emerald-50' },
 ]
 
 const scrollerRef = ref(null)

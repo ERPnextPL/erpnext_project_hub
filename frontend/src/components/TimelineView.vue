@@ -146,16 +146,16 @@ onMounted(() => {
 		<div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
 			<div class="flex items-center gap-2">
 				<Calendar class="w-5 h-5 text-blue-600" />
-				<h3 class="text-sm font-semibold text-gray-700">Oś czasu</h3>
+				<h3 class="text-sm font-semibold text-gray-700">{{ window.__('Timeline') }}</h3>
 				<span class="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
-					{{ timelineTasks.length }} zadań z datami
+					{{ timelineTasks.length }} {{ window.__('tasks with dates') }}
 				</span>
 			</div>
 			<div class="flex items-center gap-2">
 				<button
 					@click="navigatePrev"
 					class="p-1.5 rounded hover:bg-gray-200 text-gray-600"
-					title="Poprzedni tydzień"
+					title="{{ window.__('Previous week') }}"
 				>
 					<ChevronLeft class="w-4 h-4" />
 				</button>
@@ -163,12 +163,12 @@ onMounted(() => {
 					@click="goToToday"
 					class="px-3 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded"
 				>
-					Dzisiaj
+					{{ window.__('Today') }}
 				</button>
 				<button
 					@click="navigateNext"
 					class="p-1.5 rounded hover:bg-gray-200 text-gray-600"
-					title="Następny tydzień"
+					title="{{ window.__('Next week') }}"
 				>
 					<ChevronRight class="w-4 h-4" />
 				</button>
@@ -182,7 +182,7 @@ onMounted(() => {
 				<div class="flex">
 					<!-- Task name column header -->
 					<div class="w-64 flex-shrink-0 px-4 py-2 border-r border-gray-200 bg-gray-50">
-						<span class="text-xs font-medium text-gray-500 uppercase">Zadanie</span>
+						<span class="text-xs font-medium text-gray-500 uppercase">{{ window.__('Task') }}</span>
 					</div>
 					<!-- Date columns -->
 					<div class="flex-1 flex">
@@ -214,8 +214,8 @@ onMounted(() => {
 			<div v-if="timelineTasks.length === 0" class="flex items-center justify-center py-12 text-gray-500">
 				<div class="text-center">
 					<Calendar class="w-12 h-12 mx-auto mb-3 text-gray-300" />
-					<p class="text-sm">Brak zadań z datami do wyświetlenia</p>
-					<p class="text-xs text-gray-400 mt-1">Dodaj daty rozpoczęcia lub zakończenia do zadań</p>
+					<p class="text-sm">{{ window.__('No tasks with dates to display') }}</p>
+					<p class="text-xs text-gray-400 mt-1">{{ window.__('Add start or end dates to tasks') }}</p>
 				</div>
 			</div>
 

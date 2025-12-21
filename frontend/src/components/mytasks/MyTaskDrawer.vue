@@ -87,18 +87,18 @@ const isDirty = computed(() => {
 
 // Status and priority options
 const statusOptions = [
-	{ value: 'Open', label: 'Otwarte', icon: Circle, class: 'text-blue-600' },
-	{ value: 'Working', label: 'W trakcie', icon: Clock, class: 'text-amber-600' },
-	{ value: 'Pending Review', label: 'Do przeglądu', icon: AlertCircle, class: 'text-purple-600' },
-	{ value: 'Completed', label: 'Ukończone', icon: CheckCircle2, class: 'text-green-600' },
-	{ value: 'Cancelled', label: 'Anulowane', icon: Circle, class: 'text-gray-400' },
+	{ value: 'Open', label: window.__('Open'), icon: Circle, class: 'text-blue-600' },
+	{ value: 'Working', label: window.__('Working'), icon: Clock, class: 'text-amber-600' },
+	{ value: 'Pending Review', label: window.__('Pending Review'), icon: AlertCircle, class: 'text-purple-600' },
+	{ value: 'Completed', label: window.__('Completed'), icon: CheckCircle2, class: 'text-green-600' },
+	{ value: 'Cancelled', label: window.__('Cancelled'), icon: Circle, class: 'text-gray-400' },
 ]
 
 const priorityOptions = [
-	{ value: 'Low', label: 'Niskie', class: 'text-gray-500' },
-	{ value: 'Medium', label: 'Średnie', class: 'text-yellow-600' },
-	{ value: 'High', label: 'Wysokie', class: 'text-orange-500' },
-	{ value: 'Urgent', label: 'Pilne', class: 'text-red-600' },
+	{ value: 'Low', label: window.__('Low'), class: 'text-gray-500' },
+	{ value: 'Medium', label: window.__('Medium'), class: 'text-yellow-600' },
+	{ value: 'High', label: window.__('High'), class: 'text-orange-500' },
+	{ value: 'Urgent', label: window.__('Urgent'), class: 'text-red-600' },
 ]
 
 // Computed for current task timelogs
@@ -217,20 +217,20 @@ const isValid = computed(() => {
 })
 
 const drawerTitle = computed(() => {
-	if (props.isNew) return 'Nowe zadanie'
-	return 'Szczegóły zadania'
+	if (props.isNew) return window.__('New Task')
+	return window.__('Task Details')
 })
 
 async function handleSave() {
 	errors.value = {}
 	
 	if (!form.value.subject.trim()) {
-		errors.value.subject = 'Nazwa zadania jest wymagana'
+		errors.value.subject = window.__('Task name is required')
 		return
 	}
 	
 	if (!form.value.project) {
-		errors.value.project = 'Projekt jest wymagany'
+		errors.value.project = window.__('Project is required')
 		return
 	}
 	
@@ -395,7 +395,7 @@ function formatDateTime(dateStr) {
 						<!-- Subject -->
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
-								Nazwa zadania <span class="text-red-500">*</span>
+								{{ window.__('Task Name') }} <span class="text-red-500">*</span>
 							</label>
 							<input
 								v-model="form.subject"
@@ -404,7 +404,7 @@ function formatDateTime(dateStr) {
 									'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
 									errors.subject ? 'border-red-300' : 'border-gray-300'
 								]"
-								placeholder="Wprowadź nazwę zadania..."
+								placeholder="{{ window.__('Enter task name...') }}"
 							/>
 							<p v-if="errors.subject" class="mt-1 text-sm text-red-600">{{ errors.subject }}</p>
 						</div>
@@ -413,7 +413,7 @@ function formatDateTime(dateStr) {
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<Folder class="w-4 h-4 inline mr-1" />
-								Projekt <span class="text-red-500">*</span>
+								{{ window.__('Project') }} <span class="text-red-500">*</span>
 							</label>
 							<select
 								v-model="form.project"
@@ -424,7 +424,7 @@ function formatDateTime(dateStr) {
 									!isNew && 'bg-gray-50 cursor-not-allowed'
 								]"
 							>
-								<option value="">Wybierz projekt...</option>
+								<option value="">{{ window.__('Select project...') }}</option>
 								<option 
 									v-for="project in store.projects" 
 									:key="project.name" 
@@ -442,7 +442,7 @@ function formatDateTime(dateStr) {
 						<!-- Status -->
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
-								Status
+								{{ window.__('Status') }}
 							</label>
 							<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
 								<button
@@ -466,7 +466,7 @@ function formatDateTime(dateStr) {
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<Flag class="w-4 h-4 inline mr-1" />
-								Priorytet
+								{{ window.__('Priority') }}
 							</label>
 							<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
 								<button
@@ -490,7 +490,7 @@ function formatDateTime(dateStr) {
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<Calendar class="w-4 h-4 inline mr-1" />
-								Termin
+								{{ window.__('Due Date') }}
 							</label>
 							<input
 								v-model="form.exp_end_date"
@@ -503,13 +503,13 @@ function formatDateTime(dateStr) {
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<FileText class="w-4 h-4 inline mr-1" />
-								Opis
+								{{ window.__('Description') }}
 							</label>
 							<textarea
 								v-model="form.description"
 								rows="4"
 								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-								placeholder="Dodaj opis zadania..."
+								placeholder="{{ window.__('Add task description...') }}"
 							></textarea>
 						</div>
 
@@ -518,25 +518,25 @@ function formatDateTime(dateStr) {
 							<div class="flex items-center justify-between mb-2">
 								<h3 class="text-sm font-medium text-gray-700 flex items-center gap-2">
 									<CheckCircle2 class="w-4 h-4" />
-									Podzadania
+									{{ window.__('Subtasks') }}
 								</h3>
 								<button
 									@click="showSubtaskForm = !showSubtaskForm"
 									class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 								>
 									<Plus class="w-3.5 h-3.5" />
-									Dodaj
+									{{ window.__('Add') }}
 								</button>
 							</div>
 
 							<div v-if="showSubtaskForm" class="bg-gray-50 rounded-lg p-3 space-y-3" @click.stop>
 								<div>
-									<label class="block text-xs font-medium text-gray-600 mb-1">Nazwa podzadania</label>
+									<label class="block text-xs font-medium text-gray-600 mb-1">{{ window.__('Subtask name') }}</label>
 									<input
 										v-model="subtaskSubject"
 										type="text"
 										class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-										placeholder="Np. Przygotować dokumentację..."
+										placeholder="{{ window.__('e.g., Prepare documentation...') }}"
 										@keydown.enter.prevent="createSubtask"
 									/>
 								</div>
@@ -545,13 +545,13 @@ function formatDateTime(dateStr) {
 										@click="showSubtaskForm = false"
 										class="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
 									>
-										Anuluj
+										{{ window.__('Cancel') }}
 									</button>
 									<button
 										@click="createSubtask"
 										class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
 									>
-										Dodaj
+										{{ window.__('Add') }}
 									</button>
 								</div>
 							</div>
@@ -563,10 +563,10 @@ function formatDateTime(dateStr) {
 								<div>
 									<h3 class="text-sm font-medium text-gray-700 flex items-center gap-2">
 										<Clock class="w-4 h-4" />
-										Czas pracy
+										{{ window.__('Time Log') }}
 									</h3>
 									<p v-if="currentTimelogs.total_hours > 0" class="text-xs text-gray-500 mt-0.5">
-										Razem: {{ currentTimelogs.total_hours.toFixed(2) }} godz.
+										{{ window.__('Total') }}: {{ currentTimelogs.total_hours.toFixed(2) }} {{ window.__('hrs') }}.
 									</p>
 								</div>
 								<button
@@ -574,7 +574,7 @@ function formatDateTime(dateStr) {
 									class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 								>
 									<Plus class="w-3.5 h-3.5" />
-									Dodaj
+									{{ window.__('Add') }}
 								</button>
 							</div>
 
@@ -582,7 +582,7 @@ function formatDateTime(dateStr) {
 							<div v-if="showTimeLogForm" class="bg-gray-50 rounded-lg p-3 mb-3 space-y-3">
 								<div class="grid grid-cols-2 gap-3">
 									<div>
-										<label class="block text-xs font-medium text-gray-600 mb-1">Godziny *</label>
+										<label class="block text-xs font-medium text-gray-600 mb-1">{{ window.__('Hours') }} *</label>
 										<input
 											v-model="timelogForm.hours"
 											type="number"
@@ -590,16 +590,16 @@ function formatDateTime(dateStr) {
 											min="0"
 											max="24"
 											class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-											placeholder="np. 2.5"
+											placeholder="{{ window.__('e.g., 2.5') }}"
 										/>
 									</div>
 									<div>
-										<label class="block text-xs font-medium text-gray-600 mb-1">Typ *</label>
+										<label class="block text-xs font-medium text-gray-600 mb-1">{{ window.__('Type') }} *</label>
 										<select
 											v-model="timelogForm.activity_type"
 											class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
 										>
-											<option value="">Wybierz...</option>
+											<option value="">{{ window.__('Select...') }}</option>
 											<option v-for="type in store.activityTypes" :key="type" :value="type">
 												{{ type }}
 											</option>
@@ -607,7 +607,7 @@ function formatDateTime(dateStr) {
 									</div>
 								</div>
 								<div>
-									<label class="block text-xs font-medium text-gray-600 mb-1">Data/czas</label>
+									<label class="block text-xs font-medium text-gray-600 mb-1">{{ window.__('Date/Time') }}</label>
 									<input
 										v-model="timelogForm.from_time"
 										type="datetime-local"
@@ -615,12 +615,12 @@ function formatDateTime(dateStr) {
 									/>
 								</div>
 								<div>
-									<label class="block text-xs font-medium text-gray-600 mb-1">Opis</label>
+									<label class="block text-xs font-medium text-gray-600 mb-1">{{ window.__('Description') }}</label>
 									<textarea
 										v-model="timelogForm.description"
 										rows="2"
 										class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 resize-none"
-										placeholder="Co robiłeś?"
+										placeholder="{{ window.__('What did you do?') }}"
 									></textarea>
 								</div>
 								<div class="flex justify-end gap-2">
@@ -628,13 +628,13 @@ function formatDateTime(dateStr) {
 										@click="showTimeLogForm = false"
 										class="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
 									>
-										Anuluj
+										{{ window.__('Cancel') }}
 									</button>
 									<button
 										@click="handleSaveTimelog"
 										class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
 									>
-										Zapisz
+										{{ window.__('Save') }}
 									</button>
 								</div>
 							</div>
@@ -644,7 +644,7 @@ function formatDateTime(dateStr) {
 								<Loader2 class="w-5 h-5 animate-spin mx-auto text-gray-400" />
 							</div>
 							<div v-else-if="currentTimelogs.timelogs.length === 0" class="text-sm text-gray-500 text-center py-4">
-								Brak wpisów czasu
+								{{ window.__('No time entries') }}
 							</div>
 							<div v-else class="space-y-2">
 								<div
@@ -697,7 +697,7 @@ function formatDateTime(dateStr) {
 								@click="emit('close')"
 								class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
 							>
-								Anuluj
+								{{ window.__('Cancel') }}
 							</button>
 							<button
 								@click="handleSave"
@@ -706,7 +706,7 @@ function formatDateTime(dateStr) {
 							>
 								<Loader2 v-if="saving" class="w-4 h-4 animate-spin" />
 								<Save v-else class="w-4 h-4" />
-								{{ isNew ? 'Utwórz' : 'Zapisz' }}
+								{{ isNew ? window.__('Create') : window.__('Save') }}
 							</button>
 						</div>
 					</div>

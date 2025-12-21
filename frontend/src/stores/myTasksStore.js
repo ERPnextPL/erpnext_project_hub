@@ -141,7 +141,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 				params.sort_by = filters.value.sortBy
 			}
 			
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_my_tasks', params)
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_my_tasks', params)
 			
 			if (data) {
 				tasks.value = data.tasks || []
@@ -157,7 +157,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function fetchProjects() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_my_tasks_projects', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_my_tasks_projects', {})
 			projects.value = data || []
 		} catch (err) {
 			console.error('Failed to fetch projects:', err)
@@ -167,8 +167,8 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 	async function fetchMetadata() {
 		try {
 			const [statusData, priorityData] = await Promise.all([
-				apiCall('erpnext_projekt_hub.api.outliner.get_task_statuses', {}),
-				apiCall('erpnext_projekt_hub.api.outliner.get_task_priorities', {}),
+				apiCall('erpnext_projekt_hub.api.project_hub.get_task_statuses', {}),
+				apiCall('erpnext_projekt_hub.api.project_hub.get_task_priorities', {}),
 			])
 			statuses.value = statusData || []
 			priorities.value = priorityData || []
@@ -192,7 +192,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 		pendingUpdates.value.set(taskName, originalTask)
 		
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.quick_update_task', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.quick_update_task', {
 				task_name: taskName,
 				...updates,
 			})
@@ -222,7 +222,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function createTask(taskData) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.create_my_task', taskData)
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.create_my_task', taskData)
 			
 			if (data) {
 				// Add to beginning of list
@@ -243,7 +243,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function updateTaskFull(taskName, updates) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.update_task', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.update_task', {
 				task_name: taskName,
 				...updates,
 			})
@@ -273,7 +273,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function getTaskDetail(taskName) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_task_detail', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_task_detail', {
 				task_name: taskName,
 			})
 			return data
@@ -420,7 +420,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function fetchActivityTypes() {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_activity_types', {})
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_activity_types', {})
 			activityTypes.value = data || []
 			return data
 		} catch (error) {
@@ -431,7 +431,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function fetchTaskTimelogs(taskName) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.get_task_timelogs', {
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.get_task_timelogs', {
 				task_name: taskName
 			})
 			taskTimelogs.value[taskName] = data
@@ -444,7 +444,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function createTimelog(timelogData) {
 		try {
-			const data = await apiCall('erpnext_projekt_hub.api.outliner.create_timelog', timelogData)
+			const data = await apiCall('erpnext_projekt_hub.api.project_hub.create_timelog', timelogData)
 			// Refresh timelogs for this task
 			if (timelogData.task) {
 				await fetchTaskTimelogs(timelogData.task)
@@ -458,7 +458,7 @@ export const useMyTasksStore = defineStore('myTasks', () => {
 
 	async function deleteTimelog(timelogName, taskName) {
 		try {
-			await apiCall('erpnext_projekt_hub.api.outliner.delete_timelog', {
+			await apiCall('erpnext_projekt_hub.api.project_hub.delete_timelog', {
 				timelog_name: timelogName
 			})
 			// Refresh timelogs for this task

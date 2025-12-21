@@ -66,19 +66,19 @@ function isTouchDevice() {
 
 // Status config - shorter labels to fit in grid
 const statusConfig = {
-	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', label: 'Otwarte' },
-	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', label: 'W trakcie' },
-	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', label: 'Przegląd' },
-	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', label: 'Gotowe' },
-	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', label: 'Spóźnione' },
-	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', label: 'Anulowane' },
+	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', label: window.__('Open') },
+	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', label: window.__('Working') },
+	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', label: window.__('Review') },
+	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', label: window.__('Done') },
+	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', label: window.__('Overdue') },
+	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', label: window.__('Cancelled') },
 }
 
 const priorityConfig = {
-	'Urgent': { class: 'text-red-600', bg: 'bg-red-100', label: 'Pilne' },
-	'High': { class: 'text-orange-500', bg: 'bg-orange-100', label: 'Wysokie' },
-	'Medium': { class: 'text-yellow-600', bg: 'bg-yellow-100', label: 'Średnie' },
-	'Low': { class: 'text-gray-500', bg: 'bg-gray-100', label: 'Niskie' },
+	'Urgent': { class: 'text-red-600', bg: 'bg-red-100', label: window.__('Urgent') },
+	'High': { class: 'text-orange-500', bg: 'bg-orange-100', label: window.__('High') },
+	'Medium': { class: 'text-yellow-600', bg: 'bg-yellow-100', label: window.__('Medium') },
+	'Low': { class: 'text-gray-500', bg: 'bg-gray-100', label: window.__('Low') },
 }
 
 const currentStatus = computed(() => {
@@ -193,7 +193,7 @@ onUnmounted(() => {
 				v-if="props.hierarchyEnabled && props.hasChildren"
 				@click.stop="emit('toggle-expand', task.name)"
 				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors mt-0.5"
-				:title="props.isExpanded ? 'Zwiń podzadania' : 'Rozwiń podzadania'"
+				:title="props.isExpanded ? window.__('Collapse subtasks') : window.__('Expand subtasks')'"
 			>
 				<ChevronDown v-if="props.isExpanded" class="w-4 h-4 text-gray-500" />
 				<ChevronRight v-else class="w-4 h-4 text-gray-500" />
@@ -201,7 +201,7 @@ onUnmounted(() => {
 			<button
 				@click.stop="updateStatus(task.status === 'Completed' ? 'Open' : 'Completed')"
 				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors mt-0.5"
-				:title="task.status === 'Completed' ? 'Oznacz jako otwarte' : 'Oznacz jako ukończone'"
+				:title="task.status === 'Completed' ? window.__('Mark as open') : window.__('Mark as complete')"
 			>
 				<CheckCircle2 
 					:class="[
@@ -225,7 +225,7 @@ onUnmounted(() => {
 					:title="task.parent_subject || task.parent_task"
 				>
 					<CornerDownRight class="w-3.5 h-3.5 flex-shrink-0" />
-					<span class="truncate">Podzadanie: {{ task.parent_subject || task.parent_task }}</span>
+					<span class="truncate">{{ window.__('Subtask') }}: {{ task.parent_subject || task.parent_task }}</span>
 				</div>
 			</div>
 		</div>
@@ -353,7 +353,7 @@ onUnmounted(() => {
 					:disabled="!canAddSubtask"
 				>
 					<FileText class="w-4 h-4" />
-					Dodaj podzadanie
+					{{ window.__('Add subtask') }}
 				</button>
 			</div>
 		</Teleport>

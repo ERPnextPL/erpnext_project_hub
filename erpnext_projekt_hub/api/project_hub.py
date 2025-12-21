@@ -759,6 +759,7 @@ def get_task_timelogs(task_name: str):
 		SELECT 
 			ts.name as timesheet_name,
 			ts.owner,
+			ts.status,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -890,6 +891,7 @@ def create_timelog(
 		"description": latest_log.description,
 		"task": latest_log.task,
 		"project": latest_log.project,
+		"status": timesheet.status,
 		"owner": user,
 		"user_full_name": user_doc.full_name,
 		"user_image": user_doc.user_image,
@@ -967,12 +969,14 @@ def delete_timelog(timelog_name: str):
 	if not row:
 		return {"success": True}
 
-	timesheet.remove(row)
-	timesheet.save()
-
-	# If no more time logs, delete the timesheet
-	if not timesheet.time_logs:
+	# Check if this is the last time log before removing
+	if len(timesheet.time_logs) == 1:
+		# If this is the last time log, delete the entire timesheet
 		frappe.delete_doc("Timesheet", timesheet.name)
+	else:
+		# Otherwise, just remove this time log and save
+		timesheet.remove(row)
+		timesheet.save()
 
 	return {"success": True}
 

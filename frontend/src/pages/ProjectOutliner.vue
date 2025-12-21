@@ -170,7 +170,7 @@ const flattenedTasksWithFilters = computed(() => {
 								]"
 							>
 								<LayoutList class="w-4 h-4" />
-								Lista
+								{{ window.__('List') }}
 							</button>
 							<button
 								@click="activeView = 'board'"
@@ -182,7 +182,7 @@ const flattenedTasksWithFilters = computed(() => {
 								]"
 							>
 								<Columns class="w-4 h-4" />
-								Tablica
+								{{ window.__('Board') }}
 							</button>
 							<button
 								@click="activeView = 'timeline'"
@@ -202,7 +202,7 @@ const flattenedTasksWithFilters = computed(() => {
 							:href="`/app/project/${projectId}`"
 							class="text-sm text-gray-500 hover:text-gray-700 ml-4"
 						>
-							Otwórz w Desk →
+							{{ window.__('Open in Desk') }} →
 						</a>
 					</div>
 				</div>

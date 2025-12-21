@@ -33,20 +33,20 @@ const priorityConfig = {
 }
 
 const dueFilterOptions = [
-	{ value: 'today', label: 'Dziś', icon: Calendar },
-	{ value: 'week', label: 'Ten tydzień', icon: CalendarDays },
-	{ value: 'overdue', label: 'Przeterminowane', icon: AlertCircle },
+	{ value: 'today', label: window.__('Today'), icon: Calendar },
+	{ value: 'week', label: window.__('This week'), icon: CalendarDays },
+	{ value: 'overdue', label: window.__('Overdue'), icon: AlertCircle },
 ]
 
 const statuses = computed(() => {
 	return store.statuses.map(status => ({
 		value: status,
-		label: status === 'Working' ? 'W trakcie' : 
-			   status === 'Pending Review' ? 'Do przeglądu' :
-			   status === 'Completed' ? 'Ukończone' :
-			   status === 'Cancelled' ? 'Anulowane' :
-			   status === 'Overdue' ? 'Przeterminowane' :
-			   status === 'Open' ? 'Otwarte' : status,
+		label: status === 'Working' ? window.__('Working') : 
+			   status === 'Pending Review' ? window.__('Pending Review') :
+			   status === 'Completed' ? window.__('Completed') :
+			   status === 'Cancelled' ? window.__('Cancelled') :
+			   status === 'Overdue' ? window.__('Overdue') :
+			   status === 'Open' ? window.__('Open') : status,
 		...statusConfig[status] || { icon: Circle, class: 'text-gray-500', bg: 'bg-gray-50' }
 	}))
 })
@@ -54,10 +54,10 @@ const statuses = computed(() => {
 const priorities = computed(() => {
 	return store.priorities.map(priority => ({
 		value: priority,
-		label: priority === 'Urgent' ? 'Pilne' :
-			   priority === 'High' ? 'Wysokie' :
-			   priority === 'Medium' ? 'Średnie' :
-			   priority === 'Low' ? 'Niskie' : priority,
+		label: priority === 'Urgent' ? window.__('Urgent') :
+			   priority === 'High' ? window.__('High') :
+			   priority === 'Medium' ? window.__('Medium') :
+			   priority === 'Low' ? window.__('Low') : priority,
 		...priorityConfig[priority] || { class: 'text-gray-500', bg: 'bg-gray-50' }
 	}))
 })
@@ -166,7 +166,7 @@ function setProjectFilter(project) {
 
 		<!-- Priority filter -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Priorytet</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Priority') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					v-for="priority in priorities"

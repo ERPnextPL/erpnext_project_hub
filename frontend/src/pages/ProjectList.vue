@@ -22,7 +22,7 @@ const showCompleted = ref(false)
 
 onMounted(async () => {
 	try {
-		const response = await fetch('/api/method/erpnext_projekt_hub.api.outliner.get_projects', {
+		const response = await fetch('/api/method/erpnext_projekt_hub.api.project_hub.get_projects', {
 			headers: {
 				'X-Frappe-CSRF-Token': window.csrf_token,
 			},
@@ -72,7 +72,7 @@ function getProgressColor(percent) {
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Folder class="w-6 h-6 text-blue-600" />
-						<h1 class="text-xl font-semibold text-gray-900">Projekty</h1>
+						<h1 class="text-xl font-semibold text-gray-900">{{ window.__('Projects') }}</h1>
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
@@ -80,7 +80,7 @@ function getProgressColor(percent) {
 							href="/app"
 							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
 						>
-							← Wróć do Desk
+							← {{ window.__('Back to Desk') }}
 						</a>
 					</div>
 				</div>
@@ -93,18 +93,18 @@ function getProgressColor(percent) {
 			<div class="mb-6 flex items-center justify-between">
 				<div>
 					<h2 class="text-lg font-medium text-gray-900">
-						{{ isManager ? 'Wszystkie projekty' : 'Moje projekty' }}
+						{{ isManager ? window.__('All projects') : window.__('My projects') }}
 					</h2>
 					<p class="text-sm text-gray-500">
-						{{ isManager ? 'Zarządzaj wszystkimi projektami' : 'Projekty z przypisanymi zadaniami' }}
+						{{ isManager ? window.__('Manage all projects') : window.__('Projects with assigned tasks') }}
 					</p>
 				</div>
 				<div class="flex items-center gap-2 text-sm text-gray-500">
 					<span class="px-2 py-1 bg-blue-50 text-blue-700 rounded-md">
-						{{ activeProjects.length }} aktywnych
+						{{ activeProjects.length }} {{ window.__('active') }}
 					</span>
 					<span v-if="completedProjects.length > 0" class="px-2 py-1 bg-green-50 text-green-700 rounded-md">
-						{{ completedProjects.length }} ukończonych
+						{{ completedProjects.length }} {{ window.__('completed') }}
 					</span>
 				</div>
 			</div>
@@ -120,9 +120,9 @@ function getProgressColor(percent) {
 				class="text-center py-12 bg-white rounded-lg border border-gray-200"
 			>
 				<Folder class="w-12 h-12 text-gray-400 mx-auto mb-4" />
-				<h3 class="text-lg font-medium text-gray-900 mb-2">Nie znaleziono projektów</h3>
+				<h3 class="text-lg font-medium text-gray-900 mb-2">{{ window.__('No projects found') }}</h3>
 				<p class="text-gray-500">
-					{{ isManager ? 'Utwórz projekt w ERPNext, aby rozpocząć.' : 'Nie masz jeszcze przypisanych zadań w projektach.' }}
+					{{ isManager ? window.__('Create a project in ERPNext to get started.') : window.__('You don\'t have any tasks assigned to projects yet.') }}
 				</p>
 			</div>
 
@@ -131,7 +131,7 @@ function getProgressColor(percent) {
 				<section v-if="activeProjects.length > 0" class="mb-8">
 					<h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
 						<Folder class="w-4 h-4" />
-						Aktywne projekty ({{ activeProjects.length }})
+						{{ window.__('Active projects') }} ({{ activeProjects.length }})
 					</h3>
 					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 						<div
@@ -155,7 +155,7 @@ function getProgressColor(percent) {
 							<!-- Progress bar -->
 							<div class="mb-3">
 								<div class="flex items-center justify-between text-xs mb-1">
-									<span class="text-gray-500">Postęp</span>
+									<span class="text-gray-500">{{ window.__('Progress') }}</span>
 									<span class="font-medium text-gray-700">{{ project.percent_complete || 0 }}%</span>
 								</div>
 								<div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -176,23 +176,23 @@ function getProgressColor(percent) {
 
 								<div v-if="project.expected_end_date" class="flex items-center gap-1.5 text-sm text-gray-500">
 									<Calendar class="w-4 h-4" />
-									<span>Termin {{ project.expected_end_date }}</span>
+									<span>{{ window.__('Due') }} {{ project.expected_end_date }}</span>
 								</div>
 
 								<div class="flex items-center gap-3 text-sm text-gray-500">
 									<div class="flex items-center gap-1.5">
 										<Users class="w-4 h-4" />
-										<span>{{ project.task_count || 0 }} zadań</span>
+										<span>{{ project.task_count || 0 }} {{ window.__('tasks') }}</span>
 									</div>
 									<div v-if="project.user_task_count" class="flex items-center gap-1.5 text-blue-600">
-										<span>{{ project.user_task_count }} Twoich</span>
+										<span>{{ project.user_task_count }} {{ window.__('yours') }}</span>
 									</div>
 								</div>
 
 								<!-- Assigned users count -->
 								<div v-if="project.assigned_users_count > 0" class="flex items-center gap-1.5 text-sm text-gray-500">
 									<Users class="w-4 h-4 text-purple-500" />
-									<span>{{ project.assigned_users_count }} {{ project.assigned_users_count === 1 ? 'osoba' : 'osób' }}</span>
+									<span>{{ project.assigned_users_count }} {{ project.assigned_users_count === 1 ? window.__('person') : window.__('people') }}</span>
 								</div>
 
 								<!-- Next milestone -->
@@ -233,10 +233,10 @@ function getProgressColor(percent) {
 					>
 						<div class="flex items-center gap-2 text-sm font-semibold text-gray-600">
 							<Archive class="w-4 h-4" />
-							<span>Ukończone projekty ({{ completedProjects.length }})</span>
+							<span>{{ window.__('Completed projects') }} ({{ completedProjects.length }})</span>
 						</div>
 						<div class="flex items-center gap-2 text-gray-500">
-							<span class="text-xs">{{ showCompleted ? 'Ukryj' : 'Pokaż' }}</span>
+							<span class="text-xs">{{ showCompleted ? window.__('Hide') : window.__('Show') }}</span>
 							<ChevronDown 
 								class="w-4 h-4 transition-transform duration-200"
 								:class="showCompleted ? 'rotate-180' : ''"
@@ -269,19 +269,19 @@ function getProgressColor(percent) {
 								<div class="mb-3">
 									<span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
 										<CheckCircle2 class="w-3 h-3" />
-										Ukończony
+										{{ window.__('Completed') }}
 									</span>
 								</div>
 
 								<div class="space-y-2">
 									<div v-if="project.expected_end_date" class="flex items-center gap-1.5 text-sm text-gray-500">
 										<Calendar class="w-4 h-4" />
-										<span>Zakończono {{ project.expected_end_date }}</span>
+										<span>{{ window.__('Completed') }} {{ project.expected_end_date }}</span>
 									</div>
 
 									<div class="flex items-center gap-1.5 text-sm text-gray-500">
 										<Users class="w-4 h-4" />
-										<span>{{ project.task_count || 0 }} zadań</span>
+										<span>{{ project.task_count || 0 }} {{ window.__('tasks') }}</span>
 									</div>
 								</div>
 							</div>

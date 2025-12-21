@@ -2,27 +2,27 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
 	{
-		path: '/outliner',
+		path: '/project-hub',
 		name: 'ProjectList',
 		component: () => import('./pages/ProjectList.vue'),
 	},
 	{
-		path: '/outliner/my-tasks',
+		path: '/project-hub/my-tasks',
 		name: 'MyTasks',
 		component: () => import('./pages/MyTasks.vue'),
 	},
 	{
-		path: '/outliner/team-manager',
+		path: '/project-hub/team-manager',
 		name: 'TeamManager',
 		component: () => import('./pages/TeamManager.vue'),
 	},
 	{
-		path: '/outliner/time-management',
+		path: '/project-hub/time-management',
 		name: 'TimeManagement',
 		component: () => import('./pages/TimeManagement.vue'),
 	},
 	{
-		path: '/outliner/:projectId',
+		path: '/project-hub/:projectId',
 		name: 'ProjectOutliner',
 		component: () => import('./pages/ProjectOutliner.vue'),
 		props: true,

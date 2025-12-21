@@ -125,20 +125,31 @@ function toFrappeDateTime(datetimeLocalStr) {
 function handleSave() {
 	// Validate hours
 	if (!formData.value.hours || parseFloat(formData.value.hours) <= 0) {
-		frappe.show_alert({ message: 'Proszę podać prawidłową liczbę godzin', indicator: 'red' })
+		frappe.show_alert({ message: window.__('Please enter a valid number of hours'), indicator: 'red' })
 		return
 	}
 
 	// Validate max 24 hours
 	const hours = parseFloat(formData.value.hours)
 	if (hours > 24) {
-		frappe.show_alert({ message: 'Nie można dodać więcej niż 24 godziny w jednym wpisie', indicator: 'red' })
+		frappe.show_alert({ message: window.__('Cannot add more than 24 hours in one entry'), indicator: 'red' })
 		return
 	}
 
 	// Validate activity type
 	if (!formData.value.activity_type || formData.value.activity_type.trim() === '') {
-		frappe.show_alert({ message: 'Proszę wybrać typ aktywności', indicator: 'red' })
+		frappe.show_alert({ message: window.__('Please select an activity type'), indicator: 'red' })
+		return
+	}
+
+	// Validate description
+	if (!formData.value.description || formData.value.description.trim() === '') {
+		frappe.show_alert({ message: window.__('Description is a required field'), indicator: 'red' })
+		return
+	}
+	
+	if (formData.value.description.trim().length < 10) {
+		frappe.show_alert({ message: window.__('Description must have at least 10 characters'), indicator: 'red' })
 		return
 	}
 
@@ -227,13 +238,13 @@ function handleClose() {
 									@input="calculateToTime"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								/>
-								<p class="text-xs text-gray-500 mt-1">Maksymalnie 24 godziny na wpis</p>
+								<p class="text-xs text-gray-500 mt-1">{{ window.__('Maximum 24 hours per entry') }}</p>
 							</div>
 
 							<!-- Start time -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									Czas rozpoczęcia
+									{{ window.__('Start Time') }}
 								</label>
 								<input
 									v-model="formData.from_time"
@@ -247,21 +258,21 @@ function handleClose() {
 							<div v-if="formData.to_time" class="bg-gray-50 rounded-md p-3">
 								<div class="flex items-center gap-2 text-sm text-gray-600">
 									<Clock class="w-4 h-4" />
-									<span>Czas zakończenia: {{ formatDisplayTime(formData.to_time) }}</span>
+									<span>{{ window.__('End Time') }}: {{ formatDisplayTime(formData.to_time) }}</span>
 								</div>
 							</div>
 
 							<!-- Activity Type -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									Typ aktywności <span class="text-red-500">*</span>
+									{{ window.__('Activity Type') }} <span class="text-red-500">*</span>
 								</label>
 								<select
 									v-model="formData.activity_type"
 									required
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								>
-									<option value="" disabled>Wybierz typ aktywności...</option>
+									<option value="" disabled>{{ window.__('Select activity type...') }}</option>
 									<option v-for="type in activityTypes" :key="type" :value="type">
 										{{ type }}
 									</option>
@@ -271,12 +282,13 @@ function handleClose() {
 							<!-- Description -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									Opis
+									{{ window.__('Description') }} <span class="text-red-500">*</span>
 								</label>
 								<textarea
 									v-model="formData.description"
+									required
 									rows="3"
-									placeholder="Nad czym pracowałeś?"
+									placeholder="{{ window.__('Work description (minimum 10 characters)...') }}"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								></textarea>
 							</div>

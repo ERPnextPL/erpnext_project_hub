@@ -24,13 +24,13 @@ const props = defineProps({
 
 // Status configuration - shared across all components
 const statusConfig = {
-	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200', label: 'Otwarte' },
-	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200', label: 'W trakcie' },
-	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200', label: 'Przegląd' },
-	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200', label: 'Gotowe' },
-	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', border: 'border-red-200', label: 'Spóźnione' },
-	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', border: 'border-gray-200', label: 'Anulowane' },
-	'Template': { icon: Circle, class: 'text-gray-500', bg: 'bg-gray-100', border: 'border-gray-200', label: 'Szablon' },
+	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200', label: window.__('Open') },
+	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200', label: window.__('Working') },
+	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200', label: window.__('Pending Review') },
+	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200', label: window.__('Completed') },
+	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', border: 'border-red-200', label: window.__('Overdue') },
+	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', border: 'border-gray-200', label: window.__('Cancelled') },
+	'Template': { icon: Circle, class: 'text-gray-500', bg: 'bg-gray-100', border: 'border-gray-200', label: window.__('Template') },
 }
 
 const config = computed(() => {

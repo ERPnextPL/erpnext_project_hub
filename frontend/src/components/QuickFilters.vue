@@ -76,7 +76,7 @@ const statuses = computed(() => {
 		const config = statusIconMap[status] || { icon: Circle, class: 'text-gray-500' }
 		return {
 			value: status,
-			label: status === 'Working' ? 'W trakcie' : (status === 'Pending Review' ? 'Do przeglądu' : (status === 'Template' ? 'Szablon' : status)),
+			label: status === 'Working' ? window.__('Working') : (status === 'Pending Review' ? window.__('Pending Review') : (status === 'Template' ? window.__('Template') : status)),
 			icon: config.icon,
 			class: config.class,
 			disabled: disabledStatuses.includes(status),
@@ -162,7 +162,7 @@ function emitFilters() {
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2 text-sm font-medium text-gray-700">
 				<Filter class="w-4 h-4" />
-				Filtry
+				{{ window.__('Filters') }}
 			</div>
 			<button
 				v-if="hasActiveFilters"
@@ -170,7 +170,7 @@ function emitFilters() {
 				class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
 			>
 				<X class="w-3 h-3" />
-				Wyczyść
+				{{ window.__('Clear') }}
 			</button>
 		</div>
 
@@ -185,7 +185,7 @@ function emitFilters() {
 				]"
 			>
 				<User :class="['w-4 h-4', myTasksActive ? 'text-blue-600' : 'text-gray-400']" />
-				Moje zadania
+				{{ window.__('My Tasks') }}
 			</button>
 
 			<!-- Due Today -->
@@ -197,7 +197,7 @@ function emitFilters() {
 				]"
 			>
 				<Calendar :class="['w-4 h-4', dueTodayActive ? 'text-amber-600' : 'text-gray-400']" />
-				Na dzisiaj
+				{{ window.__('Due Today') }}
 			</button>
 
 			<!-- Overdue -->
@@ -279,12 +279,12 @@ function emitFilters() {
 		<!-- Project info -->
 		<div v-if="project" class="pt-4 border-t border-gray-200">
 			<h3 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-				Projekt
+				{{ window.__('Project') }}
 			</h3>
 			<div class="text-sm text-gray-700">
 				<p class="font-medium">{{ project.project_name }}</p>
 				<p v-if="project.percent_complete !== null" class="text-gray-500 mt-1">
-					{{ project.percent_complete }}% ukończono
+					{{ project.percent_complete }}% {{ window.__('complete') }}
 				</p>
 			</div>
 		</div>
