@@ -145,7 +145,7 @@ async function createSubtask() {
 					:title="task.parent_subject || task.parent_task"
 				>
 					<CornerDownRight class="w-3.5 h-3.5 flex-shrink-0" />
-					<span class="truncate">Podzadanie: {{ task.parent_subject || task.parent_task }}</span>
+					<span class="truncate">{{ window.__('Subtask') }}: {{ task.parent_subject || task.parent_task }}</span>
 				</div>
 
 				<div v-if="canAddSubtask" class="mb-2">
@@ -154,7 +154,7 @@ async function createSubtask() {
 						class="text-xs text-gray-500 hover:text-gray-700 hover:underline inline-flex items-center gap-1"
 					>
 						<Plus class="w-3.5 h-3.5" />
-						Dodaj podzadanie
+						{{ window.__('Add subtask') }}
 					</button>
 				</div>
 
@@ -163,14 +163,14 @@ async function createSubtask() {
 						v-model="subtaskSubject"
 						type="text"
 						class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-						placeholder="Nazwa podzadania..."
+						placeholder="{{ window.__('Subtask name...') }}"
 						@keydown.enter.prevent="createSubtask"
 					/>
 					<button
 						@click="createSubtask"
 						class="px-2.5 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
 					>
-						Dodaj
+						{{ window.__('Add') }}
 					</button>
 				</div>
 

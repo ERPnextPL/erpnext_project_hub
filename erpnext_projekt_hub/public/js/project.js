@@ -5,7 +5,7 @@ frappe.ui.form.on("Project", {
 			frm.add_custom_button(
 				__("Open Outliner"),
 				function () {
-					window.open(`/outliner/${frm.doc.name}`, "_blank");
+					window.open(`/project-hub/${frm.doc.name}`, "_blank");
 				},
 				__("View")
 			);

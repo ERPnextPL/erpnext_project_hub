@@ -11,7 +11,7 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Users class="w-6 h-6 text-purple-600" />
-						<h1 class="text-xl font-semibold text-gray-900">Zarządzanie zespołem</h1>
+						<h1 class="text-xl font-semibold text-gray-900">{{ window.__('Team Management') }}</h1>
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
@@ -42,37 +42,37 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 
 				<!-- Title -->
 				<h2 class="text-2xl font-bold text-gray-900 mb-3">
-					Widok kierownika zespołu
+					{{ window.__('Team Manager View') }}
 				</h2>
 
 				<!-- Description -->
 				<p class="text-gray-600 mb-6 max-w-md mx-auto">
-					Zarządzaj zadaniami całego zespołu, przydzielaj pracę, monitoruj postępy i obciążenie pracowników w jednym miejscu.
+					{{ window.__('Manage the entire team\'s tasks, assign work, monitor progress and employee workload in one place.') }}
 				</p>
 
 				<!-- Features list -->
 				<div class="bg-gray-50 rounded-xl p-6 mb-6 text-left">
-					<h3 class="text-sm font-semibold text-gray-700 mb-3">Co zawiera wersja Pro:</h3>
+					<h3 class="text-sm font-semibold text-gray-700 mb-3">{{ window.__('What Pro version includes:') }}</h3>
 					<ul class="space-y-2 text-sm text-gray-600">
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Widok wszystkich zadań zespołu
+							{{ window.__('View all team tasks') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Przydzielanie zadań pracownikom
+							{{ window.__('Assign tasks to employees') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Monitorowanie obciążenia zespołu
+							{{ window.__('Monitor team workload') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Raporty wydajności
+							{{ window.__('Performance reports') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Widok Kanban dla zespołu
+							{{ window.__('Kanban view for team') }}
 						</li>
 					</ul>
 				</div>
@@ -80,7 +80,7 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 				<!-- Lock notice -->
 				<div class="flex items-center justify-center gap-2 text-gray-500 text-sm">
 					<Lock class="w-4 h-4" />
-					<span>Ta funkcja jest dostępna tylko w wersji Pro</span>
+					<span>{{ window.__('This feature is only available in Pro version') }}</span>
 				</div>
 			</div>
 		</div>

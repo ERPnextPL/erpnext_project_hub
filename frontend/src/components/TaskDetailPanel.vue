@@ -95,13 +95,13 @@ async function handleMilestoneChange(event) {
 		await store.assignTaskToMilestone(props.task.name, newMilestone)
 		if (window.frappe) {
 			frappe.show_alert({ 
-				message: newMilestone ? 'Zadanie przypisane do kamienia milowego' : 'Zadanie usunięte z kamienia milowego', 
+				message: newMilestone ? window.__('Task assigned to milestone') : window.__('Task removed from milestone'), 
 				indicator: 'green' 
 			})
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Nie udało się zaktualizować kamienia milowego', indicator: 'red' })
+			frappe.show_alert({ message: window.__('Failed to update milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -115,14 +115,14 @@ async function handleProjectChange() {
 		await store.updateTask(props.task.name, { project: newProject })
 		if (window.frappe) {
 			frappe.show_alert({ 
-				message: 'Projekt zadania został zmieniony', 
+				message: window.__('Task project changed'), 
 				indicator: 'green' 
 			})
 		}
 	} catch (error) {
 		editableTask.value.project = props.task.project
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Nie udało się zmienić projektu', indicator: 'red' })
+			frappe.show_alert({ message: window.__('Failed to change project'), indicator: 'red' })
 		}
 	}
 }
@@ -319,14 +319,14 @@ async function handleSubtaskCreated() {
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
 						<Diamond class="w-3 h-3" />
-						Kamień milowy
+						{{ window.__('Milestone') }}
 					</label>
 					<select
 						:value="task.milestone || ''"
 						@change="handleMilestoneChange"
 						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
-						<option value="">Brak kamienia milowego</option>
+						<option value="">{{ window.__('No milestone') }}</option>
 						<option 
 							v-for="milestone in store.milestones" 
 							:key="milestone.name" 
@@ -341,7 +341,7 @@ async function handleSubtaskCreated() {
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
 						<Folder class="w-3 h-3" />
-						Projekt
+						{{ window.__('Project') }}
 					</label>
 					<select
 						v-model="editableTask.project"
@@ -360,11 +360,11 @@ async function handleSubtaskCreated() {
 
 				<!-- Assignee -->
 				<div class="flex items-start gap-3">
-					<label class="text-sm text-gray-500 w-20 pt-2">Przypisany</label>
+					<label class="text-sm text-gray-500 w-20 pt-2">{{ window.__('Assigned') }}</label>
 					<div class="flex-1">
 						<UserSelect
 							:model-value="task._assign"
-							placeholder="Przypisz użytkownika..."
+							placeholder="{{ window.__('Assign user...') }}"
 							@add="handleAddAssignee"
 							@remove="handleRemoveAssignee"
 						/>
@@ -373,7 +373,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Due date -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Termin</label>
+					<label class="text-sm text-gray-500 w-20">{{ window.__('Due Date') }}</label>
 					<input
 						v-model="editableTask.exp_end_date"
 						type="date"
@@ -384,7 +384,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Start date -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Data rozp.</label>
+					<label class="text-sm text-gray-500 w-20">{{ window.__('Start Date') }}</label>
 					<input
 						v-model="editableTask.exp_start_date"
 						type="date"
@@ -395,7 +395,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Progress -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">Postęp</label>
+					<label class="text-sm text-gray-500 w-20">{{ window.__('Progress') }}</label>
 					<div class="flex-1 flex items-center gap-2">
 						<input
 							v-model.number="editableTask.progress"
@@ -415,12 +415,12 @@ async function handleSubtaskCreated() {
 
 				<!-- Description -->
 				<div>
-					<label class="text-sm font-medium text-gray-700 mb-2 block">Opis</label>
+					<label class="text-sm font-medium text-gray-700 mb-2 block">{{ window.__('Description') }}</label>
 					<textarea
 						v-model="editableTask.description"
 						rows="4"
 						class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-						placeholder="Dodaj opis..."
+						placeholder="{{ window.__('Add description...') }}"
 						@blur="saveField('description', editableTask.description)"
 					></textarea>
 				</div>
@@ -431,9 +431,9 @@ async function handleSubtaskCreated() {
 				<div>
 					<div class="flex items-center justify-between mb-3">
 						<div>
-							<h3 class="text-sm font-medium text-gray-700">Rejestr czasu</h3>
+							<h3 class="text-sm font-medium text-gray-700">{{ window.__('Time Log') }}</h3>
 							<p v-if="currentTimelogs.total_hours > 0" class="text-xs text-gray-500 mt-0.5">
-								Razem: {{ currentTimelogs.total_hours.toFixed(2) }} godz.
+								{{ window.__('Total') }}: {{ currentTimelogs.total_hours.toFixed(2) }} {{ window.__('hrs') }}.
 							</p>
 						</div>
 						<button
@@ -441,7 +441,7 @@ async function handleSubtaskCreated() {
 							class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 						>
 							<Plus class="w-3.5 h-3.5" />
-							Dodaj czas
+							{{ window.__('Add time') }}
 						</button>
 					</div>
 
@@ -450,7 +450,7 @@ async function handleSubtaskCreated() {
 					</div>
 
 					<div v-else-if="currentTimelogs.timelogs.length === 0" class="text-sm text-gray-500 text-center py-4">
-						Brak wpisów czasu
+						{{ window.__('No time entries') }}
 					</div>
 
 					<div v-else class="space-y-2">
@@ -465,6 +465,18 @@ async function handleSubtaskCreated() {
 										<Clock class="w-3.5 h-3.5 text-blue-600" />
 										<span class="font-semibold text-gray-900">{{ log.hours }} hrs</span>
 										<span class="text-xs text-gray-500">{{ log.activity_type }}</span>
+										<span 
+											v-if="log.status" 
+											:class="[
+												'px-2 py-0.5 rounded-full text-xs font-medium',
+												log.status === 'Submitted' ? 'bg-green-100 text-green-800' :
+												log.status === 'Billed' ? 'bg-blue-100 text-blue-800' :
+												log.status === 'Draft' ? 'bg-gray-100 text-gray-800' :
+												'bg-gray-100 text-gray-800'
+											]"
+										>
+											{{ log.status }}
+										</span>
 									</div>
 									<p v-if="log.description" class="text-gray-600 text-xs mb-1">{{ log.description }}</p>
 									<div class="flex items-center gap-2 text-xs text-gray-500">

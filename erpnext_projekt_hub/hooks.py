@@ -52,7 +52,7 @@ doctype_js = {"Project": "public/js/project.js"}
 
 # Website route rules for SPA
 website_route_rules = [
-	{"from_route": "/outliner/<path:app_path>", "to_route": "outliner"},
+	{"from_route": "/project-hub/<path:app_path>", "to_route": "project-hub"},
 ]
 
 # Svg Icons
