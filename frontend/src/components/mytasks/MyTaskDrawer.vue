@@ -294,14 +294,14 @@ function openTimeLogForm() {
 async function handleSaveTimelog() {
 	if (!timelogForm.value.hours || parseFloat(timelogForm.value.hours) <= 0) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Wprowadź prawidłową liczbę godzin', indicator: 'red' })
+			frappe.show_alert({ message: window.__('Please enter a valid number of hours'), indicator: 'red' })
 		}
 		return
 	}
 	
 	if (!timelogForm.value.activity_type) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Wybierz typ aktywności', indicator: 'red' })
+			frappe.show_alert({ message: window.__('Please select an activity type'), indicator: 'red' })
 		}
 		return
 	}
@@ -327,22 +327,22 @@ async function handleSaveTimelog() {
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Błąd zapisu czasu', indicator: 'red' })
+			frappe.show_alert({ message: window.__('Failed to save time entry'), indicator: 'red' })
 		}
 	}
 }
 
 async function handleDeleteTimelog(timelogName) {
-	if (!confirm('Czy na pewno chcesz usunąć ten wpis czasu?')) return
+if (!confirm(window.__('Are you sure you want to delete this time entry?'))) return
 	
 	try {
 		await store.deleteTimelog(timelogName, props.task.name)
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Wpis czasu usunięty', indicator: 'green' })
+			frappe.show_alert({ message: window.__('Time entry deleted'), indicator: 'green' })
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Błąd usuwania wpisu', indicator: 'red' })
+			frappe.show_alert({ message: window.__('Failed to delete time entry'), indicator: 'red' })
 		}
 	}
 }
@@ -669,7 +669,7 @@ function formatDateTime(dateStr) {
 										<button
 											@click="handleDeleteTimelog(log.timelog_name)"
 											class="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors"
-											title="Usuń wpis"
+											title="{{ window.__('Delete entry') }}"
 										>
 											<Trash2 class="w-3.5 h-3.5" />
 										</button>
