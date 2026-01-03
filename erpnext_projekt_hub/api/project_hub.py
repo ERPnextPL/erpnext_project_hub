@@ -952,13 +952,39 @@ def delete_timelog(timelog_name: str):
 	timesheet = frappe.get_doc("Timesheet", timelog.parent)
 
 	# Check if user owns this timesheet or has admin privileges
+	is_admin_deletion = False
 	if timesheet.owner != frappe.session.user:
 		# Allow System Manager and Administrator roles to delete any time logs
 		user_roles = frappe.get_roles(frappe.session.user)
 		if "System Manager" not in user_roles and "Administrator" not in user_roles:
 			frappe.throw(_("You can only delete your own time logs"))
+		else:
+			is_admin_deletion = True
 
-	# Remove the time log (match by name to avoid object identity issues)
+	# Validate timesheet state before deletion
+	if timesheet.docstatus == 1:
+		frappe.throw(_("Cannot delete time logs from a submitted timesheet. Please cancel it first."))
+	elif timesheet.docstatus == 2:
+		frappe.throw(_("Cannot modify a cancelled timesheet"))
+
+	# Check for linked documents before attempting deletion
+	linked_docs = frappe.get_all(
+		"Dynamic Link",
+		filters={
+			"link_doctype": "Timesheet",
+			"link_name": timesheet.name
+		},
+		fields=["parent", "parenttype"]
+	)
+
+	if linked_docs:
+		doc_list = ", ".join([f"{doc['parenttype']}: {doc['parent']}" for doc in linked_docs])
+		frappe.throw(_("Cannot delete timesheet. It is linked to: {0}").format(doc_list))
+
+	# Reload to prevent race condition before checking
+	timesheet.reload()
+
+	# Find the time log to remove (after reload)
 	row = None
 	for d in timesheet.time_logs:
 		if d.name == timelog_name:
@@ -977,6 +1003,13 @@ def delete_timelog(timelog_name: str):
 		# Otherwise, just remove this time log and save
 		timesheet.remove(row)
 		timesheet.save()
+
+	# Log administrative deletion for audit trail
+	if is_admin_deletion:
+		frappe.log_error(
+			f"Admin User {frappe.session.user} deleted time log '{timelog_name}' from timesheet '{timesheet.name}' owned by '{timesheet.owner}'",
+			"Administrative Timesheet Deletion"
+		)
 
 	return {"success": True}
 
@@ -1703,8 +1736,8 @@ def get_projects_settings():
 			"ignore_employee_time_overlap": settings.get("ignore_employee_time_overlap", False),
 			"fetch_timesheet_in_sales_invoice": settings.get("fetch_timesheet_in_sales_invoice", False)
 		}
-	except Exception as e:
-		frappe.log_error(f"Error fetching Projects Settings: {str(e)}", "Projects Settings Error")
+	except frappe.DoesNotExistError as e:
+		frappe.log_error(f"Error fetching Projects Settings: {e!s}", "Projects Settings Error")
 		# Return default values if settings not found
 		return {
 			"default_activity_type": None,

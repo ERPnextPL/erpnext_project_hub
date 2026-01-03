@@ -1,0 +1,83 @@
+// Override ERPNext timer functionality to add custom defaults and ESC key handling
+// This file extends the standard timer.js without modifying ERPNext core files
+
+frappe.provide("erpnext.timesheet");
+
+// Store original timer function
+const original_timer = erpnext.timesheet.timer;
+
+// Override the timer function with custom behavior
+erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
+	let dialog = new frappe.ui.Dialog({
+		title: __("Timer"),
+		fields: [
+			{
+				fieldtype: "Link",
+				label: __("Activity Type"),
+				fieldname: "activity_type",
+				reqd: 1,
+				options: "Activity Type",
+			},
+			{ fieldtype: "Link", label: __("Project"), fieldname: "project", options: "Project" },
+			{ fieldtype: "Link", label: __("Task"), fieldname: "task", options: "Task" },
+			{ fieldtype: "Float", label: __("Expected Hrs"), fieldname: "expected_hours" },
+			{ fieldtype: "Section Break" },
+			{ fieldtype: "HTML", fieldname: "timer_html" },
+		],
+	});
+	
+	if (row) {
+		dialog.set_values({
+			activity_type: row.activity_type,
+			project: row.project,
+			task: row.task,
+			expected_hours: row.expected_hours,
+		});
+	} else {
+		// Set default values for new time log
+		const now = new Date();
+		const currentDate = now.toISOString().split('T')[0];
+		const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
+		
+		dialog.set_values({
+			project: frm.doc.parent_project,
+			activity_type: "Wykonanie", // Default to "Wykonanie" if available
+			from_time: currentDate + ' ' + currentTime,
+			hours: 1, // Default to 1 hour
+		});
+	}
+	
+	dialog.get_field("timer_html").$wrapper.append(get_timer_html());
+	
+	function get_timer_html() {
+		return `
+			<div class="stopwatch">
+				<span class="hours">00</span>
+				<span class="colon">:</span>
+				<span class="minutes">00</span>
+				<span class="colon">:</span>
+				<span class="seconds">00</span>
+			</div>
+			<div class="playpause text-center">
+				<button class= "btn btn-primary btn-start"> ${__("Start")} </button>
+				<button class= "btn btn-primary btn-complete"> ${__("Complete")} </button>
+			</div>
+		`;
+	}
+	
+	erpnext.timesheet.control_timer(frm, dialog, row, timestamp);
+	
+	// Add escape key handler to close dialog
+	$(document).on('keydown.timer_dialog', function(e) {
+		if (e.keyCode === 27 && dialog.display) { // 27 = Escape key
+			dialog.hide();
+		}
+	});
+	
+	// Clean up escape key handler when dialog is hidden
+	dialog.$wrapper.on('hidden.bs.modal', function() {
+		$(document).off('keydown.timer_dialog');
+	});
+	
+	dialog.show();
+};

@@ -1,5 +1,6 @@
 "Please enter a valid number of hours","Proszę podać prawidłową liczbę godzin"
 "Cannot add more than 24 hours in one entry","Nie można dodać więcej niż 24 godziny w jednym wpisie"
+"The erpnext app is required to install Projekt HUB. Please install erpnext first.","Aplikacja erpnext jest wymagana do zainstalowania Projekt HUB. Proszę najpierw zainstalować erpnext."
 "Please select an activity type","Proszę wybrać typ aktywności"
 "Description is a required field","Opis jest polem obowiązkowym"
 "Description must have at least 10 characters","Opis musi mieć minimum 10 znaków"

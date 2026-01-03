@@ -364,7 +364,7 @@ async function handleSubtaskCreated() {
 					<div class="flex-1">
 						<UserSelect
 							:model-value="task._assign"
-							placeholder="{{ window.__('Assign user...') }}"
+							:placeholder="window.__('Assign user...')"
 							@add="handleAddAssignee"
 							@remove="handleRemoveAssignee"
 						/>
@@ -420,7 +420,7 @@ async function handleSubtaskCreated() {
 						v-model="editableTask.description"
 						rows="4"
 						class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-						placeholder="{{ window.__('Add description...') }}"
+						:placeholder="window.__('Add description...')"
 						@blur="saveField('description', editableTask.description)"
 					></textarea>
 				</div>

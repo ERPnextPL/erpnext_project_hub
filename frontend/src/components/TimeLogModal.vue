@@ -288,7 +288,7 @@ function handleClose() {
 									v-model="formData.description"
 									required
 									rows="3"
-									placeholder="{{ window.__('Work description (minimum 10 characters)...') }}"
+									:placeholder="window.__('Work description (minimum 10 characters)...')"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								></textarea>
 							</div>

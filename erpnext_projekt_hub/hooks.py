@@ -45,7 +45,10 @@ required_apps = ["erpnext"]
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Project": "public/js/project.js"}
+doctype_js = {
+	"Project": "public/js/project.js",
+	"Timesheet": "public/js/timesheet_timer_override.js"
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -257,6 +260,5 @@ doc_events = {
 # --------
 fixtures = [
     {"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
-    {"dt": "Workspace Link", "filters": [["parent", "=", "Projects"]]},
-    {"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]]},
+    {"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
 ]
