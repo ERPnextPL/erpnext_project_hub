@@ -27,21 +27,23 @@ const isUpdating = ref(false)
 const showSubtaskForm = ref(false)
 const subtaskSubject = ref('')
 
+const translate = (text) => (typeof window !== 'undefined' && window.__ ? window.__(text) : text)
+
 // Status config
 const statusConfig = {
-	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', label: 'Otwarte' },
-	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', label: 'W trakcie' },
-	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', label: 'Do przeglądu' },
-	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', label: 'Ukończone' },
-	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', label: 'Spóźnione' },
-	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', label: 'Anulowane' },
+	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', label: translate('Open') },
+	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', label: translate('Working') },
+	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', label: translate('Pending Review') },
+	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', label: translate('Completed') },
+	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', label: translate('Overdue') },
+	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', label: translate('Cancelled') },
 }
 
 const priorityConfig = {
-	'Urgent': { class: 'text-red-600', label: 'Pilne' },
-	'High': { class: 'text-orange-500', label: 'Wysokie' },
-	'Medium': { class: 'text-yellow-600', label: 'Średnie' },
-	'Low': { class: 'text-gray-500', label: 'Niskie' },
+	'Urgent': { class: 'text-red-600', label: translate('Urgent') },
+	'High': { class: 'text-orange-500', label: translate('High') },
+	'Medium': { class: 'text-yellow-600', label: translate('Medium') },
+	'Low': { class: 'text-gray-500', label: translate('Low') },
 }
 
 const currentStatus = computed(() => {
@@ -210,12 +212,12 @@ async function createSubtask() {
 					:class="['flex items-center gap-1 mt-2 text-sm', dateClass]"
 				>
 					<Calendar class="w-3.5 h-3.5" />
-					<span>{{ formattedDate || 'Brak terminu' }}</span>
+					<span>{{ formattedDate || window.__('No deadline') }}</span>
 					<span 
 						v-if="task.is_overdue" 
 						class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium"
 					>
-						Spóźnione
+						{{ window.__('Overdue') }}
 					</span>
 				</div>
 			</div>

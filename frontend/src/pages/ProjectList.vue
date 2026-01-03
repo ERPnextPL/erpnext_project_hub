@@ -206,13 +206,13 @@ function getProgressColor(percent) {
 										]"
 									>
 										<template v-if="project.days_to_milestone < 0">
-											Kamień milowy przeterminowany
+											{{ window.__('Milestone overdue') }}
 										</template>
 										<template v-else-if="project.days_to_milestone === 0">
-											Kamień milowy dzisiaj
+											{{ window.__('Milestone due today') }}
 										</template>
 										<template v-else-if="project.days_to_milestone === 1">
-											Kamień milowy jutro
+											{{ window.__('Milestone due tomorrow') }}
 										</template>
 										<template v-else>
 											{{ project.days_to_milestone }} dni do kamienia milowego

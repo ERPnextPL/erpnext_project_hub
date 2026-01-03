@@ -310,7 +310,7 @@ async function assignUser(user) {
 	await store.assignTask(props.task.name, user, 'add')
 	showUserDropdown.value = false
 	if (window.frappe) {
-		frappe.show_alert({ message: 'Użytkownik przypisany', indicator: 'green' })
+		frappe.show_alert({ message: window.__('User assigned'), indicator: 'green' })
 	}
 }
 

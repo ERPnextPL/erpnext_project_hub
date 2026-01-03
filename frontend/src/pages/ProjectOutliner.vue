@@ -217,7 +217,7 @@ const flattenedTasksWithFilters = computed(() => {
 				v-if="sidebarCollapsed"
 				@click="sidebarCollapsed = false"
 				class="flex-shrink-0 bg-white border-r border-gray-200 p-2 hover:bg-gray-50 transition-colors"
-				title="Pokaż panel boczny"
+				title="{{ window.__('Show sidebar') }}"
 			>
 				<PanelLeft class="w-4 h-4 text-gray-500" />
 			</button>

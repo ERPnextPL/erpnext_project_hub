@@ -77,11 +77,11 @@ async function handleTimeLogSave(timelogData) {
 		showTimeLogModal.value = false
 		selectedTaskForTimeLog.value = null
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Czas zapisany', indicator: 'green' })
+			frappe.show_alert({ message: window.__('Time entry saved'), indicator: 'green' })
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Błąd zapisu czasu', indicator: 'red' })
+			frappe.show_alert({ message: window.__('Failed to save time entry'), indicator: 'red' })
 		}
 	}
 }
@@ -102,7 +102,7 @@ const isMobile = computed(() => {
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<CheckSquare class="w-6 h-6 text-blue-600" />
-						<h1 class="text-xl font-semibold text-gray-900">Moje zadania</h1>
+						<h1 class="text-xl font-semibold text-gray-900">{{ window.__('My Tasks') }}</h1>
 						<span 
 							v-if="store.total > 0" 
 							class="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full"
@@ -133,7 +133,7 @@ const isMobile = computed(() => {
 						<input
 							v-model="searchInput"
 							type="text"
-							placeholder="Szukaj zadań..."
+							placeholder="{{ window.__('Search tasks...') }}"
 							class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 						/>
 						<button
@@ -157,7 +157,7 @@ const isMobile = computed(() => {
 							]"
 						>
 							<Filter class="w-4 h-4" />
-							<span class="hidden sm:inline">Filtry</span>
+							<span class="hidden sm:inline">{{ window.__('Filters') }}</span>
 							<span 
 								v-if="store.hasActiveFilters" 
 								class="w-2 h-2 rounded-full bg-blue-600"
@@ -172,7 +172,7 @@ const isMobile = computed(() => {
 									'p-2 transition-colors',
 									viewMode === 'list' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'
 								]"
-								title="Widok listy"
+								title="{{ window.__('List view') }}"
 							>
 								<LayoutList class="w-4 h-4" />
 							</button>
@@ -182,7 +182,7 @@ const isMobile = computed(() => {
 									'p-2 transition-colors',
 									viewMode === 'kanban' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'
 								]"
-								title="Widok Kanban (wkrótce)"
+								title="{{ window.__('Kanban view (coming soon)') }}"
 								disabled
 							>
 								<LayoutGrid class="w-4 h-4 opacity-50" />
@@ -194,7 +194,7 @@ const isMobile = computed(() => {
 							@click="store.fetchTasks()"
 							:disabled="store.loading"
 							class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-							title="Odśwież"
+							title="{{ window.__('Refresh') }}"
 						>
 							<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
 						</button>
@@ -205,7 +205,7 @@ const isMobile = computed(() => {
 							class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
 						>
 							<Plus class="w-4 h-4" />
-							<span class="hidden sm:inline">Nowe zadanie</span>
+							<span class="hidden sm:inline">{{ window.__('New Task') }}</span>
 						</button>
 					</div>
 				</div>
@@ -241,13 +241,13 @@ const isMobile = computed(() => {
 				class="text-center py-12 bg-white rounded-lg border border-red-200"
 			>
 				<AlertCircle class="w-12 h-12 text-red-400 mx-auto mb-4" />
-				<h3 class="text-lg font-medium text-gray-900 mb-2">Błąd ładowania zadań</h3>
+				<h3 class="text-lg font-medium text-gray-900 mb-2">{{ window.__('Task list failed to load') }}</h3>
 				<p class="text-gray-500 mb-4">{{ store.error }}</p>
 				<button
 					@click="handleRetry"
 					class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
 				>
-					Spróbuj ponownie
+					{{ window.__('Try again') }}
 				</button>
 			</div>
 
@@ -258,12 +258,12 @@ const isMobile = computed(() => {
 			>
 				<CheckSquare class="w-12 h-12 text-gray-400 mx-auto mb-4" />
 				<h3 class="text-lg font-medium text-gray-900 mb-2">
-					{{ store.hasActiveFilters ? 'Brak zadań pasujących do filtrów' : 'Brak przypisanych zadań' }}
+					{{ store.hasActiveFilters ? window.__('No tasks match the filters') : window.__('No tasks assigned yet') }}
 				</h3>
 				<p class="text-gray-500 mb-4">
 					{{ store.hasActiveFilters 
-						? 'Spróbuj zmienić kryteria wyszukiwania' 
-						: 'Nie masz jeszcze żadnych przypisanych zadań' 
+						? window.__('Try adjusting the search criteria') 
+						: window.__('You do not have any tasks assigned yet') 
 					}}
 				</p>
 				<div class="flex items-center justify-center gap-3">
@@ -272,13 +272,13 @@ const isMobile = computed(() => {
 						@click="store.clearFilters(); searchInput = ''"
 						class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
 					>
-						Wyczyść filtry
+						{{ window.__('Clear filters') }}
 					</button>
 					<button
 						@click="openNewTaskDrawer"
 						class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
 					>
-						Utwórz nowe zadanie
+						{{ window.__('Create new task') }}
 					</button>
 				</div>
 			</div>

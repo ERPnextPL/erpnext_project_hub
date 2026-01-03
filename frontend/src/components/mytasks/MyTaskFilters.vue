@@ -93,7 +93,7 @@ function setProjectFilter(project) {
 	<div class="space-y-4">
 		<!-- View options -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Widok</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('View') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					@click="store.toggleViewOption('groupByStatus')"
@@ -104,14 +104,14 @@ function setProjectFilter(project) {
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50'
 					]"
 				>
-					Grupuj po statusie
+					{{ window.__('Group by status') }}
 				</button>
 			</div>
 		</div>
 
 		<!-- Due date presets -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Termin</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Due date') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					v-for="option in dueFilterOptions"
@@ -142,7 +142,7 @@ function setProjectFilter(project) {
 
 		<!-- Status filter -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Status</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Status') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					v-for="status in statuses"
@@ -189,7 +189,7 @@ function setProjectFilter(project) {
 
 		<!-- Project filter -->
 		<div v-if="store.projects.length > 0">
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Projekt</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Project') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					@click="setProjectFilter(null)"
@@ -200,7 +200,7 @@ function setProjectFilter(project) {
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50'
 					]"
 				>
-					Wszystkie
+					{{ window.__('All') }}
 				</button>
 				<button
 					v-for="project in store.projects"
@@ -227,7 +227,7 @@ function setProjectFilter(project) {
 				class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
 			>
 				<X class="w-3.5 h-3.5" />
-				Wyczyść wszystkie filtry
+				{{ window.__('Clear all filters') }}
 			</button>
 		</div>
 	</div>
