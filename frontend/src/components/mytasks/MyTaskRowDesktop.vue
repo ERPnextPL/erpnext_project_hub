@@ -193,7 +193,7 @@ onUnmounted(() => {
 				v-if="props.hierarchyEnabled && props.hasChildren"
 				@click.stop="emit('toggle-expand', task.name)"
 				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors mt-0.5"
-				:title="props.isExpanded ? window.__('Collapse subtasks') : window.__('Expand subtasks')'"
+				:title="props.isExpanded ? window.__('Collapse subtasks') : window.__('Expand subtasks')"
 			>
 				<ChevronDown v-if="props.isExpanded" class="w-4 h-4 text-gray-500" />
 				<ChevronRight v-else class="w-4 h-4 text-gray-500" />
