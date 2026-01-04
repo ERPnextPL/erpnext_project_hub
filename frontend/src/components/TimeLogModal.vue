@@ -36,6 +36,39 @@ const formData = ref({
 	to_time: '',
 })
 
+const DEFAULT_ACTIVITY_TYPE_KEY = 'Execution'
+
+const getPreferredActivityType = (availableTypes = []) => {
+	if (!Array.isArray(availableTypes) || availableTypes.length === 0) {
+		return ''
+	}
+
+	const globalDefaultActivityType = store.projectsSettings?.default_activity_type
+	if (globalDefaultActivityType && availableTypes.includes(globalDefaultActivityType)) {
+		return globalDefaultActivityType
+	}
+
+	const localizedFallback = translate(DEFAULT_ACTIVITY_TYPE_KEY)
+	const fallbacks = []
+	if (localizedFallback) fallbacks.push(localizedFallback)
+	if (!fallbacks.includes(DEFAULT_ACTIVITY_TYPE_KEY)) fallbacks.push(DEFAULT_ACTIVITY_TYPE_KEY)
+
+	for (const candidate of fallbacks) {
+		if (candidate && availableTypes.includes(candidate)) {
+			return candidate
+		}
+	}
+
+	return availableTypes[0]
+}
+
+const applyDefaultActivityType = (availableTypes) => {
+	const defaultType = getPreferredActivityType(availableTypes)
+	if (defaultType) {
+		formData.value.activity_type = defaultType
+	}
+}
+
 // Load activity types on mount
 onMounted(() => {
 	if (store.activityTypes.length === 0) {
@@ -73,15 +106,7 @@ watch(() => props.show, (newVal) => {
 		formData.value.from_time = `${today}T${hours}:${minutes}`
 		formData.value.hours = '1'
 		// Set default activity type from global settings
-		const globalDefaultActivityType = store.projectsSettings?.default_activity_type
-		
-		if (globalDefaultActivityType && activityTypes.value.includes(globalDefaultActivityType)) {
-			formData.value.activity_type = globalDefaultActivityType
-		} else if (activityTypes.value.includes('Wykonanie')) {
-			formData.value.activity_type = 'Wykonanie'
-		} else if (activityTypes.value.includes('Execution')) {
-			formData.value.activity_type = 'Execution'
-		}
+		applyDefaultActivityType(activityTypes.value)
 		calculateToTime()
 	}
 }, { immediate: true })
@@ -89,15 +114,7 @@ watch(() => props.show, (newVal) => {
 // Watch for activity types to set default activity_type when they load
 watch(activityTypes, (newTypes) => {
 	if (props.show && newTypes.length > 0) {
-		const globalDefaultActivityType = store.projectsSettings?.default_activity_type
-		
-		if (globalDefaultActivityType && newTypes.includes(globalDefaultActivityType)) {
-			formData.value.activity_type = globalDefaultActivityType
-		} else if (newTypes.includes('Wykonanie')) {
-			formData.value.activity_type = 'Wykonanie'
-		} else if (newTypes.includes('Execution')) {
-			formData.value.activity_type = 'Execution'
-		}
+		applyDefaultActivityType(newTypes)
 	}
 })
 
