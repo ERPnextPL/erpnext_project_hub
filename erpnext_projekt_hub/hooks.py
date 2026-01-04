@@ -27,8 +27,8 @@ required_apps = ["erpnext"]
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
-# app_include_js = "/assets/erpnext_projekt_hub/js/erpnext_projekt_hub.js"
+app_include_css = "/assets/erpnext_projekt_hub/css/kanban_custom.css"
+app_include_js = "/assets/erpnext_projekt_hub/js/kanban_custom.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"

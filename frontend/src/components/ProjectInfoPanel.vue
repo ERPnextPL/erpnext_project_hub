@@ -19,8 +19,14 @@ const props = defineProps({
 	}
 })
 
+const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const translate = (text) => {
+	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
+}
+
+
 const formatDate = (dateStr) => {
-	if (!dateStr) return window.__('Not set')
+	if (!dateStr) return translate('Not set')
 	const date = new Date(dateStr)
 	return date.toLocaleDateString('en-US', {
 		day: '2-digit',
@@ -75,14 +81,14 @@ async function saveDateField(field, value) {
 	isSaving.value = true
 	try {
 		await store.updateProject(props.project.name, { [field]: value })
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Project dates saved'), indicator: 'green' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Project dates saved'), indicator: 'green' })
 		}
 	} catch (e) {
 		editableExpectedStart.value = props.project.expected_start_date || ''
 		editableExpectedEnd.value = props.project.expected_end_date || ''
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Could not save project dates'), indicator: 'red' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Could not save project dates'), indicator: 'red' })
 		}
 	} finally {
 		isSaving.value = false
@@ -92,8 +98,8 @@ async function saveDateField(field, value) {
 
 <template>
 	<div class="bg-white border-b border-gray-200">
-		<div class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50" @click="toggleExpand">
-			<h3 class="text-sm font-semibold text-gray-700">{{ window.__('Project Information') }}</h3>
+			<div class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50" @click="toggleExpand">
+				<h3 class="text-sm font-semibold text-gray-700">{{ translate('Project Information') }}</h3>
 			<button class="p-1 rounded hover:bg-gray-200 transition-colors">
 				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500" />
 				<ChevronDown v-else class="w-4 h-4 text-gray-500" />
@@ -108,7 +114,7 @@ async function saveDateField(field, value) {
 				<div class="flex items-start gap-2">
 					<Calendar class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 					<div class="flex-1 min-w-0">
-						<div class="text-xs text-gray-500">{{ window.__('Planned Start') }}</div>
+						<div class="text-xs text-gray-500">{{ translate('Planned Start') }}</div>
 						<input
 							v-model="editableExpectedStart"
 							type="date"
@@ -122,7 +128,7 @@ async function saveDateField(field, value) {
 				<div class="flex items-start gap-2">
 					<Calendar class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 					<div class="flex-1 min-w-0">
-						<div class="text-xs text-gray-500">{{ window.__('Planned End') }}</div>
+						<div class="text-xs text-gray-500">{{ translate('Planned End') }}</div>
 						<div class="text-sm font-medium" :class="isOverdue ? 'text-red-600' : 'text-gray-900'">
 							<input
 								v-model="editableExpectedEnd"
@@ -133,7 +139,7 @@ async function saveDateField(field, value) {
 							/>
 							<div class="text-xs text-gray-400 mt-0.5">
 								{{ formatDate(project.expected_end_date) }}
-								<span v-if="isOverdue" class="ml-1 text-xs">{{ window.__('(Overdue)') }}</span>
+								<span v-if="isOverdue" class="ml-1 text-xs">{{ translate('(Overdue)') }}</span>
 							</div>
 						</div>
 					</div>

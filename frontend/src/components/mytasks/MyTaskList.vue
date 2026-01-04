@@ -5,6 +5,11 @@ import MyTaskRowDesktop from './MyTaskRowDesktop.vue'
 import MyTaskCardMobile from './MyTaskCardMobile.vue'
 import { useWindowSize } from '@vueuse/core'
 
+const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const translate = (text) => {
+	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
+}
+
 const store = useMyTasksStore()
 const { width } = useWindowSize()
 const isMobile = computed(() => width.value < 768)
@@ -18,12 +23,12 @@ const props = defineProps({
 
 const statusOrder = ['Overdue', 'Open', 'Working', 'Pending Review', 'Completed', 'Cancelled']
 const statusLabels = {
-	Overdue: window.__('Overdue'),
-	Open: window.__('Open'),
-	Working: window.__('Working'),
-	'Pending Review': window.__('Pending Review'),
-	Completed: window.__('Completed'),
-	Cancelled: window.__('Cancelled'),
+	Overdue: translate('Overdue'),
+	Open: translate('Open'),
+	Working: translate('Working'),
+	'Pending Review': translate('Pending Review'),
+	Completed: translate('Completed'),
+	Cancelled: translate('Cancelled'),
 }
 
 const tasksByName = computed(() => {
@@ -167,7 +172,7 @@ const sections = computed(() => {
 
 		<!-- Load more / pagination info -->
 		<div v-if="store.tasks.length > 0" class="mt-4 text-center text-sm text-gray-500">
-			{{ window.__('Showing') }} {{ store.tasks.length }} {{ window.__('of') }} {{ store.total }} {{ window.__('tasks') }}
+			{{ translate('Showing') }} {{ store.tasks.length }} {{ translate('of') }} {{ store.total }} {{ translate('tasks') }}
 		</div>
 	</div>
 </template>

@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { translate } from '../../utils/translation'
 import { Flag } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -23,10 +24,10 @@ const props = defineProps({
 
 // Priority configuration - shared across all components
 const priorityConfig = {
-	'Urgent': { class: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', label: window.__('Urgent') },
-	'High': { class: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200', label: window.__('High') },
-	'Medium': { class: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', label: window.__('Medium') },
-	'Low': { class: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200', label: window.__('Low') },
+	'Urgent': { class: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', label: translate('Urgent') },
+	'High': { class: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200', label: translate('High') },
+	'Medium': { class: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', label: translate('Medium') },
+	'Low': { class: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200', label: translate('Low') },
 }
 
 const config = computed(() => {

@@ -1,6 +1,7 @@
 <script setup>
 import { Clock, Lock, Sparkles } from 'lucide-vue-next'
 import OutlinerNav from '../components/OutlinerNav.vue'
+import { translate } from '../utils/translation'
 </script>
 
 <template>
@@ -11,7 +12,7 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Clock class="w-6 h-6 text-emerald-600" />
-						<h1 class="text-xl font-semibold text-gray-900">{{ window.__('Time Tracking Management') }}</h1>
+						<h1 class="text-xl font-semibold text-gray-900">{{ translate('Time Tracking Management') }}</h1>
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
@@ -42,41 +43,41 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 
 				<!-- Title -->
 				<h2 class="text-2xl font-bold text-gray-900 mb-3">
-					{{ window.__('Employee Time Management') }}
+					{{ translate('Employee Time Management') }}
 				</h2>
 
 				<!-- Description -->
 				<p class="text-gray-600 mb-6 max-w-md mx-auto">
-					{{ window.__('Review and manage recorded time for every team member. Generate reports and analyze productivity trends.') }}
+					{{ translate('Review and manage recorded time for every team member. Generate reports and analyze productivity trends.') }}
 				</p>
 
 				<!-- Features list -->
 				<div class="bg-gray-50 rounded-xl p-6 mb-6 text-left">
-					<h3 class="text-sm font-semibold text-gray-700 mb-3">{{ window.__('What the Pro version includes:') }}</h3>
+					<h3 class="text-sm font-semibold text-gray-700 mb-3">{{ translate('What the Pro version includes:') }}</h3>
 					<ul class="space-y-2 text-sm text-gray-600">
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-							{{ window.__('Team-wide timesheet overview') }}
+							{{ translate('Team-wide timesheet overview') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-							{{ window.__('Approve or reject time entries') }}
+							{{ translate('Approve or reject time entries') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-							{{ window.__('Weekly and monthly reports') }}
+							{{ translate('Weekly and monthly reports') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-							{{ window.__('Project-wise time analysis') }}
+							{{ translate('Project-wise time analysis') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-							{{ window.__('Export to Excel or PDF') }}
+							{{ translate('Export to Excel or PDF') }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-							{{ window.__('Payroll integration') }}
+							{{ translate('Payroll integration') }}
 						</li>
 					</ul>
 				</div>
@@ -84,7 +85,7 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 				<!-- Lock notice -->
 				<div class="flex items-center justify-center gap-2 text-gray-500 text-sm">
 					<Lock class="w-4 h-4" />
-					<span>{{ window.__('This feature is only available in Pro version') }}</span>
+					<span>{{ translate('This feature is only available in Pro version') }}</span>
 				</div>
 			</div>
 		</div>
