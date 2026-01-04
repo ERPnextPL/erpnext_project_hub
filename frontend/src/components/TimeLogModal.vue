@@ -20,6 +20,20 @@ const emit = defineEmits(["close", "save"]);
 const store = useTaskStore();
 const realWindow = getRealWindow();
 
+const userLocale = computed(() => {
+	const localeFromBoot = realWindow?.frappe?.boot?.lang;
+
+	if (localeFromBoot) {
+		return localeFromBoot;
+	}
+
+	if (typeof navigator !== "undefined" && navigator.language) {
+		return navigator.language;
+	}
+
+	return "en-US";
+});
+
 const showAlert = (message) => {
 	const frappe = realWindow?.frappe;
 	if (frappe) {
@@ -198,10 +212,11 @@ function handleSave() {
 	});
 }
 
-function formatDisplayTime(datetimeStr) {
+function formatDisplayTime(datetimeStr, localeOverride) {
 	if (!datetimeStr) return "";
 	const date = new Date(datetimeStr);
-	return date.toLocaleString("pl-PL", {
+	const targetLocale = localeOverride || userLocale.value;
+	return date.toLocaleString(targetLocale, {
 		day: "2-digit",
 		month: "2-digit",
 		year: "numeric",

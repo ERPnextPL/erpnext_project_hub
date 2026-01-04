@@ -184,7 +184,7 @@ async function saveDateField(field, value) {
 						<div class="flex items-start gap-2">
 							<Calendar class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
-								<div class="text-xs text-gray-500">Actual Start</div>
+								<div class="text-xs text-gray-500">{{ translate("Actual Start") }}</div>
 								<div class="text-sm font-medium text-gray-900">
 									{{ formatDate(project.actual_start_date) }}
 								</div>
@@ -193,7 +193,7 @@ async function saveDateField(field, value) {
 						<div class="flex items-start gap-2">
 							<Calendar class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
-								<div class="text-xs text-gray-500">Actual End</div>
+								<div class="text-xs text-gray-500">{{ translate("Actual End") }}</div>
 								<div class="text-sm font-medium text-gray-900">
 									{{ formatDate(project.actual_end_date) }}
 								</div>
@@ -206,7 +206,7 @@ async function saveDateField(field, value) {
 						<div class="flex items-start gap-2">
 							<Clock class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
-								<div class="text-xs text-gray-500">Estimated Hours</div>
+								<div class="text-xs text-gray-500">{{ translate("Estimated Hours") }}</div>
 								<div class="text-sm font-medium text-gray-900">
 									{{ formatHours(project.estimated_hours) }}
 								</div>
@@ -218,7 +218,7 @@ async function saveDateField(field, value) {
 								:class="isOverBudget ? 'text-red-500' : 'text-green-500'"
 							/>
 							<div class="flex-1 min-w-0">
-								<div class="text-xs text-gray-500">Logged Hours</div>
+								<div class="text-xs text-gray-500">{{ translate("Logged Hours") }}</div>
 								<div
 									class="text-sm font-medium"
 									:class="isOverBudget ? 'text-red-600' : 'text-gray-900'"
@@ -250,13 +250,13 @@ async function saveDateField(field, value) {
 						<div class="flex items-start gap-2">
 							<User class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
-								<div class="text-xs text-gray-500">Customer</div>
+								<div class="text-xs text-gray-500">{{ translate("Customer") }}</div>
 								<div
 									class="text-sm font-medium text-gray-900 truncate"
 									:title="project.customer_name || project.customer"
 								>
 									{{
-										project.customer_name || project.customer || "Not assigned"
+										project.customer_name || project.customer || translate("Not assigned")
 									}}
 								</div>
 							</div>
@@ -268,8 +268,8 @@ async function saveDateField(field, value) {
 				<div v-if="project.notes" class="mt-4 pt-4 border-t border-gray-100">
 					<div class="flex items-start gap-2">
 						<FileText class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-						<div class="flex-1 min-w-0">
-							<div class="text-xs text-gray-500 mb-1">Notes</div>
+							<div class="flex-1 min-w-0">
+								<div class="text-xs text-gray-500 mb-1">{{ translate("Notes") }}</div>
 							<div class="text-sm text-gray-700 whitespace-pre-wrap">
 								{{ project.notes }}
 							</div>
@@ -279,18 +279,16 @@ async function saveDateField(field, value) {
 
 				<!-- Warnings -->
 				<div v-if="isOverdue || isOverBudget" class="mt-4 pt-4 border-t border-gray-100">
-					<div class="flex items-start gap-2 text-amber-600">
-						<AlertCircle class="w-4 h-4 mt-0.5 flex-shrink-0" />
-						<div class="text-sm">
-							<span v-if="isOverdue">Project is overdue. </span>
-							<span v-if="isOverBudget"
-								>Hours budget exceeded by
-								{{
-									formatHours(project.total_hours - project.estimated_hours)
-								}}.</span
-							>
+						<div class="flex items-start gap-2 text-amber-600">
+							<AlertCircle class="w-4 h-4 mt-0.5 flex-shrink-0" />
+							<div class="text-sm">
+								<span v-if="isOverdue">{{ translate("Project is overdue.") }} </span>
+								<span v-if="isOverBudget">
+									{{ translate("Hours budget exceeded by") }}
+									{{ formatHours(project.total_hours - project.estimated_hours) }}.
+								</span>
+							</div>
 						</div>
-					</div>
 				</div>
 			</div>
 		</Transition>

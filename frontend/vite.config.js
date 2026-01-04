@@ -10,7 +10,6 @@ export default defineConfig({
 			lucideIcons: true,
 			jinjaBootData: true,
 			buildConfig: false,
-			socketio: false,
 		}),
 		vue(),
 	],
