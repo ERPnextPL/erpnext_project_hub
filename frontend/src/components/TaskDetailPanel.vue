@@ -139,13 +139,13 @@ async function saveField(field, value) {
 	try {
 		await store.updateTask(props.task.name, { [field]: value })
 		if (realWindow?.frappe && field === 'exp_end_date') {
-			frappe.show_alert({ message: 'Date updated successfully', indicator: 'green' })
+			frappe.show_alert({ message: translate('Date updated successfully'), indicator: 'green' })
 		}
 	} catch (error) {
 		// Revert on error
 		editableTask.value[field] = props.task[field]
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: 'Failed to update field', indicator: 'red' })
+			frappe.show_alert({ message: translate('Failed to update field'), indicator: 'red' })
 		}
 	} finally {
 		isSaving.value = false

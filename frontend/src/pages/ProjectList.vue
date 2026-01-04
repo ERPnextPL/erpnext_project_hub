@@ -12,12 +12,8 @@ import {
 	Flag,
 } from 'lucide-vue-next'
 import OutlinerNav from '../components/OutlinerNav.vue'
-
+import { translate } from '../utils/translation'
 const router = useRouter()
-const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
-const translate = (text) => {
-	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
-}
 const activeProjects = ref([])
 const completedProjects = ref([])
 const isManager = ref(false)
@@ -219,7 +215,7 @@ function getProgressColor(percent) {
 											{{ translate('Milestone due tomorrow') }}
 										</template>
 										<template v-else>
-											{{ project.days_to_milestone }} dni do kamienia milowego
+											{{ translate('{days} days to milestone', { days: project.days_to_milestone }) }}
 										</template>
 									</span>
 								</div>

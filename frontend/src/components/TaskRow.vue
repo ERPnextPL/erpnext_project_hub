@@ -268,9 +268,12 @@ async function handleCancelWithSubtasks() {
 	
 	// Ask for confirmation
 	const confirmed = confirm(
-		translate(`This task has ${subtaskCount} subtasks.\n\n` +
-		`Cancelling this task will also cancel all subtasks.\n\n` +
-		`Do you want to continue?`)
+		translate(
+			`This task has {subtaskCount} subtasks.\n\n` +
+			`Cancelling this task will also cancel all subtasks.\n\n` +
+			`Do you want to continue?`,
+			{ subtaskCount }
+		)
 	)
 	
 	if (!confirmed) return
@@ -291,13 +294,13 @@ async function handleCancelWithSubtasks() {
 	await cancelSubtasks(props.task.name)
 	
 	// Show success message
-	if (realWindow?.frappe) {
-		realWindow.frappe.show_alert({ 
-			message: translate(`Task and ${subtaskCount} subtasks cancelled`), 
-			indicator: 'orange' 
-		})
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ 
+				message: translate('Task and {subtaskCount} subtasks cancelled', { subtaskCount }), 
+				indicator: 'orange' 
+			})
+		}
 	}
-}
 
 function showUserAssignDropdown(e) {
 	e.preventDefault()
