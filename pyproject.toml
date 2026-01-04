@@ -21,7 +21,11 @@ build-backend = "flit_core.buildapi"
 
 [tool.ruff]
 line-length = 110
-target-version = "py314"
+target-version = "py312"
+extend-exclude = [
+    "erpnext_projekt_hub/public/frontend/assets/.*",
+    "erpnext_projekt_hub/public/js/.*",
+]
 
 [tool.ruff.lint]
 select = [
