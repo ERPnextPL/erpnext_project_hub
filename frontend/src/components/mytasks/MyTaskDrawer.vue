@@ -318,7 +318,7 @@ function openTimeLogForm() {
 async function handleSaveTimelog() {
 	if (!timelogForm.value.hours || parseFloat(timelogForm.value.hours) <= 0) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({
+			realWindow.frappe.show_alert({
 				message: translate("Please enter a valid number of hours"),
 				indicator: "red",
 			});
@@ -328,7 +328,7 @@ async function handleSaveTimelog() {
 
 	if (!timelogForm.value.activity_type) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({
+			realWindow.frappe.show_alert({
 				message: translate("Please select an activity type"),
 				indicator: "red",
 			});
@@ -354,12 +354,15 @@ async function handleSaveTimelog() {
 		});
 
 		showTimeLogForm.value = false;
-		if (window.frappe) {
-			frappe.show_alert({ message: "Czas zapisany", indicator: "green" });
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Time entry saved"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({
+			realWindow.frappe.show_alert({
 				message: translate("Failed to save time entry"),
 				indicator: "red",
 			});
@@ -373,11 +376,11 @@ async function handleDeleteTimelog(timelogName) {
 	try {
 		await store.deleteTimelog(timelogName, props.task.name);
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate("Time entry deleted"), indicator: "green" });
+			realWindow.frappe.show_alert({ message: translate("Time entry deleted"), indicator: "green" });
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({
+			realWindow.frappe.show_alert({
 				message: translate("Failed to delete time entry"),
 				indicator: "red",
 			});
@@ -780,7 +783,7 @@ function formatDateTime(dateStr) {
 						>
 							<p>ID: {{ task.name }}</p>
 							<p v-if="task.modified">
-								Ostatnia modyfikacja:
+								{{ translate("Last Modified") }}:
 								{{ dayjs(task.modified).format("DD.MM.YYYY HH:mm") }}
 							</p>
 						</div>

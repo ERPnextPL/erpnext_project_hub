@@ -39,8 +39,11 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 	} else {
 		// Set default values for new time log
 		const now = new Date();
-		const currentDate = now.toISOString().split("T")[0];
-		const currentTime = now.toTimeString().split(" ")[0].substring(0, 5); // HH:MM format
+		const pad = (value) => String(value).padStart(2, "0");
+		const currentDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+			now.getDate()
+		)}`;
+		const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
 		const configuredActivityType =
 			frappe?.boot?.projects_settings?.default_activity_type ??
@@ -79,10 +82,6 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			dialog.hide();
 		}
 
-		if (e.keyCode === 27 && dialog.display) {
-			// 27 = Escape key
-			dialog.hide();
-		}
 	});
 
 	// Clean up escape key handler when dialog is hidden

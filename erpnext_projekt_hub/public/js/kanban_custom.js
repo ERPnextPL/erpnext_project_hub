@@ -153,7 +153,12 @@
 			event.preventDefault();
 			event.stopPropagation();
 
-			frappe.views.KanbanBoard.show_task_preview(card.name);
+			const kanbanBoard = frappe.views?.KanbanBoard;
+			if (kanbanBoard && typeof kanbanBoard.show_task_preview === "function") {
+				kanbanBoard.show_task_preview(card.name);
+			} else if (typeof frappe.set_route === "function") {
+				frappe.set_route("Form", "Task", card.name);
+			}
 		});
 	};
 
