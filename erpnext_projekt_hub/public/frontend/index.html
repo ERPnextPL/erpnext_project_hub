@@ -18,7 +18,6 @@
 		<div id="app"></div>
 		
 		
-		
 		<script>
 			{% for key in boot %}
 			window["{{ key }}"] = {{ boot[key] | tojson }};

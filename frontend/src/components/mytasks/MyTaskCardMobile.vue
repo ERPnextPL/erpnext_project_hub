@@ -70,6 +70,10 @@ const formattedDate = computed(() => {
 	return dayjs(props.task.exp_end_date).format('DD MMM YYYY')
 })
 
+const canAddSubtask = computed(() => {
+	return !['Completed', 'Cancelled'].includes(props.task.status)
+})
+
 const dateClass = computed(() => {
 	if (props.task.is_overdue) return 'text-red-600 font-medium'
 	if (!props.task.exp_end_date) return 'text-gray-400'
@@ -221,7 +225,7 @@ onUnmounted(() => {
 						v-model="subtaskSubject"
 						type="text"
 						class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-						placeholder="{{ translate('Subtask name...') }}"
+						:placeholder="translate('Subtask name...')"
 						@keydown.enter.prevent="createSubtask"
 					/>
 					<button

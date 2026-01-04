@@ -23,14 +23,31 @@ const cssContent = fs.readFileSync(cssPath, 'utf8')
 const root = postcss.parse(cssContent)
 
 root.walkRules((rule) => {
-	const seenProps = new Set()
+	const decls = []
 	rule.walkDecls((decl) => {
+		decls.push(decl)
+	})
+	const seenProps = new Set()
+	for (let i = decls.length - 1; i >= 0; i -= 1) {
+		const decl = decls[i]
 		if (seenProps.has(decl.prop)) {
 			decl.remove()
 		} else {
 			seenProps.add(decl.prop)
 		}
-	})
+	}
+
+	if (rule.selector?.includes('.vgl-item__resizer:before')) {
+		const widthProps = new Set(['border-bottom-width', 'border-right-width'])
+		rule.walkDecls((decl) => {
+			if (widthProps.has(decl.prop)) {
+				decl.remove()
+			}
+		})
+		const widthValue = 'var(--vgl-resizer-border-width)'
+		rule.append({ prop: 'border-bottom-width', value: widthValue })
+		rule.append({ prop: 'border-right-width', value: widthValue })
+	}
 })
 
 const signatureSet = new Set()

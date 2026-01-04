@@ -38,10 +38,16 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 		const now = new Date();
 		const currentDate = now.toISOString().split('T')[0];
 		const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
-		
+
+		const configuredActivityType =
+			frappe?.boot?.projects_settings?.default_activity_type ??
+			frappe?.boot?.project_hub?.default_activity_type ??
+			(frappe?.defaults?.get_user_default?.('activity_type')) ??
+			'Execution';
+
 		dialog.set_values({
 			project: frm.doc.parent_project,
-			activity_type: "Wykonanie", // Default to "Wykonanie" if available
+			activity_type: configuredActivityType,
 			from_time: currentDate + ' ' + currentTime,
 			hours: 1, // Default to 1 hour
 		});
