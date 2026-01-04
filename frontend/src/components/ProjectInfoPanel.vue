@@ -82,13 +82,13 @@ async function saveDateField(field, value) {
 	try {
 		await store.updateProject(props.project.name, { [field]: value })
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Project dates saved'), indicator: 'green' })
+			realWindow.frappe.show_alert({ message: translate('Project dates saved'), indicator: 'green' })
 		}
 	} catch (e) {
 		editableExpectedStart.value = props.project.expected_start_date || ''
 		editableExpectedEnd.value = props.project.expected_end_date || ''
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Could not save project dates'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Could not save project dates'), indicator: 'red' })
 		}
 	} finally {
 		isSaving.value = false

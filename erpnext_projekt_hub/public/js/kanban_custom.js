@@ -29,20 +29,22 @@
 
     frappe.views.KanbanBoardCard = patchedKanbanCard;
 
-    frappe.views.KanbanBoard.show_task_preview = function (taskName) {
-      frappe.call({
-        method: "frappe.client.get",
-        args: {
-          doctype: "Task",
-          name: taskName,
-        },
-        callback: function (r) {
-          if (r?.message) {
-            showTaskPreviewDialog(r.message);
-          }
-        },
-      });
-    };
+    if (frappe.views.KanbanBoard) {
+      frappe.views.KanbanBoard.show_task_preview = function (taskName) {
+        frappe.call({
+          method: "frappe.client.get",
+          args: {
+            doctype: "Task",
+            name: taskName,
+          },
+          callback: function (r) {
+            if (r?.message) {
+              showTaskPreviewDialog(r.message);
+            }
+          },
+        });
+      };
+    }
   };
 
   const enhanceKanbanCard = function (card, kanbanInstance) {

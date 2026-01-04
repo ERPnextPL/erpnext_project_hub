@@ -54,11 +54,11 @@ async function handleDelete(milestone, event) {
 	try {
 		await store.deleteMilestone(milestone.name)
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Milestone deleted'), indicator: 'green' })
+			realWindow.frappe.show_alert({ message: translate('Milestone deleted'), indicator: 'green' })
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to delete milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Failed to delete milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -71,11 +71,11 @@ async function handleCreate(data) {
 		})
 		showCreateModal.value = false
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Milestone created'), indicator: 'green' })
+			realWindow.frappe.show_alert({ message: translate('Milestone created'), indicator: 'green' })
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to create milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Failed to create milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -86,11 +86,11 @@ async function handleUpdate(data) {
 		showEditModal.value = false
 		editingMilestone.value = null
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Milestone updated'), indicator: 'green' })
+			realWindow.frappe.show_alert({ message: translate('Milestone updated'), indicator: 'green' })
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -177,11 +177,11 @@ async function handleDrop(event, milestoneName) {
 	try {
 		await store.assignTaskToMilestone(taskName, milestoneName)
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Task assigned to milestone'), indicator: 'green' })
+			realWindow.frappe.show_alert({ message: translate('Task assigned to milestone'), indicator: 'green' })
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to assign task'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Failed to assign task'), indicator: 'red' })
 		}
 	}
 }

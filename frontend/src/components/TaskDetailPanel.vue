@@ -99,14 +99,14 @@ async function handleMilestoneChange(event) {
 	try {
 		await store.assignTaskToMilestone(props.task.name, newMilestone)
 		if (realWindow?.frappe) {
-			frappe.show_alert({ 
+			realWindow.frappe.show_alert({ 
 				message: newMilestone ? translate('Task assigned to milestone') : translate('Task removed from milestone'), 
 				indicator: 'green' 
 			})
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -119,7 +119,7 @@ async function handleProjectChange() {
 	try {
 		await store.updateTask(props.task.name, { project: newProject })
 		if (realWindow?.frappe) {
-			frappe.show_alert({ 
+			realWindow.frappe.show_alert({ 
 				message: translate('Task project changed'), 
 				indicator: 'green' 
 			})
@@ -127,7 +127,7 @@ async function handleProjectChange() {
 	} catch (error) {
 		editableTask.value.project = props.task.project
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to change project'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Failed to change project'), indicator: 'red' })
 		}
 	}
 }
@@ -139,13 +139,13 @@ async function saveField(field, value) {
 	try {
 		await store.updateTask(props.task.name, { [field]: value })
 		if (realWindow?.frappe && field === 'exp_end_date') {
-			frappe.show_alert({ message: translate('Date updated successfully'), indicator: 'green' })
+			realWindow.frappe.show_alert({ message: translate('Date updated successfully'), indicator: 'green' })
 		}
 	} catch (error) {
 		// Revert on error
 		editableTask.value[field] = props.task[field]
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to update field'), indicator: 'red' })
+			realWindow.frappe.show_alert({ message: translate('Failed to update field'), indicator: 'red' })
 		}
 	} finally {
 		isSaving.value = false
@@ -190,11 +190,11 @@ async function handleTimeLogSave(timelogData) {
 		await store.createTimelog(timelogData)
 		showTimeLogModal.value = false
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: 'Time log saved successfully', indicator: 'green' })
+			realWindow.frappe.show_alert({ message: 'Time log saved successfully', indicator: 'green' })
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: 'Failed to save time log', indicator: 'red' })
+			realWindow.frappe.show_alert({ message: 'Failed to save time log', indicator: 'red' })
 		}
 	}
 }
@@ -205,11 +205,11 @@ async function handleDeleteTimelog(timelogName) {
 	try {
 		await store.deleteTimelog(timelogName, props.task.name)
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: 'Time log deleted', indicator: 'green' })
+			realWindow.frappe.show_alert({ message: 'Time log deleted', indicator: 'green' })
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: 'Failed to delete time log', indicator: 'red' })
+			realWindow.frappe.show_alert({ message: 'Failed to delete time log', indicator: 'red' })
 		}
 	}
 }
