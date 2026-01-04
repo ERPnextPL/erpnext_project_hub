@@ -1,10 +1,12 @@
 // Override ERPNext timer functionality to add custom defaults and ESC key handling
 // This file extends the standard timer.js without modifying ERPNext core files
 
+const erpnext = frappe.erpnext ?? window.erpnext ?? {};
+
 frappe.provide("erpnext.timesheet");
 
 // Store original timer function
-const original_timer = erpnext.timesheet.timer;
+const original_timer = erpnext.timesheet?.timer;
 
 // Override the timer function with custom behavior
 erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
@@ -25,7 +27,7 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			{ fieldtype: "HTML", fieldname: "timer_html" },
 		],
 	});
-	
+
 	if (row) {
 		dialog.set_values({
 			activity_type: row.activity_type,
@@ -52,9 +54,9 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			hours: 1, // Default to 1 hour
 		});
 	}
-	
+
 	dialog.get_field("timer_html").$wrapper.append(get_timer_html());
-	
+
 	function get_timer_html() {
 		return `
 			<div class="stopwatch">
@@ -70,20 +72,20 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			</div>
 		`;
 	}
-	
+
 	erpnext.timesheet.control_timer(frm, dialog, row, timestamp);
-	
+
 	// Add escape key handler to close dialog
 	$(document).on('keydown.timer_dialog', function(e) {
 		if (e.keyCode === 27 && dialog.display) { // 27 = Escape key
 			dialog.hide();
 		}
 	});
-	
+
 	// Clean up escape key handler when dialog is hidden
 	dialog.$wrapper.on('hidden.bs.modal', function() {
 		$(document).off('keydown.timer_dialog');
 	});
-	
+
 	dialog.show();
 };
