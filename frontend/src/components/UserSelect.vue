@@ -1,7 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
-import { User, X, ChevronDown, Check } from 'lucide-vue-next'
+import { ref, computed, onMounted, watch } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import { User, X, ChevronDown, Check } from "lucide-vue-next";
 
 const props = defineProps({
 	modelValue: {
@@ -10,73 +10,72 @@ const props = defineProps({
 	},
 	placeholder: {
 		type: String,
-		default: 'Assign user...',
+		default: "Assign user...",
 	},
 	multiple: {
 		type: Boolean,
 		default: true,
 	},
-})
+});
 
-const emit = defineEmits(['update:modelValue', 'add', 'remove'])
+const emit = defineEmits(["update:modelValue", "add", "remove"]);
 
-const store = useTaskStore()
-const isOpen = ref(false)
-const searchQuery = ref('')
+const store = useTaskStore();
+const isOpen = ref(false);
+const searchQuery = ref("");
 
 onMounted(() => {
 	if (store.availableUsers.length === 0) {
-		store.fetchUsers()
+		store.fetchUsers();
 	}
-	document.addEventListener('click', closeDropdown)
-})
+	document.addEventListener("click", closeDropdown);
+});
 
 const filteredUsers = computed(() => {
-	const query = searchQuery.value.toLowerCase()
-	return store.availableUsers.filter(user => 
-		user.full_name?.toLowerCase().includes(query) ||
-		user.name?.toLowerCase().includes(query)
-	)
-})
+	const query = searchQuery.value.toLowerCase();
+	return store.availableUsers.filter(
+		(user) =>
+			user.full_name?.toLowerCase().includes(query) ||
+			user.name?.toLowerCase().includes(query)
+	);
+});
 
 const selectedUsers = computed(() => {
-	if (!props.modelValue) return []
+	if (!props.modelValue) return [];
 	try {
-		const assigns = typeof props.modelValue === 'string' 
-			? JSON.parse(props.modelValue) 
-			: props.modelValue
-		return store.availableUsers.filter(u => assigns.includes(u.name))
+		const assigns =
+			typeof props.modelValue === "string" ? JSON.parse(props.modelValue) : props.modelValue;
+		return store.availableUsers.filter((u) => assigns.includes(u.name));
 	} catch {
-		return []
+		return [];
 	}
-})
+});
 
 function isSelected(user) {
-	if (!props.modelValue) return false
+	if (!props.modelValue) return false;
 	try {
-		const assigns = typeof props.modelValue === 'string' 
-			? JSON.parse(props.modelValue) 
-			: props.modelValue
-		return assigns.includes(user.name)
+		const assigns =
+			typeof props.modelValue === "string" ? JSON.parse(props.modelValue) : props.modelValue;
+		return assigns.includes(user.name);
 	} catch {
-		return false
+		return false;
 	}
 }
 
 function toggleUser(user) {
 	if (isSelected(user)) {
-		emit('remove', user.name)
+		emit("remove", user.name);
 	} else {
-		emit('add', user.name)
+		emit("add", user.name);
 	}
 	if (!props.multiple) {
-		isOpen.value = false
+		isOpen.value = false;
 	}
 }
 
 function closeDropdown(e) {
-	if (!e.target.closest('.user-select-container')) {
-		isOpen.value = false
+	if (!e.target.closest(".user-select-container")) {
+		isOpen.value = false;
 	}
 }
 </script>
@@ -101,10 +100,7 @@ function closeDropdown(e) {
 					/>
 					<User v-else class="w-3 h-3" />
 					<span class="truncate max-w-[100px]">{{ user.full_name || user.name }}</span>
-					<button
-						@click.stop="emit('remove', user.name)"
-						class="hover:text-blue-600"
-					>
+					<button @click.stop="emit('remove', user.name)" class="hover:text-blue-600">
 						<X class="w-3 h-3" />
 					</button>
 				</span>
@@ -142,7 +138,10 @@ function closeDropdown(e) {
 						:src="user.user_image"
 						class="w-6 h-6 rounded-full"
 					/>
-					<div v-else class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+					<div
+						v-else
+						class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center"
+					>
 						<User class="w-4 h-4 text-gray-500" />
 					</div>
 					<span class="flex-1 truncate">{{ user.full_name || user.name }}</span>

@@ -1,7 +1,7 @@
 <script setup>
-import { computed } from 'vue'
-import { translate } from '../../utils/translation'
-import { Flag } from 'lucide-vue-next'
+import { computed } from "vue";
+import { translate } from "../../utils/translation";
+import { Flag } from "lucide-vue-next";
 
 const props = defineProps({
 	priority: {
@@ -10,7 +10,7 @@ const props = defineProps({
 	},
 	size: {
 		type: String,
-		default: 'sm', // 'xs', 'sm', 'md'
+		default: "sm", // 'xs', 'sm', 'md'
 	},
 	showLabel: {
 		type: Boolean,
@@ -20,47 +20,67 @@ const props = defineProps({
 		type: Boolean,
 		default: true,
 	},
-})
+});
 
 // Priority configuration - shared across all components
 const priorityConfig = {
-	'Urgent': { class: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', label: translate('Urgent') },
-	'High': { class: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200', label: translate('High') },
-	'Medium': { class: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', label: translate('Medium') },
-	'Low': { class: 'text-gray-500', bg: 'bg-gray-50', border: 'border-gray-200', label: translate('Low') },
-}
+	Urgent: {
+		class: "text-red-600",
+		bg: "bg-red-50",
+		border: "border-red-200",
+		label: translate("Urgent"),
+	},
+	High: {
+		class: "text-orange-500",
+		bg: "bg-orange-50",
+		border: "border-orange-200",
+		label: translate("High"),
+	},
+	Medium: {
+		class: "text-yellow-600",
+		bg: "bg-yellow-50",
+		border: "border-yellow-200",
+		label: translate("Medium"),
+	},
+	Low: {
+		class: "text-gray-500",
+		bg: "bg-gray-50",
+		border: "border-gray-200",
+		label: translate("Low"),
+	},
+};
 
 const config = computed(() => {
-	return priorityConfig[props.priority] || priorityConfig['Medium']
-})
+	return priorityConfig[props.priority] || priorityConfig["Medium"];
+});
 
 const sizeClasses = computed(() => {
 	switch (props.size) {
-		case 'xs':
+		case "xs":
 			return {
-				badge: 'px-1.5 py-0.5 text-xs',
-				icon: 'w-3 h-3',
-			}
-		case 'md':
+				badge: "px-1.5 py-0.5 text-xs",
+				icon: "w-3 h-3",
+			};
+		case "md":
 			return {
-				badge: 'px-3 py-1.5 text-sm',
-				icon: 'w-4 h-4',
-			}
+				badge: "px-3 py-1.5 text-sm",
+				icon: "w-4 h-4",
+			};
 		default: // sm
 			return {
-				badge: 'px-2 py-1 text-xs',
-				icon: 'w-3.5 h-3.5',
-			}
+				badge: "px-2 py-1 text-xs",
+				icon: "w-3.5 h-3.5",
+			};
 	}
-})
+});
 </script>
 
 <template>
-	<span 
+	<span
 		:class="[
 			'inline-flex items-center gap-1 rounded font-medium',
 			config.class,
-			showLabel ? [config.bg, config.border, 'border', sizeClasses.badge] : ''
+			showLabel ? [config.bg, config.border, 'border', sizeClasses.badge] : '',
 		]"
 	>
 		<Flag v-if="showIcon" :class="sizeClasses.icon" />

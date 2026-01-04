@@ -1,75 +1,81 @@
 <script setup>
-import { ref, watch } from 'vue'
-import { Diamond, X } from 'lucide-vue-next'
-import { getRealWindow, translate } from '../utils/translation'
+import { ref, watch } from "vue";
+import { Diamond, X } from "lucide-vue-next";
+import { getRealWindow, translate } from "../utils/translation";
 
 const props = defineProps({
 	show: Boolean,
 	milestone: Object,
-	editMode: Boolean
-})
+	editMode: Boolean,
+});
 
-const emit = defineEmits(['save', 'close'])
-const realWindow = getRealWindow()
+const emit = defineEmits(["save", "close"]);
+const realWindow = getRealWindow();
 
 const formData = ref({
-	milestone_name: '',
-	milestone_date: '',
-	description: '',
-	priority: 'Medium',
-	status: 'Open',
-	color: '#3b82f6'
-})
+	milestone_name: "",
+	milestone_date: "",
+	description: "",
+	priority: "Medium",
+	status: "Open",
+	color: "#3b82f6",
+});
 
-const priorities = ['Low', 'Medium', 'High', 'Urgent']
-const statuses = ['Open', 'In Progress', 'Completed', 'Cancelled']
+const priorities = ["Low", "Medium", "High", "Urgent"];
+const statuses = ["Open", "In Progress", "Completed", "Cancelled"];
 
-watch(() => props.show, (newVal) => {
-	if (newVal) {
-		if (props.editMode && props.milestone) {
-			formData.value = {
-				milestone_name: props.milestone.milestone_name || '',
-				milestone_date: props.milestone.milestone_date || '',
-				description: props.milestone.description || '',
-				priority: props.milestone.priority || 'Medium',
-				status: props.milestone.status || 'Open',
-				color: props.milestone.color || '#3b82f6'
+watch(
+	() => props.show,
+	(newVal) => {
+		if (newVal) {
+			if (props.editMode && props.milestone) {
+				formData.value = {
+					milestone_name: props.milestone.milestone_name || "",
+					milestone_date: props.milestone.milestone_date || "",
+					description: props.milestone.description || "",
+					priority: props.milestone.priority || "Medium",
+					status: props.milestone.status || "Open",
+					color: props.milestone.color || "#3b82f6",
+				};
+			} else {
+				resetForm();
 			}
-		} else {
-			resetForm()
 		}
 	}
-})
+);
 
 function resetForm() {
 	formData.value = {
-		milestone_name: '',
-		milestone_date: '',
-		description: '',
-		priority: 'Medium',
-		status: 'Open',
-		color: '#3b82f6'
-	}
+		milestone_name: "",
+		milestone_date: "",
+		description: "",
+		priority: "Medium",
+		status: "Open",
+		color: "#3b82f6",
+	};
 }
 
 function handleSave() {
 	if (!formData.value.milestone_name.trim()) {
-		const frappe = realWindow?.frappe
+		const frappe = realWindow?.frappe;
 		if (frappe) {
-			frappe.show_alert({ message: translate('Please enter a milestone name'), indicator: 'red' })
+			frappe.show_alert({
+				message: translate("Please enter a milestone name"),
+				indicator: "red",
+			});
 		}
-		return
+		return;
 	}
 
-	const data = { ...formData.value }
-	
+	const data = { ...formData.value };
+
 	// For edit mode, rename field for API
 	if (props.editMode) {
-		data.new_milestone_name = data.milestone_name
-		delete data.milestone_name
+		data.new_milestone_name = data.milestone_name;
+		delete data.milestone_name;
 	}
 
-	emit('save', data)
+	emit("save", data);
 }
 </script>
 
@@ -91,13 +97,16 @@ function handleSave() {
 						@click.stop
 					>
 						<!-- Header -->
-						<div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-						<div class="flex items-center gap-2">
-							<Diamond class="w-5 h-5 text-blue-600" />
-							<h3 class="text-lg font-semibold text-gray-900">
-								{{ editMode ? translate('Edit') : translate('Create') }} {{ translate('Milestone') }}
-							</h3>
-						</div>
+						<div
+							class="flex items-center justify-between px-6 py-4 border-b border-gray-200"
+						>
+							<div class="flex items-center gap-2">
+								<Diamond class="w-5 h-5 text-blue-600" />
+								<h3 class="text-lg font-semibold text-gray-900">
+									{{ editMode ? translate("Edit") : translate("Create") }}
+									{{ translate("Milestone") }}
+								</h3>
+							</div>
 							<button
 								@click="$emit('close')"
 								class="text-gray-400 hover:text-gray-600 transition-colors"
@@ -111,7 +120,7 @@ function handleSave() {
 							<!-- Name -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ translate('Name') }} <span class="text-red-500">*</span>
+									{{ translate("Name") }} <span class="text-red-500">*</span>
 								</label>
 								<input
 									v-model="formData.milestone_name"
@@ -124,7 +133,7 @@ function handleSave() {
 							<!-- Deadline -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ translate('Deadline') }}
+									{{ translate("Deadline") }}
 								</label>
 								<input
 									v-model="formData.milestone_date"
@@ -138,7 +147,7 @@ function handleSave() {
 								<!-- Priority -->
 								<div>
 									<label class="block text-sm font-medium text-gray-700 mb-1">
-										{{ translate('Priority') }}
+										{{ translate("Priority") }}
 									</label>
 									<select
 										v-model="formData.priority"
@@ -168,7 +177,7 @@ function handleSave() {
 								<!-- Color -->
 								<div :class="{ 'col-span-1': editMode }">
 									<label class="block text-sm font-medium text-gray-700 mb-1">
-										{{ translate('Color') }}
+										{{ translate("Color") }}
 									</label>
 									<div class="flex items-center gap-2">
 										<input
@@ -176,7 +185,9 @@ function handleSave() {
 											type="color"
 											class="w-10 h-10 rounded border border-gray-300 cursor-pointer"
 										/>
-										<span class="text-sm text-gray-500">{{ formData.color }}</span>
+										<span class="text-sm text-gray-500">{{
+											formData.color
+										}}</span>
 									</div>
 								</div>
 							</div>
@@ -184,7 +195,7 @@ function handleSave() {
 							<!-- Description -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ translate('Description') }}
+									{{ translate("Description") }}
 								</label>
 								<textarea
 									v-model="formData.description"
@@ -196,18 +207,20 @@ function handleSave() {
 						</div>
 
 						<!-- Footer -->
-						<div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200">
+						<div
+							class="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-200"
+						>
 							<button
 								@click="$emit('close')"
 								class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
 							>
-								{{ translate('Cancel') }}
+								{{ translate("Cancel") }}
 							</button>
 							<button
 								@click="handleSave"
 								class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
 							>
-								{{ editMode ? translate('Save') : translate('Create') }}
+								{{ editMode ? translate("Save") : translate("Create") }}
 							</button>
 						</div>
 					</div>

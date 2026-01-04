@@ -8,7 +8,6 @@ frappe.provide("erpnext.timesheet");
 // Store original timer function
 const original_timer = erpnext.timesheet?.timer;
 
-// Override the timer function with custom behavior
 erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 	let dialog = new frappe.ui.Dialog({
 		title: __("Timer"),
@@ -23,6 +22,8 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			{ fieldtype: "Link", label: __("Project"), fieldname: "project", options: "Project" },
 			{ fieldtype: "Link", label: __("Task"), fieldname: "task", options: "Task" },
 			{ fieldtype: "Float", label: __("Expected Hrs"), fieldname: "expected_hours" },
+			{ fieldtype: "Datetime", label: __("From Time"), fieldname: "from_time" },
+			{ fieldtype: "Float", label: __("Hours"), fieldname: "hours" },
 			{ fieldtype: "Section Break" },
 			{ fieldtype: "HTML", fieldname: "timer_html" },
 		],
@@ -38,19 +39,19 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 	} else {
 		// Set default values for new time log
 		const now = new Date();
-		const currentDate = now.toISOString().split('T')[0];
-		const currentTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM format
+		const currentDate = now.toISOString().split("T")[0];
+		const currentTime = now.toTimeString().split(" ")[0].substring(0, 5); // HH:MM format
 
 		const configuredActivityType =
 			frappe?.boot?.projects_settings?.default_activity_type ??
 			frappe?.boot?.project_hub?.default_activity_type ??
-			(frappe?.defaults?.get_user_default?.('activity_type')) ??
-			'Execution';
+			frappe?.defaults?.get_user_default?.("activity_type") ??
+			"Execution";
 
 		dialog.set_values({
 			project: frm.doc.parent_project,
 			activity_type: configuredActivityType,
-			from_time: currentDate + ' ' + currentTime,
+			from_time: currentDate + " " + currentTime,
 			hours: 1, // Default to 1 hour
 		});
 	}
@@ -73,18 +74,20 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 		`;
 	}
 
-	erpnext.timesheet.control_timer(frm, dialog, row, timestamp);
+	$(document).on("keydown.timer_dialog", function (e) {
+		if (e.key === "Escape" && dialog.$wrapper.is(":visible")) {
+			dialog.hide();
+		}
 
-	// Add escape key handler to close dialog
-	$(document).on('keydown.timer_dialog', function(e) {
-		if (e.keyCode === 27 && dialog.display) { // 27 = Escape key
+		if (e.keyCode === 27 && dialog.display) {
+			// 27 = Escape key
 			dialog.hide();
 		}
 	});
 
 	// Clean up escape key handler when dialog is hidden
-	dialog.$wrapper.on('hidden.bs.modal', function() {
-		$(document).off('keydown.timer_dialog');
+	dialog.$wrapper.on("hidden.bs.modal", function () {
+		$(document).off("keydown.timer_dialog");
 	});
 
 	dialog.show();

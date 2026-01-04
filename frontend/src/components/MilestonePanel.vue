@@ -1,64 +1,92 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
-import { Diamond, Plus, Calendar, MoreVertical, Edit2, Trash2, X, ChevronDown, ChevronUp } from 'lucide-vue-next'
-import MilestoneModal from './MilestoneModal.vue'
+import { ref, onMounted, watch } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import {
+	Diamond,
+	Plus,
+	Calendar,
+	MoreVertical,
+	Edit2,
+	Trash2,
+	X,
+	ChevronDown,
+	ChevronUp,
+} from "lucide-vue-next";
+import MilestoneModal from "./MilestoneModal.vue";
 
-const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
-	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
-}
+	return typeof realWindow !== "undefined" && typeof realWindow.__ === "function"
+		? realWindow.__(text)
+		: text;
+};
 
-const store = useTaskStore()
-const showCreateModal = ref(false)
-const showEditModal = ref(false)
-const editingMilestone = ref(null)
-const openMenuId = ref(null)
-const isCollapsed = ref(false)
+const store = useTaskStore();
+const showCreateModal = ref(false);
+const showEditModal = ref(false);
+const editingMilestone = ref(null);
+const openMenuId = ref(null);
+const isCollapsed = ref(false);
 
 // Load milestones when project changes
-watch(() => store.project?.name, (projectName) => {
-	if (projectName) {
-		store.fetchMilestones(projectName)
-	}
-}, { immediate: true })
+watch(
+	() => store.project?.name,
+	(projectName) => {
+		if (projectName) {
+			store.fetchMilestones(projectName);
+		}
+	},
+	{ immediate: true }
+);
 
 function handleMilestoneClick(milestone) {
 	if (store.activeMilestoneFilter === milestone.name) {
-		store.clearMilestoneFilter()
+		store.clearMilestoneFilter();
 	} else {
-		store.setMilestoneFilter(milestone.name)
+		store.setMilestoneFilter(milestone.name);
 	}
 }
 
 function toggleMenu(milestoneName, event) {
-	event.stopPropagation()
-	openMenuId.value = openMenuId.value === milestoneName ? null : milestoneName
+	event.stopPropagation();
+	openMenuId.value = openMenuId.value === milestoneName ? null : milestoneName;
 }
 
 function handleEdit(milestone, event) {
-	event.stopPropagation()
-	editingMilestone.value = milestone
-	showEditModal.value = true
-	openMenuId.value = null
+	event.stopPropagation();
+	editingMilestone.value = milestone;
+	showEditModal.value = true;
+	openMenuId.value = null;
 }
 
 async function handleDelete(milestone, event) {
-	event.stopPropagation()
-	openMenuId.value = null
-	
-	if (!confirm(translate(`Delete milestone "${milestone.milestone_name}"? Tasks will be detached but not deleted.`))) {
-		return
+	event.stopPropagation();
+	openMenuId.value = null;
+
+	if (
+		!confirm(
+			translate(
+				`Delete milestone "${milestone.milestone_name}"? Tasks will be detached but not deleted.`
+			)
+		)
+	) {
+		return;
 	}
 
 	try {
-		await store.deleteMilestone(milestone.name)
+		await store.deleteMilestone(milestone.name);
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Milestone deleted'), indicator: 'green' })
+			realWindow.frappe.show_alert({
+				message: translate("Milestone deleted"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Failed to delete milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: translate("Failed to delete milestone"),
+				indicator: "red",
+			});
 		}
 	}
 }
@@ -67,141 +95,159 @@ async function handleCreate(data) {
 	try {
 		await store.createMilestone({
 			...data,
-			project: store.project.name
-		})
-		showCreateModal.value = false
+			project: store.project.name,
+		});
+		showCreateModal.value = false;
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Milestone created'), indicator: 'green' })
+			realWindow.frappe.show_alert({
+				message: translate("Milestone created"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Failed to create milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: translate("Failed to create milestone"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 async function handleUpdate(data) {
 	try {
-		await store.updateMilestone(editingMilestone.value.name, data)
-		showEditModal.value = false
-		editingMilestone.value = null
+		await store.updateMilestone(editingMilestone.value.name, data);
+		showEditModal.value = false;
+		editingMilestone.value = null;
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Milestone updated'), indicator: 'green' })
+			realWindow.frappe.show_alert({
+				message: translate("Milestone updated"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update milestone"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 function getHealthColor(health) {
 	const colors = {
-		'completed': 'bg-green-100 text-green-700 border-green-200',
-		'on_track': 'bg-blue-100 text-blue-700 border-blue-200',
-		'at_risk': 'bg-orange-100 text-orange-700 border-orange-200',
-		'overdue': 'bg-red-100 text-red-700 border-red-200',
-		'no_deadline': 'bg-gray-100 text-gray-600 border-gray-200',
-		'cancelled': 'bg-gray-100 text-gray-500 border-gray-200'
-	}
-	return colors[health] || colors.no_deadline
+		completed: "bg-green-100 text-green-700 border-green-200",
+		on_track: "bg-blue-100 text-blue-700 border-blue-200",
+		at_risk: "bg-orange-100 text-orange-700 border-orange-200",
+		overdue: "bg-red-100 text-red-700 border-red-200",
+		no_deadline: "bg-gray-100 text-gray-600 border-gray-200",
+		cancelled: "bg-gray-100 text-gray-500 border-gray-200",
+	};
+	return colors[health] || colors.no_deadline;
 }
 
 function getHealthLabel(health) {
 	const labels = {
-		'completed': translate('Completed'),
-		'on_track': translate('On Track'),
-		'at_risk': translate('At Risk'),
-		'overdue': translate('Overdue'),
-		'no_deadline': translate('No Deadline'),
-		'cancelled': translate('Cancelled')
-	}
-	return labels[health] || health
+		completed: translate("Completed"),
+		on_track: translate("On Track"),
+		at_risk: translate("At Risk"),
+		overdue: translate("Overdue"),
+		no_deadline: translate("No Deadline"),
+		cancelled: translate("Cancelled"),
+	};
+	return labels[health] || health;
 }
 
 function getBorderColor(milestone) {
 	if (milestone.color) {
-		return milestone.color
+		return milestone.color;
 	}
 	const healthColors = {
-		'completed': '#10b981',
-		'on_track': '#3b82f6',
-		'at_risk': '#f59e0b',
-		'overdue': '#ef4444',
-		'no_deadline': '#9ca3af',
-		'cancelled': '#6b7280'
-	}
-	return healthColors[milestone.health] || '#3b82f6'
+		completed: "#10b981",
+		on_track: "#3b82f6",
+		at_risk: "#f59e0b",
+		overdue: "#ef4444",
+		no_deadline: "#9ca3af",
+		cancelled: "#6b7280",
+	};
+	return healthColors[milestone.health] || "#3b82f6";
 }
 
 function formatDate(dateStr) {
-	if (!dateStr) return 'No deadline'
-	const date = new Date(dateStr)
-	return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+	if (!dateStr) return "No deadline";
+	const date = new Date(dateStr);
+	return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 // Close menu when clicking outside
 function handleClickOutside(event) {
-	if (openMenuId.value && !event.target.closest('.milestone-menu')) {
-		openMenuId.value = null
+	if (openMenuId.value && !event.target.closest(".milestone-menu")) {
+		openMenuId.value = null;
 	}
 }
 
 // Drag & Drop handlers
-const dragOverMilestone = ref(null)
+const dragOverMilestone = ref(null);
 
 function handleDragOver(event, milestoneName) {
-	event.preventDefault()
-	event.dataTransfer.dropEffect = 'move'
-	dragOverMilestone.value = milestoneName
+	event.preventDefault();
+	event.dataTransfer.dropEffect = "move";
+	dragOverMilestone.value = milestoneName;
 }
 
 function handleDragLeave(event, milestoneName) {
-	if (event.currentTarget.contains(event.relatedTarget)) return
+	if (event.currentTarget.contains(event.relatedTarget)) return;
 	if (dragOverMilestone.value === milestoneName) {
-		dragOverMilestone.value = null
+		dragOverMilestone.value = null;
 	}
 }
 
 async function handleDrop(event, milestoneName) {
-	event.preventDefault()
-	dragOverMilestone.value = null
-	
-	const taskName = event.dataTransfer.getData('text/plain')
-	if (!taskName) return
-	
+	event.preventDefault();
+	dragOverMilestone.value = null;
+
+	const taskName = event.dataTransfer.getData("text/plain");
+	if (!taskName) return;
+
 	// Find the task
-	const task = store.tasks.find(t => t.name === taskName)
-	if (!task) return
-	
+	const task = store.tasks.find((t) => t.name === taskName);
+	if (!task) return;
+
 	try {
-		await store.assignTaskToMilestone(taskName, milestoneName)
+		await store.assignTaskToMilestone(taskName, milestoneName);
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Task assigned to milestone'), indicator: 'green' })
+			realWindow.frappe.show_alert({
+				message: translate("Task assigned to milestone"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Failed to assign task'), indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: translate("Failed to assign task"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 onMounted(() => {
-	document.addEventListener('click', handleClickOutside)
-})
+	document.addEventListener("click", handleClickOutside);
+});
 </script>
 
 <template>
 	<div class="milestone-panel bg-white border-b border-gray-200">
 		<!-- Header -->
-		<div 
+		<div
 			class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
 			@click="isCollapsed = !isCollapsed"
 		>
 			<div class="flex items-center gap-2">
 				<Diamond class="w-4 h-4 text-blue-600" />
 				<h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-					{{ translate('Milestones') }}
+					{{ translate("Milestones") }}
 				</h3>
 				<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
 					{{ store.milestones.length }}
@@ -215,27 +261,27 @@ onMounted(() => {
 				>
 					<Plus class="w-4 h-4" />
 				</button>
-				<component 
-					:is="isCollapsed ? ChevronDown : ChevronUp" 
+				<component
+					:is="isCollapsed ? ChevronDown : ChevronUp"
 					class="w-4 h-4 text-gray-400"
 				/>
 			</div>
 		</div>
 
 		<!-- Active Filter Indicator -->
-		<div 
-			v-if="store.activeMilestoneFilter && !isCollapsed" 
+		<div
+			v-if="store.activeMilestoneFilter && !isCollapsed"
 			class="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between"
 		>
-				<span class="text-xs text-blue-700">
-					{{ translate('Filtering by milestone') }}
-				</span>
-				<button
-					@click="store.clearMilestoneFilter()"
-					class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-				>
+			<span class="text-xs text-blue-700">
+				{{ translate("Filtering by milestone") }}
+			</span>
+			<button
+				@click="store.clearMilestoneFilter()"
+				class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+			>
 				<X class="w-3 h-3" />
-					{{ translate('Clear') }}
+				{{ translate("Clear") }}
 			</button>
 		</div>
 
@@ -254,7 +300,7 @@ onMounted(() => {
 						? 'border-blue-500 bg-blue-50 shadow-sm'
 						: dragOverMilestone === milestone.name
 						? 'border-blue-400 bg-blue-50 shadow-md scale-102'
-						: 'border-transparent hover:bg-gray-50'
+						: 'border-transparent hover:bg-gray-50',
 				]"
 				:style="{ borderLeftColor: getBorderColor(milestone), borderLeftWidth: '4px' }"
 			>
@@ -284,14 +330,14 @@ onMounted(() => {
 									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
 								>
 									<Edit2 class="w-3 h-3" />
-									{{ translate('Edit') }}
+									{{ translate("Edit") }}
 								</button>
 								<button
 									@click="handleDelete(milestone, $event)"
 									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 flex items-center gap-2"
 								>
 									<Trash2 class="w-3 h-3" />
-									{{ translate('Delete') }}
+									{{ translate("Delete") }}
 								</button>
 							</div>
 						</Transition>
@@ -303,18 +349,17 @@ onMounted(() => {
 					<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
 						<div
 							class="h-full transition-all duration-300"
-							:style="{ 
+							:style="{
 								width: `${milestone.progress || 0}%`,
-								backgroundColor: getBorderColor(milestone)
+								backgroundColor: getBorderColor(milestone),
 							}"
 						/>
 					</div>
 					<div class="flex items-center justify-between mt-1">
-						<span class="text-xs text-gray-600">
-							{{ milestone.progress || 0 }}%
-						</span>
+						<span class="text-xs text-gray-600"> {{ milestone.progress || 0 }}% </span>
 						<span class="text-xs text-gray-500">
-							{{ milestone.completed_tasks || 0 }}/{{ milestone.total_tasks || 0 }} {{ translate('tasks') }}
+							{{ milestone.completed_tasks || 0 }}/{{ milestone.total_tasks || 0 }}
+							{{ translate("tasks") }}
 						</span>
 					</div>
 				</div>
@@ -328,7 +373,7 @@ onMounted(() => {
 					<span
 						:class="[
 							'px-2 py-0.5 rounded-full text-xs font-medium border',
-							getHealthColor(milestone.health)
+							getHealthColor(milestone.health),
 						]"
 					>
 						{{ getHealthLabel(milestone.health) }}
@@ -337,17 +382,14 @@ onMounted(() => {
 			</div>
 
 			<!-- Empty State -->
-			<div
-				v-if="store.milestones.length === 0"
-				class="text-center py-6 text-gray-500"
-			>
+			<div v-if="store.milestones.length === 0" class="text-center py-6 text-gray-500">
 				<Diamond class="w-8 h-8 mx-auto mb-2 opacity-30" />
-				<p class="text-sm">{{ translate('No milestones') }}</p>
+				<p class="text-sm">{{ translate("No milestones") }}</p>
 				<button
 					@click="showCreateModal = true"
 					class="text-xs text-blue-600 hover:underline mt-1"
 				>
-					{{ translate('Create first milestone') }}
+					{{ translate("Create first milestone") }}
 				</button>
 			</div>
 		</div>
@@ -364,7 +406,10 @@ onMounted(() => {
 			:milestone="editingMilestone"
 			edit-mode
 			@save="handleUpdate"
-			@close="showEditModal = false; editingMilestone = null"
+			@close="
+				showEditModal = false;
+				editingMilestone = null;
+			"
 		/>
 	</div>
 </template>

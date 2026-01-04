@@ -1,8 +1,8 @@
 <script setup>
-import { ref, watch, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { useMyTasksStore } from '../../stores/myTasksStore'
-import dayjs from 'dayjs'
-import { getRealWindow, translate } from '../../utils/translation'
+import { ref, watch, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { useMyTasksStore } from "../../stores/myTasksStore";
+import dayjs from "dayjs";
+import { getRealWindow, translate } from "../../utils/translation";
 import {
 	X,
 	Save,
@@ -17,9 +17,9 @@ import {
 	FileText,
 	Trash2,
 	Plus,
-} from 'lucide-vue-next'
+} from "lucide-vue-next";
 
-const realWindow = getRealWindow()
+const realWindow = getRealWindow();
 
 const props = defineProps({
 	isOpen: {
@@ -34,151 +34,169 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
-})
+});
 
-const emit = defineEmits(['close', 'created'])
+const emit = defineEmits(["close", "created"]);
 
-const store = useMyTasksStore()
+const store = useMyTasksStore();
 
 // Form state
 const form = ref({
-	subject: '',
-	project: '',
-	status: 'Open',
-	priority: 'Medium',
-	exp_end_date: '',
-	description: '',
-})
+	subject: "",
+	project: "",
+	status: "Open",
+	priority: "Medium",
+	exp_end_date: "",
+	description: "",
+});
 
-const saving = ref(false)
-const errors = ref({})
-const showTimeLogForm = ref(false)
-const timelogsLoading = ref(false)
+const saving = ref(false);
+const errors = ref({});
+const showTimeLogForm = ref(false);
+const timelogsLoading = ref(false);
 const timelogForm = ref({
-	hours: '',
-	activity_type: '',
-	description: '',
-	from_time: '',
-})
+	hours: "",
+	activity_type: "",
+	description: "",
+	from_time: "",
+});
 
-const showSubtaskForm = ref(false)
-const subtaskSubject = ref('')
-const newTaskParentTask = ref(null)
+const showSubtaskForm = ref(false);
+const subtaskSubject = ref("");
+const newTaskParentTask = ref(null);
 
-const initialForm = ref(null)
+const initialForm = ref(null);
 
 function normalizeFormForCompare(v) {
 	return {
-		subject: (v?.subject || '').trim(),
-		project: v?.project || '',
-		status: v?.status || 'Open',
-		priority: v?.priority || 'Medium',
-		exp_end_date: v?.exp_end_date || '',
-		description: (v?.description || '').trim(),
-	}
+		subject: (v?.subject || "").trim(),
+		project: v?.project || "",
+		status: v?.status || "Open",
+		priority: v?.priority || "Medium",
+		exp_end_date: v?.exp_end_date || "",
+		description: (v?.description || "").trim(),
+	};
 }
 
 function setInitialFormSnapshot() {
-	initialForm.value = normalizeFormForCompare(form.value)
+	initialForm.value = normalizeFormForCompare(form.value);
 }
 
 const isDirty = computed(() => {
-	if (!initialForm.value) return false
-	const current = normalizeFormForCompare(form.value)
-	return JSON.stringify(current) !== JSON.stringify(initialForm.value)
-})
+	if (!initialForm.value) return false;
+	const current = normalizeFormForCompare(form.value);
+	return JSON.stringify(current) !== JSON.stringify(initialForm.value);
+});
 
 // Status and priority options
 const statusOptions = [
-	{ value: 'Open', label: translate('Open'), icon: Circle, class: 'text-blue-600' },
-	{ value: 'Working', label: translate('Working'), icon: Clock, class: 'text-amber-600' },
-	{ value: 'Pending Review', label: translate('Pending Review'), icon: AlertCircle, class: 'text-purple-600' },
-	{ value: 'Completed', label: translate('Completed'), icon: CheckCircle2, class: 'text-green-600' },
-	{ value: 'Cancelled', label: translate('Cancelled'), icon: Circle, class: 'text-gray-400' },
-]
+	{ value: "Open", label: translate("Open"), icon: Circle, class: "text-blue-600" },
+	{ value: "Working", label: translate("Working"), icon: Clock, class: "text-amber-600" },
+	{
+		value: "Pending Review",
+		label: translate("Pending Review"),
+		icon: AlertCircle,
+		class: "text-purple-600",
+	},
+	{
+		value: "Completed",
+		label: translate("Completed"),
+		icon: CheckCircle2,
+		class: "text-green-600",
+	},
+	{ value: "Cancelled", label: translate("Cancelled"), icon: Circle, class: "text-gray-400" },
+];
 
 const priorityOptions = [
-	{ value: 'Low', label: translate('Low'), class: 'text-gray-500' },
-	{ value: 'Medium', label: translate('Medium'), class: 'text-yellow-600' },
-	{ value: 'High', label: translate('High'), class: 'text-orange-500' },
-	{ value: 'Urgent', label: translate('Urgent'), class: 'text-red-600' },
-]
+	{ value: "Low", label: translate("Low"), class: "text-gray-500" },
+	{ value: "Medium", label: translate("Medium"), class: "text-yellow-600" },
+	{ value: "High", label: translate("High"), class: "text-orange-500" },
+	{ value: "Urgent", label: translate("Urgent"), class: "text-red-600" },
+];
 
 // Computed for current task timelogs
 const currentTimelogs = computed(() => {
-	if (!props.task?.name) return { timelogs: [], total_hours: 0 }
-	return store.taskTimelogs[props.task.name] || { timelogs: [], total_hours: 0 }
-})
+	if (!props.task?.name) return { timelogs: [], total_hours: 0 };
+	return store.taskTimelogs[props.task.name] || { timelogs: [], total_hours: 0 };
+});
 
 // Watch for task changes
-watch(() => props.task, async (newTask) => {
-	if (newTask) {
-		form.value = {
-			subject: newTask.subject || '',
-			project: newTask.project || '',
-			status: newTask.status || 'Open',
-			priority: newTask.priority || 'Medium',
-			exp_end_date: newTask.exp_end_date || '',
-			description: newTask.description || '',
-		}
-		setInitialFormSnapshot()
-		// Load timelogs for existing task
-		if (!props.isNew && newTask.name) {
-			timelogsLoading.value = true
-			try {
-				await store.fetchTaskTimelogs(newTask.name)
-			} finally {
-				timelogsLoading.value = false
+watch(
+	() => props.task,
+	async (newTask) => {
+		if (newTask) {
+			form.value = {
+				subject: newTask.subject || "",
+				project: newTask.project || "",
+				status: newTask.status || "Open",
+				priority: newTask.priority || "Medium",
+				exp_end_date: newTask.exp_end_date || "",
+				description: newTask.description || "",
+			};
+			setInitialFormSnapshot();
+			// Load timelogs for existing task
+			if (!props.isNew && newTask.name) {
+				timelogsLoading.value = true;
+				try {
+					await store.fetchTaskTimelogs(newTask.name);
+				} finally {
+					timelogsLoading.value = false;
+				}
 			}
 		}
-	}
-}, { immediate: true })
+	},
+	{ immediate: true }
+);
 
 // Reset form for new task
-watch(() => props.isNew, (isNew) => {
-	if (isNew) {
-		const preset = store.drawerPreset || {}
-		newTaskParentTask.value = preset.parent_task || null
-		form.value = {
-			subject: '',
-			project: preset.project || (store.projects.length > 0 ? store.projects[0].name : ''),
-			status: preset.status || 'Open',
-			priority: preset.priority || 'Medium',
-			exp_end_date: preset.exp_end_date || '',
-			description: '',
+watch(
+	() => props.isNew,
+	(isNew) => {
+		if (isNew) {
+			const preset = store.drawerPreset || {};
+			newTaskParentTask.value = preset.parent_task || null;
+			form.value = {
+				subject: "",
+				project:
+					preset.project || (store.projects.length > 0 ? store.projects[0].name : ""),
+				status: preset.status || "Open",
+				priority: preset.priority || "Medium",
+				exp_end_date: preset.exp_end_date || "",
+				description: "",
+			};
+			errors.value = {};
+			showSubtaskForm.value = false;
+			subtaskSubject.value = "";
+			setInitialFormSnapshot();
 		}
-		errors.value = {}
-		showSubtaskForm.value = false
-		subtaskSubject.value = ''
-		setInitialFormSnapshot()
 	}
-})
+);
 
 watch(
 	[() => props.isOpen, () => store.drawerAction],
 	([isOpen, action]) => {
-		if (!isOpen) return
-		if (!action) return
-		if (action.type === 'timelog') {
-			openTimeLogForm()
-			store.clearDrawerAction()
+		if (!isOpen) return;
+		if (!action) return;
+		if (action.type === "timelog") {
+			openTimeLogForm();
+			store.clearDrawerAction();
 		}
 	},
 	{ deep: true }
-)
+);
 
 // Handle escape key
 function handleKeydown(e) {
-	if (e.key === 'Escape' && props.isOpen) {
-		emit('close')
+	if (e.key === "Escape" && props.isOpen) {
+		emit("close");
 	}
 }
 
 async function createSubtask() {
-	const subject = subtaskSubject.value.trim()
-	if (!props.task?.name || !props.task?.project) return
-	if (props.task.status === 'Completed' || props.task.status === 'Cancelled') return
-	if (!subject) return
+	const subject = subtaskSubject.value.trim();
+	if (!props.task?.name || !props.task?.project) return;
+	if (props.task.status === "Completed" || props.task.status === "Cancelled") return;
+	if (!subject) return;
 
 	try {
 		await store.createTask({
@@ -188,57 +206,60 @@ async function createSubtask() {
 			status: props.task.status,
 			priority: props.task.priority,
 			exp_end_date: props.task.exp_end_date || null,
-		})
-		subtaskSubject.value = ''
-		showSubtaskForm.value = false
+		});
+		subtaskSubject.value = "";
+		showSubtaskForm.value = false;
 	} catch (e) {
 		// handled by store/api
 	}
 }
 
 onMounted(() => {
-	document.addEventListener('keydown', handleKeydown)
-})
+	document.addEventListener("keydown", handleKeydown);
+});
 
 onUnmounted(() => {
-	document.removeEventListener('keydown', handleKeydown)
-})
+	document.removeEventListener("keydown", handleKeydown);
+});
 
 // Focus first input when drawer opens
-watch(() => props.isOpen, async (isOpen) => {
-	if (isOpen) {
-		await nextTick()
-		const firstInput = document.querySelector('.drawer-content input[type="text"]')
-		if (firstInput) {
-			firstInput.focus()
+watch(
+	() => props.isOpen,
+	async (isOpen) => {
+		if (isOpen) {
+			await nextTick();
+			const firstInput = document.querySelector('.drawer-content input[type="text"]');
+			if (firstInput) {
+				firstInput.focus();
+			}
 		}
 	}
-})
+);
 
 const isValid = computed(() => {
-	return form.value.subject.trim() && form.value.project
-})
+	return form.value.subject.trim() && form.value.project;
+});
 
 const drawerTitle = computed(() => {
-	if (props.isNew) return translate('New Task')
-	return translate('Task Details')
-})
+	if (props.isNew) return translate("New Task");
+	return translate("Task Details");
+});
 
 async function handleSave() {
-	errors.value = {}
-	
+	errors.value = {};
+
 	if (!form.value.subject.trim()) {
-		errors.value.subject = translate('Task name is required')
-		return
+		errors.value.subject = translate("Task name is required");
+		return;
 	}
-	
+
 	if (!form.value.project) {
-		errors.value.project = translate('Project is required')
-		return
+		errors.value.project = translate("Project is required");
+		return;
 	}
-	
-	saving.value = true
-	
+
+	saving.value = true;
+
 	try {
 		if (props.isNew) {
 			await store.createTask({
@@ -249,8 +270,8 @@ async function handleSave() {
 				priority: form.value.priority,
 				exp_end_date: form.value.exp_end_date || null,
 				description: form.value.description || null,
-			})
-			emit('created')
+			});
+			emit("created");
 		} else {
 			await store.updateTaskFull(props.task.name, {
 				subject: form.value.subject.trim(),
@@ -258,63 +279,71 @@ async function handleSave() {
 				priority: form.value.priority,
 				exp_end_date: form.value.exp_end_date || null,
 				description: form.value.description || null,
-			})
-			emit('close')
+			});
+			emit("close");
 		}
 	} catch (err) {
-		console.error('Failed to save task:', err)
+		console.error("Failed to save task:", err);
 	} finally {
-		saving.value = false
+		saving.value = false;
 	}
 }
 
 function handleOverlayClick(e) {
 	if (e.target === e.currentTarget) {
-		emit('close')
+		emit("close");
 	}
 }
 
 // Timelog functions
 function resetTimelogForm() {
-	const today = new Date().toISOString().split('T')[0]
+	const today = new Date().toISOString().split("T")[0];
 	timelogForm.value = {
-		hours: '1',
-		activity_type: store.activityTypes[0] || '',
-		description: '',
+		hours: "1",
+		activity_type: store.activityTypes[0] || "",
+		description: "",
 		from_time: `${today}T08:00`,
-	}
+	};
 }
 
 function openTimeLogForm() {
-	resetTimelogForm()
-	showTimeLogForm.value = true
+	resetTimelogForm();
+	showTimeLogForm.value = true;
 	// Load activity types if not loaded
 	if (store.activityTypes.length === 0) {
-		store.fetchActivityTypes()
+		store.fetchActivityTypes();
 	}
 }
 
 async function handleSaveTimelog() {
 	if (!timelogForm.value.hours || parseFloat(timelogForm.value.hours) <= 0) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Please enter a valid number of hours'), indicator: 'red' })
+			frappe.show_alert({
+				message: translate("Please enter a valid number of hours"),
+				indicator: "red",
+			});
 		}
-		return
+		return;
 	}
-	
+
 	if (!timelogForm.value.activity_type) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Please select an activity type'), indicator: 'red' })
+			frappe.show_alert({
+				message: translate("Please select an activity type"),
+				indicator: "red",
+			});
 		}
-		return
+		return;
 	}
 
 	try {
-		const hours = parseFloat(timelogForm.value.hours)
+		const hours = parseFloat(timelogForm.value.hours);
 		// IMPORTANT: keep local time (do not use toISOString) to avoid timezone shift
-		const fromStr = dayjs(timelogForm.value.from_time).format('YYYY-MM-DD HH:mm:ss')
-		const toStr = dayjs(timelogForm.value.from_time).add(hours, 'hour').format('YYYY-MM-DD HH:mm:ss')
-		
+		const fromStr = dayjs(timelogForm.value.from_time).format("YYYY-MM-DD HH:mm:ss");
+		const toStr = dayjs(timelogForm.value.from_time)
+			.add(hours, "hour")
+			.format("YYYY-MM-DD HH:mm:ss");
+
 		await store.createTimelog({
 			task: props.task.name,
 			hours: hours,
@@ -322,44 +351,50 @@ async function handleSaveTimelog() {
 			description: timelogForm.value.description,
 			from_time: fromStr,
 			to_time: toStr,
-		})
-		
-		showTimeLogForm.value = false
+		});
+
+		showTimeLogForm.value = false;
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Czas zapisany', indicator: 'green' })
+			frappe.show_alert({ message: "Czas zapisany", indicator: "green" });
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to save time entry'), indicator: 'red' })
+			frappe.show_alert({
+				message: translate("Failed to save time entry"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 async function handleDeleteTimelog(timelogName) {
-	if (!confirm(translate('Are you sure you want to delete this time entry?'))) return
-	
+	if (!confirm(translate("Are you sure you want to delete this time entry?"))) return;
+
 	try {
-		await store.deleteTimelog(timelogName, props.task.name)
+		await store.deleteTimelog(timelogName, props.task.name);
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Time entry deleted'), indicator: 'green' })
+			frappe.show_alert({ message: translate("Time entry deleted"), indicator: "green" });
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to delete time entry'), indicator: 'red' })
+			frappe.show_alert({
+				message: translate("Failed to delete time entry"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 function formatDateTime(dateStr) {
-	if (!dateStr) return ''
-	const date = new Date(dateStr)
-	return date.toLocaleString('pl-PL', {
-		day: '2-digit',
-		month: '2-digit',
-		year: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-	})
+	if (!dateStr) return "";
+	const date = new Date(dateStr);
+	return date.toLocaleString("pl-PL", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
 }
 </script>
 
@@ -375,14 +410,16 @@ function formatDateTime(dateStr) {
 				<div class="absolute inset-0 bg-black/30" @click="emit('close')"></div>
 
 				<!-- Drawer panel -->
-				<div 
+				<div
 					class="drawer-content relative w-full max-w-lg bg-white shadow-xl flex flex-col h-full md:h-auto md:max-h-[calc(100vh-2rem)] md:my-4 md:mr-4 md:rounded-lg overflow-hidden"
 					role="dialog"
 					aria-modal="true"
 					:aria-labelledby="drawerTitle"
 				>
 					<!-- Header -->
-					<div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+					<div
+						class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50"
+					>
 						<h2 class="text-lg font-semibold text-gray-900">{{ drawerTitle }}</h2>
 						<button
 							@click="emit('close')"
@@ -398,25 +435,27 @@ function formatDateTime(dateStr) {
 						<!-- Subject -->
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
-								{{ translate('Task Name') }} <span class="text-red-500">*</span>
+								{{ translate("Task Name") }} <span class="text-red-500">*</span>
 							</label>
 							<input
 								v-model="form.subject"
 								type="text"
 								:class="[
 									'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-									errors.subject ? 'border-red-300' : 'border-gray-300'
+									errors.subject ? 'border-red-300' : 'border-gray-300',
 								]"
 								:placeholder="translate('Enter task name...')"
 							/>
-							<p v-if="errors.subject" class="mt-1 text-sm text-red-600">{{ errors.subject }}</p>
+							<p v-if="errors.subject" class="mt-1 text-sm text-red-600">
+								{{ errors.subject }}
+							</p>
 						</div>
 
 						<!-- Project -->
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<Folder class="w-4 h-4 inline mr-1" />
-								{{ translate('Project') }} <span class="text-red-500">*</span>
+								{{ translate("Project") }} <span class="text-red-500">*</span>
 							</label>
 							<select
 								v-model="form.project"
@@ -424,20 +463,25 @@ function formatDateTime(dateStr) {
 								:class="[
 									'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
 									errors.project ? 'border-red-300' : 'border-gray-300',
-									!isNew && 'bg-gray-50 cursor-not-allowed'
+									!isNew && 'bg-gray-50 cursor-not-allowed',
 								]"
 							>
-								<option value="">{{ translate('Select project...') }}</option>
-								<option 
-									v-for="project in store.projects" 
-									:key="project.name" 
+								<option value="">{{ translate("Select project...") }}</option>
+								<option
+									v-for="project in store.projects"
+									:key="project.name"
 									:value="project.name"
 								>
 									{{ project.project_name }}
 								</option>
 							</select>
-							<p v-if="errors.project" class="mt-1 text-sm text-red-600">{{ errors.project }}</p>
-							<p v-if="!isNew && task?.project_name" class="mt-1 text-sm text-gray-500">
+							<p v-if="errors.project" class="mt-1 text-sm text-red-600">
+								{{ errors.project }}
+							</p>
+							<p
+								v-if="!isNew && task?.project_name"
+								class="mt-1 text-sm text-gray-500"
+							>
 								{{ task.project_name }}
 							</p>
 						</div>
@@ -445,7 +489,7 @@ function formatDateTime(dateStr) {
 						<!-- Status -->
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
-								{{ translate('Status') }}
+								{{ translate("Status") }}
 							</label>
 							<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
 								<button
@@ -456,10 +500,13 @@ function formatDateTime(dateStr) {
 										'flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors',
 										form.status === option.value
 											? 'border-blue-500 bg-blue-50 text-blue-700'
-											: 'border-gray-200 hover:bg-gray-50'
+											: 'border-gray-200 hover:bg-gray-50',
 									]"
 								>
-									<component :is="option.icon" :class="['w-4 h-4', option.class]" />
+									<component
+										:is="option.icon"
+										:class="['w-4 h-4', option.class]"
+									/>
 									{{ option.label }}
 								</button>
 							</div>
@@ -469,7 +516,7 @@ function formatDateTime(dateStr) {
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<Flag class="w-4 h-4 inline mr-1" />
-								{{ translate('Priority') }}
+								{{ translate("Priority") }}
 							</label>
 							<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
 								<button
@@ -480,7 +527,7 @@ function formatDateTime(dateStr) {
 										'flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors',
 										form.priority === option.value
 											? 'border-blue-500 bg-blue-50 text-blue-700'
-											: 'border-gray-200 hover:bg-gray-50'
+											: 'border-gray-200 hover:bg-gray-50',
 									]"
 								>
 									<Flag :class="['w-4 h-4', option.class]" />
@@ -493,7 +540,7 @@ function formatDateTime(dateStr) {
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<Calendar class="w-4 h-4 inline mr-1" />
-								{{ translate('Due Date') }}
+								{{ translate("Due Date") }}
 							</label>
 							<input
 								v-model="form.exp_end_date"
@@ -506,7 +553,7 @@ function formatDateTime(dateStr) {
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
 								<FileText class="w-4 h-4 inline mr-1" />
-								{{ translate('Description') }}
+								{{ translate("Description") }}
 							</label>
 							<textarea
 								v-model="form.description"
@@ -519,22 +566,30 @@ function formatDateTime(dateStr) {
 						<!-- Subtasks (create) -->
 						<div v-if="!isNew && task" class="pt-4 border-t border-gray-200">
 							<div class="flex items-center justify-between mb-2">
-								<h3 class="text-sm font-medium text-gray-700 flex items-center gap-2">
+								<h3
+									class="text-sm font-medium text-gray-700 flex items-center gap-2"
+								>
 									<CheckCircle2 class="w-4 h-4" />
-									{{ translate('Subtasks') }}
+									{{ translate("Subtasks") }}
 								</h3>
 								<button
 									@click="showSubtaskForm = !showSubtaskForm"
 									class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 								>
 									<Plus class="w-3.5 h-3.5" />
-									{{ translate('Add') }}
+									{{ translate("Add") }}
 								</button>
 							</div>
 
-							<div v-if="showSubtaskForm" class="bg-gray-50 rounded-lg p-3 space-y-3" @click.stop>
+							<div
+								v-if="showSubtaskForm"
+								class="bg-gray-50 rounded-lg p-3 space-y-3"
+								@click.stop
+							>
 								<div>
-									<label class="block text-xs font-medium text-gray-600 mb-1">{{ translate('Subtask name') }}</label>
+									<label class="block text-xs font-medium text-gray-600 mb-1">{{
+										translate("Subtask name")
+									}}</label>
 									<input
 										v-model="subtaskSubject"
 										type="text"
@@ -548,13 +603,13 @@ function formatDateTime(dateStr) {
 										@click="showSubtaskForm = false"
 										class="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
 									>
-										{{ translate('Cancel') }}
+										{{ translate("Cancel") }}
 									</button>
 									<button
 										@click="createSubtask"
 										class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
 									>
-										{{ translate('Add') }}
+										{{ translate("Add") }}
 									</button>
 								</div>
 							</div>
@@ -564,12 +619,19 @@ function formatDateTime(dateStr) {
 						<div v-if="!isNew && task" class="pt-4 border-t border-gray-200">
 							<div class="flex items-center justify-between mb-3">
 								<div>
-									<h3 class="text-sm font-medium text-gray-700 flex items-center gap-2">
+									<h3
+										class="text-sm font-medium text-gray-700 flex items-center gap-2"
+									>
 										<Clock class="w-4 h-4" />
-										{{ translate('Time Log') }}
+										{{ translate("Time Log") }}
 									</h3>
-									<p v-if="currentTimelogs.total_hours > 0" class="text-xs text-gray-500 mt-0.5">
-										{{ translate('Total') }}: {{ currentTimelogs.total_hours.toFixed(2) }} {{ translate('hrs') }}.
+									<p
+										v-if="currentTimelogs.total_hours > 0"
+										class="text-xs text-gray-500 mt-0.5"
+									>
+										{{ translate("Total") }}:
+										{{ currentTimelogs.total_hours.toFixed(2) }}
+										{{ translate("hrs") }}.
 									</p>
 								</div>
 								<button
@@ -577,15 +639,20 @@ function formatDateTime(dateStr) {
 									class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 								>
 									<Plus class="w-3.5 h-3.5" />
-									{{ translate('Add') }}
+									{{ translate("Add") }}
 								</button>
 							</div>
 
 							<!-- Time log form -->
-							<div v-if="showTimeLogForm" class="bg-gray-50 rounded-lg p-3 mb-3 space-y-3">
+							<div
+								v-if="showTimeLogForm"
+								class="bg-gray-50 rounded-lg p-3 mb-3 space-y-3"
+							>
 								<div class="grid grid-cols-2 gap-3">
 									<div>
-										<label class="block text-xs font-medium text-gray-600 mb-1">{{ translate('Hours') }} *</label>
+										<label class="block text-xs font-medium text-gray-600 mb-1"
+											>{{ translate("Hours") }} *</label
+										>
 										<input
 											v-model="timelogForm.hours"
 											type="number"
@@ -597,20 +664,28 @@ function formatDateTime(dateStr) {
 										/>
 									</div>
 									<div>
-										<label class="block text-xs font-medium text-gray-600 mb-1">{{ translate('Type') }} *</label>
+										<label class="block text-xs font-medium text-gray-600 mb-1"
+											>{{ translate("Type") }} *</label
+										>
 										<select
 											v-model="timelogForm.activity_type"
 											class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
 										>
-											<option value="">{{ translate('Select...') }}</option>
-											<option v-for="type in store.activityTypes" :key="type" :value="type">
+											<option value="">{{ translate("Select...") }}</option>
+											<option
+												v-for="type in store.activityTypes"
+												:key="type"
+												:value="type"
+											>
 												{{ type }}
 											</option>
 										</select>
 									</div>
 								</div>
 								<div>
-									<label class="block text-xs font-medium text-gray-600 mb-1">{{ translate('Date/Time') }}</label>
+									<label class="block text-xs font-medium text-gray-600 mb-1">{{
+										translate("Date/Time")
+									}}</label>
 									<input
 										v-model="timelogForm.from_time"
 										type="datetime-local"
@@ -618,7 +693,9 @@ function formatDateTime(dateStr) {
 									/>
 								</div>
 								<div>
-									<label class="block text-xs font-medium text-gray-600 mb-1">{{ translate('Description') }}</label>
+									<label class="block text-xs font-medium text-gray-600 mb-1">{{
+										translate("Description")
+									}}</label>
 									<textarea
 										v-model="timelogForm.description"
 										rows="2"
@@ -631,13 +708,13 @@ function formatDateTime(dateStr) {
 										@click="showTimeLogForm = false"
 										class="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-200 rounded transition-colors"
 									>
-										{{ translate('Cancel') }}
+										{{ translate("Cancel") }}
 									</button>
 									<button
 										@click="handleSaveTimelog"
 										class="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
 									>
-										{{ translate('Save') }}
+										{{ translate("Save") }}
 									</button>
 								</div>
 							</div>
@@ -646,8 +723,11 @@ function formatDateTime(dateStr) {
 							<div v-if="timelogsLoading" class="text-center py-4">
 								<Loader2 class="w-5 h-5 animate-spin mx-auto text-gray-400" />
 							</div>
-							<div v-else-if="currentTimelogs.timelogs.length === 0" class="text-sm text-gray-500 text-center py-4">
-								{{ translate('No time entries') }}
+							<div
+								v-else-if="currentTimelogs.timelogs.length === 0"
+								class="text-sm text-gray-500 text-center py-4"
+							>
+								{{ translate("No time entries") }}
 							</div>
 							<div v-else class="space-y-2">
 								<div
@@ -659,11 +739,23 @@ function formatDateTime(dateStr) {
 										<div class="flex-1">
 											<div class="flex items-center gap-2 mb-1">
 												<Clock class="w-3.5 h-3.5 text-blue-600" />
-												<span class="font-semibold text-gray-900">{{ log.hours }} godz.</span>
-												<span class="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{{ log.activity_type }}</span>
+												<span class="font-semibold text-gray-900"
+													>{{ log.hours }} godz.</span
+												>
+												<span
+													class="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded"
+													>{{ log.activity_type }}</span
+												>
 											</div>
-											<p v-if="log.description" class="text-gray-600 text-xs mb-1">{{ log.description }}</p>
-											<div class="flex items-center gap-2 text-xs text-gray-500">
+											<p
+												v-if="log.description"
+												class="text-gray-600 text-xs mb-1"
+											>
+												{{ log.description }}
+											</p>
+											<div
+												class="flex items-center gap-2 text-xs text-gray-500"
+											>
 												<span>{{ log.user_full_name }}</span>
 												<span>•</span>
 												<span>{{ formatDateTime(log.from_time) }}</span>
@@ -682,16 +774,23 @@ function formatDateTime(dateStr) {
 						</div>
 
 						<!-- Task info (for existing tasks) -->
-						<div v-if="!isNew && task" class="pt-4 border-t border-gray-200 text-sm text-gray-500 space-y-1">
+						<div
+							v-if="!isNew && task"
+							class="pt-4 border-t border-gray-200 text-sm text-gray-500 space-y-1"
+						>
 							<p>ID: {{ task.name }}</p>
 							<p v-if="task.modified">
-								Ostatnia modyfikacja: {{ dayjs(task.modified).format('DD.MM.YYYY HH:mm') }}
+								Ostatnia modyfikacja:
+								{{ dayjs(task.modified).format("DD.MM.YYYY HH:mm") }}
 							</p>
 						</div>
 					</div>
 
 					<!-- Footer -->
-					<div v-if="isDirty" class="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+					<div
+						v-if="isDirty"
+						class="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50"
+					>
 						<div>
 							<!-- TODO: Delete button -->
 						</div>
@@ -700,7 +799,7 @@ function formatDateTime(dateStr) {
 								@click="emit('close')"
 								class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
 							>
-								{{ translate('Cancel') }}
+								{{ translate("Cancel") }}
 							</button>
 							<button
 								@click="handleSave"
@@ -709,7 +808,7 @@ function formatDateTime(dateStr) {
 							>
 								<Loader2 v-if="saving" class="w-4 h-4 animate-spin" />
 								<Save v-else class="w-4 h-4" />
-								{{ isNew ? translate('Create') : translate('Save') }}
+								{{ isNew ? translate("Create") : translate("Save") }}
 							</button>
 						</div>
 					</div>

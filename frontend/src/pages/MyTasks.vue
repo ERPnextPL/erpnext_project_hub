@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMyTasksStore } from '../stores/myTasksStore'
-import { useDebounceFn } from '@vueuse/core'
+import { ref, onMounted, watch, computed } from "vue";
+import { useRouter } from "vue-router";
+import { useMyTasksStore } from "../stores/myTasksStore";
+import { useDebounceFn } from "@vueuse/core";
 import {
 	CheckSquare,
 	Plus,
@@ -13,89 +13,91 @@ import {
 	AlertCircle,
 	LayoutList,
 	LayoutGrid,
-} from 'lucide-vue-next'
-import OutlinerNav from '../components/OutlinerNav.vue'
-import MyTaskFilters from '../components/mytasks/MyTaskFilters.vue'
-import MyTaskList from '../components/mytasks/MyTaskList.vue'
-import MyTaskDrawer from '../components/mytasks/MyTaskDrawer.vue'
-import TimeLogModal from '../components/TimeLogModal.vue'
+} from "lucide-vue-next";
+import OutlinerNav from "../components/OutlinerNav.vue";
+import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
+import MyTaskList from "../components/mytasks/MyTaskList.vue";
+import MyTaskDrawer from "../components/mytasks/MyTaskDrawer.vue";
+import TimeLogModal from "../components/TimeLogModal.vue";
 
-const router = useRouter()
-const store = useMyTasksStore()
-const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const router = useRouter();
+const store = useMyTasksStore();
+const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
-	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
-}
+	return typeof realWindow !== "undefined" && typeof realWindow.__ === "function"
+		? realWindow.__(text)
+		: text;
+};
 
-const showFilters = ref(false)
-const searchInput = ref('')
-const viewMode = ref('list') // 'list' or 'kanban' (TODO)
+const showFilters = ref(false);
+const searchInput = ref("");
+const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
 
 // Time log modal state
-const showTimeLogModal = ref(false)
-const selectedTaskForTimeLog = ref(null)
+const showTimeLogModal = ref(false);
+const selectedTaskForTimeLog = ref(null);
 
 // Debounced search
 const debouncedSearch = useDebounceFn((value) => {
-	store.setFilter('search', value)
-	store.fetchTasks()
-}, 300)
+	store.setFilter("search", value);
+	store.fetchTasks();
+}, 300);
 
 watch(searchInput, (value) => {
-	debouncedSearch(value)
-})
+	debouncedSearch(value);
+});
 
 onMounted(async () => {
-	await Promise.all([
-		store.fetchMetadata(),
-		store.fetchProjects(),
-	])
-	await store.fetchTasks()
-})
+	await Promise.all([store.fetchMetadata(), store.fetchProjects()]);
+	await store.fetchTasks();
+});
 
 function handleRetry() {
-	store.fetchTasks()
+	store.fetchTasks();
 }
 
 function openNewTaskDrawer() {
-	store.openNewTask()
+	store.openNewTask();
 }
 
 function handleDrawerClose() {
-	store.closeDrawer()
+	store.closeDrawer();
 }
 
 function handleTaskCreated() {
-	store.closeDrawer()
+	store.closeDrawer();
 }
 
 // Time log modal handlers
 function openTimeLogModal(task) {
-	selectedTaskForTimeLog.value = task
-	showTimeLogModal.value = true
+	selectedTaskForTimeLog.value = task;
+	showTimeLogModal.value = true;
 }
 
 async function handleTimeLogSave(timelogData) {
 	try {
-		await store.createTimelog(timelogData)
-		showTimeLogModal.value = false
-		selectedTaskForTimeLog.value = null
+		await store.createTimelog(timelogData);
+		showTimeLogModal.value = false;
+		selectedTaskForTimeLog.value = null;
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Time entry saved'), indicator: 'green' })
+			frappe.show_alert({ message: translate("Time entry saved"), indicator: "green" });
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			frappe.show_alert({ message: translate('Failed to save time entry'), indicator: 'red' })
+			frappe.show_alert({
+				message: translate("Failed to save time entry"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 const isMobile = computed(() => {
 	if (realWindow) {
-		return realWindow.innerWidth < 768
+		return realWindow.innerWidth < 768;
 	}
-	return false
-})
+	return false;
+});
 </script>
 
 <template>
@@ -106,9 +108,11 @@ const isMobile = computed(() => {
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<CheckSquare class="w-6 h-6 text-blue-600" />
-						<h1 class="text-xl font-semibold text-gray-900">{{ translate('My Tasks') }}</h1>
-						<span 
-							v-if="store.total > 0" 
+						<h1 class="text-xl font-semibold text-gray-900">
+							{{ translate("My Tasks") }}
+						</h1>
+						<span
+							v-if="store.total > 0"
 							class="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full"
 						>
 							{{ store.total }}
@@ -133,16 +137,22 @@ const isMobile = computed(() => {
 				<div class="flex flex-col sm:flex-row sm:items-center gap-3">
 					<!-- Search -->
 					<div class="relative flex-1 max-w-md">
-						<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+						<Search
+							class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+						/>
 						<input
 							v-model="searchInput"
 							type="text"
-						:placeholder="translate('Search tasks...')"
+							:placeholder="translate('Search tasks...')"
 							class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 						/>
 						<button
 							v-if="searchInput"
-							@click="searchInput = ''; store.setFilter('search', ''); store.fetchTasks()"
+							@click="
+								searchInput = '';
+								store.setFilter('search', '');
+								store.fetchTasks();
+							"
 							class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
 						>
 							<X class="w-4 h-4" />
@@ -157,24 +167,28 @@ const isMobile = computed(() => {
 								'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
 								showFilters || store.hasActiveFilters
 									? 'bg-blue-50 border-blue-200 text-blue-700'
-									: 'border-gray-300 text-gray-700 hover:bg-gray-50'
+									: 'border-gray-300 text-gray-700 hover:bg-gray-50',
 							]"
 						>
 							<Filter class="w-4 h-4" />
-							<span class="hidden sm:inline">{{ translate('Filters') }}</span>
-							<span 
-								v-if="store.hasActiveFilters" 
+							<span class="hidden sm:inline">{{ translate("Filters") }}</span>
+							<span
+								v-if="store.hasActiveFilters"
 								class="w-2 h-2 rounded-full bg-blue-600"
 							></span>
 						</button>
 
 						<!-- View mode toggle (TODO: Kanban) -->
-						<div class="hidden sm:flex items-center border border-gray-300 rounded-lg overflow-hidden">
+						<div
+							class="hidden sm:flex items-center border border-gray-300 rounded-lg overflow-hidden"
+						>
 							<button
 								@click="viewMode = 'list'"
 								:class="[
 									'p-2 transition-colors',
-									viewMode === 'list' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'
+									viewMode === 'list'
+										? 'bg-gray-100 text-gray-900'
+										: 'text-gray-500 hover:bg-gray-50',
 								]"
 								:title="translate('List view')"
 							>
@@ -184,7 +198,9 @@ const isMobile = computed(() => {
 								@click="viewMode = 'kanban'"
 								:class="[
 									'p-2 transition-colors',
-									viewMode === 'kanban' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'
+									viewMode === 'kanban'
+										? 'bg-gray-100 text-gray-900'
+										: 'text-gray-500 hover:bg-gray-50',
 								]"
 								:title="translate('Kanban view (coming soon)')"
 								disabled
@@ -209,7 +225,7 @@ const isMobile = computed(() => {
 							class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
 						>
 							<Plus class="w-4 h-4" />
-							<span class="hidden sm:inline">{{ translate('New Task') }}</span>
+							<span class="hidden sm:inline">{{ translate("New Task") }}</span>
 						</button>
 					</div>
 				</div>
@@ -227,7 +243,11 @@ const isMobile = computed(() => {
 		<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 			<!-- Loading state -->
 			<div v-if="store.loading && store.tasks.length === 0" class="space-y-4">
-				<div v-for="i in 5" :key="i" class="bg-white rounded-lg border border-gray-200 p-4 animate-pulse">
+				<div
+					v-for="i in 5"
+					:key="i"
+					class="bg-white rounded-lg border border-gray-200 p-4 animate-pulse"
+				>
 					<div class="flex items-center gap-4">
 						<div class="w-5 h-5 bg-gray-200 rounded"></div>
 						<div class="flex-1 space-y-2">
@@ -245,13 +265,15 @@ const isMobile = computed(() => {
 				class="text-center py-12 bg-white rounded-lg border border-red-200"
 			>
 				<AlertCircle class="w-12 h-12 text-red-400 mx-auto mb-4" />
-				<h3 class="text-lg font-medium text-gray-900 mb-2">{{ translate('Task list failed to load') }}</h3>
+				<h3 class="text-lg font-medium text-gray-900 mb-2">
+					{{ translate("Task list failed to load") }}
+				</h3>
 				<p class="text-gray-500 mb-4">{{ store.error }}</p>
 				<button
 					@click="handleRetry"
 					class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
 				>
-					{{ translate('Try again') }}
+					{{ translate("Try again") }}
 				</button>
 			</div>
 
@@ -262,36 +284,41 @@ const isMobile = computed(() => {
 			>
 				<CheckSquare class="w-12 h-12 text-gray-400 mx-auto mb-4" />
 				<h3 class="text-lg font-medium text-gray-900 mb-2">
-					{{ store.hasActiveFilters ? translate('No tasks match the filters') : translate('No tasks assigned yet') }}
+					{{
+						store.hasActiveFilters
+							? translate("No tasks match the filters")
+							: translate("No tasks assigned yet")
+					}}
 				</h3>
 				<p class="text-gray-500 mb-4">
-					{{ store.hasActiveFilters 
-						? translate('Try adjusting the search criteria') 
-						: translate('You do not have any tasks assigned yet') 
+					{{
+						store.hasActiveFilters
+							? translate("Try adjusting the search criteria")
+							: translate("You do not have any tasks assigned yet")
 					}}
 				</p>
 				<div class="flex items-center justify-center gap-3">
 					<button
 						v-if="store.hasActiveFilters"
-						@click="store.clearFilters(); searchInput = ''"
+						@click="
+							store.clearFilters();
+							searchInput = '';
+						"
 						class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
 					>
-						{{ translate('Clear filters') }}
+						{{ translate("Clear filters") }}
 					</button>
 					<button
 						@click="openNewTaskDrawer"
 						class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
 					>
-						{{ translate('Create new task') }}
+						{{ translate("Create new task") }}
 					</button>
 				</div>
 			</div>
 
 			<!-- Task list -->
-			<MyTaskList 
-				v-else 
-				:on-open-time-log-modal="openTimeLogModal"
-			/>
+			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" />
 		</main>
 
 		<!-- Task Drawer -->
