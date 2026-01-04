@@ -4,6 +4,11 @@ import { useTaskStore } from '../stores/taskStore'
 import { Diamond, Plus, Calendar, MoreVertical, Edit2, Trash2, X, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import MilestoneModal from './MilestoneModal.vue'
 
+const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const translate = (text) => {
+	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
+}
+
 const store = useTaskStore()
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -42,18 +47,18 @@ async function handleDelete(milestone, event) {
 	event.stopPropagation()
 	openMenuId.value = null
 	
-	if (!confirm(window.__(`Delete milestone "${milestone.milestone_name}"? Tasks will be detached but not deleted.`))) {
+	if (!confirm(translate(`Delete milestone "${milestone.milestone_name}"? Tasks will be detached but not deleted.`))) {
 		return
 	}
 
 	try {
 		await store.deleteMilestone(milestone.name)
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Milestone deleted'), indicator: 'green' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Milestone deleted'), indicator: 'green' })
 		}
 	} catch (error) {
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Failed to delete milestone'), indicator: 'red' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Failed to delete milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -65,12 +70,12 @@ async function handleCreate(data) {
 			project: store.project.name
 		})
 		showCreateModal.value = false
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Milestone created'), indicator: 'green' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Milestone created'), indicator: 'green' })
 		}
 	} catch (error) {
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Failed to create milestone'), indicator: 'red' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Failed to create milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -80,12 +85,12 @@ async function handleUpdate(data) {
 		await store.updateMilestone(editingMilestone.value.name, data)
 		showEditModal.value = false
 		editingMilestone.value = null
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Milestone updated'), indicator: 'green' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Milestone updated'), indicator: 'green' })
 		}
 	} catch (error) {
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Failed to update milestone'), indicator: 'red' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -104,12 +109,12 @@ function getHealthColor(health) {
 
 function getHealthLabel(health) {
 	const labels = {
-		'completed': window.__('Completed'),
-		'on_track': window.__('On Track'),
-		'at_risk': window.__('At Risk'),
-		'overdue': window.__('Overdue'),
-		'no_deadline': window.__('No Deadline'),
-		'cancelled': window.__('Cancelled')
+		'completed': translate('Completed'),
+		'on_track': translate('On Track'),
+		'at_risk': translate('At Risk'),
+		'overdue': translate('Overdue'),
+		'no_deadline': translate('No Deadline'),
+		'cancelled': translate('Cancelled')
 	}
 	return labels[health] || health
 }
@@ -171,12 +176,12 @@ async function handleDrop(event, milestoneName) {
 	
 	try {
 		await store.assignTaskToMilestone(taskName, milestoneName)
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Task assigned to milestone'), indicator: 'green' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Task assigned to milestone'), indicator: 'green' })
 		}
 	} catch (error) {
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Failed to assign task'), indicator: 'red' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Failed to assign task'), indicator: 'red' })
 		}
 	}
 }
@@ -196,7 +201,7 @@ onMounted(() => {
 			<div class="flex items-center gap-2">
 				<Diamond class="w-4 h-4 text-blue-600" />
 				<h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">
-					{{ window.__('Milestones') }}
+					{{ translate('Milestones') }}
 				</h3>
 				<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
 					{{ store.milestones.length }}
@@ -206,7 +211,7 @@ onMounted(() => {
 				<button
 					@click.stop="showCreateModal = true"
 					class="p-1 rounded hover:bg-gray-200 text-blue-600"
-					title="{{ window.__('Add milestone') }}"
+					:title="translate('Add milestone')"
 				>
 					<Plus class="w-4 h-4" />
 				</button>
@@ -222,15 +227,15 @@ onMounted(() => {
 			v-if="store.activeMilestoneFilter && !isCollapsed" 
 			class="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between"
 		>
-			<span class="text-xs text-blue-700">
-				{{ window.__('Filtering by milestone') }}
-			</span>
-			<button
-				@click="store.clearMilestoneFilter()"
-				class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-			>
+				<span class="text-xs text-blue-700">
+					{{ translate('Filtering by milestone') }}
+				</span>
+				<button
+					@click="store.clearMilestoneFilter()"
+					class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+				>
 				<X class="w-3 h-3" />
-				{{ window.__('Clear') }}
+					{{ translate('Clear') }}
 			</button>
 		</div>
 
@@ -279,14 +284,14 @@ onMounted(() => {
 									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
 								>
 									<Edit2 class="w-3 h-3" />
-									{{ window.__('Edit') }}
+									{{ translate('Edit') }}
 								</button>
 								<button
 									@click="handleDelete(milestone, $event)"
 									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 flex items-center gap-2"
 								>
 									<Trash2 class="w-3 h-3" />
-									{{ window.__('Delete') }}
+									{{ translate('Delete') }}
 								</button>
 							</div>
 						</Transition>
@@ -309,7 +314,7 @@ onMounted(() => {
 							{{ milestone.progress || 0 }}%
 						</span>
 						<span class="text-xs text-gray-500">
-							{{ milestone.completed_tasks || 0 }}/{{ milestone.total_tasks || 0 }} {{ window.__('tasks') }}
+							{{ milestone.completed_tasks || 0 }}/{{ milestone.total_tasks || 0 }} {{ translate('tasks') }}
 						</span>
 					</div>
 				</div>
@@ -337,12 +342,12 @@ onMounted(() => {
 				class="text-center py-6 text-gray-500"
 			>
 				<Diamond class="w-8 h-8 mx-auto mb-2 opacity-30" />
-				<p class="text-sm">{{ window.__('No milestones') }}</p>
+				<p class="text-sm">{{ translate('No milestones') }}</p>
 				<button
 					@click="showCreateModal = true"
 					class="text-xs text-blue-600 hover:underline mt-1"
 				>
-					{{ window.__('Create first milestone') }}
+					{{ translate('Create first milestone') }}
 				</button>
 			</div>
 		</div>

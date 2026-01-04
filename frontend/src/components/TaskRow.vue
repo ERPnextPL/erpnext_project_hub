@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
+import { getRealWindow, translate } from '../utils/translation'
 import {
 	GripVertical,
 	ChevronRight,
@@ -16,6 +17,7 @@ import {
 	ExternalLink,
 	Plus,
 	Diamond,
+	FileText,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -36,6 +38,7 @@ const props = defineProps({
 const emit = defineEmits(['update', 'click', 'add-subtask', 'log-time', 'add-task'])
 
 const store = useTaskStore()
+const realWindow = getRealWindow()
 
 // Inline editing state
 const editingField = ref(null)
@@ -45,6 +48,13 @@ const inputRef = ref(null)
 // Tooltip hint for milestone drag
 const showMilestoneHint = ref(false)
 const milestoneHintTimeout = ref(null)
+
+const taskDescription = computed(() => (props.task.description || '').trim())
+const showDescriptionPreview = ref(false)
+
+const isTouchDevice = () => {
+	return Boolean(realWindow?.matchMedia?.('(hover: none)').matches)
+}
 
 // Context menu
 const showContextMenu = ref(false)
@@ -163,6 +173,7 @@ function toggleExpand() {
 }
 
 function handleRowClick() {
+	showDescriptionPreview.value = false
 	emit('click', props.task)
 }
 
@@ -250,7 +261,7 @@ async function handleCancelWithSubtasks() {
 	
 	// Ask for confirmation
 	const confirmed = confirm(
-		window.__(`This task has ${subtaskCount} subtasks.\n\n` +
+		translate(`This task has ${subtaskCount} subtasks.\n\n` +
 		`Cancelling this task will also cancel all subtasks.\n\n` +
 		`Do you want to continue?`)
 	)
@@ -273,9 +284,9 @@ async function handleCancelWithSubtasks() {
 	await cancelSubtasks(props.task.name)
 	
 	// Show success message
-	if (window.frappe) {
-		frappe.show_alert({ 
-			message: window.__(`Task and ${subtaskCount} subtasks cancelled`), 
+	if (realWindow?.frappe) {
+		realWindow.frappe.show_alert({ 
+			message: translate(`Task and ${subtaskCount} subtasks cancelled`), 
 			indicator: 'orange' 
 		})
 	}
@@ -296,12 +307,12 @@ function showUserAssignDropdown(e) {
 }
 
 async function assignCurrentUser() {
-	const currentUser = window.frappe?.session?.user
+	const currentUser = realWindow?.frappe?.session?.user
 	if (currentUser) {
 		await store.assignTask(props.task.name, currentUser, 'add')
 		showUserDropdown.value = false
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('User assigned'), indicator: 'green' })
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate('User assigned'), indicator: 'green' })
 		}
 	}
 }
@@ -309,13 +320,13 @@ async function assignCurrentUser() {
 async function assignUser(user) {
 	await store.assignTask(props.task.name, user, 'add')
 	showUserDropdown.value = false
-	if (window.frappe) {
-		frappe.show_alert({ message: window.__('User assigned'), indicator: 'green' })
+	if (realWindow?.frappe) {
+		realWindow.frappe.show_alert({ message: translate('User assigned'), indicator: 'green' })
 	}
 }
 
 function showMenu(e) {
-	if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+	if (realWindow?.matchMedia?.('(hover: none)').matches) {
 		return
 	}
 	e.preventDefault()
@@ -332,7 +343,7 @@ function showMenu(e) {
 
 async function deleteTask() {
 	if (hasChildren.value) {
-		if (!confirm(window.__('This task has subtasks. Delete all subtasks as well?'))) {
+		if (!confirm(translate('This task has subtasks. Delete all subtasks as well?'))) {
 			return
 		}
 	}
@@ -341,7 +352,7 @@ async function deleteTask() {
 }
 
 function openInDesk() {
-	window.open(`/app/task/${props.task.name}`, '_blank')
+	realWindow?.open(`/app/task/${props.task.name}`, '_blank')
 }
 
 function addSubtask() {
@@ -392,10 +403,30 @@ function hideHint() {
 	showMilestoneHint.value = false
 }
 
+function handleDescriptionMouseEnter() {
+	if (isTouchDevice()) return
+	if (!taskDescription.value) return
+	showDescriptionPreview.value = true
+}
+
+function handleDescriptionMouseLeave() {
+	if (isTouchDevice()) return
+	showDescriptionPreview.value = false
+}
+
+function toggleDescriptionPreview(event) {
+	event.stopPropagation()
+	if (!taskDescription.value) return
+	showDescriptionPreview.value = !showDescriptionPreview.value
+}
+
 // Close context menu when clicking outside
 function handleGlobalClick(event) {
 	if (showContextMenu.value && !event.target.closest('.context-menu-wrapper')) {
 		showContextMenu.value = false
+	}
+	if (showDescriptionPreview.value && !event.target.closest('.description-preview-trigger')) {
+		showDescriptionPreview.value = false
 	}
 }
 
@@ -425,7 +456,7 @@ onUnmounted(() => {
 			<!-- Drag handle -->
 			<div 
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
-				title="{{ window.__('Drag to reorder') }}"
+				:title="translate('Drag to reorder')"
 			>
 				<GripVertical class="w-4 h-4 text-gray-400" />
 			</div>
@@ -467,7 +498,7 @@ onUnmounted(() => {
 					@mouseleave="hideHint"
 					@click.stop
 					class="milestone-drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-0.5 -ml-1 relative"
-					:title="task.milestone ? window.__('◆ Drag to change milestone') : window.__('◆ Drag to assign to milestone')"
+					:title="task.milestone ? translate('◆ Drag to change milestone') : translate('◆ Drag to assign to milestone')"
 				>
 					<Diamond 
 						:class="[
@@ -483,10 +514,10 @@ onUnmounted(() => {
 							v-if="showMilestoneHint"
 							class="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap"
 						>
-							<div class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2">
-								<Diamond class="w-3 h-3" />
-								<span>{{ window.__('Drag to assign to milestone') }}</span>
-							</div>
+								<div class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2">
+									<Diamond class="w-3 h-3" />
+									<span>{{ translate('Drag to assign to milestone') }}</span>
+								</div>
 						</div>
 					</Transition>
 				</div>
@@ -496,27 +527,55 @@ onUnmounted(() => {
 					v-if="task.milestone" 
 					class="w-3 h-3 flex-shrink-0" 
 					:style="{ color: milestoneColor }"
-					:title="window.__('Milestone: ') + task.milestone"
+					:title="translate('Milestone: ') + task.milestone"
 				/>
 				
-				<input
-					v-if="editingField === 'subject'"
-					ref="inputRef"
-					v-model="editValue"
-					type="text"
-					class="inline-edit-input text-sm flex-1"
-					@blur="finishEditing"
-					@keydown="handleKeydown"
-					@click.stop
-				/>
-				<span
-					v-else
-					@dblclick.stop="startEditing('subject', task.subject)"
-					class="text-sm text-gray-900 truncate"
-					:class="{ 'font-medium': task.is_group }"
-				>
-					{{ task.subject }}
-				</span>
+				<div class="flex-1 min-w-0">
+					<input
+						v-if="editingField === 'subject'"
+						ref="inputRef"
+						v-model="editValue"
+						type="text"
+						class="inline-edit-input text-sm flex-1"
+						@blur="finishEditing"
+						@keydown="handleKeydown"
+						@click.stop
+					/>
+					<span
+						v-else
+						@dblclick.stop="startEditing('subject', task.subject)"
+						class="text-sm text-gray-900 truncate"
+						:class="{ 'font-medium': task.is_group }"
+					>
+						{{ task.subject }}
+					</span>
+
+					<div
+						v-if="taskDescription"
+						class="mt-0.5 flex items-center gap-1 text-xs text-gray-400 description-preview-trigger relative"
+						@mouseenter="handleDescriptionMouseEnter"
+						@mouseleave="handleDescriptionMouseLeave"
+					>
+						<button
+							type="button"
+							class="flex items-center gap-1 hover:text-gray-600 focus:outline-none"
+							@click.stop="toggleDescriptionPreview"
+							:title="translate('Hover to preview description')"
+						>
+							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
+							<span>{{ translate('Description preview available') }}</span>
+						</button>
+
+						<Transition name="fade">
+							<div
+								v-if="showDescriptionPreview"
+								class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg whitespace-pre-line break-words"
+							>
+								{{ taskDescription }}
+							</div>
+						</Transition>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -554,7 +613,7 @@ onUnmounted(() => {
 				v-else
 				@click.stop="showUserAssignDropdown"
 				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-				title="{{ window.__('Click to assign user') }}"
+				:title="translate('Click to assign user')"
 			>
 				<User class="w-4 h-4" />
 			</button>
@@ -566,13 +625,13 @@ onUnmounted(() => {
 					class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-48"
 					:style="{ left: userDropdownPosition.x + 'px', top: userDropdownPosition.y + 'px' }"
 				>
-					<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">{{ window.__('Assign User') }}</div>
+					<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">{{ translate('Assign User') }}</div>
 					<button
 						@click="assignCurrentUser"
 						class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
 					>
 						<User class="w-4 h-4" />
-						{{ window.__('Assign to me') }}
+						{{ translate('Assign to me') }}
 					</button>
 					<div v-if="store.availableUsers && store.availableUsers.length > 0" class="border-t border-gray-100 mt-1 pt-1">
 						<button
@@ -590,7 +649,7 @@ onUnmounted(() => {
 							@click="handleRowClick(); showUserDropdown = false"
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
 						>
-							{{ window.__('More options...') }}
+							{{ translate('More options...') }}
 						</button>
 					</div>
 				</div>
@@ -659,7 +718,7 @@ onUnmounted(() => {
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<Clock class="w-4 h-4" />
-					{{ window.__('Add time') }}
+					{{ translate('Add time') }}
 				</button>
 				<button
 					v-if="canAddSubtask"
@@ -667,14 +726,14 @@ onUnmounted(() => {
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<Plus class="w-4 h-4" />
-					{{ window.__('Add subtask') }}
+					{{ translate('Add subtask') }}
 				</button>
 				<button
 					@click="openInDesk"
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<ExternalLink class="w-4 h-4" />
-					{{ window.__('Open in Desk') }}
+					{{ translate('Open in Desk') }}
 				</button>
 				<hr class="my-1 border-gray-200" />
 				<button
@@ -682,7 +741,7 @@ onUnmounted(() => {
 					class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
 				>
 					<Trash2 class="w-4 h-4" />
-					{{ window.__('Delete') }}
+					{{ translate('Delete') }}
 				</button>
 			</div>
 		</Teleport>

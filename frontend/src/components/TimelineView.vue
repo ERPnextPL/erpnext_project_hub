@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { Calendar, ChevronLeft, ChevronRight, Diamond } from 'lucide-vue-next'
+import { translate } from '../utils/translation'
 
-// Safe translator function
-const t = window && typeof window.__ === 'function' ? window.__ : (s => s)
+const t = translate
 
 const props = defineProps({
 	tasks: {

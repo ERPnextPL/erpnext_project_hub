@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useMyTasksStore } from '../../stores/myTasksStore'
+import { translate } from '../../utils/translation'
 import {
 	Circle,
 	Clock,
@@ -33,20 +34,31 @@ const priorityConfig = {
 }
 
 const dueFilterOptions = [
-	{ value: 'today', label: window.__('Today'), icon: Calendar },
-	{ value: 'week', label: window.__('This week'), icon: CalendarDays },
-	{ value: 'overdue', label: window.__('Overdue'), icon: AlertCircle },
+	{ value: 'today', label: translate('Today'), icon: Calendar },
+	{ value: 'week', label: translate('This week'), icon: CalendarDays },
+	{ value: 'overdue', label: translate('Overdue'), icon: AlertCircle },
 ]
+
+const statusLabelMap = {
+	Working: translate('Working'),
+	'Pending Review': translate('Pending Review'),
+	Completed: translate('Completed'),
+	Cancelled: translate('Cancelled'),
+	Overdue: translate('Overdue'),
+	Open: translate('Open'),
+}
+
+const priorityLabelMap = {
+	Urgent: translate('Urgent'),
+	High: translate('High'),
+	Medium: translate('Medium'),
+	Low: translate('Low'),
+}
 
 const statuses = computed(() => {
 	return store.statuses.map(status => ({
 		value: status,
-		label: status === 'Working' ? window.__('Working') : 
-			   status === 'Pending Review' ? window.__('Pending Review') :
-			   status === 'Completed' ? window.__('Completed') :
-			   status === 'Cancelled' ? window.__('Cancelled') :
-			   status === 'Overdue' ? window.__('Overdue') :
-			   status === 'Open' ? window.__('Open') : status,
+		label: statusLabelMap[status] || status,
 		...statusConfig[status] || { icon: Circle, class: 'text-gray-500', bg: 'bg-gray-50' }
 	}))
 })
@@ -54,10 +66,7 @@ const statuses = computed(() => {
 const priorities = computed(() => {
 	return store.priorities.map(priority => ({
 		value: priority,
-		label: priority === 'Urgent' ? window.__('Urgent') :
-			   priority === 'High' ? window.__('High') :
-			   priority === 'Medium' ? window.__('Medium') :
-			   priority === 'Low' ? window.__('Low') : priority,
+		label: priorityLabelMap[priority] || priority,
 		...priorityConfig[priority] || { class: 'text-gray-500', bg: 'bg-gray-50' }
 	}))
 })
@@ -93,7 +102,7 @@ function setProjectFilter(project) {
 	<div class="space-y-4">
 		<!-- View options -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('View') }}</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ translate('View') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					@click="store.toggleViewOption('groupByStatus')"
@@ -104,14 +113,14 @@ function setProjectFilter(project) {
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50'
 					]"
 				>
-					{{ window.__('Group by status') }}
+					{{ translate('Group by status') }}
 				</button>
 			</div>
 		</div>
 
 		<!-- Due date presets -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Due date') }}</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ translate('Due date') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					v-for="option in dueFilterOptions"
@@ -142,7 +151,7 @@ function setProjectFilter(project) {
 
 		<!-- Status filter -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Status') }}</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ translate('Status') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					v-for="status in statuses"
@@ -166,7 +175,7 @@ function setProjectFilter(project) {
 
 		<!-- Priority filter -->
 		<div>
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Priority') }}</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ translate('Priority') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					v-for="priority in priorities"
@@ -189,7 +198,7 @@ function setProjectFilter(project) {
 
 		<!-- Project filter -->
 		<div v-if="store.projects.length > 0">
-			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ window.__('Project') }}</h4>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{{ translate('Project') }}</h4>
 			<div class="flex flex-wrap gap-2">
 				<button
 					@click="setProjectFilter(null)"
@@ -200,7 +209,7 @@ function setProjectFilter(project) {
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50'
 					]"
 				>
-					{{ window.__('All') }}
+				{{ translate('All') }}
 				</button>
 				<button
 					v-for="project in store.projects"
@@ -227,7 +236,7 @@ function setProjectFilter(project) {
 				class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
 			>
 				<X class="w-3.5 h-3.5" />
-				{{ window.__('Clear all filters') }}
+				{{ translate('Clear all filters') }}
 			</button>
 		</div>
 	</div>

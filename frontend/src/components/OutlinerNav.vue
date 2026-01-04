@@ -7,11 +7,15 @@ const route = useRoute()
 const router = useRouter()
 
 const navItems = [
-	{ key: 'projects', to: '/project-hub', label: window.__('Projects'), icon: Folder, color: 'text-blue-600', bg: 'bg-blue-50' },
-	{ key: 'tasks', to: '/project-hub/my-tasks', label: window.__('Tasks'), icon: CheckSquare, color: 'text-blue-500', bg: 'bg-blue-50' },
-	{ key: 'team', to: '/project-hub/team-manager', label: window.__('Team'), icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
-	{ key: 'time', to: '/project-hub/time-management', label: window.__('Time'), icon: Clock, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+	{ key: 'projects', to: '/project-hub', labelKey: 'Projects', icon: Folder, color: 'text-blue-600', bg: 'bg-blue-50' },
+	{ key: 'tasks', to: '/project-hub/my-tasks', labelKey: 'Tasks', icon: CheckSquare, color: 'text-blue-500', bg: 'bg-blue-50' },
+	{ key: 'team', to: '/project-hub/team-manager', labelKey: 'Team', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50' },
+	{ key: 'time', to: '/project-hub/time-management', labelKey: 'Time', icon: Clock, color: 'text-emerald-600', bg: 'bg-emerald-50' },
 ]
+
+const translate = (text) => {
+	return (typeof window !== 'undefined' && typeof window.__ === 'function') ? window.__(text) : text
+}
 
 const scrollerRef = ref(null)
 const itemRefs = ref({})
@@ -95,7 +99,7 @@ onBeforeUnmount(() => {
 					v-for="item in navItems"
 					:key="item.key"
 					:to="item.to"
-					:title="item.label"
+					:title="translate(item.labelKey)"
 					class="group relative flex-shrink-0"
 					:ref="el => setItemRef(item.key, el)"
 					@click.prevent="handleNavigate(item.to)"
@@ -110,8 +114,8 @@ onBeforeUnmount(() => {
 					>
 						<component :is="item.icon" class="w-5 h-5" />
 					</div>
-					<span class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[11px] text-gray-500 hidden sm:block">
-						{{ item.label }}
+						<span class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[11px] text-gray-500 hidden sm:block">
+						{{ translate(item.labelKey) }}
 					</span>
 				</RouterLink>
 			</div>

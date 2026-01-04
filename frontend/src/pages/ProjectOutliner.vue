@@ -25,6 +25,7 @@ import {
 	Clock,
 } from 'lucide-vue-next'
 import OutlinerNav from '../components/OutlinerNav.vue'
+import { translate } from '../utils/translation'
 
 const props = defineProps({
 	projectId: {
@@ -170,7 +171,7 @@ const flattenedTasksWithFilters = computed(() => {
 								]"
 							>
 								<LayoutList class="w-4 h-4" />
-								{{ window.__('List') }}
+								{{ translate('List') }}
 							</button>
 							<button
 								@click="activeView = 'board'"
@@ -182,7 +183,7 @@ const flattenedTasksWithFilters = computed(() => {
 								]"
 							>
 								<Columns class="w-4 h-4" />
-								{{ window.__('Board') }}
+								{{ translate('Board') }}
 							</button>
 							<button
 								@click="activeView = 'timeline'"
@@ -202,7 +203,7 @@ const flattenedTasksWithFilters = computed(() => {
 							:href="`/app/project/${projectId}`"
 							class="text-sm text-gray-500 hover:text-gray-700 ml-4"
 						>
-							{{ window.__('Open in Desk') }} →
+							{{ translate('Open in Desk') }} →
 						</a>
 					</div>
 				</div>
@@ -217,7 +218,7 @@ const flattenedTasksWithFilters = computed(() => {
 				v-if="sidebarCollapsed"
 				@click="sidebarCollapsed = false"
 				class="flex-shrink-0 bg-white border-r border-gray-200 p-2 hover:bg-gray-50 transition-colors"
-				title="{{ window.__('Show sidebar') }}"
+				:title="translate('Show sidebar')"
 			>
 				<PanelLeft class="w-4 h-4 text-gray-500" />
 			</button>

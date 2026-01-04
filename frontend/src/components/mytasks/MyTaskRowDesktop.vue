@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMyTasksStore } from '../../stores/myTasksStore'
 import dayjs from 'dayjs'
+import { getRealWindow, translate } from '../../utils/translation'
 import {
 	Circle,
 	Clock,
@@ -42,6 +43,7 @@ const props = defineProps({
 const emit = defineEmits(['open-time-log-modal', 'toggle-expand'])
 
 const store = useMyTasksStore()
+const realWindow = getRealWindow()
 
 const isUpdating = ref(false)
 
@@ -61,24 +63,24 @@ const canAddSubtask = computed(() => {
 })
 
 function isTouchDevice() {
-	return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches
+	return Boolean(realWindow?.matchMedia?.('(hover: none)').matches)
 }
 
 // Status config - shorter labels to fit in grid
 const statusConfig = {
-	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', label: window.__('Open') },
-	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', label: window.__('Working') },
-	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', label: window.__('Review') },
-	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', label: window.__('Done') },
-	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', label: window.__('Overdue') },
-	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', label: window.__('Cancelled') },
+	'Open': { icon: Circle, class: 'text-blue-600', bg: 'bg-blue-100', label: translate('Open') },
+	'Working': { icon: Clock, class: 'text-amber-600', bg: 'bg-amber-100', label: translate('Working') },
+	'Pending Review': { icon: AlertCircle, class: 'text-purple-600', bg: 'bg-purple-100', label: translate('Review') },
+	'Completed': { icon: CheckCircle2, class: 'text-green-600', bg: 'bg-green-100', label: translate('Done') },
+	'Overdue': { icon: AlertCircle, class: 'text-red-600', bg: 'bg-red-100', label: translate('Overdue') },
+	'Cancelled': { icon: Circle, class: 'text-gray-400', bg: 'bg-gray-100', label: translate('Cancelled') },
 }
 
 const priorityConfig = {
-	'Urgent': { class: 'text-red-600', bg: 'bg-red-100', label: window.__('Urgent') },
-	'High': { class: 'text-orange-500', bg: 'bg-orange-100', label: window.__('High') },
-	'Medium': { class: 'text-yellow-600', bg: 'bg-yellow-100', label: window.__('Medium') },
-	'Low': { class: 'text-gray-500', bg: 'bg-gray-100', label: window.__('Low') },
+	'Urgent': { class: 'text-red-600', bg: 'bg-red-100', label: translate('Urgent') },
+	'High': { class: 'text-orange-500', bg: 'bg-orange-100', label: translate('High') },
+	'Medium': { class: 'text-yellow-600', bg: 'bg-yellow-100', label: translate('Medium') },
+	'Low': { class: 'text-gray-500', bg: 'bg-gray-100', label: translate('Low') },
 }
 
 const currentStatus = computed(() => {
@@ -88,6 +90,8 @@ const currentStatus = computed(() => {
 const currentPriority = computed(() => {
 	return priorityConfig[props.task.priority] || priorityConfig['Medium']
 })
+
+const taskDescription = computed(() => (props.task.description || '').trim())
 
 const formattedDate = computed(() => {
 	if (!props.task.exp_end_date) return null
@@ -188,12 +192,12 @@ onUnmounted(() => {
 		]"
 	>
 		<!-- Task subject -->
-		<div class="col-span-4 flex items-start gap-3 min-w-0">
+	<div class="col-span-4 flex items-start gap-3 min-w-0" :title="taskDescription || undefined">
 			<button
 				v-if="props.hierarchyEnabled && props.hasChildren"
 				@click.stop="emit('toggle-expand', task.name)"
 				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors mt-0.5"
-				:title="props.isExpanded ? window.__('Collapse subtasks') : window.__('Expand subtasks')"
+				:title="props.isExpanded ? translate('Collapse subtasks') : translate('Expand subtasks')"
 			>
 				<ChevronDown v-if="props.isExpanded" class="w-4 h-4 text-gray-500" />
 				<ChevronRight v-else class="w-4 h-4 text-gray-500" />
@@ -201,7 +205,7 @@ onUnmounted(() => {
 			<button
 				@click.stop="updateStatus(task.status === 'Completed' ? 'Open' : 'Completed')"
 				class="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors mt-0.5"
-				:title="task.status === 'Completed' ? window.__('Mark as open') : window.__('Mark as complete')"
+				:title="task.status === 'Completed' ? translate('Mark as open') : translate('Mark as complete')"
 			>
 				<CheckCircle2 
 					:class="[
@@ -211,6 +215,14 @@ onUnmounted(() => {
 				/>
 			</button>
 			<div class="min-w-0">
+				<div
+					v-if="taskDescription"
+					class="flex items-center gap-1 text-xs text-gray-400"
+				>
+					<FileText class="w-3 h-3 flex-shrink-0" />
+					<span class="truncate">{{ translate('Description preview available') }}</span>
+				</div>
+
 				<div
 					:class="[
 						'font-medium text-sm text-gray-900 truncate',
@@ -225,7 +237,7 @@ onUnmounted(() => {
 					:title="task.parent_subject || task.parent_task"
 				>
 					<CornerDownRight class="w-3.5 h-3.5 flex-shrink-0" />
-					<span class="truncate">{{ window.__('Subtask') }}: {{ task.parent_subject || task.parent_task }}</span>
+					<span class="truncate">{{ translate('Subtask') }}: {{ task.parent_subject || task.parent_task }}</span>
 				</div>
 			</div>
 		</div>
@@ -320,7 +332,7 @@ onUnmounted(() => {
 			<div :class="['flex items-center gap-1.5 text-sm', dateClass]">
 				<Calendar class="w-3.5 h-3.5" />
 				<span v-if="formattedDate">{{ formattedDate }}</span>
-				<span v-else class="text-gray-300">Brak terminu</span>
+				<span v-else class="text-gray-300">{{ translate('No deadline') }}</span>
 				<span 
 					v-if="task.is_overdue" 
 					class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded"
@@ -342,7 +354,7 @@ onUnmounted(() => {
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<Clock class="w-4 h-4" />
-					Dodaj czas
+					{{ translate('Add time') }}
 				</button>
 				<button
 					@click="addSubtaskFromMenu"
@@ -353,7 +365,7 @@ onUnmounted(() => {
 					:disabled="!canAddSubtask"
 				>
 					<FileText class="w-4 h-4" />
-					{{ window.__('Add subtask') }}
+					{{ translate('Add subtask') }}
 				</button>
 			</div>
 		</Teleport>

@@ -23,6 +23,10 @@ const props = defineProps({
 const emit = defineEmits(['filter-change'])
 
 const store = useTaskStore()
+const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const translate = (text) => {
+	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
+}
 const activeStatus = ref([]) // Array for multiselect
 const activePriority = ref([]) // Array for multiselect
 const activeAssignee = ref(null)
@@ -76,7 +80,13 @@ const statuses = computed(() => {
 		const config = statusIconMap[status] || { icon: Circle, class: 'text-gray-500' }
 		return {
 			value: status,
-			label: status === 'Working' ? window.__('Working') : (status === 'Pending Review' ? window.__('Pending Review') : (status === 'Template' ? window.__('Template') : status)),
+			label: status === 'Working'
+				? translate('Working')
+				: status === 'Pending Review'
+					? translate('Pending Review')
+					: status === 'Template'
+						? translate('Template')
+						: status,
 			icon: config.icon,
 			class: config.class,
 			disabled: disabledStatuses.includes(status),
@@ -162,7 +172,7 @@ function emitFilters() {
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2 text-sm font-medium text-gray-700">
 				<Filter class="w-4 h-4" />
-				{{ window.__('Filters') }}
+				{{ translate('Filters') }}
 			</div>
 			<button
 				v-if="hasActiveFilters"
@@ -170,7 +180,7 @@ function emitFilters() {
 				class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
 			>
 				<X class="w-3 h-3" />
-				{{ window.__('Clear') }}
+				{{ translate('Clear') }}
 			</button>
 		</div>
 
@@ -185,7 +195,7 @@ function emitFilters() {
 				]"
 			>
 				<User :class="['w-4 h-4', myTasksActive ? 'text-blue-600' : 'text-gray-400']" />
-				{{ window.__('My Tasks') }}
+				{{ translate('My Tasks') }}
 			</button>
 
 			<!-- Due Today -->
@@ -197,7 +207,7 @@ function emitFilters() {
 				]"
 			>
 				<Calendar :class="['w-4 h-4', dueTodayActive ? 'text-amber-600' : 'text-gray-400']" />
-				{{ window.__('Due Today') }}
+				{{ translate('Due Today') }}
 			</button>
 
 			<!-- Overdue -->
@@ -279,12 +289,12 @@ function emitFilters() {
 		<!-- Project info -->
 		<div v-if="project" class="pt-4 border-t border-gray-200">
 			<h3 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-				{{ window.__('Project') }}
+					{{ translate('Project') }}
 			</h3>
 			<div class="text-sm text-gray-700">
 				<p class="font-medium">{{ project.project_name }}</p>
 				<p v-if="project.percent_complete !== null" class="text-gray-500 mt-1">
-					{{ project.percent_complete }}% {{ window.__('complete') }}
+					{{ project.percent_complete }}% {{ translate('complete') }}
 				</p>
 			</div>
 		</div>

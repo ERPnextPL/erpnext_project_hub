@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useTaskStore } from '../stores/taskStore'
 import { X, Clock, Calendar, FileText, Plus } from 'lucide-vue-next'
+import { getRealWindow, translate } from '../utils/translation'
 
 const props = defineProps({
 	task: {
@@ -17,6 +18,14 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save'])
 
 const store = useTaskStore()
+const realWindow = getRealWindow()
+
+const showAlert = (message) => {
+	const frappe = realWindow?.frappe
+	if (frappe) {
+		frappe.show_alert({ message: translate(message), indicator: 'red' })
+	}
+}
 
 // Form data
 const formData = ref({
@@ -125,31 +134,31 @@ function toFrappeDateTime(datetimeLocalStr) {
 function handleSave() {
 	// Validate hours
 	if (!formData.value.hours || parseFloat(formData.value.hours) <= 0) {
-		frappe.show_alert({ message: window.__('Please enter a valid number of hours'), indicator: 'red' })
+		showAlert('Please enter a valid number of hours')
 		return
 	}
 
 	// Validate max 24 hours
 	const hours = parseFloat(formData.value.hours)
 	if (hours > 24) {
-		frappe.show_alert({ message: window.__('Cannot add more than 24 hours in one entry'), indicator: 'red' })
+		showAlert('Cannot add more than 24 hours in one entry')
 		return
 	}
 
 	// Validate activity type
 	if (!formData.value.activity_type || formData.value.activity_type.trim() === '') {
-		frappe.show_alert({ message: window.__('Please select an activity type'), indicator: 'red' })
+		showAlert('Please select an activity type')
 		return
 	}
 
 	// Validate description
 	if (!formData.value.description || formData.value.description.trim() === '') {
-		frappe.show_alert({ message: window.__('Description is a required field'), indicator: 'red' })
+		showAlert('Description is a required field')
 		return
 	}
 	
 	if (formData.value.description.trim().length < 10) {
-		frappe.show_alert({ message: window.__('Description must have at least 10 characters'), indicator: 'red' })
+		showAlert('Description must have at least 10 characters')
 		return
 	}
 
@@ -238,14 +247,14 @@ function handleClose() {
 									@input="calculateToTime"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								/>
-								<p class="text-xs text-gray-500 mt-1">{{ window.__('Maximum 24 hours per entry') }}</p>
+								<p class="text-xs text-gray-500 mt-1">{{ translate('Maximum 24 hours per entry') }}</p>
 							</div>
 
 							<!-- Start time -->
 							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ window.__('Start Time') }}
-								</label>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										{{ translate('Start Time') }}
+									</label>
 								<input
 									v-model="formData.from_time"
 									type="datetime-local"
@@ -258,21 +267,21 @@ function handleClose() {
 							<div v-if="formData.to_time" class="bg-gray-50 rounded-md p-3">
 								<div class="flex items-center gap-2 text-sm text-gray-600">
 									<Clock class="w-4 h-4" />
-									<span>{{ window.__('End Time') }}: {{ formatDisplayTime(formData.to_time) }}</span>
+									<span>{{ translate('End Time') }}: {{ formatDisplayTime(formData.to_time) }}</span>
 								</div>
 							</div>
 
 							<!-- Activity Type -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ window.__('Activity Type') }} <span class="text-red-500">*</span>
+									{{ translate('Activity Type') }} <span class="text-red-500">*</span>
 								</label>
 								<select
 									v-model="formData.activity_type"
 									required
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								>
-									<option value="" disabled>{{ window.__('Select activity type...') }}</option>
+									<option value="" disabled>{{ translate('Select activity type...') }}</option>
 									<option v-for="type in activityTypes" :key="type" :value="type">
 										{{ type }}
 									</option>
@@ -282,13 +291,13 @@ function handleClose() {
 							<!-- Description -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ window.__('Description') }} <span class="text-red-500">*</span>
+									{{ translate('Description') }} <span class="text-red-500">*</span>
 								</label>
 								<textarea
 									v-model="formData.description"
 									required
 									rows="3"
-									:placeholder="window.__('Work description (minimum 10 characters)...')"
+									:placeholder="translate('Work description (minimum 10 characters)...')"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								></textarea>
 							</div>

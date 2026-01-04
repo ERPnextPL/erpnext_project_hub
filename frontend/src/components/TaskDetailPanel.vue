@@ -24,6 +24,11 @@ import {
 	Folder,
 } from 'lucide-vue-next'
 
+const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const translate = (text) => {
+	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
+}
+
 const props = defineProps({
 	task: {
 		type: Object,
@@ -93,15 +98,15 @@ async function handleMilestoneChange(event) {
 	const newMilestone = event.target.value || null
 	try {
 		await store.assignTaskToMilestone(props.task.name, newMilestone)
-		if (window.frappe) {
+		if (realWindow?.frappe) {
 			frappe.show_alert({ 
-				message: newMilestone ? window.__('Task assigned to milestone') : window.__('Task removed from milestone'), 
+				message: newMilestone ? translate('Task assigned to milestone') : translate('Task removed from milestone'), 
 				indicator: 'green' 
 			})
 		}
 	} catch (error) {
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Failed to update milestone'), indicator: 'red' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
 		}
 	}
 }
@@ -113,16 +118,16 @@ async function handleProjectChange() {
 	
 	try {
 		await store.updateTask(props.task.name, { project: newProject })
-		if (window.frappe) {
+		if (realWindow?.frappe) {
 			frappe.show_alert({ 
-				message: window.__('Task project changed'), 
+				message: translate('Task project changed'), 
 				indicator: 'green' 
 			})
 		}
 	} catch (error) {
 		editableTask.value.project = props.task.project
-		if (window.frappe) {
-			frappe.show_alert({ message: window.__('Failed to change project'), indicator: 'red' })
+		if (realWindow?.frappe) {
+			frappe.show_alert({ message: translate('Failed to change project'), indicator: 'red' })
 		}
 	}
 }
@@ -133,13 +138,13 @@ async function saveField(field, value) {
 	isSaving.value = true
 	try {
 		await store.updateTask(props.task.name, { [field]: value })
-		if (window.frappe && field === 'exp_end_date') {
+		if (realWindow?.frappe && field === 'exp_end_date') {
 			frappe.show_alert({ message: 'Date updated successfully', indicator: 'green' })
 		}
 	} catch (error) {
 		// Revert on error
 		editableTask.value[field] = props.task[field]
-		if (window.frappe) {
+		if (realWindow?.frappe) {
 			frappe.show_alert({ message: 'Failed to update field', indicator: 'red' })
 		}
 	} finally {
@@ -148,7 +153,7 @@ async function saveField(field, value) {
 }
 
 function openInDesk() {
-	window.open(`/app/task/${props.task.name}`, '_blank')
+	realWindow?.open(`/app/task/${props.task.name}`, '_blank')
 }
 
 async function handleAddAssignee(user) {
@@ -184,11 +189,11 @@ async function handleTimeLogSave(timelogData) {
 	try {
 		await store.createTimelog(timelogData)
 		showTimeLogModal.value = false
-		if (window.frappe) {
+		if (realWindow?.frappe) {
 			frappe.show_alert({ message: 'Time log saved successfully', indicator: 'green' })
 		}
 	} catch (error) {
-		if (window.frappe) {
+		if (realWindow?.frappe) {
 			frappe.show_alert({ message: 'Failed to save time log', indicator: 'red' })
 		}
 	}
@@ -199,11 +204,11 @@ async function handleDeleteTimelog(timelogName) {
 	
 	try {
 		await store.deleteTimelog(timelogName, props.task.name)
-		if (window.frappe) {
+		if (realWindow?.frappe) {
 			frappe.show_alert({ message: 'Time log deleted', indicator: 'green' })
 		}
 	} catch (error) {
-		if (window.frappe) {
+		if (realWindow?.frappe) {
 			frappe.show_alert({ message: 'Failed to delete time log', indicator: 'red' })
 		}
 	}
@@ -319,14 +324,14 @@ async function handleSubtaskCreated() {
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
 						<Diamond class="w-3 h-3" />
-						{{ window.__('Milestone') }}
+						{{ translate('Milestone') }}
 					</label>
 					<select
 						:value="task.milestone || ''"
 						@change="handleMilestoneChange"
 						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
-						<option value="">{{ window.__('No milestone') }}</option>
+								<option value="">{{ translate('No milestone') }}</option>
 						<option 
 							v-for="milestone in store.milestones" 
 							:key="milestone.name" 
@@ -341,7 +346,7 @@ async function handleSubtaskCreated() {
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
 						<Folder class="w-3 h-3" />
-						{{ window.__('Project') }}
+						{{ translate('Project') }}
 					</label>
 					<select
 						v-model="editableTask.project"
@@ -360,11 +365,11 @@ async function handleSubtaskCreated() {
 
 				<!-- Assignee -->
 				<div class="flex items-start gap-3">
-					<label class="text-sm text-gray-500 w-20 pt-2">{{ window.__('Assigned') }}</label>
+					<label class="text-sm text-gray-500 w-20 pt-2">{{ translate('Assigned') }}</label>
 					<div class="flex-1">
 						<UserSelect
 							:model-value="task._assign"
-							:placeholder="window.__('Assign user...')"
+							:placeholder="translate('Assign user...')"
 							@add="handleAddAssignee"
 							@remove="handleRemoveAssignee"
 						/>
@@ -373,7 +378,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Due date -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">{{ window.__('Due Date') }}</label>
+						<label class="text-sm text-gray-500 w-20">{{ translate('Due Date') }}</label>
 					<input
 						v-model="editableTask.exp_end_date"
 						type="date"
@@ -384,7 +389,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Start date -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">{{ window.__('Start Date') }}</label>
+					<label class="text-sm text-gray-500 w-20">{{ translate('Start Date') }}</label>
 					<input
 						v-model="editableTask.exp_start_date"
 						type="date"
@@ -395,7 +400,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Progress -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">{{ window.__('Progress') }}</label>
+					<label class="text-sm text-gray-500 w-20">{{ translate('Progress') }}</label>
 					<div class="flex-1 flex items-center gap-2">
 						<input
 							v-model.number="editableTask.progress"
@@ -415,12 +420,12 @@ async function handleSubtaskCreated() {
 
 				<!-- Description -->
 				<div>
-					<label class="text-sm font-medium text-gray-700 mb-2 block">{{ window.__('Description') }}</label>
+					<label class="text-sm font-medium text-gray-700 mb-2 block">{{ translate('Description') }}</label>
 					<textarea
 						v-model="editableTask.description"
 						rows="4"
 						class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-						:placeholder="window.__('Add description...')"
+						:placeholder="translate('Add description...')"
 						@blur="saveField('description', editableTask.description)"
 					></textarea>
 				</div>
@@ -429,11 +434,11 @@ async function handleSubtaskCreated() {
 
 				<!-- Time Logs -->
 				<div>
-					<div class="flex items-center justify-between mb-3">
+						<div class="flex items-center justify-between mb-3">
 						<div>
-							<h3 class="text-sm font-medium text-gray-700">{{ window.__('Time Log') }}</h3>
+							<h3 class="text-sm font-medium text-gray-700">{{ translate('Time Log') }}</h3>
 							<p v-if="currentTimelogs.total_hours > 0" class="text-xs text-gray-500 mt-0.5">
-								{{ window.__('Total') }}: {{ currentTimelogs.total_hours.toFixed(2) }} {{ window.__('hrs') }}.
+								{{ translate('Total') }}: {{ currentTimelogs.total_hours.toFixed(2) }} {{ translate('hrs') }}.
 							</p>
 						</div>
 						<button
@@ -441,7 +446,7 @@ async function handleSubtaskCreated() {
 							class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 						>
 							<Plus class="w-3.5 h-3.5" />
-							{{ window.__('Add time') }}
+							{{ translate('Add time') }}
 						</button>
 					</div>
 
@@ -449,8 +454,8 @@ async function handleSubtaskCreated() {
 						<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
 					</div>
 
-					<div v-else-if="currentTimelogs.timelogs.length === 0" class="text-sm text-gray-500 text-center py-4">
-						{{ window.__('No time entries') }}
+						<div v-else-if="currentTimelogs.timelogs.length === 0" class="text-sm text-gray-500 text-center py-4">
+						{{ translate('No time entries') }}
 					</div>
 
 					<div v-else class="space-y-2">
