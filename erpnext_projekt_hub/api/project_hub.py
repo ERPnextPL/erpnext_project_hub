@@ -318,7 +318,7 @@ def create_task(
 	parent_task: str = None,
 	priority: str = "Medium",
 	status: str = "Open",
-	exp_end_date: str = None,
+	exp_end_date: str | None = None,
 ):
 	"""Create a new task."""
 	if not subject or not project:
@@ -1571,7 +1571,7 @@ def quick_update_task(
 	task_name: str,
 	status: str = None,
 	priority: str = None,
-	exp_end_date: str = None,
+	exp_end_date: str | None = None,
 ):
 	"""
 	Quick update for task status, priority, or due date.
@@ -1673,7 +1673,7 @@ def create_my_task(
 	parent_task: str = None,
 	priority: str = "Medium",
 	status: str = "Open",
-	exp_end_date: str = None,
+	exp_end_date: str | None = None,
 	description: str = None,
 ):
 	"""
