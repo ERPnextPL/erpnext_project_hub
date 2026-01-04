@@ -1,9 +1,9 @@
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
-import QuickAddTask from './QuickAddTask.vue'
-import UserSelect from './UserSelect.vue'
-import TimeLogModal from './TimeLogModal.vue?v=20241220-2030'
+import { ref, watch, onMounted, computed } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import QuickAddTask from "./QuickAddTask.vue";
+import UserSelect from "./UserSelect.vue";
+import TimeLogModal from "./TimeLogModal.vue?v=20241220-2030";
 import {
 	X,
 	ExternalLink,
@@ -22,223 +22,247 @@ import {
 	Trash2,
 	Diamond,
 	Folder,
-} from 'lucide-vue-next'
+} from "lucide-vue-next";
 
-const realWindow = typeof globalThis !== 'undefined' ? globalThis.window : undefined
+const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
-	return (typeof realWindow !== 'undefined' && typeof realWindow.__ === 'function') ? realWindow.__(text) : text
-}
+	return typeof realWindow !== "undefined" && typeof realWindow.__ === "function"
+		? realWindow.__(text)
+		: text;
+};
 
 const props = defineProps({
 	task: {
 		type: Object,
 		required: true,
 	},
-})
+});
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(["close"]);
 
-const store = useTaskStore()
+const store = useTaskStore();
 
 // Local editable state
-const editableTask = ref({ ...props.task })
-const isSaving = ref(false)
-const activeTab = ref('details')
-const showTimeLogModal = ref(false)
-const timelogsLoading = ref(false)
+const editableTask = ref({ ...props.task });
+const isSaving = ref(false);
+const activeTab = ref("details");
+const showTimeLogModal = ref(false);
+const timelogsLoading = ref(false);
 
 watch(
 	() => props.task,
 	(newTask) => {
-		editableTask.value = { ...newTask }
+		editableTask.value = { ...newTask };
 	},
 	{ deep: true }
-)
+);
 
 // Load metadata on mount
 onMounted(() => {
 	if (store.taskStatuses.length === 0) {
-		store.fetchTaskStatuses()
+		store.fetchTaskStatuses();
 	}
 	if (store.taskPriorities.length === 0) {
-		store.fetchTaskPriorities()
+		store.fetchTaskPriorities();
 	}
-})
+});
 
 // Status options with icons
 const statusIconMap = {
-	'Open': Circle,
-	'Working': Clock,
-	'Pending Review': AlertCircle,
-	'Completed': CheckCircle2,
-	'Overdue': AlertCircle,
-	'Cancelled': Circle,
-}
+	Open: Circle,
+	Working: Clock,
+	"Pending Review": AlertCircle,
+	Completed: CheckCircle2,
+	Overdue: AlertCircle,
+	Cancelled: Circle,
+};
 
-const disabledStatuses = ['Template']
+const disabledStatuses = ["Template"];
 
 const statusOptions = computed(() => {
-	return store.taskStatuses.map(status => ({
+	return store.taskStatuses.map((status) => ({
 		value: status,
 		label: status,
 		icon: statusIconMap[status] || Circle,
 		disabled: disabledStatuses.includes(status),
-	}))
-})
+	}));
+});
 
 const priorityOptions = computed(() => {
-	return store.taskPriorities.map(priority => ({
+	return store.taskPriorities.map((priority) => ({
 		value: priority,
-		label: priority
-	}))
-})
+		label: priority,
+	}));
+});
 
 // Milestone handling
 async function handleMilestoneChange(event) {
-	const newMilestone = event.target.value || null
+	const newMilestone = event.target.value || null;
 	try {
-		await store.assignTaskToMilestone(props.task.name, newMilestone)
+		await store.assignTaskToMilestone(props.task.name, newMilestone);
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ 
-				message: newMilestone ? translate('Task assigned to milestone') : translate('Task removed from milestone'), 
-				indicator: 'green' 
-			})
+			realWindow.frappe.show_alert({
+				message: newMilestone
+					? translate("Task assigned to milestone")
+					: translate("Task removed from milestone"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Failed to update milestone'), indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update milestone"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 // Project change handling
 async function handleProjectChange() {
-	const newProject = editableTask.value.project
-	if (newProject === props.task.project) return
-	
+	const newProject = editableTask.value.project;
+	if (newProject === props.task.project) return;
+
 	try {
-		await store.updateTask(props.task.name, { project: newProject })
+		await store.updateTask(props.task.name, { project: newProject });
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ 
-				message: translate('Task project changed'), 
-				indicator: 'green' 
-			})
+			realWindow.frappe.show_alert({
+				message: translate("Task project changed"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
-		editableTask.value.project = props.task.project
+		editableTask.value.project = props.task.project;
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Failed to change project'), indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: translate("Failed to change project"),
+				indicator: "red",
+			});
 		}
 	}
 }
 
 async function saveField(field, value) {
-	if (value === props.task[field]) return
+	if (value === props.task[field]) return;
 
-	isSaving.value = true
+	isSaving.value = true;
 	try {
-		await store.updateTask(props.task.name, { [field]: value })
-		if (realWindow?.frappe && field === 'exp_end_date') {
-			realWindow.frappe.show_alert({ message: translate('Date updated successfully'), indicator: 'green' })
+		await store.updateTask(props.task.name, { [field]: value });
+		if (realWindow?.frappe && field === "exp_end_date") {
+			realWindow.frappe.show_alert({
+				message: translate("Date updated successfully"),
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		// Revert on error
-		editableTask.value[field] = props.task[field]
+		editableTask.value[field] = props.task[field];
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: translate('Failed to update field'), indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update field"),
+				indicator: "red",
+			});
 		}
 	} finally {
-		isSaving.value = false
+		isSaving.value = false;
 	}
 }
 
 function openInDesk() {
-	realWindow?.open(`/app/task/${props.task.name}`, '_blank')
+	realWindow?.open(`/app/task/${props.task.name}`, "_blank");
 }
 
 async function handleAddAssignee(user) {
-	await store.assignTask(props.task.name, user, 'add')
+	await store.assignTask(props.task.name, user, "add");
 }
 
 async function handleRemoveAssignee(user) {
-	await store.assignTask(props.task.name, user, 'remove')
+	await store.assignTask(props.task.name, user, "remove");
 }
 
 onMounted(() => {
-	store.fetchUsers()
-	store.fetchAllProjects()
-	loadTimelogs()
-})
+	store.fetchUsers();
+	store.fetchAllProjects();
+	loadTimelogs();
+});
 
 const currentTimelogs = computed(() => {
-	return store.taskTimelogs[props.task.name] || { timelogs: [], total_hours: 0 }
-})
+	return store.taskTimelogs[props.task.name] || { timelogs: [], total_hours: 0 };
+});
 
 async function loadTimelogs() {
-	timelogsLoading.value = true
+	timelogsLoading.value = true;
 	try {
-		await store.fetchTaskTimelogs(props.task.name)
+		await store.fetchTaskTimelogs(props.task.name);
 	} catch (error) {
-		console.error('Failed to load timelogs:', error)
+		console.error("Failed to load timelogs:", error);
 	} finally {
-		timelogsLoading.value = false
+		timelogsLoading.value = false;
 	}
 }
 
 async function handleTimeLogSave(timelogData) {
 	try {
-		await store.createTimelog(timelogData)
-		showTimeLogModal.value = false
+		await store.createTimelog(timelogData);
+		showTimeLogModal.value = false;
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: 'Time log saved successfully', indicator: 'green' })
+			realWindow.frappe.show_alert({
+				message: "Time log saved successfully",
+				indicator: "green",
+			});
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: 'Failed to save time log', indicator: 'red' })
+			realWindow.frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
 		}
 	}
 }
 
 async function handleDeleteTimelog(timelogName) {
-	if (!confirm('Are you sure you want to delete this time log?')) return
-	
+	if (!confirm("Are you sure you want to delete this time log?")) return;
+
 	try {
-		await store.deleteTimelog(timelogName, props.task.name)
+		await store.deleteTimelog(timelogName, props.task.name);
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: 'Time log deleted', indicator: 'green' })
+			realWindow.frappe.show_alert({ message: "Time log deleted", indicator: "green" });
 		}
 	} catch (error) {
 		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({ message: 'Failed to delete time log', indicator: 'red' })
+			realWindow.frappe.show_alert({
+				message: "Failed to delete time log",
+				indicator: "red",
+			});
 		}
 	}
 }
 
 function formatDate(dateStr) {
-	if (!dateStr) return ''
-	const date = new Date(dateStr)
-	return date.toLocaleString('pl-PL', {
-		day: '2-digit',
-		month: '2-digit',
-		year: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-	})
+	if (!dateStr) return "";
+	const date = new Date(dateStr);
+	return date.toLocaleString("pl-PL", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
 }
 
 async function handleSubtaskCreated() {
 	// Refresh tasks and re-select current task to update children
-	await store.fetchTasks(props.task.project)
+	await store.fetchTasks(props.task.project);
 	// Find updated task in store and re-select it
-	const updatedTask = store.taskTree.find(t => t.name === props.task.name)
+	const updatedTask = store.taskTree.find((t) => t.name === props.task.name);
 	if (updatedTask) {
-		store.selectTask(updatedTask)
+		store.selectTask(updatedTask);
 	}
 }
 </script>
 
 <template>
-	<aside class="w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 overflow-hidden">
+	<aside
+		class="w-96 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 overflow-hidden"
+	>
 		<!-- Header -->
 		<div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
 			<div class="flex items-center gap-2">
@@ -251,10 +275,7 @@ async function handleSubtaskCreated() {
 					<ExternalLink class="w-4 h-4" />
 				</button>
 			</div>
-			<button
-				@click="emit('close')"
-				class="p-1 rounded hover:bg-gray-100 text-gray-500"
-			>
+			<button @click="emit('close')" class="p-1 rounded hover:bg-gray-100 text-gray-500">
 				<X class="w-5 h-5" />
 			</button>
 		</div>
@@ -281,16 +302,28 @@ async function handleSubtaskCreated() {
 							v-for="opt in statusOptions"
 							:key="opt.value"
 							:disabled="opt.disabled"
-							@click="!opt.disabled && (editableTask.status = opt.value, saveField('status', opt.value))"
+							@click="
+								!opt.disabled &&
+									((editableTask.status = opt.value),
+									saveField('status', opt.value))
+							"
 							:class="[
 								'flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors',
 								opt.disabled ? 'opacity-50 cursor-not-allowed' : '',
 								editableTask.status === opt.value
 									? 'border-blue-500 bg-blue-50 text-blue-700'
-									: 'border-gray-200 hover:bg-gray-50'
+									: 'border-gray-200 hover:bg-gray-50',
 							]"
 						>
-							<component :is="opt.icon" :class="['w-4 h-4', opt.value === editableTask.status ? 'text-blue-600' : 'text-gray-400']" />
+							<component
+								:is="opt.icon"
+								:class="[
+									'w-4 h-4',
+									opt.value === editableTask.status
+										? 'text-blue-600'
+										: 'text-gray-400',
+								]"
+							/>
 							{{ opt.label }}
 						</button>
 					</div>
@@ -306,15 +339,25 @@ async function handleSubtaskCreated() {
 						<button
 							v-for="opt in priorityOptions"
 							:key="opt.value"
-							@click="editableTask.priority = opt.value; saveField('priority', opt.value)"
+							@click="
+								editableTask.priority = opt.value;
+								saveField('priority', opt.value);
+							"
 							:class="[
 								'flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors',
 								editableTask.priority === opt.value
 									? 'border-blue-500 bg-blue-50 text-blue-700'
-									: 'border-gray-200 hover:bg-gray-50'
+									: 'border-gray-200 hover:bg-gray-50',
 							]"
 						>
-							<Flag :class="['w-4 h-4', opt.value === editableTask.priority ? 'text-blue-600' : 'text-gray-400']" />
+							<Flag
+								:class="[
+									'w-4 h-4',
+									opt.value === editableTask.priority
+										? 'text-blue-600'
+										: 'text-gray-400',
+								]"
+							/>
 							{{ opt.label }}
 						</button>
 					</div>
@@ -324,17 +367,17 @@ async function handleSubtaskCreated() {
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
 						<Diamond class="w-3 h-3" />
-						{{ translate('Milestone') }}
+						{{ translate("Milestone") }}
 					</label>
 					<select
 						:value="task.milestone || ''"
 						@change="handleMilestoneChange"
 						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
-								<option value="">{{ translate('No milestone') }}</option>
-						<option 
-							v-for="milestone in store.milestones" 
-							:key="milestone.name" 
+						<option value="">{{ translate("No milestone") }}</option>
+						<option
+							v-for="milestone in store.milestones"
+							:key="milestone.name"
 							:value="milestone.name"
 						>
 							{{ milestone.milestone_name }}
@@ -346,16 +389,16 @@ async function handleSubtaskCreated() {
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
 						<Folder class="w-3 h-3" />
-						{{ translate('Project') }}
+						{{ translate("Project") }}
 					</label>
 					<select
 						v-model="editableTask.project"
 						@change="handleProjectChange"
 						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
-						<option 
-							v-for="proj in store.allProjects" 
-							:key="proj.name" 
+						<option
+							v-for="proj in store.allProjects"
+							:key="proj.name"
 							:value="proj.name"
 						>
 							{{ proj.project_name }}
@@ -365,7 +408,9 @@ async function handleSubtaskCreated() {
 
 				<!-- Assignee -->
 				<div class="flex items-start gap-3">
-					<label class="text-sm text-gray-500 w-20 pt-2">{{ translate('Assigned') }}</label>
+					<label class="text-sm text-gray-500 w-20 pt-2">{{
+						translate("Assigned")
+					}}</label>
 					<div class="flex-1">
 						<UserSelect
 							:model-value="task._assign"
@@ -378,7 +423,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Due date -->
 				<div class="flex items-center gap-3">
-						<label class="text-sm text-gray-500 w-20">{{ translate('Due Date') }}</label>
+					<label class="text-sm text-gray-500 w-20">{{ translate("Due Date") }}</label>
 					<input
 						v-model="editableTask.exp_end_date"
 						type="date"
@@ -389,7 +434,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Start date -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">{{ translate('Start Date') }}</label>
+					<label class="text-sm text-gray-500 w-20">{{ translate("Start Date") }}</label>
 					<input
 						v-model="editableTask.exp_start_date"
 						type="date"
@@ -400,7 +445,7 @@ async function handleSubtaskCreated() {
 
 				<!-- Progress -->
 				<div class="flex items-center gap-3">
-					<label class="text-sm text-gray-500 w-20">{{ translate('Progress') }}</label>
+					<label class="text-sm text-gray-500 w-20">{{ translate("Progress") }}</label>
 					<div class="flex-1 flex items-center gap-2">
 						<input
 							v-model.number="editableTask.progress"
@@ -420,7 +465,9 @@ async function handleSubtaskCreated() {
 
 				<!-- Description -->
 				<div>
-					<label class="text-sm font-medium text-gray-700 mb-2 block">{{ translate('Description') }}</label>
+					<label class="text-sm font-medium text-gray-700 mb-2 block">{{
+						translate("Description")
+					}}</label>
 					<textarea
 						v-model="editableTask.description"
 						rows="4"
@@ -434,11 +481,18 @@ async function handleSubtaskCreated() {
 
 				<!-- Time Logs -->
 				<div>
-						<div class="flex items-center justify-between mb-3">
+					<div class="flex items-center justify-between mb-3">
 						<div>
-							<h3 class="text-sm font-medium text-gray-700">{{ translate('Time Log') }}</h3>
-							<p v-if="currentTimelogs.total_hours > 0" class="text-xs text-gray-500 mt-0.5">
-								{{ translate('Total') }}: {{ currentTimelogs.total_hours.toFixed(2) }} {{ translate('hrs') }}.
+							<h3 class="text-sm font-medium text-gray-700">
+								{{ translate("Time Log") }}
+							</h3>
+							<p
+								v-if="currentTimelogs.total_hours > 0"
+								class="text-xs text-gray-500 mt-0.5"
+							>
+								{{ translate("Total") }}:
+								{{ currentTimelogs.total_hours.toFixed(2) }}
+								{{ translate("hrs") }}.
 							</p>
 						</div>
 						<button
@@ -446,16 +500,21 @@ async function handleSubtaskCreated() {
 							class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
 						>
 							<Plus class="w-3.5 h-3.5" />
-							{{ translate('Add time') }}
+							{{ translate("Add time") }}
 						</button>
 					</div>
 
 					<div v-if="timelogsLoading" class="text-center py-4">
-						<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+						<div
+							class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"
+						></div>
 					</div>
 
-						<div v-else-if="currentTimelogs.timelogs.length === 0" class="text-sm text-gray-500 text-center py-4">
-						{{ translate('No time entries') }}
+					<div
+						v-else-if="currentTimelogs.timelogs.length === 0"
+						class="text-sm text-gray-500 text-center py-4"
+					>
+						{{ translate("No time entries") }}
 					</div>
 
 					<div v-else class="space-y-2">
@@ -468,22 +527,31 @@ async function handleSubtaskCreated() {
 								<div class="flex-1">
 									<div class="flex items-center gap-2 mb-1">
 										<Clock class="w-3.5 h-3.5 text-blue-600" />
-										<span class="font-semibold text-gray-900">{{ log.hours }} hrs</span>
-										<span class="text-xs text-gray-500">{{ log.activity_type }}</span>
-										<span 
-											v-if="log.status" 
+										<span class="font-semibold text-gray-900"
+											>{{ log.hours }} hrs</span
+										>
+										<span class="text-xs text-gray-500">{{
+											log.activity_type
+										}}</span>
+										<span
+											v-if="log.status"
 											:class="[
 												'px-2 py-0.5 rounded-full text-xs font-medium',
-												log.status === 'Submitted' ? 'bg-green-100 text-green-800' :
-												log.status === 'Billed' ? 'bg-blue-100 text-blue-800' :
-												log.status === 'Draft' ? 'bg-gray-100 text-gray-800' :
-												'bg-gray-100 text-gray-800'
+												log.status === 'Submitted'
+													? 'bg-green-100 text-green-800'
+													: log.status === 'Billed'
+													? 'bg-blue-100 text-blue-800'
+													: log.status === 'Draft'
+													? 'bg-gray-100 text-gray-800'
+													: 'bg-gray-100 text-gray-800',
 											]"
 										>
 											{{ log.status }}
 										</span>
 									</div>
-									<p v-if="log.description" class="text-gray-600 text-xs mb-1">{{ log.description }}</p>
+									<p v-if="log.description" class="text-gray-600 text-xs mb-1">
+										{{ log.description }}
+									</p>
 									<div class="flex items-center gap-2 text-xs text-gray-500">
 										<span>{{ log.user_full_name }}</span>
 										<span>•</span>
@@ -517,10 +585,16 @@ async function handleSubtaskCreated() {
 								:is="child.status === 'Completed' ? CheckCircle2 : Circle"
 								:class="[
 									'w-4 h-4',
-									child.status === 'Completed' ? 'text-green-500' : 'text-gray-400',
+									child.status === 'Completed'
+										? 'text-green-500'
+										: 'text-gray-400',
 								]"
 							/>
-							<span :class="{ 'line-through text-gray-400': child.status === 'Completed' }">
+							<span
+								:class="{
+									'line-through text-gray-400': child.status === 'Completed',
+								}"
+							>
 								{{ child.subject }}
 							</span>
 						</div>

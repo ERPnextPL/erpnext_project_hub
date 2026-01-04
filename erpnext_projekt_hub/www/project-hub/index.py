@@ -16,7 +16,7 @@ def get_context(context):
 
 	context.no_cache = 1
 	context.show_sidebar = False
-	
+
 	# Pass CSRF token and boot data to template
 	context.csrf_token = frappe.session.csrf_token
 	context.boot = get_boot_data()

@@ -3,7 +3,6 @@ import json
 import frappe
 from frappe.utils import generate_hash
 
-
 WORKSPACE_NAME = "Projects"
 SHORTCUT_LABEL = "Project Milestone"
 SHORTCUT_DOCTYPE = "Project Milestone"
@@ -32,7 +31,11 @@ def ensure_workspace_shortcut(workspace):
 	duplicates = []
 
 	for row in workspace.shortcuts:
-		if row.link_to == SHORTCUT_DOCTYPE or row.label in LEGACY_SHORTCUT_LABELS or row.label == SHORTCUT_LABEL:
+		if (
+			row.link_to == SHORTCUT_DOCTYPE
+			or row.label in LEGACY_SHORTCUT_LABELS
+			or row.label == SHORTCUT_LABEL
+		):
 			if primary_row:
 				duplicates.append(row)
 			else:

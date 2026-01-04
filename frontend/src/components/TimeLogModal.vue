@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
-import { X, Clock, Calendar, FileText, Plus } from 'lucide-vue-next'
-import { getRealWindow, translate } from '../utils/translation'
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import { X, Clock, Calendar, FileText, Plus } from "lucide-vue-next";
+import { getRealWindow, translate } from "../utils/translation";
 
 const props = defineProps({
 	task: {
@@ -13,210 +13,212 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
-})
+});
 
-const emit = defineEmits(['close', 'save'])
+const emit = defineEmits(["close", "save"]);
 
-const store = useTaskStore()
-const realWindow = getRealWindow()
+const store = useTaskStore();
+const realWindow = getRealWindow();
 
 const showAlert = (message) => {
-	const frappe = realWindow?.frappe
+	const frappe = realWindow?.frappe;
 	if (frappe) {
-		frappe.show_alert({ message: translate(message), indicator: 'red' })
+		frappe.show_alert({ message: translate(message), indicator: "red" });
 	}
-}
+};
 
 // Form data
 const formData = ref({
-	hours: '',
-	activity_type: '',
-	description: '',
-	from_time: '',
-	to_time: '',
-})
+	hours: "",
+	activity_type: "",
+	description: "",
+	from_time: "",
+	to_time: "",
+});
 
-const DEFAULT_ACTIVITY_TYPE_KEY = 'Execution'
+const DEFAULT_ACTIVITY_TYPE_KEY = "Execution";
 
 const getPreferredActivityType = (availableTypes = []) => {
 	if (!Array.isArray(availableTypes) || availableTypes.length === 0) {
-		return ''
+		return "";
 	}
 
-	const globalDefaultActivityType = store.projectsSettings?.default_activity_type
+	const globalDefaultActivityType = store.projectsSettings?.default_activity_type;
 	if (globalDefaultActivityType && availableTypes.includes(globalDefaultActivityType)) {
-		return globalDefaultActivityType
+		return globalDefaultActivityType;
 	}
 
-	const localizedFallback = translate(DEFAULT_ACTIVITY_TYPE_KEY)
-	const fallbacks = []
-	if (localizedFallback) fallbacks.push(localizedFallback)
-	if (!fallbacks.includes(DEFAULT_ACTIVITY_TYPE_KEY)) fallbacks.push(DEFAULT_ACTIVITY_TYPE_KEY)
+	const localizedFallback = translate(DEFAULT_ACTIVITY_TYPE_KEY);
+	const fallbacks = [];
+	if (localizedFallback) fallbacks.push(localizedFallback);
+	if (!fallbacks.includes(DEFAULT_ACTIVITY_TYPE_KEY)) fallbacks.push(DEFAULT_ACTIVITY_TYPE_KEY);
 
 	for (const candidate of fallbacks) {
 		if (candidate && availableTypes.includes(candidate)) {
-			return candidate
+			return candidate;
 		}
 	}
 
-	return availableTypes[0]
-}
+	return availableTypes[0];
+};
 
 const applyDefaultActivityType = (availableTypes) => {
-	const defaultType = getPreferredActivityType(availableTypes)
+	const defaultType = getPreferredActivityType(availableTypes);
 	if (defaultType) {
-		formData.value.activity_type = defaultType
+		formData.value.activity_type = defaultType;
 	}
-}
+};
 
 // Load activity types on mount
 onMounted(() => {
 	if (store.activityTypes.length === 0) {
-		store.fetchActivityTypes()
+		store.fetchActivityTypes();
 	}
 	// Add escape key listener
-	document.addEventListener('keydown', handleEscapeKey)
-})
+	document.addEventListener("keydown", handleEscapeKey);
+});
 
 // Remove escape key listener on unmount
 onUnmounted(() => {
-	document.removeEventListener('keydown', handleEscapeKey)
-})
+	document.removeEventListener("keydown", handleEscapeKey);
+});
 
 // Handle escape key
 function handleEscapeKey(event) {
-	if (event.key === 'Escape' && props.show) {
-		handleClose()
+	if (event.key === "Escape" && props.show) {
+		handleClose();
 	}
 }
 
 // Activity types from store
-const activityTypes = computed(() => store.activityTypes)
+const activityTypes = computed(() => store.activityTypes);
 
 // Reset form when modal opens
-watch(() => props.show, (newVal) => {
-	if (newVal) {
-		resetForm()
-		// Set default date to today with current time minus 1 hour
-		const now = new Date()
-		const endTime = new Date(now.getTime() - 60 * 60 * 1000) // Subtract 1 hour
-		const today = endTime.toISOString().split('T')[0]
-		const hours = String(endTime.getHours()).padStart(2, '0')
-		const minutes = String(endTime.getMinutes()).padStart(2, '0')
-		formData.value.from_time = `${today}T${hours}:${minutes}`
-		formData.value.hours = '1'
-		// Set default activity type from global settings
-		applyDefaultActivityType(activityTypes.value)
-		calculateToTime()
-	}
-}, { immediate: true })
+watch(
+	() => props.show,
+	(newVal) => {
+		if (newVal) {
+			resetForm();
+			// Set default date to today with current time minus 1 hour
+			const now = new Date();
+			const endTime = new Date(now.getTime() - 60 * 60 * 1000); // Subtract 1 hour
+			const today = endTime.toISOString().split("T")[0];
+			const hours = String(endTime.getHours()).padStart(2, "0");
+			const minutes = String(endTime.getMinutes()).padStart(2, "0");
+			formData.value.from_time = `${today}T${hours}:${minutes}`;
+			formData.value.hours = "1";
+			// Set default activity type from global settings
+			applyDefaultActivityType(activityTypes.value);
+			calculateToTime();
+		}
+	},
+	{ immediate: true }
+);
 
 // Watch for activity types to set default activity_type when they load
 watch(activityTypes, (newTypes) => {
 	if (props.show && newTypes.length > 0) {
-		applyDefaultActivityType(newTypes)
+		applyDefaultActivityType(newTypes);
 	}
-})
+});
 
 function resetForm() {
 	formData.value = {
-		hours: '',
-		activity_type: '',
-		description: '',
-		from_time: '',
-		to_time: '',
-	}
+		hours: "",
+		activity_type: "",
+		description: "",
+		from_time: "",
+		to_time: "",
+	};
 }
 
 function calculateToTime() {
 	if (formData.value.from_time && formData.value.hours) {
-		const from = new Date(formData.value.from_time)
-		const hours = parseFloat(formData.value.hours)
-		
+		const from = new Date(formData.value.from_time);
+		const hours = parseFloat(formData.value.hours);
+
 		if (!isNaN(hours) && hours > 0) {
-			const to = new Date(from.getTime() + hours * 60 * 60 * 1000)
+			const to = new Date(from.getTime() + hours * 60 * 60 * 1000);
 			// Keep local time string (YYYY-MM-DDTHH:mm) for preview
-			const pad = (n) => String(n).padStart(2, '0')
-			formData.value.to_time = `${to.getFullYear()}-${pad(to.getMonth() + 1)}-${pad(to.getDate())}T${pad(to.getHours())}:${pad(to.getMinutes())}`
+			const pad = (n) => String(n).padStart(2, "0");
+			formData.value.to_time = `${to.getFullYear()}-${pad(to.getMonth() + 1)}-${pad(
+				to.getDate()
+			)}T${pad(to.getHours())}:${pad(to.getMinutes())}`;
 		}
 	}
 }
 
 function toFrappeDateTime(datetimeLocalStr) {
-	if (!datetimeLocalStr) return ''
+	if (!datetimeLocalStr) return "";
 	// Convert 'YYYY-MM-DDTHH:mm' to 'YYYY-MM-DD HH:mm:ss'
-	return `${datetimeLocalStr.replace('T', ' ')}:00`
+	return `${datetimeLocalStr.replace("T", " ")}:00`;
 }
 
 function handleSave() {
 	// Validate hours
 	if (!formData.value.hours || parseFloat(formData.value.hours) <= 0) {
-		showAlert('Please enter a valid number of hours')
-		return
+		showAlert("Please enter a valid number of hours");
+		return;
 	}
 
 	// Validate max 24 hours
-	const hours = parseFloat(formData.value.hours)
+	const hours = parseFloat(formData.value.hours);
 	if (hours > 24) {
-		showAlert('Cannot add more than 24 hours in one entry')
-		return
+		showAlert("Cannot add more than 24 hours in one entry");
+		return;
 	}
 
 	// Validate activity type
-	if (!formData.value.activity_type || formData.value.activity_type.trim() === '') {
-		showAlert('Please select an activity type')
-		return
+	if (!formData.value.activity_type || formData.value.activity_type.trim() === "") {
+		showAlert("Please select an activity type");
+		return;
 	}
 
 	// Validate description
-	if (!formData.value.description || formData.value.description.trim() === '') {
-		showAlert('Description is a required field')
-		return
+	if (!formData.value.description || formData.value.description.trim() === "") {
+		showAlert("Description is a required field");
+		return;
 	}
-	
+
 	if (formData.value.description.trim().length < 10) {
-		showAlert('Description must have at least 10 characters')
-		return
+		showAlert("Description must have at least 10 characters");
+		return;
 	}
 
 	// Calculate to_time before saving
-	calculateToTime()
+	calculateToTime();
 
-	emit('save', {
+	emit("save", {
 		task: props.task.name,
 		hours: parseFloat(formData.value.hours),
 		activity_type: formData.value.activity_type,
 		description: formData.value.description,
 		from_time: toFrappeDateTime(formData.value.from_time),
 		to_time: toFrappeDateTime(formData.value.to_time),
-	})
+	});
 }
 
 function formatDisplayTime(datetimeStr) {
-	if (!datetimeStr) return ''
-	const date = new Date(datetimeStr)
-	return date.toLocaleString('pl-PL', {
-		day: '2-digit',
-		month: '2-digit',
-		year: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit'
-	})
+	if (!datetimeStr) return "";
+	const date = new Date(datetimeStr);
+	return date.toLocaleString("pl-PL", {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
 }
 
 function handleClose() {
-	emit('close')
+	emit("close");
 }
 </script>
 
 <template>
 	<Teleport to="body">
 		<Transition name="modal-fade">
-			<div
-				v-if="show"
-				class="fixed inset-0 z-50 overflow-y-auto"
-				@click.self="handleClose"
-			>
+			<div v-if="show" class="fixed inset-0 z-50 overflow-y-auto" @click.self="handleClose">
 				<!-- Overlay -->
 				<div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
 
@@ -227,7 +229,9 @@ function handleClose() {
 						@click.stop
 					>
 						<!-- Header -->
-						<div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+						<div
+							class="flex items-center justify-between px-6 py-4 border-b border-gray-200"
+						>
 							<div class="flex items-center gap-2">
 								<Clock class="w-5 h-5 text-blue-600" />
 								<h3 class="text-lg font-semibold text-gray-900">Dodaj czas</h3>
@@ -264,14 +268,16 @@ function handleClose() {
 									@input="calculateToTime"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								/>
-								<p class="text-xs text-gray-500 mt-1">{{ translate('Maximum 24 hours per entry') }}</p>
+								<p class="text-xs text-gray-500 mt-1">
+									{{ translate("Maximum 24 hours per entry") }}
+								</p>
 							</div>
 
 							<!-- Start time -->
 							<div>
-									<label class="block text-sm font-medium text-gray-700 mb-1">
-										{{ translate('Start Time') }}
-									</label>
+								<label class="block text-sm font-medium text-gray-700 mb-1">
+									{{ translate("Start Time") }}
+								</label>
 								<input
 									v-model="formData.from_time"
 									type="datetime-local"
@@ -279,27 +285,37 @@ function handleClose() {
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
 								/>
 							</div>
-							
+
 							<!-- End time (calculated) -->
 							<div v-if="formData.to_time" class="bg-gray-50 rounded-md p-3">
 								<div class="flex items-center gap-2 text-sm text-gray-600">
 									<Clock class="w-4 h-4" />
-									<span>{{ translate('End Time') }}: {{ formatDisplayTime(formData.to_time) }}</span>
+									<span
+										>{{ translate("End Time") }}:
+										{{ formatDisplayTime(formData.to_time) }}</span
+									>
 								</div>
 							</div>
 
 							<!-- Activity Type -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ translate('Activity Type') }} <span class="text-red-500">*</span>
+									{{ translate("Activity Type") }}
+									<span class="text-red-500">*</span>
 								</label>
 								<select
 									v-model="formData.activity_type"
 									required
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								>
-									<option value="" disabled>{{ translate('Select activity type...') }}</option>
-									<option v-for="type in activityTypes" :key="type" :value="type">
+									<option value="" disabled>
+										{{ translate("Select activity type...") }}
+									</option>
+									<option
+										v-for="type in activityTypes"
+										:key="type"
+										:value="type"
+									>
 										{{ type }}
 									</option>
 								</select>
@@ -308,20 +324,25 @@ function handleClose() {
 							<!-- Description -->
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-1">
-									{{ translate('Description') }} <span class="text-red-500">*</span>
+									{{ translate("Description") }}
+									<span class="text-red-500">*</span>
 								</label>
 								<textarea
 									v-model="formData.description"
 									required
 									rows="3"
-									:placeholder="translate('Work description (minimum 10 characters)...')"
+									:placeholder="
+										translate('Work description (minimum 10 characters)...')
+									"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								></textarea>
 							</div>
 						</div>
 
 						<!-- Footer -->
-						<div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+						<div
+							class="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50"
+						>
 							<button
 								@click="handleClose"
 								class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"

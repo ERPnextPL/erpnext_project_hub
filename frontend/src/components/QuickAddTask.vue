@@ -1,7 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
-import { Plus } from 'lucide-vue-next'
+import { ref, onMounted } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import { Plus } from "lucide-vue-next";
 
 const props = defineProps({
 	projectId: {
@@ -18,30 +18,32 @@ const props = defineProps({
 	},
 	placeholder: {
 		type: String,
-		default: 'Add a task...',
+		default: "Add a task...",
 	},
 	autoFocus: {
 		type: Boolean,
 		default: false,
 	},
-})
+});
 
-const emit = defineEmits(['created', 'cancel'])
+const emit = defineEmits(["created", "cancel"]);
 
-const store = useTaskStore()
-const inputValue = ref('')
-const isCreating = ref(false)
-const inputRef = ref(null)
+const store = useTaskStore();
+const inputValue = ref("");
+const isCreating = ref(false);
+const inputRef = ref(null);
 
 async function createTask() {
-	const subject = inputValue.value.trim()
-	if (!subject || isCreating.value) return
+	const subject = inputValue.value.trim();
+	if (!subject || isCreating.value) return;
 
-	isCreating.value = true
+	isCreating.value = true;
 	try {
-		const parent = props.parentTask ? store.tasks.find(t => t.name === props.parentTask) : null
-		if (parent && (parent.status === 'Completed' || parent.status === 'Cancelled')) {
-			return
+		const parent = props.parentTask
+			? store.tasks.find((t) => t.name === props.parentTask)
+			: null;
+		if (parent && (parent.status === "Completed" || parent.status === "Cancelled")) {
+			return;
 		}
 
 		await store.createTask({
@@ -52,30 +54,30 @@ async function createTask() {
 			priority: parent?.priority,
 			exp_end_date: parent?.exp_end_date || null,
 			// milestone: props.milestone, // if you have milestone field
-		})
-		inputValue.value = ''
-		emit('created')
+		});
+		inputValue.value = "";
+		emit("created");
 	} catch (error) {
-		console.error('Failed to create task:', error)
+		console.error("Failed to create task:", error);
 	} finally {
-		isCreating.value = false
+		isCreating.value = false;
 	}
 }
 
 function handleKeydown(e) {
-	if (e.key === 'Enter' && !e.shiftKey) {
-		e.preventDefault()
-		createTask()
-	} else if (e.key === 'Escape') {
-		emit('cancel')
+	if (e.key === "Enter" && !e.shiftKey) {
+		e.preventDefault();
+		createTask();
+	} else if (e.key === "Escape") {
+		emit("cancel");
 	}
 }
 
 onMounted(() => {
 	if (props.autoFocus) {
-		inputRef.value?.focus()
+		inputRef.value?.focus();
 	}
-})
+});
 </script>
 
 <template>
@@ -96,7 +98,7 @@ onMounted(() => {
 			:disabled="isCreating"
 			class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 flex-shrink-0"
 		>
-			{{ isCreating ? 'Adding...' : 'Add' }}
+			{{ isCreating ? "Adding..." : "Add" }}
 		</button>
 	</div>
 </template>

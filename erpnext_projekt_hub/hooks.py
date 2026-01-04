@@ -45,10 +45,7 @@ app_include_js = "/assets/erpnext_projekt_hub/js/kanban_custom.js"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {
-	"Project": "public/js/project.js",
-	"Timesheet": "public/js/timesheet_timer_override.js"
-}
+doctype_js = {"Project": "public/js/project.js", "Timesheet": "public/js/timesheet_timer_override.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -150,7 +147,7 @@ after_install = "erpnext_projekt_hub.install.after_install"
 doc_events = {
 	"Task": {
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
-		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash"
+		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
 	}
 }
 
@@ -259,8 +256,14 @@ doc_events = {
 # Fixtures
 # --------
 fixtures = [
-    {"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
-    {"dt": "Workspace Link", "filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]]},
-    {"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]]},
-    {"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
+	{"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
+	{
+		"dt": "Workspace Link",
+		"filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]],
+	},
+	{
+		"dt": "Workspace Shortcut",
+		"filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]],
+	},
+	{"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
 ]
