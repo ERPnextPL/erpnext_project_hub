@@ -56,6 +56,13 @@ const currentPriority = computed(() => {
 })
 
 const taskDescription = computed(() => (props.task.description || '').trim())
+const descriptionPreviewLabel = computed(() => {
+	if (!taskDescription.value) {
+		return ''
+	}
+	const firstLine = taskDescription.value.split('\n')[0]?.trim()
+	return firstLine || ''
+})
 const showDescriptionPreview = ref(false)
 
 const formattedDate = computed(() => {
@@ -177,7 +184,7 @@ onUnmounted(() => {
 						:title="translate('Hover to preview description')"
 					>
 						<FileText class="w-3.5 h-3.5" />
-						<span>{{ translate('Description preview available') }}</span>
+							<span v-if="descriptionPreviewLabel">{{ descriptionPreviewLabel }}</span>
 					</button>
 
 					<Transition name="fade">

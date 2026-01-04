@@ -92,6 +92,13 @@ const currentPriority = computed(() => {
 })
 
 const taskDescription = computed(() => (props.task.description || '').trim())
+const descriptionPreviewLabel = computed(() => {
+	if (!taskDescription.value) {
+		return ''
+	}
+	const firstLine = taskDescription.value.split('\n')[0]?.trim()
+	return firstLine || ''
+})
 
 const formattedDate = computed(() => {
 	if (!props.task.exp_end_date) return null
@@ -220,7 +227,7 @@ onUnmounted(() => {
 					class="flex items-center gap-1 text-xs text-gray-400"
 				>
 					<FileText class="w-3 h-3 flex-shrink-0" />
-					<span class="truncate">{{ translate('Description preview available') }}</span>
+					<span v-if="descriptionPreviewLabel" class="truncate">{{ descriptionPreviewLabel }}</span>
 				</div>
 
 				<div
