@@ -45,7 +45,7 @@ def update_milestone_progress(milestone_name):
 		"Task", {"milestone": milestone_name, "status": "Completed"}
 	)
 
-	progress = int((completed_tasks / total_tasks * 100)) if total_tasks > 0 else 0
+	progress = int(completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
 
 	# Determine new status
 	milestone = frappe.get_doc("Project Milestone", milestone_name)
