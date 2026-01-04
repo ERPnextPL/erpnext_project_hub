@@ -13,19 +13,19 @@ def _get_incomplete_subtasks(task_name: str) -> list:
 	Returns list of dicts with name and subject.
 	"""
 	incomplete = []
-	
+
 	subtasks = frappe.get_all(
 		"Task",
 		filters={"parent_task": task_name},
 		fields=["name", "subject", "status"]
 	)
-	
+
 	for subtask in subtasks:
 		if subtask["status"] not in ["Completed", "Cancelled"]:
 			incomplete.append({"name": subtask["name"], "subject": subtask["subject"]})
 		# Check children recursively
 		incomplete.extend(_get_incomplete_subtasks(subtask["name"]))
-	
+
 	return incomplete
 
 
@@ -35,18 +35,18 @@ def get_projects():
 	Get list of projects based on user role:
 	- Projects Manager / System Manager: sees all projects (except Cancelled)
 	- Projects User: sees only projects where they have tasks assigned or are project members
-	
+
 	Returns projects grouped by status (active vs completed).
 	"""
 	user = frappe.session.user
 	user_roles = frappe.get_roles(user)
-	
+
 	# Check if user has manager role
 	is_manager = "Projects Manager" in user_roles or "System Manager" in user_roles or "Administrator" in user_roles
-	
+
 	# Base filters - exclude Cancelled and Template projects
 	filters = {"status": ["not in", ["Cancelled", "Template"]]}
-	
+
 	if is_manager:
 		# Managers see all non-cancelled projects
 		projects = frappe.get_all(
@@ -65,7 +65,7 @@ def get_projects():
 		)
 	else:
 		# Regular users - get projects where they have tasks or are members
-		
+
 		# 1. Get projects where user has assigned tasks
 		projects_with_tasks = frappe.db.sql("""
 			SELECT DISTINCT t.project
@@ -73,9 +73,9 @@ def get_projects():
 			WHERE t.project IS NOT NULL
 			AND t._assign LIKE %s
 		""", (f'%{user}%',), as_dict=True)
-		
+
 		project_names_from_tasks = [p["project"] for p in projects_with_tasks if p["project"]]
-		
+
 		# 2. Get projects where user is a member (via Project User child table)
 		projects_as_member = frappe.db.sql("""
 			SELECT DISTINCT pu.parent as project
@@ -83,15 +83,15 @@ def get_projects():
 			WHERE pu.user = %s
 			AND pu.parenttype = 'Project'
 		""", (user,), as_dict=True)
-		
+
 		project_names_from_membership = [p["project"] for p in projects_as_member if p["project"]]
-		
+
 		# Combine both lists
 		all_user_projects = list(set(project_names_from_tasks + project_names_from_membership))
-		
+
 		if not all_user_projects:
 			return {"active": [], "completed": [], "is_manager": False}
-		
+
 		# Get project details
 		projects = frappe.get_all(
 			"Project",
@@ -114,7 +114,7 @@ def get_projects():
 	# Add task count, user's task count, assigned users count, and next milestone for each project
 	for project in projects:
 		project["task_count"] = frappe.db.count("Task", {"project": project["name"]})
-		
+
 		# Count user's assigned tasks in this project
 		if not is_manager:
 			user_tasks = frappe.db.sql("""
@@ -123,14 +123,14 @@ def get_projects():
 				WHERE project = %s AND _assign LIKE %s
 			""", (project["name"], f'%{user}%'), as_dict=True)
 			project["user_task_count"] = user_tasks[0]["count"] if user_tasks else 0
-		
+
 		# Count unique assigned users in project tasks
 		assigned_users_result = frappe.db.sql("""
 			SELECT _assign
 			FROM `tabTask`
 			WHERE project = %s AND _assign IS NOT NULL AND _assign != '[]'
 		""", (project["name"],), as_dict=True)
-		
+
 		unique_users = set()
 		for row in assigned_users_result:
 			if row.get("_assign"):
@@ -139,20 +139,20 @@ def get_projects():
 					users = json.loads(row["_assign"])
 					if isinstance(users, list):
 						unique_users.update(users)
-				except:
+				except Exception:
 					pass
 		project["assigned_users_count"] = len(unique_users)
-		
+
 		# Get next milestone (closest future milestone_date)
 		next_milestone = frappe.db.sql("""
 			SELECT name, milestone_name, milestone_date
 			FROM `tabProject Milestone`
-			WHERE project = %s 
+			WHERE project = %s
 			AND milestone_date >= CURDATE()
 			ORDER BY milestone_date ASC
 			LIMIT 1
 		""", (project["name"],), as_dict=True)
-		
+
 		if next_milestone:
 			project["next_milestone"] = next_milestone[0]["milestone_name"]
 			project["next_milestone_date"] = next_milestone[0]["milestone_date"]
@@ -163,11 +163,11 @@ def get_projects():
 			project["next_milestone"] = None
 			project["next_milestone_date"] = None
 			project["days_to_milestone"] = None
-	
+
 	# Separate active and completed projects
 	active_projects = [p for p in projects if p["status"] != "Completed"]
 	completed_projects = [p for p in projects if p["status"] == "Completed"]
-	
+
 	return {
 		"active": active_projects,
 		"completed": completed_projects,
@@ -220,19 +220,19 @@ def get_project_tasks(project: str):
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		WHERE tsd.project = %s AND ts.docstatus < 2
 	""", project, as_dict=1)
-	
+
 	# Get estimated hours from tasks
 	estimated_hours = frappe.db.sql("""
 		SELECT COALESCE(SUM(expected_time), 0) as estimated_hours
 		FROM `tabTask`
 		WHERE project = %s
 	""", project, as_dict=1)
-	
+
 	# Get customer name if customer is set
 	customer_name = None
 	if project_doc.customer:
 		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
-	
+
 	return {
 		"project": {
 			"name": project_doc.name,
@@ -254,7 +254,11 @@ def get_project_tasks(project: str):
 
 
 @frappe.whitelist()
-def update_project(project: str, expected_start_date: str = None, expected_end_date: str = None):
+def update_project(
+    project: str,
+    expected_start_date: str | None = None,
+    expected_end_date: str | None = None,
+):
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -313,12 +317,12 @@ def update_project(project: str, expected_start_date: str = None, expected_end_d
 
 @frappe.whitelist()
 def create_task(
-	subject: str,
-	project: str,
-	parent_task: str = None,
-	priority: str = "Medium",
-	status: str = "Open",
-	exp_end_date: str | None = None,
+    subject: str,
+    project: str,
+    parent_task: str | None = None,
+    priority: str = "Medium",
+    status: str = "Open",
+    exp_end_date: str | None = None,
 ):
 	"""Create a new task."""
 	if not subject or not project:
@@ -385,7 +389,7 @@ def update_task(task_name: str, **kwargs):
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
 				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
-			
+
 			# Show as info message instead of error
 			frappe.msgprint(
 				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(
@@ -477,7 +481,11 @@ def delete_task(task_name: str):
 
 
 @frappe.whitelist()
-def reorder_task(task_name: str, parent_task: str = None, idx: int = 0):
+def reorder_task(
+    task_name: str,
+    parent_task: str | None = None,
+    idx: int = 0,
+):
 	"""
 	Reorder a task - change its parent and/or position.
 	This handles both reparenting and reordering within the same parent.
@@ -543,7 +551,7 @@ def toggle_task_status(task_name: str):
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
 				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
-			
+
 			# Show as info message instead of error
 			frappe.msgprint(
 				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(
@@ -619,12 +627,17 @@ def get_users():
 
 
 @frappe.whitelist()
-def assign_task(task_name: str, user: str = None, action: str = "add"):
+def assign_task(
+    task_name: str,
+    user: str | None = None,
+    action: str = "add",
+):
 	"""Assign or unassign a user to/from a task."""
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
-	from frappe.desk.form.assign_to import add as add_assignment, remove as remove_assignment
+	from frappe.desk.form.assign_to import add as add_assignment
+	from frappe.desk.form.assign_to import remove as remove_assignment
 
 	if action == "add" and user:
 		add_assignment({
@@ -632,7 +645,7 @@ def assign_task(task_name: str, user: str = None, action: str = "add"):
 			"name": task_name,
 			"assign_to": [user],
 		})
-		
+
 		# Auto-assign user to project if not already assigned
 		task = frappe.get_doc("Task", task_name)
 		if task.project:
@@ -641,7 +654,7 @@ def assign_task(task_name: str, user: str = None, action: str = "add"):
 				"parent": task.project,
 				"user": user
 			})
-			
+
 			if not existing:
 				# Add user to project
 				try:
@@ -655,8 +668,10 @@ def assign_task(task_name: str, user: str = None, action: str = "add"):
 					project_user.insert(ignore_permissions=True)
 					frappe.db.commit()
 				except Exception as e:
-					frappe.log_error(f"Failed to auto-assign user {user} to project {task.project}: {str(e)}")
-					
+					frappe.log_error(
+						f"Failed to auto-assign user {user} to project {task.project}: {e!s}"
+					)
+
 	elif action == "remove" and user:
 		remove_assignment("Task", task_name, user)
 	elif action == "clear":
@@ -689,7 +704,7 @@ def get_project_users(project: str):
 		frappe.throw(_("Project is required"))
 
 	project_doc = frappe.get_doc("Project", project)
-	
+
 	users = []
 	for user in project_doc.users:
 		user_doc = frappe.get_doc("User", user.user)
@@ -713,7 +728,7 @@ def add_project_user(project: str, user: str):
 		"parent": project,
 		"user": user
 	})
-	
+
 	if existing:
 		return {"message": "User already in project"}
 
@@ -756,7 +771,7 @@ def get_task_timelogs(task_name: str):
 	# Get timesheets that have time logs for this task
 	timelogs = frappe.db.sql(
 		"""
-		SELECT 
+		SELECT
 			ts.name as timesheet_name,
 			ts.owner,
 			ts.status,
@@ -797,10 +812,10 @@ def get_task_timelogs(task_name: str):
 def create_timelog(
 	task: str,
 	hours: float,
-	activity_type: str = "Execution",
-	description: str = None,
-	from_time: str = None,
-	to_time: str = None,
+	activity_type: str | None = "Execution",
+	description: str | None = None,
+	from_time: str | None = None,
+	to_time: str | None = None,
 ):
 	"""
 	Create a time log entry for a task.
@@ -877,7 +892,7 @@ def create_timelog(
 
 	# Return the created log with user info
 	latest_log = timesheet.time_logs[-1]
-	
+
 	# Get user details
 	user_doc = frappe.get_cached_doc("User", user)
 
@@ -901,11 +916,11 @@ def create_timelog(
 @frappe.whitelist()
 def update_timelog(
 	timelog_name: str,
-	hours: float = None,
-	activity_type: str = None,
-	description: str = None,
-	from_time: str = None,
-	to_time: str = None,
+	hours: float | None = None,
+	activity_type: str | None = None,
+	description: str | None = None,
+	from_time: str | None = None,
+	to_time: str | None = None,
 ):
 	"""Update an existing time log entry."""
 	if not timelog_name:
@@ -1039,12 +1054,12 @@ def get_task_statuses():
 	# Get status options from Task doctype meta
 	task_meta = frappe.get_meta("Task")
 	status_field = task_meta.get_field("status")
-	
+
 	if status_field and status_field.options:
 		# Options are stored as newline-separated string
 		statuses = [s.strip() for s in status_field.options.split("\n") if s.strip()]
 		return statuses
-	
+
 	# Fallback to default statuses
 	return ["Open", "Working", "Pending Review", "Completed", "Overdue", "Cancelled"]
 
@@ -1055,12 +1070,12 @@ def get_task_priorities():
 	# Get priority options from Task doctype meta
 	task_meta = frappe.get_meta("Task")
 	priority_field = task_meta.get_field("priority")
-	
+
 	if priority_field and priority_field.options:
 		# Options are stored as newline-separated string
 		priorities = [p.strip() for p in priority_field.options.split("\n") if p.strip()]
 		return priorities
-	
+
 	# Fallback to default priorities
 	return ["Low", "Medium", "High", "Urgent"]
 
@@ -1141,10 +1156,10 @@ def _calculate_milestone_health(milestone):
 def create_milestone(
 	project: str,
 	milestone_name: str,
-	description: str = None,
-	milestone_date: str = None,
+	description: str | None = None,
+	milestone_date: str | None = None,
 	priority: str = "Medium",
-	color: str = None,
+	color: str | None = None,
 ):
 	"""
 	Create a new milestone for a project.
@@ -1194,12 +1209,12 @@ def create_milestone(
 @frappe.whitelist()
 def update_milestone(
 	milestone_name: str,
-	new_milestone_name: str = None,
-	description: str = None,
-	milestone_date: str = None,
-	status: str = None,
-	priority: str = None,
-	color: str = None,
+	new_milestone_name: str | None = None,
+	description: str | None = None,
+	milestone_date: str | None = None,
+	status: str | None = None,
+	priority: str | None = None,
+	color: str | None = None,
 ):
 	"""
 	Update milestone details.
@@ -1266,15 +1281,15 @@ def delete_milestone(milestone_name: str):
 
 
 @frappe.whitelist()
-def assign_task_to_milestone(task_name: str, milestone: str = None):
+def assign_task_to_milestone(task_name: str, milestone: str | None = None):
 	"""
 	Assign a task to a milestone or remove milestone assignment.
 	Also assigns all subtasks to the same milestone.
-	
+
 	Args:
 		task_name: Name of the task to update
 		milestone: Name of the milestone to assign, or None/empty to remove assignment
-	
+
 	Validates that task and milestone belong to the same project.
 	"""
 	if not task_name:
@@ -1295,9 +1310,6 @@ def assign_task_to_milestone(task_name: str, milestone: str = None):
 					task.project, milestone_project
 				)
 			)
-
-	# Store old milestone for progress update
-	old_milestone = task.milestone
 
 	# Update task
 	task.milestone = milestone if milestone else None
@@ -1380,18 +1392,18 @@ def get_milestone_statuses():
 
 @frappe.whitelist()
 def get_my_tasks(
-	status: str = None,
-	priority: str = None,
-	project: str = None,
-	due_filter: str = None,
-	search: str = None,
+	status: str | None = None,
+	priority: str | None = None,
+	project: str | None = None,
+	due_filter: str | None = None,
+	search: str | None = None,
 	sort_by: str = "default",
 	limit: int = 100,
 	offset: int = 0,
 ):
 	"""
 	Get all tasks assigned to the current user across all projects.
-	
+
 	Args:
 		status: Filter by status (comma-separated for multiple)
 		priority: Filter by priority (comma-separated for multiple)
@@ -1401,19 +1413,19 @@ def get_my_tasks(
 		sort_by: 'default' (overdue first, then by due date), 'due_date', 'priority', 'modified'
 		limit: Number of results to return
 		offset: Offset for pagination
-	
+
 	Returns:
 		List of tasks with project info
 	"""
 	user = frappe.session.user
-	
+
 	# Build filters
 	filters = []
 	values = {"user": f'%"{user}"%'}
-	
+
 	# Base filter: assigned to current user
 	filters.append("t._assign LIKE %(user)s")
-	
+
 	# Status filter
 	if status:
 		status_list = [s.strip() for s in status.split(",") if s.strip()]
@@ -1422,7 +1434,7 @@ def get_my_tasks(
 			filters.append(f"t.status IN ({status_placeholders})")
 			for i, s in enumerate(status_list):
 				values[f"status_{i}"] = s
-	
+
 	# Priority filter
 	if priority:
 		priority_list = [p.strip() for p in priority.split(",") if p.strip()]
@@ -1431,17 +1443,17 @@ def get_my_tasks(
 			filters.append(f"t.priority IN ({priority_placeholders})")
 			for i, p in enumerate(priority_list):
 				values[f"priority_{i}"] = p
-	
+
 	# Project filter
 	if project:
 		filters.append("t.project = %(project)s")
 		values["project"] = project
-	
+
 	# Due date filter
 	if due_filter:
-		from frappe.utils import today, add_days
+		from frappe.utils import add_days, today
 		today_date = today()
-		
+
 		if due_filter == "today":
 			filters.append("t.exp_end_date = %(today)s")
 			values["today"] = today_date
@@ -1453,27 +1465,27 @@ def get_my_tasks(
 		elif due_filter == "overdue":
 			filters.append("t.exp_end_date < %(today)s AND t.status NOT IN ('Completed', 'Cancelled')")
 			values["today"] = today_date
-	
+
 	# Search filter
 	if search:
 		filters.append("t.subject LIKE %(search)s")
 		values["search"] = f"%{search}%"
-	
+
 	# Build WHERE clause
 	where_clause = " AND ".join(filters) if filters else "1=1"
-	
+
 	# Build ORDER BY clause
 	# Note: MariaDB doesn't support NULLS LAST, use ISNULL() or COALESCE instead
 	if sort_by == "due_date":
 		order_by = "ISNULL(t.exp_end_date), t.exp_end_date ASC, t.modified DESC"
 	elif sort_by == "priority":
 		order_by = """
-			CASE t.priority 
-				WHEN 'Urgent' THEN 1 
-				WHEN 'High' THEN 2 
-				WHEN 'Medium' THEN 3 
-				WHEN 'Low' THEN 4 
-				ELSE 5 
+			CASE t.priority
+				WHEN 'Urgent' THEN 1
+				WHEN 'High' THEN 2
+				WHEN 'Medium' THEN 3
+				WHEN 'Low' THEN 4
+				ELSE 5
 			END ASC, ISNULL(t.exp_end_date), t.exp_end_date ASC
 		"""
 	elif sort_by == "modified":
@@ -1483,17 +1495,17 @@ def get_my_tasks(
 		from frappe.utils import today
 		values["sort_today"] = today()
 		order_by = """
-			CASE 
-				WHEN t.exp_end_date < %(sort_today)s AND t.status NOT IN ('Completed', 'Cancelled') THEN 0 
-				ELSE 1 
+			CASE
+				WHEN t.exp_end_date < %(sort_today)s AND t.status NOT IN ('Completed', 'Cancelled') THEN 0
+				ELSE 1
 			END ASC,
 			ISNULL(t.exp_end_date), t.exp_end_date ASC,
 			t.modified DESC
 		"""
-	
+
 	# Execute query
 	tasks = frappe.db.sql(f"""
-		SELECT 
+		SELECT
 			t.name,
 			t.subject,
 			t.parent_task,
@@ -1516,14 +1528,14 @@ def get_my_tasks(
 		ORDER BY {order_by}
 		LIMIT %(limit)s OFFSET %(offset)s
 	""", {**values, "limit": int(limit), "offset": int(offset)}, as_dict=True)
-	
+
 	# Get total count for pagination
 	total_count = frappe.db.sql(f"""
 		SELECT COUNT(*) as count
 		FROM `tabTask` t
 		WHERE {where_clause}
 	""", values, as_dict=True)[0].get("count", 0)
-	
+
 	# Add overdue flag
 	from frappe.utils import getdate, today
 	today_date = getdate(today())
@@ -1532,7 +1544,7 @@ def get_my_tasks(
 			task["is_overdue"] = getdate(task["exp_end_date"]) < today_date and task["status"] not in ["Completed", "Cancelled"]
 		else:
 			task["is_overdue"] = False
-	
+
 	return {
 		"tasks": tasks,
 		"total": total_count,
@@ -1548,9 +1560,9 @@ def get_my_tasks_projects():
 	Used for project filter dropdown.
 	"""
 	user = frappe.session.user
-	
+
 	projects = frappe.db.sql("""
-		SELECT DISTINCT 
+		SELECT DISTINCT
 			p.name,
 			p.project_name,
 			p.status,
@@ -1562,15 +1574,15 @@ def get_my_tasks_projects():
 		GROUP BY p.name, p.project_name, p.status
 		ORDER BY p.project_name
 	""", (f'%"{user}"%',), as_dict=True)
-	
+
 	return projects
 
 
 @frappe.whitelist()
 def quick_update_task(
 	task_name: str,
-	status: str = None,
-	priority: str = None,
+	status: str | None = None,
+	priority: str | None = None,
 	exp_end_date: str | None = None,
 ):
 	"""
@@ -1580,9 +1592,9 @@ def quick_update_task(
 	"""
 	if not task_name:
 		frappe.throw(_("Task name is required"))
-	
+
 	task = frappe.get_doc("Task", task_name)
-	
+
 	# Check if trying to set status to Completed
 	if status == "Completed":
 		incomplete_subtasks = _get_incomplete_subtasks(task_name)
@@ -1590,7 +1602,7 @@ def quick_update_task(
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
 				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
-			
+
 			frappe.msgprint(
 				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(
 					len(incomplete_subtasks), subtask_names
@@ -1600,40 +1612,40 @@ def quick_update_task(
 			)
 			# Return current task state without changes
 			return _get_task_response(task)
-	
+
 	# Update fields
 	if status is not None:
 		task.status = status
 		if status == "Completed":
 			task.progress = 100
-	
+
 	if priority is not None:
 		task.priority = priority
-	
+
 	if exp_end_date is not None:
 		task.exp_end_date = exp_end_date if exp_end_date else None
-	
+
 	task.save()
-	
+
 	return _get_task_response(task)
 
 
 def _get_task_response(task):
 	"""Helper to format task response with project info."""
 	from frappe.utils import getdate, today
-	
+
 	project_name = None
 	if task.project:
 		project_name = frappe.db.get_value("Project", task.project, "project_name")
-	
+
 	parent_subject = None
 	if getattr(task, "parent_task", None):
 		parent_subject = frappe.db.get_value("Task", task.parent_task, "subject")
-	
+
 	is_overdue = False
 	if task.exp_end_date:
 		is_overdue = getdate(task.exp_end_date) < getdate(today()) and task.status not in ["Completed", "Cancelled"]
-	
+
 	return {
 		"name": task.name,
 		"subject": task.subject,
@@ -1660,28 +1672,28 @@ def get_task_detail(task_name: str):
 	"""
 	if not task_name:
 		frappe.throw(_("Task name is required"))
-	
+
 	task = frappe.get_doc("Task", task_name)
-	
+
 	return _get_task_response(task)
 
 
 @frappe.whitelist()
 def create_my_task(
-	subject: str,
-	project: str,
-	parent_task: str = None,
-	priority: str = "Medium",
-	status: str = "Open",
-	exp_end_date: str | None = None,
-	description: str = None,
+    subject: str,
+    project: str,
+    parent_task: str | None = None,
+    priority: str = "Medium",
+    status: str = "Open",
+    exp_end_date: str | None = None,
+    description: str | None = None,
 ):
 	"""
 	Create a new task and assign it to the current user.
 	"""
 	if not subject or not project:
 		frappe.throw(_("Subject and Project are required"))
-	
+
 	user = frappe.session.user
 
 	# If parent_task is provided, ensure it's a group task
@@ -1690,7 +1702,7 @@ def create_my_task(
 		if not parent.is_group:
 			parent.is_group = 1
 			parent.save()
-	
+
 	# Create task
 	task = frappe.get_doc({
 		"doctype": "Task",
@@ -1703,7 +1715,7 @@ def create_my_task(
 		"description": description,
 	})
 	task.insert()
-	
+
 	# Assign to current user
 	from frappe.desk.form.assign_to import add as add_assignment
 	add_assignment({
@@ -1711,10 +1723,10 @@ def create_my_task(
 		"name": task.name,
 		"assign_to": [user],
 	})
-	
+
 	# Reload to get _assign field
 	task.reload()
-	
+
 	return _get_task_response(task)
 
 
@@ -1727,7 +1739,7 @@ def get_projects_settings():
 	try:
 		# Get the single Projects Settings document
 		settings = frappe.get_single("Projects Settings")
-		
+
 		return {
 			"default_activity_type": settings.get("default_activity_type"),
 			# Add other settings fields as needed
