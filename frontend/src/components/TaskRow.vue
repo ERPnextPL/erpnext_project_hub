@@ -507,7 +507,7 @@ onUnmounted(() => {
 			</div>
 
 			<!-- Task subject -->
-			<div class="flex-1 min-w-0 flex items-center gap-1 relative">
+			<div class="flex-1 min-w-0 flex items-center gap-1 relative overflow-hidden">
 				<!-- Milestone drag handle (available for all tasks) -->
 				<div
 					draggable="true"
@@ -566,7 +566,7 @@ onUnmounted(() => {
 					<span
 						v-else
 						@dblclick.stop="startEditing('subject', task.subject)"
-						class="text-sm text-gray-900 truncate"
+						class="text-sm text-gray-900 truncate block w-full"
 						:class="{ 'font-medium': task.is_group }"
 					>
 						{{ task.subject }}
