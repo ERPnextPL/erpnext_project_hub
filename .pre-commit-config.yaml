@@ -9,7 +9,11 @@ repos:
     hooks:
       - id: trailing-whitespace
         files: "erpnext_projekt_hub.*"
-        exclude: ".*json$|.*txt$|.*csv|.*md|.*svg"
+        exclude: |
+            (?x)^(
+                .*(json|txt|csv|md|svg)$|
+                erpnext_projekt_hub/public/frontend/assets/.*
+            )$
       - id: check-merge-conflict
       - id: check-ast
       - id: check-json
@@ -42,7 +46,12 @@ repos:
                 .*node_modules.*|
                 .*boilerplate.*|
                 erpnext_projekt_hub/templates/includes/.*|
-                erpnext_projekt_hub/public/js/lib/.*
+                erpnext_projekt_hub/public/js/lib/.*|
+                erpnext_projekt_hub/public/frontend/assets/.*
+            )$
+        files: |
+            (?x)^(
+                erpnext_projekt_hub/public/js/.*
             )$
 
 
@@ -60,7 +69,8 @@ repos:
                 .*node_modules.*|
                 .*boilerplate.*|
                 erpnext_projekt_hub/templates/includes/.*|
-                erpnext_projekt_hub/public/js/lib/.*
+                erpnext_projekt_hub/public/js/lib/.*|
+                erpnext_projekt_hub/public/frontend/assets/.*
             )$
 
 ci:

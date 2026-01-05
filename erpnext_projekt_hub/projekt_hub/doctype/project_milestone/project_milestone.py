@@ -24,9 +24,7 @@ class ProjectMilestone(Document):
 			return
 
 		total_tasks = frappe.db.count("Task", {"milestone": self.name})
-		completed_tasks = frappe.db.count(
-			"Task", {"milestone": self.name, "status": "Completed"}
-		)
+		completed_tasks = frappe.db.count("Task", {"milestone": self.name, "status": "Completed"})
 
 		self.total_tasks = total_tasks
 		self.completed_tasks = completed_tasks

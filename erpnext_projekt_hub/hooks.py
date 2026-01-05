@@ -27,8 +27,8 @@ required_apps = ["erpnext"]
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
-# app_include_js = "/assets/erpnext_projekt_hub/js/erpnext_projekt_hub.js"
+app_include_css = "/assets/erpnext_projekt_hub/css/kanban_custom.css"
+app_include_js = "/assets/erpnext_projekt_hub/js/kanban_custom.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
@@ -45,14 +45,14 @@ required_apps = ["erpnext"]
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Project": "public/js/project.js"}
+doctype_js = {"Project": "public/js/project.js", "Timesheet": "public/js/timesheet_timer_override.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
 # Website route rules for SPA
 website_route_rules = [
-	{"from_route": "/outliner/<path:app_path>", "to_route": "outliner"},
+	{"from_route": "/project-hub/<path:app_path>", "to_route": "project-hub"},
 ]
 
 # Svg Icons
@@ -91,6 +91,12 @@ website_route_rules = [
 
 before_install = "erpnext_projekt_hub.install.before_install"
 after_install = "erpnext_projekt_hub.install.after_install"
+
+# Session boot helpers
+# boot_session = "erpnext_projekt_hub.utils.patch_sync_dashboards"
+
+# Request Events
+before_request = ["erpnext_projekt_hub.utils.patch_sync_dashboards_on_request"]
 
 # Uninstallation
 # ------------
@@ -147,7 +153,7 @@ after_install = "erpnext_projekt_hub.install.after_install"
 doc_events = {
 	"Task": {
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
-		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash"
+		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
 	}
 }
 
@@ -256,7 +262,14 @@ doc_events = {
 # Fixtures
 # --------
 fixtures = [
-    {"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
-    {"dt": "Workspace Link", "filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]]},
-    {"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]]},
+	{"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
+	{
+		"dt": "Workspace Link",
+		"filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]],
+	},
+	{
+		"dt": "Workspace Shortcut",
+		"filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]],
+	},
+	{"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
 ]

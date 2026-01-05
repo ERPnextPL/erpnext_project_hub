@@ -1,11 +1,11 @@
-// Project doctype customization - adds "Open Outliner" button
+// Project doctype customization - adds "Open Project Hub" button
 frappe.ui.form.on("Project", {
 	refresh: function (frm) {
 		if (!frm.is_new()) {
 			frm.add_custom_button(
-				__("Open Outliner"),
+				__("Open Project Hub"),
 				function () {
-					window.open(`/outliner/${frm.doc.name}`, "_blank");
+					window.open(`/project-hub/${frm.doc.name}`, "_blank");
 				},
 				__("View")
 			);

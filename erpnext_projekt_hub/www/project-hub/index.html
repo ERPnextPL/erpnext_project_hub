@@ -1,0 +1,27 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Project Outliner{% endblock %}
+
+{% block head_include %}
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
+{% endblock %}
+
+{% block page_content %}
+<div id="app"></div>
+{% endblock %}
+
+{% block script %}
+{{ super() }}
+<script>
+	window.csrf_token = '{{ csrf_token }}';
+	{% for key in boot %}
+	window["{{ key }}"] = {{ boot[key] | tojson }};
+	{% endfor %}
+</script>
+<script
+	type="module"
+	crossorigin
+	src="/assets/erpnext_projekt_hub/frontend/assets/main.js?v={{ frappe.utils.get_build_version() }}"
+></script>
+{% endblock %}
