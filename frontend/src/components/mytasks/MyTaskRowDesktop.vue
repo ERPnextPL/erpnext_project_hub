@@ -122,6 +122,19 @@ const currentPriority = computed(() => {
 	return priorityConfig[props.task.priority] || priorityConfig["Medium"];
 });
 
+const progressPercent = computed(() => {
+	const raw = Number(props.task.progress ?? 0);
+	if (Number.isNaN(raw)) return 0;
+	return Math.max(0, Math.min(100, raw));
+});
+
+const progressBarColor = computed(() => {
+	const percent = progressPercent.value;
+	if (percent >= 90) return "bg-emerald-500";
+	if (percent > 50) return "bg-amber-500";
+	return "bg-blue-500";
+});
+
 const taskDescription = computed(() => (props.task.description || "").trim());
 const descriptionPreviewLabel = computed(() => {
 	if (!taskDescription.value) {
@@ -291,6 +304,23 @@ onUnmounted(() => {
 						>{{ translate("Subtask") }}:
 						{{ task.parent_subject || task.parent_task }}</span
 					>
+				</div>
+
+				<div
+					v-if="task.progress !== null && task.progress !== undefined"
+					class="mt-2 space-y-1"
+				>
+					<div class="flex items-center justify-between text-xs text-gray-500">
+						<span>{{ translate("Progress") }}</span>
+						<span class="font-semibold text-gray-700">{{ progressPercent }}%</span>
+					</div>
+					<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+						<div
+							class="h-full rounded-full transition-all duration-300"
+							:class="progressBarColor"
+							:style="{ width: progressPercent + '%' }"
+						></div>
+					</div>
 				</div>
 			</div>
 		</div>

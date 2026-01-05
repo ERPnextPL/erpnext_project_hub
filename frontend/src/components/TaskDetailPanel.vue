@@ -23,6 +23,7 @@ import {
 	Diamond,
 	Folder,
 } from "lucide-vue-next";
+import { renderMarkdown } from "../utils/markdown";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -48,6 +49,17 @@ const isSaving = ref(false);
 const activeTab = ref("details");
 const showTimeLogModal = ref(false);
 const timelogsLoading = ref(false);
+const showMarkdownPreview = ref(false);
+
+const descriptionMarkdownPreview = computed(() =>
+	renderMarkdown(editableTask.value.description || "")
+);
+
+const descriptionPreviewButtonLabel = computed(() =>
+	showMarkdownPreview.value
+		? translate("Hide Markdown preview")
+		: translate("Show Markdown preview")
+);
 
 watch(
 	() => props.task,
@@ -432,6 +444,19 @@ async function handleSubtaskCreated() {
 					/>
 				</div>
 
+				<div class="flex items-center gap-3">
+					<label class="text-sm text-gray-500 w-20">{{ translate("Expected Time") }}</label>
+					<input
+						v-model.number="editableTask.expected_time"
+						type="number"
+						min="0"
+						step="0.25"
+						@blur="saveField('expected_time', editableTask.expected_time)"
+						class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+						:placeholder="translate('e.g. 4')"
+					/>
+				</div>
+
 				<!-- Start date -->
 				<div class="flex items-center gap-3">
 					<label class="text-sm text-gray-500 w-20">{{ translate("Start Date") }}</label>
@@ -465,9 +490,18 @@ async function handleSubtaskCreated() {
 
 				<!-- Description -->
 				<div>
-					<label class="text-sm font-medium text-gray-700 mb-2 block">{{
-						translate("Description")
-					}}</label>
+					<div class="flex items-center justify-between">
+						<label class="text-sm font-medium text-gray-700 mb-2 block">{{
+							translate("Description")
+						}}</label>
+						<button
+							type="button"
+							@click="showMarkdownPreview = !showMarkdownPreview"
+							class="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+						>
+							{{ descriptionPreviewButtonLabel }}
+						</button>
+					</div>
 					<textarea
 						v-model="editableTask.description"
 						rows="4"
@@ -475,6 +509,11 @@ async function handleSubtaskCreated() {
 						:placeholder="translate('Add description...')"
 						@blur="saveField('description', editableTask.description)"
 					></textarea>
+					<div
+						v-if="showMarkdownPreview"
+						class="mt-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 shadow-sm whitespace-pre-wrap break-words"
+						v-html="descriptionMarkdownPreview"
+					></div>
 				</div>
 
 				<hr class="border-gray-200" />
