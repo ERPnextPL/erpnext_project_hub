@@ -1,6 +1,7 @@
 <script setup>
-import { Users, Lock, Sparkles } from 'lucide-vue-next'
-import OutlinerNav from '../components/OutlinerNav.vue'
+import { Users, Lock, Sparkles } from "lucide-vue-next";
+import OutlinerNav from "../components/OutlinerNav.vue";
+import { translate } from "../utils/translation";
 </script>
 
 <template>
@@ -11,7 +12,9 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Users class="w-6 h-6 text-purple-600" />
-						<h1 class="text-xl font-semibold text-gray-900">Zarządzanie zespołem</h1>
+						<h1 class="text-xl font-semibold text-gray-900">
+							{{ translate("Team Management") }}
+						</h1>
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
@@ -30,49 +33,59 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 		<div class="max-w-2xl mx-auto px-4 py-16">
 			<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 text-center">
 				<!-- Icon -->
-				<div class="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+				<div
+					class="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"
+				>
 					<Users class="w-10 h-10 text-white" />
 				</div>
 
 				<!-- Badge -->
-				<div class="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-sm font-semibold rounded-full mb-4">
+				<div
+					class="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-sm font-semibold rounded-full mb-4"
+				>
 					<Sparkles class="w-4 h-4" />
 					PRO
 				</div>
 
 				<!-- Title -->
 				<h2 class="text-2xl font-bold text-gray-900 mb-3">
-					Widok kierownika zespołu
+					{{ translate("Team Manager View") }}
 				</h2>
 
 				<!-- Description -->
 				<p class="text-gray-600 mb-6 max-w-md mx-auto">
-					Zarządzaj zadaniami całego zespołu, przydzielaj pracę, monitoruj postępy i obciążenie pracowników w jednym miejscu.
+					{{
+						translate(
+							"Manage the entire team's tasks, assign work, monitor progress and employee workload in one place."
+						)
+					}}
 				</p>
 
 				<!-- Features list -->
 				<div class="bg-gray-50 rounded-xl p-6 mb-6 text-left">
-					<h3 class="text-sm font-semibold text-gray-700 mb-3">Co zawiera wersja Pro:</h3>
+					<h3 class="text-sm font-semibold text-gray-700 mb-3">
+						{{ translate("What Pro version includes:") }}
+					</h3>
 					<ul class="space-y-2 text-sm text-gray-600">
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Widok wszystkich zadań zespołu
+							{{ translate("View all team tasks") }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Przydzielanie zadań pracownikom
+							{{ translate("Assign tasks to employees") }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Monitorowanie obciążenia zespołu
+							{{ translate("Monitor team workload") }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Raporty wydajności
+							{{ translate("Performance reports") }}
 						</li>
 						<li class="flex items-center gap-2">
 							<div class="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-							Widok Kanban dla zespołu
+							{{ translate("Kanban view for team") }}
 						</li>
 					</ul>
 				</div>
@@ -80,7 +93,7 @@ import OutlinerNav from '../components/OutlinerNav.vue'
 				<!-- Lock notice -->
 				<div class="flex items-center justify-center gap-2 text-gray-500 text-sm">
 					<Lock class="w-4 h-4" />
-					<span>Ta funkcja jest dostępna tylko w wersji Pro</span>
+					<span>{{ translate("This feature is only available in Pro version") }}</span>
 				</div>
 			</div>
 		</div>

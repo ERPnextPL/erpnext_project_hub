@@ -1,10 +1,10 @@
 <script setup>
-import { ref, nextTick } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
-import TaskRow from './TaskRow.vue'
-import QuickAddTask from './QuickAddTask.vue'
-import TimeLogModal from './TimeLogModal.vue'
-import draggable from 'vuedraggable'
+import { ref, nextTick } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import TaskRow from "./TaskRow.vue";
+import QuickAddTask from "./QuickAddTask.vue";
+import TimeLogModal from "./TimeLogModal.vue?v=20241220";
+import draggable from "vuedraggable";
 
 const props = defineProps({
 	tasks: {
@@ -15,73 +15,73 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
-})
+});
 
-const store = useTaskStore()
-const draggedTask = ref(null)
-const addingSubtaskTo = ref(null) // Track which task we're adding a subtask to
-const showTimeLogModal = ref(false)
-const selectedTaskForTimeLog = ref(null)
+const store = useTaskStore();
+const draggedTask = ref(null);
+const addingSubtaskTo = ref(null); // Track which task we're adding a subtask to
+const showTimeLogModal = ref(false);
+const selectedTaskForTimeLog = ref(null);
 
 function focusBottomQuickAdd() {
 	nextTick(() => {
-		const el = document.querySelector('.task-tree-bottom-quickadd .quick-add-input')
-		el?.focus()
-	})
+		const el = document.querySelector(".task-tree-bottom-quickadd .quick-add-input");
+		el?.focus();
+	});
 }
 
 function handleDragStart(evt) {
-	draggedTask.value = evt.item.__vue__?.task || null
+	draggedTask.value = evt.item.__vue__?.task || null;
 }
 
 function handleDragEnd(evt) {
-	if (!draggedTask.value) return
+	if (!draggedTask.value) return;
 
-	const newIndex = evt.newIndex
-	const oldIndex = evt.oldIndex
+	const newIndex = evt.newIndex;
+	const oldIndex = evt.oldIndex;
 
 	if (newIndex !== oldIndex) {
 		// Calculate new parent and idx based on position
-		const targetTask = props.tasks[newIndex]
-		const newParent = targetTask?.parent_task || null
+		const targetTask = props.tasks[newIndex];
+		const newParent = targetTask?.parent_task || null;
 
-		store.reorderTask(draggedTask.value.name, newParent, newIndex)
+		store.reorderTask(draggedTask.value.name, newParent, newIndex);
 	}
 
-	draggedTask.value = null
+	draggedTask.value = null;
 }
 
-const highlightedTasks = ref(new Set())
+const highlightedTasks = ref(new Set());
 
 async function handleTaskUpdate(taskName, updates) {
 	try {
-		await store.updateTask(taskName, updates)
+		await store.updateTask(taskName, updates);
 	} catch (error) {
 		// Check if this is an incomplete subtasks error
-		const errorMsg = error.message || 'Failed to update task'
-		const isSubtaskError = errorMsg.includes('subtask') || errorMsg.includes('not completed')
-		
+		const errorMsg = error.message || "Failed to update task";
+		const isSubtaskError = errorMsg.includes("subtask") || errorMsg.includes("not completed");
+
 		if (window.frappe) {
 			// Parse Frappe error message if available
-			let displayMsg = errorMsg
+			let displayMsg = errorMsg;
 			try {
-				if (errorMsg.includes('_server_messages')) {
-					const parsed = JSON.parse(errorMsg)
-					displayMsg = parsed._server_messages || errorMsg
+				if (errorMsg.includes("_server_messages")) {
+					const parsed = JSON.parse(errorMsg);
+					displayMsg = parsed._server_messages || errorMsg;
 				}
 			} catch (e) {
 				// Use original message
 			}
-			
+
 			// Show as info (blue) for subtask errors, red for others
-			frappe.show_alert({ 
-				message: displayMsg, 
-				indicator: isSubtaskError ? 'blue' : 'red' 
-			})
-			
+			frappe.show_alert({
+				message: displayMsg,
+				indicator: isSubtaskError ? "blue" : "red",
+			});
+
 			// Highlight incomplete subtasks
 			if (isSubtaskError) {
-				highlightIncompleteSubtasks(taskName)
+				highlightIncompleteSubtasks(taskName);
 			}
 		}
 	}
@@ -90,85 +90,85 @@ async function handleTaskUpdate(taskName, updates) {
 function highlightIncompleteSubtasks(parentTaskName) {
 	// Find all subtasks of this parent
 	const findSubtasks = (taskName) => {
-		const subtasks = []
-		store.tasks.forEach(task => {
+		const subtasks = [];
+		store.tasks.forEach((task) => {
 			if (task.parent_task === taskName) {
-				subtasks.push(task)
+				subtasks.push(task);
 				// Recursively find children
-				subtasks.push(...findSubtasks(task.name))
+				subtasks.push(...findSubtasks(task.name));
 			}
-		})
-		return subtasks
-	}
-	
-	const subtasks = findSubtasks(parentTaskName)
-	const incompleteSubtasks = subtasks.filter(t => 
-		t.status !== 'Completed' && t.status !== 'Cancelled'
-	)
-	
+		});
+		return subtasks;
+	};
+
+	const subtasks = findSubtasks(parentTaskName);
+	const incompleteSubtasks = subtasks.filter(
+		(t) => t.status !== "Completed" && t.status !== "Cancelled"
+	);
+
 	// Expand parent to show subtasks
 	if (!store.expandedTasks.has(parentTaskName)) {
-		store.toggleExpand(parentTaskName)
+		store.toggleExpand(parentTaskName);
 	}
-	
+
 	// Highlight incomplete subtasks
-	highlightedTasks.value.clear()
-	incompleteSubtasks.forEach(task => {
-		highlightedTasks.value.add(task.name)
-	})
-	
+	highlightedTasks.value.clear();
+	incompleteSubtasks.forEach((task) => {
+		highlightedTasks.value.add(task.name);
+	});
+
 	// Remove highlights after 3 seconds
 	setTimeout(() => {
-		highlightedTasks.value.clear()
-	}, 3000)
+		highlightedTasks.value.clear();
+	}, 3000);
 }
 
 function handleTaskClick(task) {
-	store.selectTask(task)
+	store.selectTask(task);
 }
 
 function handleTaskCreated() {
-	store.fetchTasks(props.projectId)
-	addingSubtaskTo.value = null
+	store.fetchTasks(props.projectId);
+	addingSubtaskTo.value = null;
 }
 
 function handleAddSubtask(parentTaskName) {
-	const parent = store.tasks.find(t => t.name === parentTaskName)
-	if (parent && (parent.status === 'Completed' || parent.status === 'Cancelled')) {
-		return
+	const parent = store.tasks.find((t) => t.name === parentTaskName);
+	if (parent && (parent.status === "Completed" || parent.status === "Cancelled")) {
+		return;
 	}
 	// Expand the parent task if it's not expanded
 	if (!store.expandedTasks.has(parentTaskName)) {
-		store.toggleExpand(parentTaskName)
+		store.toggleExpand(parentTaskName);
 	}
-	addingSubtaskTo.value = parentTaskName
+	addingSubtaskTo.value = parentTaskName;
 }
 
 function handleAddTask() {
-	addingSubtaskTo.value = null
-	focusBottomQuickAdd()
+	addingSubtaskTo.value = null;
+	focusBottomQuickAdd();
 }
 
 function cancelAddSubtask() {
-	addingSubtaskTo.value = null
+	addingSubtaskTo.value = null;
 }
 
 function handleLogTime(task) {
-	selectedTaskForTimeLog.value = task
-	showTimeLogModal.value = true
+	selectedTaskForTimeLog.value = task;
+	showTimeLogModal.value = true;
 }
 
 async function handleTimeLogSave(timelogData) {
 	try {
-		await store.createTimelog(timelogData)
-		showTimeLogModal.value = false
-		selectedTaskForTimeLog.value = null
+		await store.createTimelog(timelogData);
+		showTimeLogModal.value = false;
+		selectedTaskForTimeLog.value = null;
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Time log saved successfully', indicator: 'green' })
+			frappe.show_alert({ message: "Time log saved successfully", indicator: "green" });
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: 'Failed to save time log', indicator: 'red' })
+			frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
 		}
 	}
 }
@@ -178,7 +178,9 @@ async function handleTimeLogSave(timelogData) {
 	<div class="task-tree">
 		<!-- Table header -->
 		<div class="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
-			<div class="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+			<div
+				class="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider"
+			>
 				<div class="col-span-5">Task</div>
 				<div class="col-span-2">Status</div>
 				<div class="col-span-2">Assignee</div>
@@ -210,7 +212,10 @@ async function handleTimeLogSave(timelogData) {
 							@add-task="handleAddTask"
 						/>
 						<!-- Inline subtask input -->
-						<div v-if="addingSubtaskTo === task.name" class="bg-blue-50 border-l-2 border-blue-400">
+						<div
+							v-if="addingSubtaskTo === task.name"
+							class="bg-blue-50 border-l-2 border-blue-400"
+						>
 							<QuickAddTask
 								:project-id="projectId"
 								:parent-task="task.name"
@@ -240,7 +245,10 @@ async function handleTimeLogSave(timelogData) {
 			v-if="selectedTaskForTimeLog"
 			:task="selectedTaskForTimeLog"
 			:show="showTimeLogModal"
-			@close="showTimeLogModal = false; selectedTaskForTimeLog = null"
+			@close="
+				showTimeLogModal = false;
+				selectedTaskForTimeLog = null;
+			"
 			@save="handleTimeLogSave"
 		/>
 	</div>

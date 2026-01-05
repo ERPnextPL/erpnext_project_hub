@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import { getRealWindow, translate } from "../utils/translation";
 import {
 	GripVertical,
 	ChevronRight,
@@ -16,7 +17,8 @@ import {
 	ExternalLink,
 	Plus,
 	Diamond,
-} from 'lucide-vue-next'
+	FileText,
+} from "lucide-vue-next";
 
 const props = defineProps({
 	task: {
@@ -31,342 +33,366 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
-})
+});
 
-const emit = defineEmits(['update', 'click', 'add-subtask', 'log-time', 'add-task'])
+const emit = defineEmits(["update", "click", "add-subtask", "log-time", "add-task"]);
 
-const store = useTaskStore()
+const store = useTaskStore();
+const realWindow = getRealWindow();
 
 // Inline editing state
-const editingField = ref(null)
-const editValue = ref('')
-const inputRef = ref(null)
+const editingField = ref(null);
+const editValue = ref("");
+const inputRef = ref(null);
 
 // Tooltip hint for milestone drag
-const showMilestoneHint = ref(false)
-const milestoneHintTimeout = ref(null)
+const showMilestoneHint = ref(false);
+const milestoneHintTimeout = ref(null);
+
+const taskDescription = computed(() => (props.task.description || "").trim());
+const descriptionPreviewLabel = computed(() => {
+	if (!taskDescription.value) {
+		return "";
+	}
+	const firstLine = taskDescription.value.split("\n")[0]?.trim();
+	return firstLine || "";
+});
+const showDescriptionPreview = ref(false);
+
+const isTouchDevice = () => {
+	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
+};
 
 // Context menu
-const showContextMenu = ref(false)
-const contextMenuPosition = ref({ x: 0, y: 0 })
+const showContextMenu = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
 
 // User assignment dropdown
-const showUserDropdown = ref(false)
-const userDropdownPosition = ref({ x: 0, y: 0 })
+const showUserDropdown = ref(false);
+const userDropdownPosition = ref({ x: 0, y: 0 });
 
 const hasChildren = computed(() => {
 	// Check if any task has this task as parent
-	return store.tasks.some(t => t.parent_task === props.task.name)
-})
-const isExpanded = computed(() => store.expandedTasks.has(props.task.name))
+	return store.tasks.some((t) => t.parent_task === props.task.name);
+});
+const isExpanded = computed(() => store.expandedTasks.has(props.task.name));
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== 'Completed' && props.task.status !== 'Cancelled'
-})
+	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+});
 
 const assignedUsers = computed(() => {
-	if (!props.task._assign) return []
+	if (!props.task._assign) return [];
 	try {
-		const assigns = JSON.parse(props.task._assign)
-		return Array.isArray(assigns) ? assigns : []
+		const assigns = JSON.parse(props.task._assign);
+		return Array.isArray(assigns) ? assigns : [];
 	} catch {
-		return []
+		return [];
 	}
-})
+});
 
 const firstAssignee = computed(() => {
-	if (assignedUsers.value.length === 0) return null
-	const email = assignedUsers.value[0]
+	if (assignedUsers.value.length === 0) return null;
+	const email = assignedUsers.value[0];
 	// Extract name from email (before @)
-	const name = email.split('@')[0]
+	const name = email.split("@")[0];
 	return {
 		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, ' ')
-	}
-})
+		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
+	};
+});
 
 const milestoneColor = computed(() => {
-	if (!props.task.milestone) return null
-	const milestone = store.milestones.find(m => m.name === props.task.milestone)
-	return milestone?.color || '#3b82f6' // Default blue if no color set
-})
+	if (!props.task.milestone) return null;
+	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
+	return milestone?.color || "#3b82f6"; // Default blue if no color set
+});
 
 // Load metadata on mount
 onMounted(() => {
 	if (store.taskStatuses.length === 0) {
-		store.fetchTaskStatuses()
+		store.fetchTaskStatuses();
 	}
 	if (store.taskPriorities.length === 0) {
-		store.fetchTaskPriorities()
+		store.fetchTaskPriorities();
 	}
-})
+});
 
 // Status configuration with icons and classes
 const statusIconMap = {
-	'Open': { icon: Circle, class: 'status-open' },
-	'Working': { icon: Clock, class: 'status-working' },
-	'Pending Review': { icon: AlertCircle, class: 'status-working' },
-	'Completed': { icon: CheckCircle2, class: 'status-completed' },
-	'Overdue': { icon: AlertCircle, class: 'status-overdue' },
-	'Cancelled': { icon: Circle, class: 'status-cancelled' },
-}
+	Open: { icon: Circle, class: "status-open" },
+	Working: { icon: Clock, class: "status-working" },
+	"Pending Review": { icon: AlertCircle, class: "status-working" },
+	Completed: { icon: CheckCircle2, class: "status-completed" },
+	Overdue: { icon: AlertCircle, class: "status-overdue" },
+	Cancelled: { icon: Circle, class: "status-cancelled" },
+};
 
 const statusLabelMap = {
-	'Open': 'Open',
-	'Working': 'Working',
-	'Pending Review': 'Review',
-	'Completed': 'Done',
-	'Overdue': 'Overdue',
-	'Cancelled': 'Cancelled',
-}
+	Open: "Open",
+	Working: "Working",
+	"Pending Review": "Review",
+	Completed: "Done",
+	Overdue: "Overdue",
+	Cancelled: "Cancelled",
+};
 
 const statusConfig = computed(() => {
-	const config = {}
-	store.taskStatuses.forEach(status => {
-		const iconConfig = statusIconMap[status] || { icon: Circle, class: 'status-open' }
+	const config = {};
+	store.taskStatuses.forEach((status) => {
+		const iconConfig = statusIconMap[status] || { icon: Circle, class: "status-open" };
 		config[status] = {
 			icon: iconConfig.icon,
 			class: iconConfig.class,
-			label: statusLabelMap[status] || status
-		}
-	})
-	return config
-})
+			label: statusLabelMap[status] || status,
+		};
+	});
+	return config;
+});
 
 const priorityClassMap = {
-	'Urgent': 'priority-urgent',
-	'High': 'priority-high',
-	'Medium': 'priority-medium',
-	'Low': 'priority-low',
-}
+	Urgent: "priority-urgent",
+	High: "priority-high",
+	Medium: "priority-medium",
+	Low: "priority-low",
+};
 
 const priorityLabelMap = {
-	'Urgent': '!!!',
-	'High': '!!',
-	'Medium': '!',
-	'Low': '-',
-}
+	Urgent: "!!!",
+	High: "!!",
+	Medium: "!",
+	Low: "-",
+};
 
 const priorityConfig = computed(() => {
-	const config = {}
-	store.taskPriorities.forEach(priority => {
+	const config = {};
+	store.taskPriorities.forEach((priority) => {
 		config[priority] = {
-			class: priorityClassMap[priority] || 'priority-medium',
-			label: priorityLabelMap[priority] || priority.charAt(0)
-		}
-	})
-	return config
-})
+			class: priorityClassMap[priority] || "priority-medium",
+			label: priorityLabelMap[priority] || priority.charAt(0),
+		};
+	});
+	return config;
+});
 
 function toggleExpand() {
-	store.toggleExpand(props.task.name)
+	store.toggleExpand(props.task.name);
 }
 
 function handleRowClick() {
-	emit('click', props.task)
+	showDescriptionPreview.value = false;
+	emit("click", props.task);
 }
 
 function startEditing(field, currentValue) {
-	editingField.value = field
-	editValue.value = currentValue || ''
+	editingField.value = field;
+	editValue.value = currentValue || "";
 	nextTick(() => {
-		inputRef.value?.focus()
-		inputRef.value?.select()
-	})
+		inputRef.value?.focus();
+		inputRef.value?.select();
+	});
 }
 
 function finishEditing() {
 	if (editingField.value && editValue.value !== props.task[editingField.value]) {
-		emit('update', props.task.name, { [editingField.value]: editValue.value })
+		emit("update", props.task.name, { [editingField.value]: editValue.value });
 	}
-	editingField.value = null
-	editValue.value = ''
+	editingField.value = null;
+	editValue.value = "";
 }
 
 function cancelEditing() {
-	editingField.value = null
-	editValue.value = ''
+	editingField.value = null;
+	editValue.value = "";
 }
 
 function handleKeydown(e) {
-	if (e.key === 'Enter') {
-		finishEditing()
-	} else if (e.key === 'Escape') {
-		cancelEditing()
+	if (e.key === "Enter") {
+		finishEditing();
+	} else if (e.key === "Escape") {
+		cancelEditing();
 	}
 }
 
 async function cycleStatus() {
 	// Filter out non-workflow statuses like Overdue (Cancelled is included but has special handling)
-	const excludedStatuses = ['Overdue', 'Template']
-	const cyclableStatuses = store.taskStatuses.filter(s => !excludedStatuses.includes(s))
-	
-	if (cyclableStatuses.length === 0) return
-	
-	if (props.task.status === 'Completed') {
-		const targetStatus = cyclableStatuses.includes('Working') ? 'Working' : cyclableStatuses[0]
-		emit('update', props.task.name, { status: targetStatus })
-		return
-	}
-	
-	const currentIndex = cyclableStatuses.indexOf(props.task.status)
-	
-	// If current status is not in cycle (e.g. it was Overdue), reset to first status (usually Open)
-	if (currentIndex === -1) {
-		emit('update', props.task.name, { status: cyclableStatuses[0] })
-		return
+	const excludedStatuses = ["Overdue", "Template"];
+	const cyclableStatuses = store.taskStatuses.filter((s) => !excludedStatuses.includes(s));
+
+	if (cyclableStatuses.length === 0) return;
+
+	if (props.task.status === "Completed") {
+		const targetStatus = cyclableStatuses.includes("Working")
+			? "Working"
+			: cyclableStatuses[0];
+		emit("update", props.task.name, { status: targetStatus });
+		return;
 	}
 
-	const nextIndex = (currentIndex + 1) % cyclableStatuses.length
-	const nextStatus = cyclableStatuses[nextIndex]
-	
+	const currentIndex = cyclableStatuses.indexOf(props.task.status);
+
+	// If current status is not in cycle (e.g. it was Overdue), reset to first status (usually Open)
+	if (currentIndex === -1) {
+		emit("update", props.task.name, { status: cyclableStatuses[0] });
+		return;
+	}
+
+	const nextIndex = (currentIndex + 1) % cyclableStatuses.length;
+	const nextStatus = cyclableStatuses[nextIndex];
+
 	// Special handling for Cancelled status
-	if (nextStatus === 'Cancelled') {
+	if (nextStatus === "Cancelled") {
 		// Check if task has any subtasks
-		const subtasks = store.tasks.filter(t => t.parent_task === props.task.name)
+		const subtasks = store.tasks.filter((t) => t.parent_task === props.task.name);
 		if (subtasks.length > 0) {
-			await handleCancelWithSubtasks()
-			return
+			await handleCancelWithSubtasks();
+			return;
 		}
 	}
-	
-	emit('update', props.task.name, { status: nextStatus })
+
+	emit("update", props.task.name, { status: nextStatus });
 }
 
 async function handleCancelWithSubtasks() {
 	// Count all subtasks recursively
 	const countSubtasks = (taskName) => {
-		let count = 0
-		store.tasks.forEach(task => {
+		let count = 0;
+		store.tasks.forEach((task) => {
 			if (task.parent_task === taskName) {
-				count++
-				count += countSubtasks(task.name)
+				count++;
+				count += countSubtasks(task.name);
 			}
-		})
-		return count
-	}
-	
-	const subtaskCount = countSubtasks(props.task.name)
-	
+		});
+		return count;
+	};
+
+	const subtaskCount = countSubtasks(props.task.name);
+
 	// Ask for confirmation
 	const confirmed = confirm(
-		`To zadanie ma ${subtaskCount} podzadań.\n\n` +
-		`Anulowanie tego zadania spowoduje również anulowanie wszystkich podzadań.\n\n` +
-		`Czy chcesz kontynuować?`
-	)
-	
-	if (!confirmed) return
-	
+		translate(
+			`This task has {subtaskCount} subtasks.\n\n` +
+				`Cancelling this task will also cancel all subtasks.\n\n` +
+				`Do you want to continue?`,
+			{ subtaskCount }
+		)
+	);
+
+	if (!confirmed) return;
+
 	// Cancel the main task
-	emit('update', props.task.name, { status: 'Cancelled' })
-	
+	emit("update", props.task.name, { status: "Cancelled" });
+
 	// Cancel all subtasks recursively
 	const cancelSubtasks = async (taskName) => {
-		const subtasks = store.tasks.filter(task => task.parent_task === taskName)
+		const subtasks = store.tasks.filter((task) => task.parent_task === taskName);
 		for (const subtask of subtasks) {
-			await store.updateTask(subtask.name, { status: 'Cancelled' })
+			await store.updateTask(subtask.name, { status: "Cancelled" });
 			// Recursively cancel children
-			await cancelSubtasks(subtask.name)
+			await cancelSubtasks(subtask.name);
 		}
-	}
-	
-	await cancelSubtasks(props.task.name)
-	
+	};
+
+	await cancelSubtasks(props.task.name);
+
 	// Show success message
-	if (window.frappe) {
-		frappe.show_alert({ 
-			message: `Zadanie i ${subtaskCount} podzadań zostało anulowane`, 
-			indicator: 'orange' 
-		})
+	if (realWindow?.frappe) {
+		realWindow.frappe.show_alert({
+			message: translate("Task and {subtaskCount} subtasks cancelled", { subtaskCount }),
+			indicator: "orange",
+		});
 	}
 }
 
 function showUserAssignDropdown(e) {
-	e.preventDefault()
-	e.stopPropagation()
-	userDropdownPosition.value = { x: e.clientX, y: e.clientY }
-	showUserDropdown.value = true
+	e.preventDefault();
+	e.stopPropagation();
+	userDropdownPosition.value = { x: e.clientX, y: e.clientY };
+	showUserDropdown.value = true;
 
 	// Close on click outside
 	const closeDropdown = () => {
-		showUserDropdown.value = false
-		document.removeEventListener('click', closeDropdown)
-	}
-	setTimeout(() => document.addEventListener('click', closeDropdown), 0)
+		showUserDropdown.value = false;
+		document.removeEventListener("click", closeDropdown);
+	};
+	setTimeout(() => document.addEventListener("click", closeDropdown), 0);
 }
 
 async function assignCurrentUser() {
-	const currentUser = window.frappe?.session?.user
+	const currentUser = realWindow?.frappe?.session?.user;
 	if (currentUser) {
-		await store.assignTask(props.task.name, currentUser, 'add')
-		showUserDropdown.value = false
-		if (window.frappe) {
-			frappe.show_alert({ message: 'Użytkownik przypisany', indicator: 'green' })
+		await store.assignTask(props.task.name, currentUser, "add");
+		showUserDropdown.value = false;
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("User assigned"),
+				indicator: "green",
+			});
 		}
 	}
 }
 
 async function assignUser(user) {
-	await store.assignTask(props.task.name, user, 'add')
-	showUserDropdown.value = false
-	if (window.frappe) {
-		frappe.show_alert({ message: 'Użytkownik przypisany', indicator: 'green' })
+	await store.assignTask(props.task.name, user, "add");
+	showUserDropdown.value = false;
+	if (realWindow?.frappe) {
+		realWindow.frappe.show_alert({ message: translate("User assigned"), indicator: "green" });
 	}
 }
 
 function showMenu(e) {
-	if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
-		return
+	if (realWindow?.matchMedia?.("(hover: none)").matches) {
+		return;
 	}
-	e.preventDefault()
-	contextMenuPosition.value = { x: e.clientX, y: e.clientY }
-	showContextMenu.value = true
+	e.preventDefault();
+	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
+	showContextMenu.value = true;
 
 	// Close on click outside
 	const closeMenu = () => {
-		showContextMenu.value = false
-		document.removeEventListener('click', closeMenu)
-	}
-	setTimeout(() => document.addEventListener('click', closeMenu), 0)
+		showContextMenu.value = false;
+		document.removeEventListener("click", closeMenu);
+	};
+	setTimeout(() => document.addEventListener("click", closeMenu), 0);
 }
 
 async function deleteTask() {
 	if (hasChildren.value) {
-		if (!confirm('To zadanie ma podzadania. Usunąć również wszystkie podzadania?')) {
-			return
+		if (!confirm(translate("This task has subtasks. Delete all subtasks as well?"))) {
+			return;
 		}
 	}
-	await store.deleteTask(props.task.name)
-	showContextMenu.value = false
+	await store.deleteTask(props.task.name);
+	showContextMenu.value = false;
 }
 
 function openInDesk() {
-	window.open(`/app/task/${props.task.name}`, '_blank')
+	realWindow?.open(`/app/task/${props.task.name}`, "_blank");
 }
 
 function addSubtask() {
-	if (!canAddSubtask.value) return
-	emit('add-subtask', props.task.name)
-	showContextMenu.value = false
+	if (!canAddSubtask.value) return;
+	emit("add-subtask", props.task.name);
+	showContextMenu.value = false;
 }
 
 function addTask() {
-	emit('add-task', props.task.project)
-	showContextMenu.value = false
+	emit("add-task", props.task.project);
+	showContextMenu.value = false;
 }
 
 function logTime() {
-	emit('log-time', props.task)
-	showContextMenu.value = false
+	emit("log-time", props.task);
+	showContextMenu.value = false;
 }
 
 // Drag handlers for milestone assignment
 function handleDragStart(event) {
-	event.dataTransfer.effectAllowed = 'move'
-	event.dataTransfer.setData('text/plain', props.task.name)
-	showMilestoneHint.value = false
+	event.dataTransfer.effectAllowed = "move";
+	event.dataTransfer.setData("text/plain", props.task.name);
+	showMilestoneHint.value = false;
 	if (milestoneHintTimeout.value) {
-		clearTimeout(milestoneHintTimeout.value)
+		clearTimeout(milestoneHintTimeout.value);
 	}
 }
 
@@ -376,31 +402,68 @@ function handleDragEnd(event) {
 
 function showHint() {
 	// Show hint for 3 seconds when hovering over milestone drag handle
-	showMilestoneHint.value = true
+	showMilestoneHint.value = true;
 	if (milestoneHintTimeout.value) {
-		clearTimeout(milestoneHintTimeout.value)
+		clearTimeout(milestoneHintTimeout.value);
 	}
 	milestoneHintTimeout.value = setTimeout(() => {
-		showMilestoneHint.value = false
-	}, 3000)
+		showMilestoneHint.value = false;
+	}, 3000);
 }
 
 function hideHint() {
 	if (milestoneHintTimeout.value) {
-		clearTimeout(milestoneHintTimeout.value)
+		clearTimeout(milestoneHintTimeout.value);
 	}
-	showMilestoneHint.value = false
+	showMilestoneHint.value = false;
 }
+
+function handleDescriptionMouseEnter() {
+	if (isTouchDevice()) return;
+	if (!taskDescription.value) return;
+	showDescriptionPreview.value = true;
+}
+
+function handleDescriptionMouseLeave() {
+	if (isTouchDevice()) return;
+	showDescriptionPreview.value = false;
+}
+
+function toggleDescriptionPreview(event) {
+	event.stopPropagation();
+	if (!taskDescription.value) return;
+	showDescriptionPreview.value = !showDescriptionPreview.value;
+}
+
+// Close context menu when clicking outside
+function handleGlobalClick(event) {
+	if (showContextMenu.value && !event.target.closest(".context-menu-wrapper")) {
+		showContextMenu.value = false;
+	}
+	if (showDescriptionPreview.value && !event.target.closest(".description-preview-trigger")) {
+		showDescriptionPreview.value = false;
+	}
+}
+
+onMounted(() => {
+	document.addEventListener("click", handleGlobalClick);
+});
+
+onUnmounted(() => {
+	document.removeEventListener("click", handleGlobalClick);
+});
 </script>
 
 <template>
 	<div
-		class="task-row grid grid-cols-12 gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all"
+		class="task-row grid grid-cols-12 gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all context-menu-wrapper"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
-			level === 0 ? 'bg-white hover:bg-gray-50 border-transparent' : 
-			level === 1 ? 'bg-gray-50/50 hover:bg-gray-100/50 border-blue-200/40' : 
-			'bg-gray-100/30 hover:bg-gray-100/60 border-blue-300/30'
+			level === 0
+				? 'bg-white hover:bg-gray-50 border-transparent'
+				: level === 1
+				? 'bg-gray-50/50 hover:bg-gray-100/50 border-blue-200/40'
+				: 'bg-gray-100/30 hover:bg-gray-100/60 border-blue-300/30',
 		]"
 		@click="handleRowClick"
 		@contextmenu="showMenu"
@@ -408,28 +471,27 @@ function hideHint() {
 		<!-- Task name with indent -->
 		<div class="col-span-5 flex items-center gap-1 min-w-0">
 			<!-- Drag handle -->
-			<div 
+			<div
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
-				title="Przeciągnij, aby zmienić kolejność"
+				:title="translate('Drag to reorder')"
 			>
 				<GripVertical class="w-4 h-4 text-gray-400" />
 			</div>
 
 			<!-- Indent spacer with tree lines -->
-			<div
-				v-for="i in level"
-				:key="i"
-				class="w-6 flex-shrink-0 relative"
-			>
+			<div v-for="i in level" :key="i" class="w-6 flex-shrink-0 relative">
 				<!-- Vertical line -->
 				<div class="absolute left-3 top-0 bottom-0 w-px bg-gray-200"></div>
 			</div>
 
 			<!-- Expand/collapse toggle or connector -->
-			<div class="relative flex items-center justify-center" :class="level > 0 ? 'w-6' : 'w-5'">
+			<div
+				class="relative flex items-center justify-center"
+				:class="level > 0 ? 'w-6' : 'w-5'"
+			>
 				<!-- Horizontal connector line for subtasks -->
 				<div v-if="level > 0" class="absolute left-0 top-1/2 w-3 h-px bg-gray-200"></div>
-				
+
 				<button
 					v-if="hasChildren"
 					@click.stop="toggleExpand"
@@ -438,7 +500,10 @@ function hideHint() {
 					<ChevronDown v-if="isExpanded" class="w-4 h-4 text-gray-500" />
 					<ChevronRight v-else class="w-4 h-4 text-gray-500" />
 				</button>
-				<div v-else-if="level > 0" class="w-2 h-2 rounded-full bg-gray-300 relative z-10"></div>
+				<div
+					v-else-if="level > 0"
+					class="w-2 h-2 rounded-full bg-gray-300 relative z-10"
+				></div>
 			</div>
 
 			<!-- Task subject -->
@@ -452,56 +517,89 @@ function hideHint() {
 					@mouseleave="hideHint"
 					@click.stop
 					class="milestone-drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-0.5 -ml-1 relative"
-					:title="task.milestone ? '◆ Przeciągnij, aby zmienić kamień milowy' : '◆ Przeciągnij, aby przypisać do kamienia milowego'"
+					:title="
+						task.milestone
+							? translate('◆ Drag to change milestone')
+							: translate('◆ Drag to assign to milestone')
+					"
 				>
-					<Diamond 
-						:class="[
-							'w-3 h-3 flex-shrink-0',
-							!task.milestone && 'text-gray-400'
-						]"
+					<Diamond
+						:class="['w-3 h-3 flex-shrink-0', !task.milestone && 'text-gray-400']"
 						:style="task.milestone && milestoneColor ? { color: milestoneColor } : {}"
 					/>
-					
+
 					<!-- Hint tooltip -->
 					<Transition name="fade">
 						<div
 							v-if="showMilestoneHint"
 							class="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap"
 						>
-							<div class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2">
+							<div
+								class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg flex items-center gap-2"
+							>
 								<Diamond class="w-3 h-3" />
-								<span>Przeciągnij, aby przypisać do kamienia milowego</span>
+								<span>{{ translate("Drag to assign to milestone") }}</span>
 							</div>
 						</div>
 					</Transition>
 				</div>
-				
+
 				<!-- Milestone indicator (always visible if assigned) -->
-				<Diamond 
-					v-if="task.milestone" 
-					class="w-3 h-3 flex-shrink-0" 
+				<Diamond
+					v-if="task.milestone"
+					class="w-3 h-3 flex-shrink-0"
 					:style="{ color: milestoneColor }"
-					:title="'Kamień milowy: ' + task.milestone"
+					:title="translate('Milestone: ') + task.milestone"
 				/>
-				
-				<input
-					v-if="editingField === 'subject'"
-					ref="inputRef"
-					v-model="editValue"
-					type="text"
-					class="inline-edit-input text-sm flex-1"
-					@blur="finishEditing"
-					@keydown="handleKeydown"
-					@click.stop
-				/>
-				<span
-					v-else
-					@dblclick.stop="startEditing('subject', task.subject)"
-					class="text-sm text-gray-900 truncate"
-					:class="{ 'font-medium': task.is_group }"
-				>
-					{{ task.subject }}
-				</span>
+
+				<div class="flex-1 min-w-0">
+					<input
+						v-if="editingField === 'subject'"
+						ref="inputRef"
+						v-model="editValue"
+						type="text"
+						class="inline-edit-input text-sm flex-1"
+						@blur="finishEditing"
+						@keydown="handleKeydown"
+						@click.stop
+					/>
+					<span
+						v-else
+						@dblclick.stop="startEditing('subject', task.subject)"
+						class="text-sm text-gray-900 truncate"
+						:class="{ 'font-medium': task.is_group }"
+					>
+						{{ task.subject }}
+					</span>
+
+					<div
+						v-if="taskDescription"
+						class="mt-0.5 flex items-center gap-1 text-xs text-gray-400 description-preview-trigger relative"
+						@mouseenter="handleDescriptionMouseEnter"
+						@mouseleave="handleDescriptionMouseLeave"
+					>
+						<button
+							type="button"
+							class="flex items-center gap-1 hover:text-gray-600 focus:outline-none"
+							@click.stop="toggleDescriptionPreview"
+							:title="translate('Hover to preview description')"
+						>
+							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
+							<span v-if="descriptionPreviewLabel">{{
+								descriptionPreviewLabel
+							}}</span>
+						</button>
+
+						<Transition name="fade">
+							<div
+								v-if="showDescriptionPreview"
+								class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg whitespace-pre-line break-words"
+							>
+								{{ taskDescription }}
+							</div>
+						</Transition>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -514,10 +612,7 @@ function hideHint() {
 					statusConfig[task.status]?.class || 'status-open',
 				]"
 			>
-				<component
-					:is="statusConfig[task.status]?.icon || Circle"
-					class="w-3 h-3"
-				/>
+				<component :is="statusConfig[task.status]?.icon || Circle" class="w-3 h-3" />
 				{{ statusConfig[task.status]?.label || task.status }}
 			</button>
 		</div>
@@ -527,7 +622,10 @@ function hideHint() {
 			<div
 				v-if="firstAssignee"
 				class="flex items-center gap-1 text-sm text-gray-600"
-				:title="firstAssignee.email + (assignedUsers.length > 1 ? ' +' + (assignedUsers.length - 1) : '')"
+				:title="
+					firstAssignee.email +
+					(assignedUsers.length > 1 ? ' +' + (assignedUsers.length - 1) : '')
+				"
 			>
 				<User class="w-4 h-4 text-gray-400" />
 				<span class="truncate">{{ firstAssignee.displayName }}</span>
@@ -539,27 +637,37 @@ function hideHint() {
 				v-else
 				@click.stop="showUserAssignDropdown"
 				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-				title="Kliknij, aby przypisać użytkownika"
+				:title="translate('Click to assign user')"
 			>
 				<User class="w-4 h-4" />
 			</button>
-			
+
 			<!-- User assignment dropdown -->
 			<Teleport to="body">
 				<div
 					v-if="showUserDropdown"
 					class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-48"
-					:style="{ left: userDropdownPosition.x + 'px', top: userDropdownPosition.y + 'px' }"
+					:style="{
+						left: userDropdownPosition.x + 'px',
+						top: userDropdownPosition.y + 'px',
+					}"
 				>
-					<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">Przypisz użytkownika</div>
+					<div
+						class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100"
+					>
+						{{ translate("Assign User") }}
+					</div>
 					<button
 						@click="assignCurrentUser"
 						class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
 					>
 						<User class="w-4 h-4" />
-						Przypisz do mnie
+						{{ translate("Assign to me") }}
 					</button>
-					<div v-if="store.availableUsers && store.availableUsers.length > 0" class="border-t border-gray-100 mt-1 pt-1">
+					<div
+						v-if="store.availableUsers && store.availableUsers.length > 0"
+						class="border-t border-gray-100 mt-1 pt-1"
+					>
 						<button
 							v-for="user in store.availableUsers.slice(0, 5)"
 							:key="user.name"
@@ -567,15 +675,18 @@ function hideHint() {
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
 						>
 							<User class="w-4 h-4 text-gray-400" />
-							{{ user.full_name || user.name.split('@')[0] }}
+							{{ user.full_name || user.name.split("@")[0] }}
 						</button>
 					</div>
 					<div class="border-t border-gray-100 mt-1 pt-1">
 						<button
-							@click="handleRowClick(); showUserDropdown = false"
+							@click="
+								handleRowClick();
+								showUserDropdown = false;
+							"
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50"
 						>
-							Więcej opcji...
+							{{ translate("More options...") }}
 						</button>
 					</div>
 				</div>
@@ -584,10 +695,7 @@ function hideHint() {
 
 		<!-- Due date -->
 		<div class="col-span-2">
-			<div
-				v-if="editingField === 'exp_end_date'"
-				@click.stop
-			>
+			<div v-if="editingField === 'exp_end_date'" @click.stop>
 				<input
 					ref="inputRef"
 					v-model="editValue"
@@ -644,7 +752,7 @@ function hideHint() {
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<Clock class="w-4 h-4" />
-					Dodaj czas
+					{{ translate("Add time") }}
 				</button>
 				<button
 					v-if="canAddSubtask"
@@ -652,14 +760,14 @@ function hideHint() {
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<Plus class="w-4 h-4" />
-					Dodaj podzadanie
+					{{ translate("Add subtask") }}
 				</button>
 				<button
 					@click="openInDesk"
 					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
 				>
 					<ExternalLink class="w-4 h-4" />
-					Otwórz w Desk
+					{{ translate("Open in Desk") }}
 				</button>
 				<hr class="my-1 border-gray-200" />
 				<button
@@ -667,7 +775,7 @@ function hideHint() {
 					class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
 				>
 					<Trash2 class="w-4 h-4" />
-					Usuń
+					{{ translate("Delete") }}
 				</button>
 			</div>
 		</Teleport>
@@ -676,7 +784,8 @@ function hideHint() {
 
 <style scoped>
 @keyframes pulse-highlight {
-	0%, 100% {
+	0%,
+	100% {
 		background-color: rgb(239 246 255); /* blue-50 */
 		border-left-color: rgb(59 130 246); /* blue-500 */
 	}

@@ -1,92 +1,94 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
-import { useTaskStore } from '../stores/taskStore'
-import { Users, Plus, X, User } from 'lucide-vue-next'
+import { ref, onMounted, computed, watch } from "vue";
+import { useTaskStore } from "../stores/taskStore";
+import { Users, Plus, X, User } from "lucide-vue-next";
 
 const props = defineProps({
 	projectId: {
 		type: String,
 		required: true,
 	},
-})
+});
 
-const store = useTaskStore()
-const projectUsers = ref([])
-const isOpen = ref(false)
-const isAddingUser = ref(false)
-const searchQuery = ref('')
+const store = useTaskStore();
+const projectUsers = ref([]);
+const isOpen = ref(false);
+const isAddingUser = ref(false);
+const searchQuery = ref("");
 
 onMounted(async () => {
-	await loadProjectUsers()
+	await loadProjectUsers();
 	if (store.availableUsers.length === 0) {
-		await store.fetchUsers()
+		await store.fetchUsers();
 	}
-})
+});
 
 // Watch for changes in project team (triggered when user is assigned to task)
-watch(() => store.projectTeamRefreshTrigger, async () => {
-	await loadProjectUsers()
-})
+watch(
+	() => store.projectTeamRefreshTrigger,
+	async () => {
+		await loadProjectUsers();
+	}
+);
 
 async function loadProjectUsers() {
-	projectUsers.value = await store.fetchProjectUsers(props.projectId)
+	projectUsers.value = await store.fetchProjectUsers(props.projectId);
 }
 
-const availableToAdd = ref([])
+const availableToAdd = ref([]);
 async function openAddUser() {
-	console.log('openAddUser called', {
+	console.log("openAddUser called", {
 		availableUsers: store.availableUsers.length,
-		projectUsers: projectUsers.value.length
-	})
-	isAddingUser.value = true
+		projectUsers: projectUsers.value.length,
+	});
+	isAddingUser.value = true;
 	// Filter out users already in project
-	const projectUserEmails = projectUsers.value.map(u => u.user)
-	availableToAdd.value = store.availableUsers.filter(
-		u => !projectUserEmails.includes(u.name)
-	)
-	console.log('availableToAdd:', availableToAdd.value.length)
+	const projectUserEmails = projectUsers.value.map((u) => u.user);
+	availableToAdd.value = store.availableUsers.filter((u) => !projectUserEmails.includes(u.name));
+	console.log("availableToAdd:", availableToAdd.value.length);
 }
 
 async function addUser(user) {
 	try {
-		await store.addProjectUser(props.projectId, user.name)
-		await loadProjectUsers()
-		isAddingUser.value = false
-		searchQuery.value = ''
+		await store.addProjectUser(props.projectId, user.name);
+		await loadProjectUsers();
+		isAddingUser.value = false;
+		searchQuery.value = "";
 	} catch (error) {
-		console.error('Failed to add user:', error)
+		console.error("Failed to add user:", error);
 	}
 }
 
 async function removeUser(userEmail) {
-	if (!confirm(`Remove ${userEmail} from project?`)) return
-	
+	if (!confirm(`Remove ${userEmail} from project?`)) return;
+
 	try {
-		await store.removeProjectUser(props.projectId, userEmail)
-		await loadProjectUsers()
+		await store.removeProjectUser(props.projectId, userEmail);
+		await loadProjectUsers();
 	} catch (error) {
-		console.error('Failed to remove user:', error)
+		console.error("Failed to remove user:", error);
 	}
 }
 
 const filteredAvailable = computed(() => {
-	const query = searchQuery.value.toLowerCase()
-	return availableToAdd.value.filter(user => 
-		user.full_name?.toLowerCase().includes(query) ||
-		user.name?.toLowerCase().includes(query)
-	)
-})
+	const query = searchQuery.value.toLowerCase();
+	return availableToAdd.value.filter(
+		(user) =>
+			user.full_name?.toLowerCase().includes(query) ||
+			user.name?.toLowerCase().includes(query)
+	);
+});
 
 function closeDropdown(e) {
-	if (!e.target.closest('.project-team-container')) {
-		isOpen.value = false
-		isAddingUser.value = false
+	if (!e.target.closest(".project-team-container")) {
+		isOpen.value = false;
+		isAddingUser.value = false;
 	}
 }
 
 onMounted(() => {
-	document.addEventListener('click', closeDropdown)
-})
+	document.addEventListener("click", closeDropdown);
+});
 </script>
 
 <template>
@@ -146,21 +148,32 @@ onMounted(() => {
 							:src="user.user_image"
 							class="w-6 h-6 rounded-full"
 						/>
-						<div v-else class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+						<div
+							v-else
+							class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center"
+						>
 							<User class="w-4 h-4 text-gray-500" />
 						</div>
 						<div class="flex-1 min-w-0">
-							<div class="font-medium text-gray-900 truncate">{{ user.full_name }}</div>
+							<div class="font-medium text-gray-900 truncate">
+								{{ user.full_name }}
+							</div>
 							<div class="text-xs text-gray-500 truncate">{{ user.name }}</div>
 						</div>
 					</button>
-					<div v-if="filteredAvailable.length === 0" class="px-3 py-6 text-center text-sm text-gray-500">
+					<div
+						v-if="filteredAvailable.length === 0"
+						class="px-3 py-6 text-center text-sm text-gray-500"
+					>
 						No users available to add
 					</div>
 				</div>
 				<div class="mt-3 pt-3 border-t border-gray-200">
 					<button
-						@click="isAddingUser = false; searchQuery = ''"
+						@click="
+							isAddingUser = false;
+							searchQuery = '';
+						"
 						class="w-full px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
 					>
 						Cancel
@@ -170,7 +183,10 @@ onMounted(() => {
 
 			<!-- Team members list -->
 			<div v-else class="max-h-80 overflow-y-auto">
-				<div v-if="projectUsers.length === 0" class="px-4 py-8 text-center text-sm text-gray-500">
+				<div
+					v-if="projectUsers.length === 0"
+					class="px-4 py-8 text-center text-sm text-gray-500"
+				>
 					No team members yet
 				</div>
 				<div v-else class="divide-y divide-gray-100">
@@ -184,11 +200,16 @@ onMounted(() => {
 							:src="user.user_image"
 							class="w-8 h-8 rounded-full"
 						/>
-						<div v-else class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+						<div
+							v-else
+							class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center"
+						>
 							<User class="w-5 h-5 text-gray-500" />
 						</div>
 						<div class="flex-1 min-w-0">
-							<div class="font-medium text-gray-900 truncate">{{ user.full_name }}</div>
+							<div class="font-medium text-gray-900 truncate">
+								{{ user.full_name }}
+							</div>
 							<div class="text-xs text-gray-500 truncate">{{ user.user }}</div>
 						</div>
 						<button
