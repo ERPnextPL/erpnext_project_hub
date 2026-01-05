@@ -43,7 +43,9 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 		const currentDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
 			now.getDate()
 		)}`;
-		const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+		const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(
+			now.getSeconds()
+		)}`;
 
 		const configuredActivityType =
 			frappe?.boot?.projects_settings?.default_activity_type ??
@@ -81,7 +83,6 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 		if (e.key === "Escape" && dialog.$wrapper.is(":visible")) {
 			dialog.hide();
 		}
-
 	});
 
 	// Clean up escape key handler when dialog is hidden

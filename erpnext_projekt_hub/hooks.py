@@ -92,6 +92,12 @@ website_route_rules = [
 before_install = "erpnext_projekt_hub.install.before_install"
 after_install = "erpnext_projekt_hub.install.after_install"
 
+# Session boot helpers
+# boot_session = "erpnext_projekt_hub.utils.patch_sync_dashboards"
+
+# Request Events
+before_request = ["erpnext_projekt_hub.utils.patch_sync_dashboards_on_request"]
+
 # Uninstallation
 # ------------
 

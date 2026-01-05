@@ -4,11 +4,11 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Project Outliner | Projekt HUB</title>
-		<link rel="icon" type="image/svg+xml" href="/assets/erpnext_projekt_hub/frontend/favicon.svg?v=20241220-2030" />
+		<link rel="icon" type="image/svg+xml" href="/assets/erpnext_projekt_hub/frontend/favicon.svg?v={{ frappe.utils.get_build_version() }}" />
 		<script>
 			window.csrf_token = '{{ csrf_token }}'
 		</script>
-		{{ include_script("frappe-web.bundle.js?v=20241220-2030") }}
+		{{ include_script("frappe-web.bundle.js?v=" + frappe.utils.get_build_version()) }}
 		<script
 			type="module"
 			crossorigin
@@ -28,11 +28,7 @@
 			{% endfor %}
 		</script>
 
-          <script>
-              {% for key in boot %}
-              window["{{ key }}"] = {{ boot[key] | tojson }};
-              {% endfor %}
-          </script>
+
           </body>
 
 </html>
