@@ -1,7 +1,7 @@
-import frappe
-import sys
 import signal
+import sys
 
+import frappe
 
 _patch_applied = False
 
@@ -13,21 +13,19 @@ def patch_sync_dashboards_on_request():
 	Called during before_request to ensure the patch is applied before any request.
 	"""
 	global _patch_applied
-	
+
 	if _patch_applied:
 		return
-	
+
 	try:
 		# Ignore SIGPIPE signal to prevent BrokenPipeError
 		signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 	except (AttributeError, ValueError):
 		# SIGPIPE is not available on Windows
 		pass
-	
+
 	try:
 		from frappe.utils import dashboard as dashboard_module
-
-		original_sync_dashboards = dashboard_module.sync_dashboards
 
 		def patched_sync_dashboards(app=None):
 			"""Import, overwrite dashboards from `[app]/[app]_dashboard` with broken pipe handling"""
