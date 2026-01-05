@@ -112,6 +112,19 @@ const dateClass = computed(() => {
 	return "text-gray-500";
 });
 
+const progressPercent = computed(() => {
+	const raw = Number(props.task.progress ?? 0);
+	if (Number.isNaN(raw)) return 0;
+	return Math.max(0, Math.min(100, raw));
+});
+
+const progressBarColor = computed(() => {
+	const percent = progressPercent.value;
+	if (percent >= 90) return "bg-emerald-500";
+	if (percent > 50) return "bg-amber-500";
+	return "bg-blue-500";
+});
+
 async function toggleComplete(e) {
 	e.stopPropagation();
 	const newStatus = props.task.status === "Completed" ? "Open" : "Completed";
@@ -295,20 +308,37 @@ onUnmounted(() => {
 				</div>
 
 				<!-- Due date -->
-				<div
-					v-if="task.exp_end_date || task.is_overdue"
-					:class="['flex items-center gap-1 mt-2 text-sm', dateClass]"
-				>
-					<Calendar class="w-3.5 h-3.5" />
-					<span>{{ formattedDate || translate("No deadline") }}</span>
-					<span
-						v-if="task.is_overdue"
-						class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium"
+					<div
+						v-if="task.exp_end_date || task.is_overdue"
+						:class="['flex items-center gap-1 mt-2 text-sm', dateClass]"
 					>
-						{{ translate("Overdue") }}
-					</span>
+						<Calendar class="w-3.5 h-3.5" />
+						<span>{{ formattedDate || translate("No deadline") }}</span>
+						<span
+							v-if="task.is_overdue"
+							class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium"
+						>
+							{{ translate("Overdue") }}
+						</span>
+					</div>
+
+					<div
+						v-if="task.progress !== null && task.progress !== undefined"
+						class="mt-3 space-y-1"
+					>
+						<div class="flex items-center justify-between text-[11px] text-gray-500">
+							<span>{{ translate("Progress") }}</span>
+							<span class="font-semibold text-gray-700">{{ progressPercent }}%</span>
+						</div>
+						<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+							<div
+								class="h-full rounded-full transition-all duration-300"
+								:class="progressBarColor"
+								:style="{ width: progressPercent + '%' }"
+							></div>
+						</div>
+					</div>
 				</div>
-			</div>
 
 			<!-- Arrow -->
 			<ChevronRight class="w-5 h-5 text-gray-400 flex-shrink-0" />
