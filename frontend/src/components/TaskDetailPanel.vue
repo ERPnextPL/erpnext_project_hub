@@ -465,6 +465,7 @@ async function handleStatusSelection(option) {
 			return;
 		}
 		editableTask.value.progress = 100;
+		await saveField("progress", 100);
 	}
 	editableTask.value.status = newStatus;
 	await saveField("status", newStatus);
