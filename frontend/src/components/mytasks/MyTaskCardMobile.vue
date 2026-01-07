@@ -139,13 +139,6 @@ const progressPercent = computed(() => {
 	return Math.max(0, Math.min(100, raw));
 });
 
-const progressBarColor = computed(() => {
-	const percent = progressPercent.value;
-	if (percent >= 90) return "bg-emerald-500";
-	if (percent > 50) return "bg-amber-500";
-	return "bg-blue-500";
-});
-
 const progressBarColorValue = computed(() => {
 	const percent = progressPercent.value;
 	if (percent >= 90) return "#10b981";
@@ -367,7 +360,6 @@ onUnmounted(() => {
 						<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
 							<div
 								class="h-full rounded-full transition-all duration-300"
-								:class="progressBarColor"
 								:style="{ width: progressPercent + '%', backgroundColor: progressBarColorValue }"
 							></div>
 						</div>
