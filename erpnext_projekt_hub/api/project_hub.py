@@ -1694,8 +1694,9 @@ def _get_task_response(task):
 		]
 
 	return {
-			"subject": task.subject,
-			"parent_task": getattr(task, "parent_task", None),
+		"name": task.name,
+		"subject": task.subject,
+		"parent_task": getattr(task, "parent_task", None),
 		"parent_subject": parent_subject,
 		"status": task.status,
 		"priority": task.priority,
