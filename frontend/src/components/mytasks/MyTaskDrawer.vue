@@ -1109,22 +1109,4 @@ function formatDateTime(dateStr) {
 		}
 	}
 
-	.markdown-body ul,
-	.markdown-body ol {
-		padding-left: 1rem;
-		margin-top: 0.35rem;
-		margin-bottom: 0.35rem;
-	}
-
-	.markdown-body li + li {
-		margin-top: 0.15rem;
-	}
-
-	.markdown-body strong,
-	.markdown-body b {
-		font-weight: 600;
-	}
-	.markdown-body p {
-		margin-bottom: 0.5rem;
-	}
 </style>

@@ -432,6 +432,19 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		fetchTasks();
 	}
 
+	async function shiftOverdueDueDates(limit = 100) {
+		try {
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.shift_overdue_due_dates",
+				{ limit: Number(limit) }
+			);
+			return data;
+		} catch (error) {
+			console.error("Failed to shift overdue tasks:", error);
+			throw error;
+		}
+	}
+
 	// ==========================================================================
 	// TIMELOG FUNCTIONS
 	// ==========================================================================
@@ -545,6 +558,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		clearFilters,
 		toggleStatusFilter,
 		togglePriorityFilter,
+		shiftOverdueDueDates,
 		// Timelog actions
 		fetchActivityTypes,
 		fetchTaskTimelogs,

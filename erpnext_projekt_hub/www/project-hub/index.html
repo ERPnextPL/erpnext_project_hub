@@ -15,9 +15,20 @@
 {{ super() }}
 <script>
 	window.csrf_token = '{{ csrf_token }}';
-	{% for key in boot %}
-	window["{{ key }}"] = {{ boot[key] | tojson }};
-	{% endfor %}
+</script>
+<script id="frappe-boot" type="application/json">
+	{{ boot | tojson }}
+</script>
+<script>
+	const bootDataEl = document.getElementById("frappe-boot");
+	if (bootDataEl?.textContent) {
+		try {
+			const bootData = JSON.parse(bootDataEl.textContent);
+			Object.assign(window, bootData);
+		} catch (error) {
+			console.warn("Failed to parse boot data", error);
+		}
+	}
 </script>
 <script
 	type="module"
