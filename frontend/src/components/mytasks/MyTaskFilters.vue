@@ -119,6 +119,12 @@ async function handleMassShift() {
 		await store.fetchTasks();
 	} catch (error) {
 		console.error("Failed to shift overdue tasks:", error);
+		if (window.frappe) {
+			window.frappe.show_alert({
+				message: translate("Failed to shift overdue tasks"),
+				indicator: "red",
+			});
+		}
 	} finally {
 		isShiftingDueDates.value = false;
 	}
