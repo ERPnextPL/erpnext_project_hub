@@ -32,44 +32,65 @@ const realWindow = getRealWindow();
 
 // Status config
 const statusConfig = {
-	Open: { icon: Circle, class: "text-blue-600", bg: "bg-blue-100", label: translate("Open") },
+	Open: {
+		icon: Circle,
+		class: "text-slate-700",
+		bg: "bg-blue-100 border border-blue-200",
+		label: translate("Open"),
+	},
 	Working: {
 		icon: Clock,
-		class: "text-amber-600",
-		bg: "bg-amber-100",
+		class: "text-white",
+		bg: "bg-blue-600 border border-blue-600",
 		label: translate("Working"),
 	},
 	"Pending Review": {
 		icon: AlertCircle,
-		class: "text-purple-600",
-		bg: "bg-purple-100",
+		class: "text-white",
+		bg: "bg-purple-600 border border-purple-600",
 		label: translate("Pending Review"),
 	},
 	Completed: {
 		icon: CheckCircle2,
-		class: "text-green-600",
-		bg: "bg-green-100",
+		class: "text-white",
+		bg: "bg-emerald-600 border border-emerald-600",
 		label: translate("Completed"),
 	},
 	Overdue: {
 		icon: AlertCircle,
-		class: "text-red-600",
-		bg: "bg-red-100",
+		class: "text-white",
+		bg: "bg-red-600 border border-red-600",
 		label: translate("Overdue"),
 	},
 	Cancelled: {
 		icon: Circle,
-		class: "text-gray-400",
-		bg: "bg-gray-100",
+		class: "text-slate-500",
+		bg: "bg-gray-100 border border-gray-200",
 		label: translate("Cancelled"),
 	},
 };
 
 const priorityConfig = {
-	Urgent: { class: "text-red-600", label: translate("Urgent") },
-	High: { class: "text-orange-500", label: translate("High") },
-	Medium: { class: "text-yellow-600", label: translate("Medium") },
-	Low: { class: "text-gray-500", label: translate("Low") },
+	Urgent: {
+		class: "text-red-600",
+		bg: "bg-red-100 border border-red-200",
+		label: translate("Urgent"),
+	},
+	High: {
+		class: "text-orange-600",
+		bg: "bg-orange-100 border border-orange-200",
+		label: translate("High"),
+	},
+	Medium: {
+		class: "text-amber-600",
+		bg: "bg-amber-100 border border-amber-200",
+		label: translate("Medium"),
+	},
+	Low: {
+		class: "text-slate-600",
+		bg: "bg-slate-100 border border-slate-200",
+		label: translate("Low"),
+	},
 };
 
 const currentStatus = computed(() => {
@@ -123,6 +144,13 @@ const progressBarColor = computed(() => {
 	if (percent >= 90) return "bg-emerald-500";
 	if (percent > 50) return "bg-amber-500";
 	return "bg-blue-500";
+});
+
+const progressBarColorValue = computed(() => {
+	const percent = progressPercent.value;
+	if (percent >= 90) return "#10b981";
+	if (percent > 50) return "#f59e0b";
+	return "#3b82f6";
 });
 
 async function toggleComplete(e) {
@@ -301,7 +329,13 @@ onUnmounted(() => {
 					</span>
 
 					<!-- Priority -->
-					<span :class="['flex items-center gap-1 text-xs', currentPriority.class]">
+					<span
+						:class="[
+							'flex items-center gap-1 text-xs px-2 py-0.5 rounded-full',
+							currentPriority.bg,
+							currentPriority.class,
+						]"
+					>
 						<Flag class="w-3 h-3" />
 						{{ currentPriority.label }}
 					</span>
@@ -334,7 +368,7 @@ onUnmounted(() => {
 							<div
 								class="h-full rounded-full transition-all duration-300"
 								:class="progressBarColor"
-								:style="{ width: progressPercent + '%' }"
+								:style="{ width: progressPercent + '%', backgroundColor: progressBarColorValue }"
 							></div>
 						</div>
 					</div>
