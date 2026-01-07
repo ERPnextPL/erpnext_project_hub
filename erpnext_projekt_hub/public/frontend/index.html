@@ -16,19 +16,22 @@
 	</head>
 	<body class="antialiased">
 		<div id="app"></div>
-		<script id="frappe-boot" type="application/json">
-			{{ boot | tojson }}
-		</script>
-		<script>
-			const bootDataEl = document.getElementById("frappe-boot");
-			if (bootDataEl?.textContent) {
-				try {
-					const bootData = JSON.parse(bootDataEl.textContent);
-					Object.assign(window, bootData);
-				} catch (error) {
-					console.warn("Failed to parse boot data", error);
-				}
-			}
-		</script>
-	</body>
+		
+
+        <script id="frappe-boot" type="application/json">
+            {{ boot | tojson }}
+        </script>
+        <script>
+            const bootDataEl = document.getElementById("frappe-boot");
+            if (bootDataEl?.textContent) {
+                try {
+                    const bootData = JSON.parse(bootDataEl.textContent);
+                    Object.assign(window, bootData);
+                } catch (error) {
+                    console.warn("Failed to parse boot data", error);
+                }
+            }
+        </script>
+    </body>
+</html>
 </html>
