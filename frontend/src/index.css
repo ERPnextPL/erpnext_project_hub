@@ -123,6 +123,14 @@
 	margin-bottom: 0.35rem;
 }
 
+.markdown-body ul {
+	list-style-type: disc;
+}
+
+.markdown-body ol {
+	list-style-type: decimal;
+}
+
 .markdown-body li + li {
 	margin-top: 0.15rem;
 }
