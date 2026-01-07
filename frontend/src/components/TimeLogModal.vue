@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { X, Clock, Calendar, FileText, Plus } from "lucide-vue-next";
 import { getRealWindow, translate } from "../utils/translation";
@@ -10,6 +10,14 @@ const props = defineProps({
 		required: true,
 	},
 	show: {
+		type: Boolean,
+		default: false,
+	},
+	defaultHours: {
+		type: Number,
+		default: 1,
+	},
+	autoFocus: {
 		type: Boolean,
 		default: false,
 	},
@@ -49,6 +57,7 @@ const formData = ref({
 	from_time: "",
 	to_time: "",
 });
+const hoursInputRef = ref(null);
 
 const DEFAULT_ACTIVITY_TYPE_KEY = "Execution";
 
@@ -107,6 +116,11 @@ function handleEscapeKey(event) {
 // Activity types from store
 const activityTypes = computed(() => store.activityTypes);
 
+function resolveDefaultHours() {
+	const candidate = typeof props.defaultHours === "number" ? props.defaultHours : parseFloat(props.defaultHours);
+	return !Number.isNaN(candidate) && candidate > 0 ? candidate : 1;
+}
+
 // Reset form when modal opens
 watch(
 	() => props.show,
@@ -120,10 +134,18 @@ watch(
 			const hours = String(endTime.getHours()).padStart(2, "0");
 			const minutes = String(endTime.getMinutes()).padStart(2, "0");
 			formData.value.from_time = `${today}T${hours}:${minutes}`;
-			formData.value.hours = "1";
+			formData.value.hours = String(resolveDefaultHours());
 			// Set default activity type from global settings
 			applyDefaultActivityType(activityTypes.value);
 			calculateToTime();
+			if (props.autoFocus) {
+				nextTick(() => {
+					if (hoursInputRef.value) {
+						hoursInputRef.value.focus();
+						hoursInputRef.value.select?.();
+					}
+				});
+			}
 		}
 	},
 	{ immediate: true }
@@ -242,6 +264,9 @@ function handleClose() {
 					<div
 						class="relative bg-white rounded-lg shadow-xl max-w-md w-full transform transition-all"
 						@click.stop
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="timelog-modal-title"
 					>
 						<!-- Header -->
 						<div
@@ -249,11 +274,15 @@ function handleClose() {
 						>
 							<div class="flex items-center gap-2">
 								<Clock class="w-5 h-5 text-blue-600" />
-								<h3 class="text-lg font-semibold text-gray-900">Dodaj czas</h3>
+								<h3 id="timelog-modal-title" class="text-lg font-semibold text-gray-900">
+									Dodaj czas
+								</h3>
 							</div>
 							<button
+								type="button"
 								@click="handleClose"
 								class="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+								:aria-label="translate('Close dialog')"
 							>
 								<X class="w-5 h-5" />
 							</button>
@@ -275,6 +304,7 @@ function handleClose() {
 								</label>
 								<input
 									v-model="formData.hours"
+									ref="hoursInputRef"
 									type="number"
 									step="0.25"
 									min="0"

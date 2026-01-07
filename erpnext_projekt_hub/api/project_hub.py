@@ -218,6 +218,7 @@ def get_project_tasks(project: str):
 			"exp_start_date",
 			"exp_end_date",
 			"progress",
+			"expected_time",
 			"description",
 			"_assign",
 			"idx",
@@ -454,11 +455,13 @@ def update_task(task_name: str, **kwargs):
 		"description",
 		"is_group",
 		"project",
+		"expected_time",
 	]
 
 	for field in allowed_fields:
-		if field in kwargs and kwargs[field] is not None:
-			task.set(field, kwargs[field])
+		if field not in kwargs:
+			continue
+		task.set(field, kwargs[field])
 
 	task.save()
 
@@ -474,6 +477,7 @@ def update_task(task_name: str, **kwargs):
 		"progress": task.progress,
 		"description": task.description,
 		"project": task.project,
+		"expected_time": getattr(task, "expected_time", None),
 	}
 
 
@@ -1541,6 +1545,7 @@ def get_my_tasks(
 			t.exp_end_date,
 			t.description,
 			t.progress,
+			t.expected_time,
 			t._assign,
 			t.modified,
 			t.creation,
@@ -1701,10 +1706,56 @@ def _get_task_response(task):
 		"exp_end_date": task.exp_end_date,
 		"description": task.description,
 		"progress": task.progress,
+		"expected_time": getattr(task, "expected_time", None),
 		"_assign": task._assign,
 		"modified": task.modified,
 		"is_overdue": is_overdue,
 	}
+
+
+@frappe.whitelist()
+def shift_overdue_due_dates(limit: int = 100):
+	"""
+	Shift overdue tasks assigned to the current user by two days.
+	"""
+	user = frappe.session.user
+	if not limit or limit <= 0:
+		limit = 100
+
+	from frappe.utils import add_days, getdate, today
+
+	today_date = getdate(today())
+	tasks = frappe.get_all(
+		"Task",
+		filters={
+			"_assign": ["like", f'%"{user}"%'],
+			"exp_end_date": ["<", today_date],
+			"status": ["not in", ["Completed", "Cancelled"]],
+		},
+		fields=["name", "exp_end_date"],
+		limit=int(limit),
+	)
+
+	shifted = 0
+	for task in tasks:
+		due_date = task.get("exp_end_date")
+		if not due_date:
+			continue
+
+		try:
+			new_due = add_days(due_date, 2)
+			frappe.db.set_value("Task", task["name"], "exp_end_date", new_due, update_modified=True)
+			shifted += 1
+		except Exception as exc:
+			frappe.log_error(
+				f"Failed to shift overdue task due date: {task['name']} ({exc})",
+				"Shift Overdue Due Dates",
+			)
+
+	if shifted:
+		frappe.db.commit()
+
+	return {"shifted": shifted}
 
 
 @frappe.whitelist()
@@ -1729,6 +1780,7 @@ def create_my_task(
 	status: str = "Open",
 	exp_end_date: str | None = None,
 	description: str | None = None,
+	expected_time: float | None = None,
 ):
 	"""
 	Create a new task and assign it to the current user.
@@ -1756,6 +1808,7 @@ def create_my_task(
 			"status": status,
 			"exp_end_date": exp_end_date,
 			"description": description,
+			"expected_time": expected_time,
 		}
 	)
 	task.insert()

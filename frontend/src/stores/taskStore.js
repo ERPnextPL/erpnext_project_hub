@@ -174,8 +174,8 @@ export const useTaskStore = defineStore("tasks", () => {
 		}
 	}
 
-	async function updateTask(taskName, updates) {
-		try {
+async function updateTask(taskName, updates) {
+	try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_task", {
 				task_name: taskName,
 				...updates,
@@ -238,68 +238,80 @@ export const useTaskStore = defineStore("tasks", () => {
 		}
 	}
 
-	async function refreshProject() {
-		if (!project.value) return;
-		try {
-			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
-				project: project.value.name,
-			});
-			if (data && data.project) {
-				project.value = data.project;
-			}
-		} catch (error) {
-			console.error("Failed to refresh project:", error);
-		}
+async function fetchTaskDetail(taskName) {
+	try {
+		const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_task_detail", {
+			task_name: taskName,
+		});
+		return data;
+	} catch (error) {
+		console.error("Failed to fetch task detail:", error);
+		throw error;
 	}
+}
 
-	async function updateProject(projectName, updates) {
-		try {
-			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_project", {
-				project: projectName,
-				...updates,
-			});
-			if (data) {
-				project.value = { ...(project.value || {}), ...data };
-				return data;
-			}
-		} catch (error) {
-			console.error("Failed to update project:", error);
-			throw error;
+async function refreshProject() {
+	if (!project.value) return;
+	try {
+		const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+			project: project.value.name,
+		});
+		if (data && data.project) {
+			project.value = data.project;
 		}
+	} catch (error) {
+		console.error("Failed to refresh project:", error);
 	}
+}
 
-	async function deleteTask(taskName) {
-		try {
-			await apiCall("erpnext_projekt_hub.api.project_hub.delete_task", {
-				task_name: taskName,
-			});
-			tasks.value = tasks.value.filter((t) => t.name !== taskName);
-			// Refresh project to update percent_complete
-			if (project.value) {
-				await refreshProject();
-			}
-		} catch (error) {
-			console.error("Failed to delete task:", error);
-			throw error;
+async function updateProject(projectName, updates) {
+	try {
+		const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_project", {
+			project: projectName,
+			...updates,
+		});
+		if (data) {
+			project.value = { ...(project.value || {}), ...data };
+			return data;
 		}
+	} catch (error) {
+		console.error("Failed to update project:", error);
+		throw error;
 	}
+}
 
-	async function reorderTask(taskName, newParent, newIdx) {
-		try {
-			await apiCall("erpnext_projekt_hub.api.project_hub.reorder_task", {
-				task_name: taskName,
-				parent_task: newParent,
-				idx: newIdx,
-			});
-			// Refetch to get updated tree
-			if (project.value) {
-				await fetchTasks(project.value.name);
-			}
-		} catch (error) {
-			console.error("Failed to reorder task:", error);
-			throw error;
+async function deleteTask(taskName) {
+	try {
+		await apiCall("erpnext_projekt_hub.api.project_hub.delete_task", {
+			task_name: taskName,
+		});
+		tasks.value = tasks.value.filter((t) => t.name !== taskName);
+		// Refresh project to update percent_complete
+		if (project.value) {
+			await refreshProject();
 		}
+	} catch (error) {
+		console.error("Failed to delete task:", error);
+		throw error;
 	}
+}
+
+async function reorderTask(taskName, newParent, newIdx) {
+	try {
+		await apiCall("erpnext_projekt_hub.api.project_hub.reorder_task", {
+			task_name: taskName,
+			parent_task: newParent,
+			idx: newIdx,
+		});
+		// Refetch to get updated tree
+		if (project.value) {
+			await fetchTasks(project.value.name);
+		}
+	} catch (error) {
+		console.error("Failed to reorder task:", error);
+		throw error;
+	}
+}
 
 	function toggleExpand(taskName) {
 		if (expandedTasks.value.has(taskName)) {
@@ -740,6 +752,7 @@ export const useTaskStore = defineStore("tasks", () => {
 		fetchTasks,
 		createTask,
 		updateTask,
+		fetchTaskDetail,
 		updateProject,
 		deleteTask,
 		reorderTask,
