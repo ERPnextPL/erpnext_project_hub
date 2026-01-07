@@ -3,6 +3,7 @@ import { ref, watch, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
+import { renderMarkdown } from "../../utils/markdown";
 import {
 	X,
 	Save,
@@ -48,6 +49,8 @@ const form = ref({
 	priority: "Medium",
 	exp_end_date: "",
 	description: "",
+	expected_time: "",
+	progress: 0,
 });
 
 const saving = ref(false);
@@ -61,21 +64,64 @@ const timelogForm = ref({
 	from_time: "",
 });
 
+const showMarkdownPreview = ref(false);
+const descriptionMarkdownPreview = computed(() =>
+	renderMarkdown(form.value.description || "")
+);
+const progressValue = computed(() => parseProgress(form.value.progress));
+const descriptionPreviewButtonLabel = computed(() =>
+	showMarkdownPreview.value
+		? translate("Hide Markdown preview")
+		: translate("Show Markdown preview")
+);
+
 const showSubtaskForm = ref(false);
 const subtaskSubject = ref("");
 const newTaskParentTask = ref(null);
 
 const initialForm = ref(null);
 
-function normalizeFormForCompare(v) {
-	return {
-		subject: (v?.subject || "").trim(),
-		project: v?.project || "",
-		status: v?.status || "Open",
-		priority: v?.priority || "Medium",
-		exp_end_date: v?.exp_end_date || "",
-		description: (v?.description || "").trim(),
-	};
+	function normalizeFormForCompare(v) {
+		return {
+			subject: (v?.subject || "").trim(),
+			project: v?.project || "",
+			status: v?.status || "Open",
+			priority: v?.priority || "Medium",
+			exp_end_date: v?.exp_end_date || "",
+			description: (v?.description || "").trim(),
+			expected_time:
+				v?.expected_time === null || v?.expected_time === undefined
+					? ""
+					: String(v.expected_time),
+			progress:
+				v?.progress === null || v?.progress === undefined ? "" : String(v.progress),
+		};
+	}
+
+function parseExpectedTime(value) {
+	if (value === "" || value === null || value === undefined) {
+		return null;
+	}
+
+	const parsed = parseFloat(value);
+	if (Number.isNaN(parsed)) {
+		return null;
+	}
+
+	return parsed;
+}
+
+function parseProgress(value) {
+	if (value === "" || value === null || value === undefined) {
+		return 0;
+	}
+
+	const parsed = Number(value);
+	if (Number.isNaN(parsed)) {
+		return 0;
+	}
+
+	return Math.max(0, Math.min(100, parsed));
 }
 
 function setInitialFormSnapshot() {
@@ -124,15 +170,17 @@ const currentTimelogs = computed(() => {
 watch(
 	() => props.task,
 	async (newTask) => {
-		if (newTask) {
-			form.value = {
-				subject: newTask.subject || "",
-				project: newTask.project || "",
-				status: newTask.status || "Open",
-				priority: newTask.priority || "Medium",
-				exp_end_date: newTask.exp_end_date || "",
-				description: newTask.description || "",
-			};
+			if (newTask) {
+				form.value = {
+					subject: newTask.subject || "",
+					project: newTask.project || "",
+					status: newTask.status || "Open",
+					priority: newTask.priority || "Medium",
+					exp_end_date: newTask.exp_end_date || "",
+					description: newTask.description || "",
+					expected_time: newTask.expected_time ?? "",
+					progress: newTask.progress ?? 0,
+				};
 			setInitialFormSnapshot();
 			// Load timelogs for existing task
 			if (!props.isNew && newTask.name) {
@@ -152,24 +200,28 @@ watch(
 watch(
 	() => props.isNew,
 	(isNew) => {
-		if (isNew) {
-			const preset = store.drawerPreset || {};
-			newTaskParentTask.value = preset.parent_task || null;
-			form.value = {
-				subject: "",
-				project:
-					preset.project || (store.projects.length > 0 ? store.projects[0].name : ""),
-				status: preset.status || "Open",
-				priority: preset.priority || "Medium",
-				exp_end_date: preset.exp_end_date || "",
-				description: "",
-			};
-			errors.value = {};
-			showSubtaskForm.value = false;
-			subtaskSubject.value = "";
-			setInitialFormSnapshot();
-		}
+			if (isNew) {
+				const preset = store.drawerPreset || {};
+				newTaskParentTask.value = preset.parent_task || null;
+				form.value = {
+					subject: "",
+					project:
+						preset.project || (store.projects.length > 0 ? store.projects[0].name : ""),
+					status: preset.status || "Open",
+					priority: preset.priority || "Medium",
+					exp_end_date: preset.exp_end_date || "",
+					description: "",
+					expected_time: preset.expected_time || "",
+					progress: 0,
+				};
+		errors.value = {};
+		showSubtaskForm.value = false;
+		subtaskSubject.value = "";
+		setInitialFormSnapshot();
+		autoSaveEnabled.value = false;
+		clearAutoSaveTimer();
 	}
+}
 );
 
 watch(
@@ -220,12 +272,18 @@ onMounted(() => {
 
 onUnmounted(() => {
 	document.removeEventListener("keydown", handleKeydown);
+	clearAutoSaveTimer();
 });
 
 // Focus first input when drawer opens
 watch(
 	() => props.isOpen,
 	async (isOpen) => {
+		if (!isOpen) {
+			showMarkdownPreview.value = false;
+			return;
+		}
+
 		if (isOpen) {
 			await nextTick();
 			const firstInput = document.querySelector('.drawer-content input[type="text"]');
@@ -245,47 +303,163 @@ const drawerTitle = computed(() => {
 	return translate("Task Details");
 });
 
-async function handleSave() {
-	errors.value = {};
+const autoSaveEnabled = ref(false);
+const isAutoSaving = ref(false);
+let autoSaveTimer = null;
+const AUTO_SAVE_DELAY = 1200;
 
-	if (!form.value.subject.trim()) {
-		errors.value.subject = translate("Task name is required");
-		return;
+function clearAutoSaveTimer() {
+	if (autoSaveTimer) {
+		clearTimeout(autoSaveTimer);
+		autoSaveTimer = null;
+	}
+}
+
+async function saveExistingTask({ showErrors = true, showAlerts = true } = {}) {
+	if (showErrors) {
+		errors.value = {};
+	}
+
+	const subject = form.value.subject.trim();
+	if (!subject) {
+		if (showErrors) {
+			errors.value.subject = translate("Task name is required");
+		}
+		return false;
 	}
 
 	if (!form.value.project) {
-		errors.value.project = translate("Project is required");
-		return;
+		if (showErrors) {
+			errors.value.project = translate("Project is required");
+		}
+		return false;
+	}
+
+	if (!props.task?.name) {
+		return false;
 	}
 
 	saving.value = true;
-
 	try {
-		if (props.isNew) {
-			await store.createTask({
-				subject: form.value.subject.trim(),
-				project: form.value.project,
-				parent_task: newTaskParentTask.value,
-				status: form.value.status,
-				priority: form.value.priority,
-				exp_end_date: form.value.exp_end_date || null,
-				description: form.value.description || null,
-			});
-			emit("created");
-		} else {
-			await store.updateTaskFull(props.task.name, {
-				subject: form.value.subject.trim(),
-				status: form.value.status,
-				priority: form.value.priority,
-				exp_end_date: form.value.exp_end_date || null,
-				description: form.value.description || null,
-			});
-			emit("close");
-		}
+			await store.updateTaskFull(
+				props.task.name,
+				{
+					subject,
+					status: form.value.status,
+					priority: form.value.priority,
+					exp_end_date: form.value.exp_end_date || null,
+					description: form.value.description || null,
+					expected_time: parseExpectedTime(form.value.expected_time),
+					progress: parseProgress(form.value.progress),
+				},
+				{ showAlert: showAlerts }
+		);
+		setInitialFormSnapshot();
+		return true;
 	} catch (err) {
 		console.error("Failed to save task:", err);
+		return false;
 	} finally {
 		saving.value = false;
+	}
+}
+
+async function autoSaveTask() {
+	if (!autoSaveEnabled.value || props.isNew || saving.value) return;
+	if (!isDirty.value) return;
+	isAutoSaving.value = true;
+	try {
+		await saveExistingTask({ showErrors: false, showAlerts: false });
+	} finally {
+		isAutoSaving.value = false;
+	}
+}
+
+function scheduleAutoSave() {
+	if (!autoSaveEnabled.value) return;
+	if (props.isNew || saving.value) {
+		clearAutoSaveTimer();
+		return;
+	}
+	if (!isDirty.value) {
+		clearAutoSaveTimer();
+		return;
+	}
+
+	clearAutoSaveTimer();
+	autoSaveTimer = setTimeout(() => {
+		autoSaveTimer = null;
+		autoSaveTask();
+	}, AUTO_SAVE_DELAY);
+}
+
+function toggleAutoSave() {
+	if (props.isNew) return;
+	autoSaveEnabled.value = !autoSaveEnabled.value;
+	if (autoSaveEnabled.value && isDirty.value) {
+		scheduleAutoSave();
+	} else {
+		clearAutoSaveTimer();
+	}
+}
+
+watch(
+	() => [
+		form.value.subject,
+		form.value.status,
+		form.value.priority,
+		form.value.exp_end_date,
+		form.value.description,
+		form.value.expected_time,
+		form.value.progress,
+	],
+	() => {
+		if (autoSaveEnabled.value) {
+			scheduleAutoSave();
+		}
+	}
+);
+
+async function handleSave() {
+	if (props.isNew) {
+		errors.value = {};
+
+		if (!form.value.subject.trim()) {
+			errors.value.subject = translate("Task name is required");
+			return;
+		}
+
+		if (!form.value.project) {
+			errors.value.project = translate("Project is required");
+			return;
+		}
+
+		saving.value = true;
+
+				try {
+					await store.createTask({
+						subject: form.value.subject.trim(),
+						project: form.value.project,
+						parent_task: newTaskParentTask.value,
+						status: form.value.status,
+						priority: form.value.priority,
+						exp_end_date: form.value.exp_end_date || null,
+						description: form.value.description || null,
+						expected_time: parseExpectedTime(form.value.expected_time),
+						progress: parseProgress(form.value.progress),
+					});
+			emit("created");
+		} catch (err) {
+			console.error("Failed to save task:", err);
+		} finally {
+			saving.value = false;
+		}
+		return;
+	}
+
+	const saved = await saveExistingTask({ showErrors: true, showAlerts: true });
+	if (saved) {
+		emit("close");
 	}
 }
 
@@ -539,32 +713,80 @@ function formatDateTime(dateStr) {
 							</div>
 						</div>
 
-						<!-- Due date -->
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">
-								<Calendar class="w-4 h-4 inline mr-1" />
-								{{ translate("Due Date") }}
-							</label>
-							<input
-								v-model="form.exp_end_date"
-								type="date"
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+							<!-- Due date -->
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">
+									<Calendar class="w-4 h-4 inline mr-1" />
+									{{ translate("Due Date") }}
+								</label>
+								<input
+									v-model="form.exp_end_date"
+									type="date"
+									class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								/>
+							</div>
 
-						<!-- Description -->
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">
-								<FileText class="w-4 h-4 inline mr-1" />
-								{{ translate("Description") }}
-							</label>
-							<textarea
-								v-model="form.description"
-								rows="4"
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-								:placeholder="translate('Add task description...')"
-							></textarea>
-						</div>
+							<!-- Progress -->
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">
+									{{ translate("Progress") }}
+								</label>
+								<div class="flex items-center gap-3">
+									<input
+										v-model.number="form.progress"
+										type="range"
+										min="0"
+										max="100"
+										class="flex-1"
+									/>
+									<span class="text-sm text-gray-600 w-12 text-right">
+										{{ progressValue }}%
+									</span>
+								</div>
+							</div>
+
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">
+									<FileText class="w-4 h-4 inline mr-1" />
+									{{ translate("Expected Time") }}
+								</label>
+								<input
+									v-model.number="form.expected_time"
+									type="number"
+									min="0"
+									step="0.25"
+									:placeholder="translate('e.g., 3.5')"
+									class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								/>
+							</div>
+
+							<!-- Description -->
+							<div>
+								<div class="flex items-center justify-between">
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										<FileText class="w-4 h-4 inline mr-1" />
+										{{ translate("Description") }}
+									</label>
+									<button
+										type="button"
+										@click="showMarkdownPreview = !showMarkdownPreview"
+										class="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+									>
+										{{ descriptionPreviewButtonLabel }}
+									</button>
+								</div>
+								<textarea
+									v-model="form.description"
+									rows="4"
+									class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+									:placeholder="translate('Add task description...')"
+								></textarea>
+								<div
+									v-if="showMarkdownPreview"
+									class="mt-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 shadow-sm whitespace-pre-wrap break-words markdown-body"
+									v-html="descriptionMarkdownPreview"
+								></div>
+							</div>
 
 						<!-- Subtasks (create) -->
 						<div v-if="!isNew && task" class="pt-4 border-t border-gray-200">
@@ -789,6 +1011,43 @@ function formatDateTime(dateStr) {
 						</div>
 					</div>
 
+					<!-- Auto-save toggle -->
+					<div class="px-4 py-3 border-t border-gray-200 bg-gray-50 text-xs text-gray-500">
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<div class="flex items-center gap-2">
+								<span class="font-semibold text-gray-600">{{ translate("Auto-save") }}</span>
+								<button
+									type="button"
+									@click="toggleAutoSave"
+									:disabled="isNew"
+									class="px-3 py-1 rounded-full text-xs font-semibold transition-colors border disabled:opacity-60 disabled:cursor-not-allowed"
+									:class="[
+										autoSaveEnabled
+											? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-700'
+											: 'bg-white text-gray-600 border-gray-200 hover:border-blue-400',
+									]"
+								>
+									{{ autoSaveEnabled ? translate("On") : translate("Off") }}
+								</button>
+								<span
+									v-if="isAutoSaving"
+									class="flex items-center gap-1 text-blue-600 text-xs font-medium"
+								>
+									<Loader2 class="w-3 h-3 animate-spin" />
+									{{ translate("Saving...") }}
+								</span>
+							</div>
+							<div class="text-xs text-gray-400">
+								<span v-if="isNew">
+									{{ translate("Available after task is created") }}
+								</span>
+								<span v-else>
+									{{ autoSaveEnabled ? translate("Enabled") : translate("Disabled") }}
+								</span>
+							</div>
+						</div>
+					</div>
+
 					<!-- Footer -->
 					<div
 						v-if="isDirty"
@@ -842,11 +1101,12 @@ function formatDateTime(dateStr) {
 	transform: translateX(100%);
 }
 
-@media (max-width: 768px) {
-	.drawer-content {
-		max-width: 100%;
-		border-radius: 0;
-		margin: 0;
+	@media (max-width: 768px) {
+		.drawer-content {
+			max-width: 100%;
+			border-radius: 0;
+			margin: 0;
+		}
 	}
-}
+
 </style>

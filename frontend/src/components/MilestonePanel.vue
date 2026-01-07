@@ -47,7 +47,7 @@ function handleMilestoneClick(milestone) {
 	}
 }
 
-	if (!confirm(translate('Delete milestone "{0}"? Tasks will be detached but not deleted.').replace('{0}', milestone.milestone_name))) {
+function toggleMenu(milestoneName, event) {
 	event.stopPropagation();
 	openMenuId.value = openMenuId.value === milestoneName ? null : milestoneName;
 }

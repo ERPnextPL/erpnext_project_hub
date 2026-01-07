@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { User, X, ChevronDown, Check } from "lucide-vue-next";
 
@@ -23,12 +23,18 @@ const emit = defineEmits(["update:modelValue", "add", "remove"]);
 const store = useTaskStore();
 const isOpen = ref(false);
 const searchQuery = ref("");
+const containerRef = ref(null);
+const searchInputRef = ref(null);
 
 onMounted(() => {
 	if (store.availableUsers.length === 0) {
 		store.fetchUsers();
 	}
 	document.addEventListener("click", closeDropdown);
+});
+
+onUnmounted(() => {
+	document.removeEventListener("click", closeDropdown);
 });
 
 const filteredUsers = computed(() => {
@@ -74,14 +80,27 @@ function toggleUser(user) {
 }
 
 function closeDropdown(e) {
-	if (!e.target.closest(".user-select-container")) {
+	if (!containerRef.value?.contains(e.target)) {
 		isOpen.value = false;
 	}
 }
+
+function openDropdown() {
+	isOpen.value = true;
+	nextTick(() => {
+		if (searchInputRef.value) {
+			searchInputRef.value.focus();
+		}
+	});
+}
+
+defineExpose({
+	openDropdown,
+});
 </script>
 
 <template>
-	<div class="user-select-container relative">
+<div ref="containerRef" class="user-select-container relative">
 		<!-- Selected users display -->
 		<div
 			@click="isOpen = !isOpen"
@@ -117,6 +136,7 @@ function closeDropdown(e) {
 			<!-- Search -->
 			<div class="p-2 border-b border-gray-100">
 				<input
+					ref="searchInputRef"
 					v-model="searchQuery"
 					type="text"
 					placeholder="Search users..."

@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import { translate } from "../../utils/translation";
 import {
@@ -15,6 +15,10 @@ import {
 } from "lucide-vue-next";
 
 const store = useMyTasksStore();
+const focusRingClasses =
+	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2";
+const hasOverdueTasks = computed(() => store.tasks.some((task) => task.is_overdue));
+const isShiftingDueDates = ref(false);
 
 // Icon and color mapping for statuses
 const statusConfig = {
@@ -92,6 +96,40 @@ function toggleDueFilter(filter) {
 	store.fetchTasks();
 }
 
+async function handleMassShift() {
+	if (isShiftingDueDates.value || !hasOverdueTasks.value) return;
+	isShiftingDueDates.value = true;
+
+	try {
+		const result = await store.shiftOverdueDueDates();
+		if (result?.shifted && window.frappe) {
+			window.frappe.show_alert({
+				message: translate("Postponed {0} overdue tasks by two days").replace(
+					"{0}",
+					result.shifted
+				),
+				indicator: "green",
+			});
+		} else if (window.frappe) {
+			window.frappe.show_alert({
+				message: translate("No overdue tasks were shifted"),
+				indicator: "blue",
+			});
+		}
+		await store.fetchTasks();
+	} catch (error) {
+		console.error("Failed to shift overdue tasks:", error);
+		if (window.frappe) {
+			window.frappe.show_alert({
+				message: translate("Failed to shift overdue tasks"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		isShiftingDueDates.value = false;
+	}
+}
+
 function setProjectFilter(project) {
 	store.setFilter("project", project || null);
 	store.fetchTasks();
@@ -113,7 +151,10 @@ function setProjectFilter(project) {
 						store.viewOptions.groupByStatus
 							? 'bg-blue-50 border-blue-200 text-blue-700'
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+						focusRingClasses,
 					]"
+					type="button"
+					:aria-pressed="store.viewOptions.groupByStatus"
 				>
 					{{ translate("Group by status") }}
 				</button>
@@ -135,7 +176,10 @@ function setProjectFilter(project) {
 						isDueFilterActive(option.value)
 							? 'bg-blue-50 border-blue-200 text-blue-700'
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+						focusRingClasses,
 					]"
+					type="button"
+					:aria-pressed="isDueFilterActive(option.value)"
 				>
 					<component
 						:is="option.icon"
@@ -150,8 +194,28 @@ function setProjectFilter(project) {
 					v-if="store.filters.dueFilter"
 					@click="store.setFilter('dueFilter', null)"
 					class="flex items-center gap-1 px-2 py-1.5 text-sm text-gray-500 hover:text-gray-700"
+					type="button"
+					:aria-pressed="false"
+					:class="[focusRingClasses]"
 				>
 					<X class="w-3.5 h-3.5" />
+				</button>
+			</div>
+			<div class="pt-2">
+				<button
+					type="button"
+					class="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-full border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors"
+					:class="[focusRingClasses, hasOverdueTasks ? '' : 'opacity-50 cursor-not-allowed']"
+					:disabled="!hasOverdueTasks || isShiftingDueDates"
+					:aria-disabled="!hasOverdueTasks || isShiftingDueDates"
+					@click="handleMassShift"
+					:title="translate('Shift overdue deadlines by two days')"
+				>
+					<Clock class="w-3.5 h-3.5" />
+					<span>{{ translate("Masowe przesunięcie terminu") }}</span>
+					<span v-if="isShiftingDueDates" class="text-xs text-blue-600">{{
+						translate("Processing...")
+					}}</span>
 				</button>
 			</div>
 		</div>
@@ -171,7 +235,10 @@ function setProjectFilter(project) {
 						isStatusActive(status.value)
 							? `${status.bg} border-current ${status.class}`
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+						focusRingClasses,
 					]"
+					type="button"
+					:aria-pressed="isStatusActive(status.value)"
 				>
 					<component
 						:is="status.icon"
@@ -200,7 +267,10 @@ function setProjectFilter(project) {
 						isPriorityActive(priority.value)
 							? `${priority.bg} border-current ${priority.class}`
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+						focusRingClasses,
 					]"
+					type="button"
+					:aria-pressed="isPriorityActive(priority.value)"
 				>
 					<Flag
 						:class="[
@@ -226,7 +296,10 @@ function setProjectFilter(project) {
 						!store.filters.project
 							? 'bg-blue-50 border-blue-200 text-blue-700'
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+						focusRingClasses,
 					]"
+					type="button"
+					:aria-pressed="!store.filters.project"
 				>
 					{{ translate("All") }}
 				</button>
@@ -239,7 +312,10 @@ function setProjectFilter(project) {
 						store.filters.project === project.name
 							? 'bg-blue-50 border-blue-200 text-blue-700'
 							: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+						focusRingClasses,
 					]"
+					type="button"
+					:aria-pressed="store.filters.project === project.name"
 				>
 					<Folder class="w-3.5 h-3.5" />
 					{{ project.project_name }}
@@ -253,6 +329,8 @@ function setProjectFilter(project) {
 			<button
 				@click="store.clearFilters()"
 				class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+				type="button"
+				:class="[focusRingClasses]"
 			>
 				<X class="w-3.5 h-3.5" />
 				{{ translate("Clear all filters") }}

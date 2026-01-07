@@ -6,6 +6,7 @@ import {
 	GripVertical,
 	ChevronRight,
 	ChevronDown,
+	X,
 	Circle,
 	CheckCircle2,
 	Clock,
@@ -19,6 +20,7 @@ import {
 	Diamond,
 	FileText,
 } from "lucide-vue-next";
+import { renderMarkdown } from "../utils/markdown";
 
 const props = defineProps({
 	task: {
@@ -57,7 +59,15 @@ const descriptionPreviewLabel = computed(() => {
 	const firstLine = taskDescription.value.split("\n")[0]?.trim();
 	return firstLine || "";
 });
+const descriptionPreviewText = computed(() => {
+	if (!taskDescription.value) return "";
+	const lines = taskDescription.value.split(/\r?\n/);
+	return lines.slice(0, 5).join("\n");
+});
+const taskDescriptionMarkdownPreview = computed(() => renderMarkdown(descriptionPreviewText.value));
+const taskDescriptionMarkdownFull = computed(() => renderMarkdown(taskDescription.value));
 const showDescriptionPreview = ref(false);
+const showDescriptionModal = ref(false);
 
 const isTouchDevice = () => {
 	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
@@ -429,10 +439,14 @@ function handleDescriptionMouseLeave() {
 	showDescriptionPreview.value = false;
 }
 
-function toggleDescriptionPreview(event) {
+function openDescriptionModal(event) {
 	event.stopPropagation();
 	if (!taskDescription.value) return;
-	showDescriptionPreview.value = !showDescriptionPreview.value;
+	showDescriptionModal.value = true;
+}
+
+function closeDescriptionModal() {
+	showDescriptionModal.value = false;
 }
 
 // Close context menu when clicking outside
@@ -507,7 +521,7 @@ onUnmounted(() => {
 			</div>
 
 			<!-- Task subject -->
-			<div class="flex-1 min-w-0 flex items-center gap-1 relative">
+			<div class="flex-1 min-w-0 flex items-center gap-1 relative overflow-hidden">
 				<!-- Milestone drag handle (available for all tasks) -->
 				<div
 					draggable="true"
@@ -566,7 +580,7 @@ onUnmounted(() => {
 					<span
 						v-else
 						@dblclick.stop="startEditing('subject', task.subject)"
-						class="text-sm text-gray-900 truncate"
+						class="text-sm text-gray-900 truncate block w-full"
 						:class="{ 'font-medium': task.is_group }"
 					>
 						{{ task.subject }}
@@ -578,12 +592,12 @@ onUnmounted(() => {
 						@mouseenter="handleDescriptionMouseEnter"
 						@mouseleave="handleDescriptionMouseLeave"
 					>
-						<button
-							type="button"
-							class="flex items-center gap-1 hover:text-gray-600 focus:outline-none"
-							@click.stop="toggleDescriptionPreview"
-							:title="translate('Hover to preview description')"
-						>
+							<button
+								type="button"
+								class="flex items-center gap-1 hover:text-gray-600 focus:outline-none"
+								@click.stop="openDescriptionModal"
+								:title="translate('Click to view full description')"
+							>
 							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
 							<span v-if="descriptionPreviewLabel">{{
 								descriptionPreviewLabel
@@ -591,16 +605,15 @@ onUnmounted(() => {
 						</button>
 
 						<Transition name="fade">
-							<div
-								v-if="showDescriptionPreview"
-								class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg whitespace-pre-line break-words"
-							>
-								{{ taskDescription }}
-							</div>
-						</Transition>
+								<div
+									v-if="showDescriptionPreview"
+									class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg break-words leading-relaxed markdown-body"
+									v-html="taskDescriptionMarkdownPreview"
+								></div>
+								</Transition>
+						</div>
 					</div>
 				</div>
-			</div>
 		</div>
 
 		<!-- Status -->
@@ -779,6 +792,44 @@ onUnmounted(() => {
 				</button>
 			</div>
 		</Teleport>
+
+		<!-- Description modal -->
+		<Teleport to="body">
+			<Transition name="fade">
+				<div
+					v-if="showDescriptionModal"
+					class="fixed inset-0 z-40 flex items-center justify-center px-3 py-8"
+				>
+					<div
+						class="absolute inset-0 bg-black/40"
+						@click="closeDescriptionModal"
+						aria-hidden="true"
+					></div>
+					<div
+						class="relative w-full max-w-2xl max-h-[80vh] overflow-hidden rounded-2xl bg-white shadow-xl border border-gray-200 markdown-body"
+						@click.stop
+					>
+						<div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+							<h3 class="text-sm font-semibold text-gray-700">
+								{{ translate("Description preview") }}
+							</h3>
+							<button
+								type="button"
+								class="p-1 text-gray-500 hover:text-gray-700"
+								@click="closeDescriptionModal"
+								title="Close"
+							>
+								<X class="w-4 h-4" />
+							</button>
+						</div>
+						<div
+							class="max-h-[70vh] overflow-y-auto p-4 text-sm text-gray-700"
+							v-html="taskDescriptionMarkdownFull"
+						></div>
+					</div>
+				</div>
+			</Transition>
+		</Teleport>
 	</div>
 </template>
 
@@ -800,13 +851,14 @@ onUnmounted(() => {
 	border-left-width: 4px !important;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-	transition: opacity 0.2s ease;
-}
+	.fade-enter-active,
+	.fade-leave-active {
+		transition: opacity 0.2s ease;
+	}
 
-.fade-enter-from,
-.fade-leave-to {
-	opacity: 0;
-}
+	.fade-enter-from,
+	.fade-leave-to {
+		opacity: 0;
+	}
+
 </style>
