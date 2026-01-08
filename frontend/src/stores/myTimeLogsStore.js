@@ -139,7 +139,7 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks_projects", {});
 			projectChoices.value = data || [];
 	} catch (err) {
-			console.error("Failed to fetch project choices:", error);
+			console.error("Failed to fetch project choices:", err);
 			projectChoices.value = [];
 		}
 	}
