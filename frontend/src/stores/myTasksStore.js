@@ -76,10 +76,6 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	const error = ref(null);
 	const total = ref(0);
 	const selectedTask = ref(null);
-	const drawerOpen = ref(false);
-	const drawerMode = ref("view");
-	const drawerPreset = ref(null);
-	const drawerAction = ref(null);
 	const inlineDropdown = ref(null); // { taskName: string, type: 'status' | 'priority' }
 	const viewOptions = ref({
 		groupByStatus: false,
@@ -306,43 +302,10 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 
 	function selectTask(task) {
 		selectedTask.value = task;
-		drawerMode.value = "view";
-		drawerPreset.value = null;
-		drawerAction.value = null;
-		drawerOpen.value = true;
 	}
 
-	function openNewTask(preset = null) {
+	function clearSelection() {
 		selectedTask.value = null;
-		drawerMode.value = "new";
-		drawerPreset.value = preset;
-		drawerAction.value = null;
-		drawerOpen.value = true;
-	}
-
-	function openNewSubtask(parentTask) {
-		if (!parentTask) return;
-		if (parentTask.status === "Completed" || parentTask.status === "Cancelled") return;
-		openNewTask({
-			parent_task: parentTask.name,
-			project: parentTask.project,
-			exp_end_date: parentTask.exp_end_date || "",
-			status: parentTask.status,
-			priority: parentTask.priority,
-		});
-	}
-
-	function openTimelog(task) {
-		if (!task) return;
-		selectedTask.value = task;
-		drawerMode.value = "view";
-		drawerPreset.value = null;
-		drawerAction.value = { type: "timelog", taskName: task.name };
-		drawerOpen.value = true;
-	}
-
-	function clearDrawerAction() {
-		drawerAction.value = null;
 	}
 
 	function setViewOption(key, value) {
@@ -368,17 +331,6 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			next.add(taskName);
 		}
 		expandedParents.value = next;
-	}
-
-	function closeDrawer() {
-		drawerOpen.value = false;
-		// Delay clearing selected task for animation
-		setTimeout(() => {
-			selectedTask.value = null;
-			drawerMode.value = "view";
-			drawerPreset.value = null;
-			drawerAction.value = null;
-		}, 300);
 	}
 
 	function openInlineDropdown(taskName, type) {
@@ -519,10 +471,6 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		error,
 		total,
 		selectedTask,
-		drawerOpen,
-		drawerMode,
-		drawerPreset,
-		drawerAction,
 		inlineDropdown,
 		viewOptions,
 		expandedParents,
@@ -543,14 +491,10 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		updateTaskFull,
 		getTaskDetail,
 		selectTask,
-		openNewTask,
-		openNewSubtask,
-		openTimelog,
-		clearDrawerAction,
 		setViewOption,
 		toggleViewOption,
 		toggleExpandParent,
-		closeDrawer,
+		clearSelection,
 		openInlineDropdown,
 		toggleInlineDropdown,
 		closeInlineDropdown,

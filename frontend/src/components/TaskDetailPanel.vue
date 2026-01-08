@@ -9,6 +9,8 @@ import dayjs from "dayjs";
 import {
 	X,
 	ExternalLink,
+	Maximize2,
+	Minimize2,
 	Calendar,
 	User,
 	Flag,
@@ -72,12 +74,6 @@ const duePresetsRef = ref(null);
 const dueLabelRef = ref(null);
 const autosaveIndicatorVisible = ref(false);
 let autosaveTimer = null;
-const undoState = ref(null);
-const redoState = ref(null);
-let undoTimer = null;
-let redoTimer = null;
-const UNDO_WINDOW_MS = 5000;
-const trackableFields = new Set(["status", "priority", "exp_end_date"]);
 
 const COLLAPSE_KEY = "task-detail-panel-sections";
 const defaultSectionState = {
@@ -112,6 +108,7 @@ let shortcutHighlightTimer = null;
 const showDetailsSkeleton = computed(() => isSaving.value && sectionStates.value.details);
 const showTimeLogSkeleton = computed(() => timelogsLoading.value && sectionStates.value.timeLog);
 const dateValidationError = ref("");
+const isFullscreen = ref(false);
 
 watch(
 	() => props.task,
@@ -305,40 +302,37 @@ function validateDates() {
 	return true;
 }
 
-async function saveField(field, value, options = { trackUndo: true }) {
-	const previousValue = props.task[field];
-	if (value === previousValue) return;
+	async function saveField(field, value) {
+		const previousValue = props.task[field];
+		if (value === previousValue) return;
 
-	if (field === "exp_end_date" && !validateDates()) {
-		return;
-	}
+		if (field === "exp_end_date" && !validateDates()) {
+			return;
+		}
 
-	isSaving.value = true;
-	try {
-		await store.updateTask(props.task.name, { [field]: value });
-		if (realWindow?.frappe && field === "exp_end_date") {
-			realWindow.frappe.show_alert({
-				message: translate("Date updated successfully"),
-				indicator: "green",
-			});
+		isSaving.value = true;
+		try {
+			await store.updateTask(props.task.name, { [field]: value });
+			if (realWindow?.frappe && field === "exp_end_date") {
+				realWindow.frappe.show_alert({
+					message: translate("Date updated successfully"),
+					indicator: "green",
+				});
+			}
+			showAutosaveFeedback();
+		} catch (error) {
+			// Revert on error
+			editableTask.value[field] = previousValue;
+			if (realWindow?.frappe) {
+				realWindow.frappe.show_alert({
+					message: translate("Failed to update field"),
+					indicator: "red",
+				});
+			}
+		} finally {
+			isSaving.value = false;
 		}
-		if (options.trackUndo && trackableFields.has(field)) {
-			registerChange(field, previousValue, value);
-		}
-		showAutosaveFeedback();
-	} catch (error) {
-		// Revert on error
-		editableTask.value[field] = previousValue;
-		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({
-				message: translate("Failed to update field"),
-				indicator: "red",
-			});
-		}
-	} finally {
-		isSaving.value = false;
 	}
-}
 
 function showAutosaveFeedback() {
 	autosaveIndicatorVisible.value = true;
@@ -349,45 +343,6 @@ function showAutosaveFeedback() {
 		autosaveIndicatorVisible.value = false;
 		autosaveTimer = null;
 	}, 3000);
-}
-
-function registerChange(field, before, after) {
-	if (!trackableFields.has(field)) return;
-	if (before === after) return;
-
-	undoState.value = {
-		field,
-		before,
-		after,
-		label: getFieldLabel(field),
-	};
-	redoState.value = null;
-	clearUndoTimer();
-	undoTimer = setTimeout(() => {
-		undoState.value = null;
-		undoTimer = null;
-	}, UNDO_WINDOW_MS);
-}
-
-function clearUndoTimer() {
-	if (undoTimer) {
-		clearTimeout(undoTimer);
-		undoTimer = null;
-	}
-}
-
-function clearRedoTimer() {
-	if (redoTimer) {
-		clearTimeout(redoTimer);
-		redoTimer = null;
-	}
-}
-
-function getFieldLabel(field) {
-	if (field === "status") return translate("Status");
-	if (field === "priority") return translate("Priority");
-	if (field === "exp_end_date") return translate("Due Date");
-	return field;
 }
 
 function persistSectionStates() {
@@ -412,30 +367,6 @@ function toggleSection(sectionKey) {
 	if (sectionKey === "timeLog" && sectionStates.value.timeLog) {
 		ensureTimeLogsLoaded();
 	}
-}
-
-async function handleUndo() {
-	if (!undoState.value) return;
-	const { field, before, after } = undoState.value;
-	clearUndoTimer();
-	redoState.value = { field, before, after, label: getFieldLabel(field) };
-	clearRedoTimer();
-	redoTimer = setTimeout(() => {
-		redoState.value = null;
-		redoTimer = null;
-	}, UNDO_WINDOW_MS);
-	undoState.value = null;
-	editableTask.value[field] = before;
-	await saveField(field, before, { trackUndo: false });
-}
-
-async function handleRedo() {
-	if (!redoState.value) return;
-	const { field, after } = redoState.value;
-	clearRedoTimer();
-	redoState.value = null;
-	editableTask.value[field] = after;
-	await saveField(field, after, { trackUndo: false });
 }
 
 function toggleStatusMenu(event) {
@@ -548,6 +479,10 @@ function focusDueField() {
 	});
 }
 
+function handleActualDateBlur(field) {
+	saveField(field, editableTask.value[field]);
+}
+
 function focusAssigneeField() {
 	setShortcutHighlight("assignee");
 	assigneeControlRef.value?.openDropdown?.();
@@ -648,13 +583,7 @@ function handleGlobalKeydown(event) {
 
 	if ((event.metaKey || event.ctrlKey) && key === "z" && !event.shiftKey) {
 		event.preventDefault();
-		handleUndo();
-		return;
-	}
-
-	if ((event.metaKey || event.ctrlKey) && (key === "y" || (event.shiftKey && key === "z"))) {
-		event.preventDefault();
-		handleRedo();
+		persistAllFields();
 		return;
 	}
 }
@@ -694,12 +623,6 @@ async function persistAllFields() {
 		if (data) {
 			Object.assign(editableTask.value, data);
 		}
-		Object.entries(updates).forEach(([field, value]) => {
-			const before = props.task[field];
-			if (trackableFields.has(field)) {
-				registerChange(field, before, value);
-			}
-		});
 		showAutosaveFeedback();
 	} catch (error) {
 		console.error("Failed to persist fields:", error);
@@ -739,6 +662,10 @@ function openInDesk() {
 	realWindow?.open(`/app/task/${props.task.name}`, "_blank");
 }
 
+function toggleFullscreen() {
+	isFullscreen.value = !isFullscreen.value;
+}
+
 async function handleAddAssignee(user) {
 	await store.assignTask(props.task.name, user, "add");
 }
@@ -757,17 +684,15 @@ onMounted(() => {
 	}
 });
 
-onUnmounted(() => {
-	document.removeEventListener("click", handleDocumentClick);
-	document.removeEventListener("keydown", handleGlobalKeydown);
-	if (autosaveTimer) {
-		clearTimeout(autosaveTimer);
-	}
-	clearUndoTimer();
-	clearRedoTimer();
-	if (shortcutHighlightTimer) {
-		clearTimeout(shortcutHighlightTimer);
-		shortcutHighlightTimer = null;
+	onUnmounted(() => {
+		document.removeEventListener("click", handleDocumentClick);
+		document.removeEventListener("keydown", handleGlobalKeydown);
+		if (autosaveTimer) {
+			clearTimeout(autosaveTimer);
+		}
+		if (shortcutHighlightTimer) {
+			clearTimeout(shortcutHighlightTimer);
+			shortcutHighlightTimer = null;
 	}
 });
 
@@ -848,23 +773,42 @@ async function handleSubtaskCreated() {
 
 <template>
 	<aside
-		class="w-full max-w-[480px] md:min-w-[420px] bg-white border-l border-gray-200 flex flex-col flex-shrink-0 overflow-hidden"
+		:class="[
+			'w-full bg-white border-l border-gray-200 flex flex-col flex-shrink-0 overflow-hidden',
+			isFullscreen ? 'max-w-full md:min-w-full' : 'max-w-[480px] md:min-w-[420px]',
+		]"
 	>
 		<!-- Header -->
 		<div class="sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
 			<div class="flex items-center gap-2">
 				<span class="text-sm font-medium text-gray-500">{{ task.name }}</span>
+			</div>
+			<div class="flex items-center gap-2">
 				<button
-					@click="openInDesk"
+					type="button"
 					class="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-					title="Open in Desk"
+					@click="toggleFullscreen"
+					:title="isFullscreen ? translate('Exit fullscreen') : translate('Fullscreen')"
+				>
+					<component :is="isFullscreen ? Minimize2 : Maximize2" class="w-4 h-4" />
+				</button>
+				<button
+					type="button"
+					@click="openInDesk"
+					class="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center gap-1 text-xs font-medium"
 				>
 					<ExternalLink class="w-4 h-4" />
+					<span class="hidden md:inline">{{ translate("Open full window") }}</span>
+				</button>
+				<button
+					type="button"
+					@click="emit('close')"
+					class="p-1 rounded hover:bg-gray-100 text-gray-500"
+					title="Close"
+				>
+					<X class="w-5 h-5" />
 				</button>
 			</div>
-			<button @click="emit('close')" class="p-1 rounded hover:bg-gray-100 text-gray-500">
-				<X class="w-5 h-5" />
-			</button>
 		</div>
 
 		<!-- Content -->
@@ -1114,7 +1058,7 @@ async function handleSubtaskCreated() {
 								ref="dueInputRef"
 								v-model="editableTask.exp_end_date"
 								type="date"
-								@change="saveField('exp_end_date', editableTask.exp_end_date)"
+								@blur="handleActualDateBlur('exp_end_date')"
 								class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 							/>
 							<Transition name="menu-fade">
@@ -1137,9 +1081,6 @@ async function handleSubtaskCreated() {
 								</div>
 							</Transition>
 						</div>
-						<span class="text-xs text-gray-400">
-							<kbd class="px-1 border border-gray-200 rounded">Ctrl</kbd>+<kbd class="px-1 border border-gray-200 rounded">S</kbd>
-						</span>
 					</div>
 					<div v-if="dateValidationError" class="px-4 text-xs text-red-600">
 						{{ dateValidationError }}
@@ -1182,7 +1123,27 @@ async function handleSubtaskCreated() {
 								<input
 									v-model="editableTask.exp_start_date"
 									type="date"
-									@change="saveField('exp_start_date', editableTask.exp_start_date)"
+									@blur="handleActualDateBlur('exp_start_date')"
+									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+								/>
+							</div>
+
+							<div class="flex items-center gap-3">
+								<label class="text-sm text-gray-500 w-20">{{ translate("Actual Start") }}</label>
+								<input
+									v-model="editableTask.actual_start_date"
+									type="date"
+									@blur="handleActualDateBlur('actual_start_date')"
+									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+								/>
+							</div>
+
+							<div class="flex items-center gap-3">
+								<label class="text-sm text-gray-500 w-20">{{ translate("Actual End") }}</label>
+								<input
+									v-model="editableTask.actual_end_date"
+									type="date"
+									@blur="handleActualDateBlur('actual_end_date')"
 									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								/>
 							</div>
@@ -1422,38 +1383,6 @@ async function handleSubtaskCreated() {
 						</div>
 					</Transition>
 				</section>
-			</div>
-		</div>
-
-		<div
-			v-if="undoState || redoState"
-			class="border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600 flex items-center justify-between"
-		>
-			<div>
-				<span v-if="undoState">
-					{{ translate("Undo") }} {{ undoState.label }}
-				</span>
-				<span v-else>
-					{{ translate("Redo") }} {{ redoState.label }}
-				</span>
-			</div>
-			<div class="flex gap-2">
-				<button
-					v-if="undoState"
-					type="button"
-					class="px-2 py-1 text-xs text-blue-600 rounded-md border border-blue-100 hover:bg-blue-50"
-					@click="handleUndo"
-				>
-					{{ translate("Undo") }}
-				</button>
-				<button
-					v-else
-					type="button"
-					class="px-2 py-1 text-xs text-blue-600 rounded-md border border-blue-100 hover:bg-blue-50"
-					@click="handleRedo"
-				>
-					{{ translate("Redo") }}
-				</button>
 			</div>
 		</div>
 

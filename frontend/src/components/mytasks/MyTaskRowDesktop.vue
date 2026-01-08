@@ -231,12 +231,6 @@ function logTimeFromMenu() {
 	showContextMenu.value = false;
 }
 
-function addSubtaskFromMenu() {
-	if (!canAddSubtask.value) return;
-	store.openNewSubtask(props.task);
-	showContextMenu.value = false;
-}
-
 function handleDocumentClick(e) {
 	if (e.target.closest(".status-dropdown") || e.target.closest(".priority-dropdown")) {
 		return;
@@ -459,19 +453,6 @@ onUnmounted(() => {
 				>
 					<Clock class="w-4 h-4" />
 					{{ translate("Add time") }}
-				</button>
-				<button
-					@click="addSubtaskFromMenu"
-					:class="[
-						'w-full px-3 py-2 text-left text-sm flex items-center gap-2',
-						canAddSubtask
-							? 'text-gray-700 hover:bg-gray-100'
-							: 'text-gray-300 cursor-not-allowed',
-					]"
-					:disabled="!canAddSubtask"
-				>
-					<FileText class="w-4 h-4" />
-					{{ translate("Add subtask") }}
 				</button>
 			</div>
 		</Teleport>

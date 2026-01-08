@@ -5,7 +5,6 @@ import { useMyTasksStore } from "../stores/myTasksStore";
 import { useDebounceFn } from "@vueuse/core";
 import {
 	CheckSquare,
-	Plus,
 	Search,
 	Filter,
 	X,
@@ -13,11 +12,12 @@ import {
 	AlertCircle,
 	LayoutList,
 	LayoutGrid,
+	ExternalLink,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
 import MyTaskList from "../components/mytasks/MyTaskList.vue";
-import MyTaskDrawer from "../components/mytasks/MyTaskDrawer.vue";
+import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import TimeLogModal from "../components/TimeLogModal.vue";
 
 const router = useRouter();
@@ -56,16 +56,15 @@ function handleRetry() {
 	store.fetchTasks();
 }
 
-function openNewTaskDrawer() {
-	store.openNewTask();
+async function handleDetailPanelClose() {
+	store.clearSelection();
+	await store.fetchTasks();
 }
 
-function handleDrawerClose() {
-	store.closeDrawer();
-}
-
-function handleTaskCreated() {
-	store.closeDrawer();
+function openSelectedTaskInFullWindow() {
+	const taskName = store.selectedTask?.name;
+	if (!taskName) return;
+	realWindow?.open(`/app/task/${taskName}`, "_blank");
 }
 
 // Time log modal handlers
@@ -98,6 +97,8 @@ const isMobile = computed(() => {
 	}
 	return false;
 });
+
+const detailPanelOpen = computed(() => !!store.selectedTask);
 </script>
 
 <template>
@@ -120,6 +121,18 @@ const isMobile = computed(() => {
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
+						<button
+							type="button"
+							:disabled="!detailPanelOpen"
+							@click="openSelectedTaskInFullWindow"
+							class="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+							:class="detailPanelOpen
+								? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+								: 'border-gray-200 text-gray-400'"
+						>
+							<ExternalLink class="w-4 h-4" />
+							{{ translate("Open in full window") }}
+						</button>
 						<a
 							href="/app"
 							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
@@ -159,75 +172,66 @@ const isMobile = computed(() => {
 						</button>
 					</div>
 
-					<div class="flex items-center gap-2">
-						<!-- Filter toggle -->
-						<button
-							@click="showFilters = !showFilters"
-							:class="[
-								'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
-								showFilters || store.hasActiveFilters
-									? 'bg-blue-50 border-blue-200 text-blue-700'
-									: 'border-gray-300 text-gray-700 hover:bg-gray-50',
-							]"
-						>
-							<Filter class="w-4 h-4" />
-							<span class="hidden sm:inline">{{ translate("Filters") }}</span>
-							<span
-								v-if="store.hasActiveFilters"
-								class="w-2 h-2 rounded-full bg-blue-600"
-							></span>
-						</button>
-
-						<!-- View mode toggle (TODO: Kanban) -->
-						<div
-							class="hidden sm:flex items-center border border-gray-300 rounded-lg overflow-hidden"
-						>
+						<div class="flex items-center gap-2">
+							<!-- Filter toggle -->
 							<button
-								@click="viewMode = 'list'"
+								@click="showFilters = !showFilters"
 								:class="[
-									'p-2 transition-colors',
-									viewMode === 'list'
-										? 'bg-gray-100 text-gray-900'
-										: 'text-gray-500 hover:bg-gray-50',
+									'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
+									showFilters || store.hasActiveFilters
+										? 'bg-blue-50 border-blue-200 text-blue-700'
+										: 'border-gray-300 text-gray-700 hover:bg-gray-50',
 								]"
-								:title="translate('List view')"
 							>
-								<LayoutList class="w-4 h-4" />
+								<Filter class="w-4 h-4" />
+								<span class="hidden sm:inline">{{ translate("Filters") }}</span>
+								<span
+									v-if="store.hasActiveFilters"
+									class="w-2 h-2 rounded-full bg-blue-600"
+								></span>
 							</button>
-							<button
-								@click="viewMode = 'kanban'"
-								:class="[
-									'p-2 transition-colors',
-									viewMode === 'kanban'
-										? 'bg-gray-100 text-gray-900'
-										: 'text-gray-500 hover:bg-gray-50',
-								]"
-								:title="translate('Kanban view (coming soon)')"
-								disabled
+
+							<!-- View mode toggle (TODO: Kanban) -->
+							<div
+								class="hidden sm:flex items-center border border-gray-300 rounded-lg overflow-hidden"
 							>
-								<LayoutGrid class="w-4 h-4 opacity-50" />
+								<button
+									@click="viewMode = 'list'"
+									:class="[
+										'p-2 transition-colors',
+										viewMode === 'list'
+											? 'bg-gray-100 text-gray-900'
+											: 'text-gray-500 hover:bg-gray-50',
+									]"
+									:title="translate('List view')"
+								>
+									<LayoutList class="w-4 h-4" />
+								</button>
+								<button
+									@click="viewMode = 'kanban'"
+									:class="[
+										'p-2 transition-colors',
+										viewMode === 'kanban'
+											? 'bg-gray-100 text-gray-900'
+											: 'text-gray-500 hover:bg-gray-50',
+									]"
+									:title="translate('Kanban view (coming soon)')"
+									disabled
+								>
+									<LayoutGrid class="w-4 h-4 opacity-50" />
+								</button>
+							</div>
+
+							<!-- Refresh -->
+							<button
+								@click="store.fetchTasks()"
+								:disabled="store.loading"
+								class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+								:title="translate('Refresh')"
+							>
+								<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
 							</button>
 						</div>
-
-						<!-- Refresh -->
-						<button
-							@click="store.fetchTasks()"
-							:disabled="store.loading"
-							class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-							:title="translate('Refresh')"
-						>
-							<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
-						</button>
-
-						<!-- New task CTA -->
-						<button
-							@click="openNewTaskDrawer"
-							class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-						>
-							<Plus class="w-4 h-4" />
-							<span class="hidden sm:inline">{{ translate("New Task") }}</span>
-						</button>
-					</div>
 				</div>
 
 				<!-- Filters panel -->
@@ -297,38 +301,35 @@ const isMobile = computed(() => {
 							: translate("You do not have any tasks assigned yet")
 					}}
 				</p>
-				<div class="flex items-center justify-center gap-3">
-					<button
-						v-if="store.hasActiveFilters"
-						@click="
-							store.clearFilters();
-							searchInput = '';
-						"
-						class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-					>
-						{{ translate("Clear filters") }}
-					</button>
-					<button
-						@click="openNewTaskDrawer"
-						class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-					>
-						{{ translate("Create new task") }}
-					</button>
-				</div>
+					<div class="flex items-center justify-center gap-3">
+						<button
+							v-if="store.hasActiveFilters"
+							@click="
+								store.clearFilters();
+								searchInput = '';
+							"
+							class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+						>
+							{{ translate("Clear filters") }}
+						</button>
+					</div>
 			</div>
 
-			<!-- Task list -->
-			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" />
-		</main>
+				<!-- Task list -->
+				<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" />
+			</main>
 
-		<!-- Task Drawer -->
-		<MyTaskDrawer
-			:is-open="store.drawerOpen"
-			:task="store.selectedTask"
-			:is-new="store.drawerMode === 'new'"
-			@close="handleDrawerClose"
-			@created="handleTaskCreated"
-		/>
+			<!-- Task Detail Panel -->
+			<Transition name="slide-over">
+				<div v-if="detailPanelOpen" class="fixed inset-0 z-50 flex justify-end">
+					<div class="absolute inset-0 bg-black/20" @click="handleDetailPanelClose"></div>
+					<TaskDetailPanel
+						:task="store.selectedTask"
+						@close="handleDetailPanelClose"
+						class="relative z-10"
+					/>
+				</div>
+			</Transition>
 
 		<!-- Time Log Modal -->
 		<TimeLogModal
@@ -352,5 +353,14 @@ const isMobile = computed(() => {
 .slide-fade-leave-to {
 	opacity: 0;
 	transform: translateY(-10px);
+}
+
+.slide-over-enter-active,
+.slide-over-leave-active {
+	transition: transform 0.3s ease;
+}
+.slide-over-enter-from,
+.slide-over-leave-to {
+	transform: translateX(100%);
 }
 </style>
