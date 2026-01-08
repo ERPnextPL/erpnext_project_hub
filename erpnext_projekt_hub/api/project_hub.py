@@ -841,6 +841,79 @@ def get_task_timelogs(task_name: str):
 
 
 @frappe.whitelist()
+def get_my_timelogs(
+	start_date: str | None = None,
+	end_date: str | None = None,
+	status: str | None = None,
+	project: str | None = None,
+	activity_type: str | None = None,
+	search: str | None = None,
+):
+	"""Get time logs for the current user with optional filters."""
+	user = frappe.session.user
+
+	conditions = ["ts.owner = %s", "ts.docstatus < 2"]
+	values: list[str] = [user]
+
+	if status:
+		conditions.append("ts.status = %s")
+		values.append(status)
+	if project:
+		conditions.append("tsd.project = %s")
+		values.append(project)
+	if activity_type:
+		conditions.append("tsd.activity_type = %s")
+		values.append(activity_type)
+	if start_date:
+		conditions.append("DATE(tsd.from_time) >= %s")
+		values.append(start_date)
+	if end_date:
+		conditions.append("DATE(tsd.from_time) <= %s")
+		values.append(end_date)
+	if search:
+		search_value = f"%{search}%"
+		conditions.append(
+			"(tsd.description LIKE %s OR tsd.task LIKE %s OR task.subject LIKE %s OR tsd.project LIKE %s)"
+		)
+		values.extend([search_value, search_value, search_value, search_value])
+
+	condition_sql = " AND ".join(conditions)
+
+	timelogs = frappe.db.sql(
+		f"""
+		SELECT
+			ts.name as timesheet_name,
+			ts.status,
+			ts.docstatus,
+			ts.owner,
+			tsd.name as timelog_name,
+			tsd.activity_type,
+			tsd.hours,
+			tsd.from_time,
+			tsd.to_time,
+			tsd.description,
+			tsd.task,
+			tsd.project,
+			tsd.idx,
+			ts.creation,
+			ts.modified,
+			task.subject as task_subject,
+			proj.project_name as project_name
+		FROM `tabTimesheet Detail` tsd
+		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+		LEFT JOIN `tabTask` task ON tsd.task = task.name
+		LEFT JOIN `tabProject` proj ON tsd.project = proj.name
+		WHERE {condition_sql}
+		ORDER BY tsd.from_time DESC, tsd.idx DESC
+		""",
+		values,
+		as_dict=1,
+	)
+
+	return {"timelogs": timelogs, "total": len(timelogs)}
+
+
+@frappe.whitelist()
 def create_timelog(
 	task: str,
 	hours: float,
@@ -965,6 +1038,12 @@ def update_timelog(
 	# Check if user owns this timesheet
 	if timesheet.owner != frappe.session.user:
 		frappe.throw(_("You can only edit your own time logs"))
+
+	# Validate timesheet state before update
+	if timesheet.docstatus == 1:
+		frappe.throw(_("Cannot update time logs from a submitted timesheet. Please cancel it first."))
+	elif timesheet.docstatus == 2:
+		frappe.throw(_("Cannot modify a cancelled timesheet"))
 
 	# Update fields
 	if hours is not None:
