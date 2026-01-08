@@ -281,7 +281,7 @@
 		}
 	};
 
-	frappe.dom_ready(function () {
+	frappe.ready(function () {
 		ensureKanbanHook();
 	});
 })();
