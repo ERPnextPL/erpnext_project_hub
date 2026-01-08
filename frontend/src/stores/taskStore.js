@@ -221,6 +221,9 @@ async function updateTask(taskName, updates) {
 				if (index !== -1) {
 					tasks.value[index] = { ...tasks.value[index], ...data };
 				}
+				if (selectedTask.value?.name === taskName) {
+					selectedTask.value = { ...selectedTask.value, ...data };
+				}
 				// Refresh project data if status changed (affects percent_complete)
 				if (updates.status && data.status === updates.status && project.value) {
 					await refreshProject();
