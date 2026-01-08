@@ -48,6 +48,14 @@ function getWeekStart(date) {
 	return new Date(d.setDate(diff));
 }
 
+// Helper function to get local date string in YYYY-MM-DD format
+function getLocalDateString(date) {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const day = String(date.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
 // View mode and sorting
 const viewMode = ref("list"); // 'list' | 'calendar' | 'week'
 const sortBy = ref("date");
@@ -212,7 +220,7 @@ const weekDays = computed(() => {
 	for (let i = 0; i < 7; i++) {
 		const date = new Date(start);
 		date.setDate(start.getDate() + i);
-		const dateStr = date.toISOString().split("T")[0];
+		const dateStr = getLocalDateString(date);
 
 		days.push({
 			date: date,
@@ -236,7 +244,10 @@ const calendarMonth = computed(() => {
 
 	const firstDay = new Date(year, month, 1);
 	const startDate = new Date(firstDay);
-	startDate.setDate(startDate.getDate() - firstDay.getDay());
+	const dayOfWeek = firstDay.getDay();
+	// Adjust for Monday-first week: Sunday goes back 6 days, Mon goes back 0
+	const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+	startDate.setDate(startDate.getDate() - daysToSubtract);
 
 	const weeks = [];
 	let currentWeek = [];
@@ -244,7 +255,7 @@ const calendarMonth = computed(() => {
 	const totalCells = 6 * 7; // 6 weeks to cover all possible layouts
 
 	for (let cell = 0; cell < totalCells; cell++) {
-		const dateStr = currentDate.toISOString().split("T")[0];
+		const dateStr = getLocalDateString(currentDate);
 		const isCurrentMonth = currentDate.getMonth() === month;
 
 		currentWeek.push({
