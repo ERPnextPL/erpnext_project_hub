@@ -80,6 +80,7 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 		startDate: "",
 		endDate: "",
 	});
+	const projectChoices = ref([]);
 
 	const hasActiveFilters = computed(() => {
 		return (
@@ -133,6 +134,16 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 		};
 	}
 
+	async function fetchProjectChoices() {
+		try {
+			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks_projects", {});
+			projectChoices.value = data || [];
+		} catch (error) {
+			console.error("Failed to fetch project choices:", error);
+			projectChoices.value = [];
+		}
+	}
+
 	async function updateTimelog(timelogName, updates) {
 		const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_timelog", {
 			timelog_name: timelogName,
@@ -141,16 +152,32 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 		return data;
 	}
 
+	async function deleteTimelog(timelogName) {
+		try {
+			await apiCall("erpnext_projekt_hub.api.project_hub.delete_timelog", {
+				timelog_name: timelogName,
+			});
+			await fetchLogs();
+			return true;
+		} catch (error) {
+			console.error("Failed to delete time log:", error);
+			throw error;
+		}
+	}
+
 	return {
 		timelogs,
 		loading,
 		error,
 		total,
 		filters,
+		projectChoices,
 		hasActiveFilters,
 		fetchLogs,
+		fetchProjectChoices,
 		setFilter,
 		resetFilters,
 		updateTimelog,
+		deleteTimelog,
 	};
 });

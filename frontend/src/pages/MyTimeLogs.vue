@@ -9,6 +9,14 @@ import {
 	RefreshCw,
 	Pencil,
 	AlertCircle,
+	Trash2,
+	ArrowUpDown,
+	Calendar as CalendarIcon,
+	List,
+	CalendarDays,
+	ChevronLeft,
+	ChevronRight,
+	CheckCircle,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import { useMyTimeLogsStore } from "../stores/myTimeLogsStore";
@@ -31,6 +39,25 @@ const editForm = ref({
 	from_time: "",
 	to_time: "",
 });
+
+// Helper function for week calculations
+function getWeekStart(date) {
+	const d = new Date(date);
+	const day = d.getDay();
+	const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+	return new Date(d.setDate(diff));
+}
+
+// View mode and sorting
+const viewMode = ref("list"); // 'list' | 'calendar' | 'week'
+const sortBy = ref("date");
+const sortOrder = ref("desc");
+
+// Calendar navigation
+const currentCalendarDate = ref(new Date());
+
+// Week view navigation
+const currentWeekStart = ref(getWeekStart(new Date()));
 
 const userLocale = computed(() => {
 	const localeFromBoot = realWindow?.frappe?.boot?.lang;
@@ -58,12 +85,21 @@ const statusOptions = ["Draft", "Submitted", "Billed"];
 
 const projectOptions = computed(() => {
 	const map = new Map();
+	store.projectChoices.forEach((project) => {
+		map.set(project.name, {
+			value: project.name,
+			label: project.project_name || project.name,
+		});
+	});
 	store.timelogs.forEach((log) => {
-		if (log.project) {
-			map.set(log.project, log.project_name || log.project);
+		if (log.project && !map.has(log.project)) {
+			map.set(log.project, {
+				value: log.project,
+				label: log.project_name || log.project,
+			});
 		}
 	});
-	return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+	return Array.from(map.values());
 });
 
 const activityTypeOptions = computed(() => {
@@ -91,6 +127,201 @@ const draftHours = computed(() =>
 
 const draftCount = computed(() => store.timelogs.filter((log) => isDraftLog(log)).length);
 
+const submittedHours = computed(() =>
+	store.timelogs
+		.filter((log) => log.status === "Submitted" || log.docstatus === 1)
+		.reduce((sum, log) => sum + (parseFloat(log.hours) || 0), 0)
+);
+
+const draftPercentage = computed(() => {
+	if (totalHours.value === 0) return 0;
+	return (draftHours.value / totalHours.value) * 100;
+});
+
+const submittedPercentage = computed(() => {
+	if (totalHours.value === 0) return 0;
+	return (submittedHours.value / totalHours.value) * 100;
+});
+
+// Sorted and filtered timelogs
+const sortedTimelogs = computed(() => {
+	const logs = [...store.timelogs];
+
+	logs.sort((a, b) => {
+		let compareValue = 0;
+
+		switch (sortBy.value) {
+			case "date":
+				compareValue = new Date(a.from_time || a.creation) - new Date(b.from_time || b.creation);
+				break;
+			case "status":
+				compareValue = (a.status || "").localeCompare(b.status || "");
+				break;
+			case "project":
+				compareValue = (a.project_name || a.project || "").localeCompare(b.project_name || b.project || "");
+				break;
+			case "hours":
+				compareValue = (parseFloat(a.hours) || 0) - (parseFloat(b.hours) || 0);
+				break;
+			default:
+				compareValue = 0;
+		}
+
+		return sortOrder.value === "asc" ? compareValue : -compareValue;
+	});
+
+	return logs;
+});
+
+// Calendar view data - group logs by date
+const calendarData = computed(() => {
+	const data = {};
+
+	sortedTimelogs.value.forEach((log) => {
+		const date = log.from_time ? log.from_time.split(" ")[0] : log.creation?.split(" ")[0];
+		if (!date) return;
+
+		if (!data[date]) {
+			data[date] = {
+				logs: [],
+				totalHours: 0,
+				draftHours: 0,
+				submittedHours: 0,
+			};
+		}
+
+		data[date].logs.push(log);
+		const hours = parseFloat(log.hours) || 0;
+		data[date].totalHours += hours;
+
+		if (isDraftLog(log)) {
+			data[date].draftHours += hours;
+		} else if (log.status === "Submitted") {
+			data[date].submittedHours += hours;
+		}
+	});
+
+	return data;
+});
+
+// Week view data - get days for current week
+const weekDays = computed(() => {
+	const days = [];
+	const start = new Date(currentWeekStart.value);
+
+	for (let i = 0; i < 7; i++) {
+		const date = new Date(start);
+		date.setDate(start.getDate() + i);
+		const dateStr = date.toISOString().split("T")[0];
+
+		days.push({
+			date: date,
+			dateStr: dateStr,
+			data: calendarData.value[dateStr] || {
+				logs: [],
+				totalHours: 0,
+				draftHours: 0,
+				submittedHours: 0,
+			},
+		});
+	}
+
+	return days;
+});
+
+// Calendar month data
+const calendarMonth = computed(() => {
+	const year = currentCalendarDate.value.getFullYear();
+	const month = currentCalendarDate.value.getMonth();
+
+	const firstDay = new Date(year, month, 1);
+	const startDate = new Date(firstDay);
+	startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+	const weeks = [];
+	let currentWeek = [];
+	const currentDate = new Date(startDate);
+	const totalCells = 6 * 7; // 6 weeks to cover all possible layouts
+
+	for (let cell = 0; cell < totalCells; cell++) {
+		const dateStr = currentDate.toISOString().split("T")[0];
+		const isCurrentMonth = currentDate.getMonth() === month;
+
+		currentWeek.push({
+			date: new Date(currentDate),
+			dateStr,
+			isCurrentMonth,
+			data: calendarData.value[dateStr] || {
+				logs: [],
+				totalHours: 0,
+				draftHours: 0,
+				submittedHours: 0,
+			},
+		});
+
+		if (currentWeek.length === 7) {
+			weeks.push(currentWeek);
+			currentWeek = [];
+		}
+
+		currentDate.setDate(currentDate.getDate() + 1);
+	}
+
+	// Remove trailing weeks with no days from current month
+	while (
+		weeks.length > 0 &&
+		weeks[weeks.length - 1].every((day) => !day.isCurrentMonth)
+	) {
+		weeks.pop();
+	}
+
+	return weeks;
+});
+
+const activeFilterChips = computed(() => {
+	const chips = [];
+	if (store.filters.search) {
+		chips.push({
+			key: "search",
+			label: `${translate("Search")}: ${store.filters.search}`,
+		});
+	}
+	if (store.filters.status) {
+		chips.push({
+			key: "status",
+			label: `${translate("Status")}: ${translate(store.filters.status)}`,
+		});
+	}
+	if (store.filters.project) {
+		const projectOption = projectOptions.value.find((item) => item.value === store.filters.project);
+		chips.push({
+			key: "project",
+			label: `${translate("Project")}: ${
+				projectOption?.label || store.filters.project
+			}`,
+		});
+	}
+	if (store.filters.activityType) {
+		chips.push({
+			key: "activityType",
+			label: `${translate("Activity")}: ${store.filters.activityType}`,
+		});
+	}
+	if (store.filters.startDate) {
+		chips.push({
+			key: "startDate",
+			label: `${translate("Start date")}: ${formatChipDate(store.filters.startDate)}`,
+		});
+	}
+	if (store.filters.endDate) {
+		chips.push({
+			key: "endDate",
+			label: `${translate("End date")}: ${formatChipDate(store.filters.endDate)}`,
+		});
+	}
+	return chips;
+});
+
 const debouncedSearch = useDebounceFn((value) => {
 	store.setFilter("search", value);
 	store.fetchLogs();
@@ -104,6 +335,8 @@ onMounted(async () => {
 	if (taskStore.activityTypes.length === 0) {
 		taskStore.fetchActivityTypes();
 	}
+	applyMonthPreset(0, false);
+	await store.fetchProjectChoices();
 	await store.fetchLogs();
 });
 
@@ -118,6 +351,95 @@ function resetFilters() {
 	store.fetchLogs();
 }
 
+function removeFilter(key) {
+	if (key === "search") {
+		searchInput.value = "";
+	}
+	store.setFilter(key, "");
+	store.fetchLogs();
+}
+
+function formatChipDate(value) {
+	if (!value) return "";
+	const [year, month, day] = value.split("-");
+	if (!year || !month || !day) return value;
+	return `${day}.${month}.${year}`;
+}
+
+function applyMonthPreset(monthsAgo, shouldFetch = true) {
+	const today = new Date();
+	const year = today.getFullYear();
+	const month = today.getMonth() - monthsAgo;
+	const start = new Date(year, month, 1);
+	const end = new Date(year, month + 1, 0);
+
+	const formatDate = (date) => {
+		const pad = (n) => String(n).padStart(2, "0");
+		return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+	};
+	store.setFilter("startDate", formatDate(start));
+	store.setFilter("endDate", formatDate(end));
+	if (shouldFetch) {
+		store.fetchLogs();
+	}
+}
+
+function toggleSort(field) {
+	if (sortBy.value === field) {
+		sortOrder.value = sortOrder.value === "asc" ? "desc" : "asc";
+	} else {
+		sortBy.value = field;
+		sortOrder.value = "desc";
+	}
+}
+
+function navigateCalendar(direction) {
+	const newDate = new Date(currentCalendarDate.value);
+	newDate.setMonth(newDate.getMonth() + direction);
+	currentCalendarDate.value = newDate;
+}
+
+function navigateWeek(direction) {
+	const newDate = new Date(currentWeekStart.value);
+	newDate.setDate(newDate.getDate() + direction * 7);
+	currentWeekStart.value = newDate;
+}
+
+function goToToday() {
+	if (viewMode.value === "calendar") {
+		currentCalendarDate.value = new Date();
+	} else if (viewMode.value === "week") {
+		currentWeekStart.value = getWeekStart(new Date());
+	}
+}
+
+function formatMonthYear(date) {
+	return new Intl.DateTimeFormat(userLocale.value, {
+		year: "numeric",
+		month: "long",
+	}).format(date);
+}
+
+function formatDayName(date) {
+	return new Intl.DateTimeFormat(userLocale.value, { weekday: "short" }).format(date);
+}
+
+function formatDayMonth(date) {
+	return new Intl.DateTimeFormat(userLocale.value, {
+		month: "short",
+		day: "numeric",
+	}).format(date);
+}
+
+function isToday(date) {
+	const today = new Date();
+	return (
+		date.getDate() === today.getDate() &&
+		date.getMonth() === today.getMonth() &&
+		date.getFullYear() === today.getFullYear()
+	);
+}
+
 function toggleDraftsOnly() {
 	const next = store.filters.status === "Draft" ? "" : "Draft";
 	updateFilter("status", next);
@@ -125,13 +447,6 @@ function toggleDraftsOnly() {
 
 function isDraftLog(log) {
 	return log?.status === "Draft" || log?.docstatus === 0;
-}
-
-function getStatusClass(status) {
-	if (status === "Submitted") return "bg-emerald-100 text-emerald-800";
-	if (status === "Billed") return "bg-blue-100 text-blue-800";
-	if (status === "Draft") return "bg-amber-100 text-amber-800";
-	return "bg-gray-100 text-gray-700";
 }
 
 function formatDateTime(value) {
@@ -142,17 +457,56 @@ function formatDateTime(value) {
 	return dateFormatter.value.format(date);
 }
 
-function formatRange(log) {
-	if (!log?.from_time && !log?.to_time) return "";
-	if (log?.from_time && !log?.to_time) return formatDateTime(log.from_time);
-	if (!log?.from_time && log?.to_time) return formatDateTime(log.to_time);
-	return `${formatDateTime(log.from_time)} - ${formatDateTime(log.to_time)}`;
+function formatStartTime(log) {
+	if (!log?.from_time) return "";
+	return formatDateTime(log.from_time);
 }
 
 function formatHours(value) {
 	const hours = parseFloat(value);
 	if (Number.isNaN(hours)) return "0";
 	return hoursFormatter.value.format(hours);
+}
+
+const expandedDescriptions = ref(new Set());
+
+function toggleDescription(logName) {
+	if (expandedDescriptions.value.has(logName)) {
+		expandedDescriptions.value.delete(logName);
+	} else {
+		expandedDescriptions.value.add(logName);
+	}
+}
+
+function isDescriptionExpanded(logName) {
+	return expandedDescriptions.value.has(logName);
+}
+
+function getDescriptionText(log) {
+	if (!log.description) return translate("No description");
+	const limit = 100;
+	if (log.description.length <= limit) {
+		return log.description;
+	}
+	return isDescriptionExpanded(log.timelog_name)
+		? log.description
+		: `${log.description.slice(0, limit)}…`;
+}
+
+function shouldShowMoreButton(log) {
+	return log.description && log.description.length > 100;
+}
+
+function getProjectInitial(log) {
+	const label = log.project_name || log.project || "";
+	return label.trim() ? label.trim().charAt(0).toUpperCase() : "P";
+}
+
+function getStatusBadgeClass(status) {
+	if (status === "Submitted") return "bg-emerald-100 text-emerald-800";
+	if (status === "Draft") return "bg-amber-100 text-amber-800";
+	if (status === "Billed") return "bg-blue-100 text-blue-800";
+	return "bg-gray-100 text-gray-700";
 }
 
 function toLocalInput(value) {
@@ -241,6 +595,18 @@ async function handleEditSave() {
 		savingEdit.value = false;
 	}
 }
+
+async function handleDeleteLog(log) {
+	if (!isDraftLog(log)) return;
+	if (!confirm(translate("Are you sure you want to delete this draft time entry?"))) return;
+
+	try {
+		await store.deleteTimelog(log.timelog_name);
+		showAlert(translate("Time entry deleted"), "green");
+	} catch (error) {
+		showAlert(translate("Failed to delete time entry"), "red");
+	}
+}
 </script>
 
 <template>
@@ -275,6 +641,94 @@ async function handleEditSave() {
 
 		<div class="bg-white border-b border-gray-200 sticky top-16 z-10">
 			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+				<!-- Summary Cards Row -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+					<!-- Total Hours Card -->
+					<div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-3 shadow-sm">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-xs font-medium text-blue-700 uppercase tracking-wide">
+									{{ translate("Total hours") }}
+								</p>
+								<p class="mt-1 text-3xl font-bold text-blue-900">
+									{{ formatHours(totalHours) }}
+								</p>
+								<p class="text-xs text-blue-600 mt-0.5">
+									{{ store.timelogs.length }} {{ translate("entries") }}
+								</p>
+							</div>
+							<Timer class="w-10 h-10 text-blue-600 opacity-60" />
+						</div>
+					</div>
+
+					<!-- Draft Hours Card -->
+					<div class="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-3 shadow-sm">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-xs font-medium text-amber-700 uppercase tracking-wide">
+									{{ translate("Draft hours") }}
+								</p>
+								<p class="mt-1 text-3xl font-bold text-amber-900">
+									{{ formatHours(draftHours) }}
+								</p>
+								<p class="text-xs text-amber-600 mt-0.5">
+									{{ draftCount }} {{ translate("drafts") }}
+								</p>
+							</div>
+							<Pencil class="w-10 h-10 text-amber-600 opacity-60" />
+						</div>
+					</div>
+
+					<!-- Submitted Hours Card -->
+					<div class="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-3 shadow-sm">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-xs font-medium text-emerald-700 uppercase tracking-wide">
+									{{ translate("Submitted hours") }}
+								</p>
+								<p class="mt-1 text-3xl font-bold text-emerald-900">
+									{{ formatHours(submittedHours) }}
+								</p>
+								<p class="text-xs text-emerald-600 mt-0.5">
+									{{ (store.timelogs.length - draftCount) }} {{ translate("submitted") }}
+								</p>
+							</div>
+							<CheckCircle class="w-10 h-10 text-emerald-600 opacity-60" />
+						</div>
+					</div>
+				</div>
+
+				<!-- Progress Bar -->
+				<div v-if="totalHours > 0" class="mb-4">
+					<div class="flex items-center justify-between text-xs text-gray-600 mb-1.5">
+						<span>{{ translate("Progress") }}</span>
+						<span>{{ formatHours(submittedHours) }} / {{ formatHours(totalHours) }} {{ translate("hrs submitted") }}</span>
+					</div>
+					<div class="h-3 bg-gray-200 rounded-full overflow-hidden flex">
+						<div
+							class="bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
+							:style="{ width: `${submittedPercentage}%` }"
+							:title="`${translate('Submitted')}: ${formatHours(submittedHours)} hrs (${submittedPercentage.toFixed(1)}%)`"
+						></div>
+						<div
+							class="bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500"
+							:style="{ width: `${draftPercentage}%` }"
+							:title="`${translate('Draft')}: ${formatHours(draftHours)} hrs (${draftPercentage.toFixed(1)}%)`"
+						></div>
+					</div>
+					<div class="flex items-center justify-between text-xs mt-1.5">
+						<span class="flex items-center gap-1 text-emerald-700">
+							<span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+							{{ submittedPercentage.toFixed(1) }}% {{ translate("Submitted") }}
+						</span>
+						<span class="flex items-center gap-1 text-amber-700">
+							<span class="w-3 h-3 rounded-full bg-amber-500"></span>
+							{{ draftPercentage.toFixed(1) }}% {{ translate("Draft") }}
+						</span>
+					</div>
+				</div>
+
+				<!-- Search and Filters Row -->
 				<div class="flex flex-col lg:flex-row lg:items-center gap-3">
 					<div class="relative flex-1 max-w-lg">
 						<Search
@@ -295,7 +749,67 @@ async function handleEditSave() {
 						</button>
 					</div>
 
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-2 flex-wrap">
+						<!-- View Mode Toggle -->
+						<div class="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+							<button
+								@click="viewMode = 'list'"
+								:class="[
+									'p-2 rounded-md transition-colors',
+									viewMode === 'list'
+										? 'bg-white text-amber-600 shadow-sm'
+										: 'text-gray-600 hover:text-gray-900',
+								]"
+								:title="translate('List view')"
+							>
+								<List class="w-4 h-4" />
+							</button>
+							<button
+								@click="viewMode = 'calendar'"
+								:class="[
+									'p-2 rounded-md transition-colors',
+									viewMode === 'calendar'
+										? 'bg-white text-amber-600 shadow-sm'
+										: 'text-gray-600 hover:text-gray-900',
+								]"
+								:title="translate('Calendar view')"
+							>
+								<CalendarIcon class="w-4 h-4" />
+							</button>
+							<button
+								@click="viewMode = 'week'"
+								:class="[
+									'p-2 rounded-md transition-colors',
+									viewMode === 'week'
+										? 'bg-white text-amber-600 shadow-sm'
+										: 'text-gray-600 hover:text-gray-900',
+								]"
+								:title="translate('Week view')"
+							>
+								<CalendarDays class="w-4 h-4" />
+							</button>
+						</div>
+
+						<!-- Sort Dropdown (only in list view) -->
+						<div v-if="viewMode === 'list'" class="relative">
+							<select
+								v-model="sortBy"
+								@change="sortOrder = 'desc'"
+								class="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 appearance-none"
+							>
+								<option value="date">{{ translate("Sort by Date") }}</option>
+								<option value="status">{{ translate("Sort by Status") }}</option>
+								<option value="project">{{ translate("Sort by Project") }}</option>
+								<option value="hours">{{ translate("Sort by Hours") }}</option>
+							</select>
+							<button
+								@click="toggleSort(sortBy)"
+								class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+							>
+								<ArrowUpDown class="w-4 h-4" />
+							</button>
+						</div>
+
 						<button
 							@click="showFilters = !showFilters"
 							:class="[
@@ -345,6 +859,7 @@ async function handleEditSave() {
 									type="date"
 									:value="store.filters.startDate"
 									@change="updateFilter('startDate', $event.target.value)"
+									placeholder="dd.mm.rrrr (08.01.2026)"
 									class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
 								/>
 							</div>
@@ -356,6 +871,7 @@ async function handleEditSave() {
 									type="date"
 									:value="store.filters.endDate"
 									@change="updateFilter('endDate', $event.target.value)"
+									placeholder="dd.mm.rrrr (08.01.2026)"
 									class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
 								/>
 							</div>
@@ -413,6 +929,22 @@ async function handleEditSave() {
 								</select>
 							</div>
 						</div>
+						<div class="mt-4 flex flex-wrap gap-2">
+							<button
+								type="button"
+								@click="applyMonthPreset(0)"
+								class="px-3 py-2 text-sm font-semibold text-amber-600 border border-amber-200 rounded-lg hover:bg-amber-50"
+							>
+								{{ translate("Current month") }}
+							</button>
+							<button
+								type="button"
+								@click="applyMonthPreset(1)"
+								class="px-3 py-2 text-sm font-semibold text-amber-600 border border-amber-200 rounded-lg hover:bg-amber-50"
+							>
+								{{ translate("Previous month") }}
+							</button>
+						</div>
 						<div class="mt-4 flex items-center justify-between">
 							<p class="text-xs text-gray-500">
 								{{ translate("Filters apply to the list and totals below.") }}
@@ -430,56 +962,38 @@ async function handleEditSave() {
 			</div>
 		</div>
 
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-				<div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-					<p class="text-xs uppercase tracking-wide text-gray-500">
-						{{ translate("Total hours") }}
-					</p>
-					<p class="mt-2 text-2xl font-semibold text-gray-900">
-						{{ formatHours(totalHours) }} {{ translate("hrs") }}
-					</p>
-					<p class="text-xs text-gray-500 mt-1">
-						{{ translate("Entries") }}: {{ store.timelogs.length }}
-					</p>
-				</div>
-				<div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-					<p class="text-xs uppercase tracking-wide text-gray-500">
-						{{ translate("Draft hours") }}
-					</p>
-					<p class="mt-2 text-2xl font-semibold text-gray-900">
-						{{ formatHours(draftHours) }} {{ translate("hrs") }}
-					</p>
-					<p class="text-xs text-gray-500 mt-1">
-						{{ translate("Draft entries") }}: {{ draftCount }}
-					</p>
-				</div>
-				<div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-					<p class="text-xs uppercase tracking-wide text-gray-500">
-						{{ translate("Filtered view") }}
-					</p>
-					<p class="mt-2 text-2xl font-semibold text-gray-900">
-						{{ store.hasActiveFilters ? translate("Active") : translate("All") }}
-					</p>
-					<p class="text-xs text-gray-500 mt-1">
-						{{ translate("Showing") }} {{ store.timelogs.length }}
-						{{ translate("entries") }}
-					</p>
-				</div>
-			</div>
-
-			<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-				<div
-					class="hidden md:grid grid-cols-[1.6fr_1fr_1.4fr_2fr_0.6fr_0.9fr] gap-4 px-4 py-3 bg-gray-50 text-xs font-semibold text-gray-500 uppercase"
+		<div
+			v-if="store.hasActiveFilters"
+			class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-3 flex flex-wrap items-center gap-2"
+		>
+			<div class="flex flex-wrap gap-2 items-center">
+				<span
+					v-for="chip in activeFilterChips"
+					:key="chip.key"
+					class="flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700"
 				>
-					<span>{{ translate("Task / Project") }}</span>
-					<span>{{ translate("Activity") }}</span>
-					<span>{{ translate("Time") }}</span>
-					<span>{{ translate("Description") }}</span>
-					<span>{{ translate("Hours") }}</span>
-					<span class="text-right">{{ translate("Status") }}</span>
-				</div>
+					{{ chip.label }}
+					<button
+						type="button"
+						class="flex rounded-full hover:bg-amber-100"
+						@click="removeFilter(chip.key)"
+					>
+						<X class="w-3 h-3" />
+					</button>
+				</span>
+			</div>
+			<button
+				type="button"
+				@click="resetFilters"
+				class="ml-2 px-3 py-1 text-xs font-semibold text-gray-600 border border-gray-300 rounded-full hover:bg-gray-100"
+			>
+				{{ translate("Reset all filters") }}
+			</button>
+		</div>
 
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+			<!-- LIST VIEW -->
+			<div v-if="viewMode === 'list'" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
 				<div v-if="store.loading" class="py-12 text-center">
 					<div class="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent mx-auto"></div>
 				</div>
@@ -492,71 +1006,387 @@ async function handleEditSave() {
 					<span>{{ store.error }}</span>
 				</div>
 
-				<div v-else-if="store.timelogs.length === 0" class="py-12 text-center text-sm text-gray-500">
+				<div v-else-if="sortedTimelogs.length === 0" class="py-12 text-center text-sm text-gray-500">
 					{{ translate("No time entries found") }}
 				</div>
 
-				<div v-else class="divide-y divide-gray-100">
-					<div
-						v-for="log in store.timelogs"
-						:key="log.timelog_name"
-						class="px-4 py-4"
-					>
-						<div
-							class="grid gap-4 md:grid-cols-[1.6fr_1fr_1.4fr_2fr_0.6fr_0.9fr] items-start"
+				<div v-else class="space-y-4 p-4">
+					<div v-for="log in sortedTimelogs" :key="log.timelog_name">
+						<details
+							class="group bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+							open
 						>
-							<div>
-								<p class="text-xs text-gray-500 md:hidden">
-									{{ translate("Task / Project") }}
-								</p>
-								<p class="text-sm font-semibold text-gray-900">
-									{{ log.task_subject || log.task || translate("No task") }}
-								</p>
-								<p class="text-xs text-gray-500">
-									{{ log.project_name || log.project || translate("No project") }}
-								</p>
+							<summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3">
+								<div class="flex items-center gap-3">
+									<div
+										class="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 text-sm font-semibold text-gray-700"
+									>
+										{{ getProjectInitial(log) }}
+									</div>
+									<div>
+										<p class="text-sm font-semibold text-gray-900">
+											{{ log.task_subject || log.task || translate("No task") }}
+										</p>
+										<p class="text-xs text-gray-500">
+											{{ log.project_name || log.project || translate("No project") }}
+										</p>
+									</div>
+								</div>
+								<div class="flex flex-col items-end gap-1">
+									<span
+										class="px-3 py-1 text-xs font-semibold rounded-full"
+										:class="getStatusBadgeClass(log.status)"
+									>
+										{{ translate(log.status || "Unknown") }}
+									</span>
+										<p class="text-xs text-gray-500">{{ formatStartTime(log) }}</p>
+								</div>
+							</summary>
+
+							<div class="px-4 pb-4 space-y-3 border-t border-gray-100">
+								<div class="grid grid-cols-2 gap-4">
+									<div>
+										<p class="text-xs text-gray-500">{{ translate("Activity") }}</p>
+										<p class="text-sm text-gray-700">{{ log.activity_type || "-" }}</p>
+									</div>
+									<div>
+										<p class="text-xs text-gray-500">{{ translate("Hours") }}</p>
+										<p class="text-sm font-semibold text-gray-900">
+											{{ formatHours(log.hours) }}
+										</p>
+									</div>
+								</div>
+
+								<div>
+									<p class="text-xs text-gray-500">{{ translate("Description") }}</p>
+									<p class="text-sm text-gray-600 whitespace-pre-wrap break-words">
+										{{ getDescriptionText(log) }}
+									</p>
+									<button
+										v-if="shouldShowMoreButton(log)"
+										type="button"
+										@click="toggleDescription(log.timelog_name)"
+										class="mt-2 text-xs font-semibold text-amber-600 hover:text-amber-700"
+									>
+										{{ isDescriptionExpanded(log.timelog_name)
+											? translate("Show less")
+											: translate("Show more") }}
+									</button>
+								</div>
+
+								<div class="flex flex-wrap gap-2">
+									<button
+										v-if="isDraftLog(log)"
+										type="button"
+										@click="openEditModal(log)"
+										class="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+									>
+										<Pencil class="w-4 h-4" />
+										{{ translate("Edit") }}
+									</button>
+									<button
+										v-if="isDraftLog(log)"
+										type="button"
+										@click="handleDeleteLog(log)"
+										class="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
+									>
+										<Trash2 class="w-4 h-4" />
+										{{ translate("Delete") }}
+									</button>
+								</div>
 							</div>
-							<div>
-								<p class="text-xs text-gray-500 md:hidden">{{ translate("Activity") }}</p>
-								<p class="text-sm text-gray-700">
-									{{ log.activity_type || "-" }}
-								</p>
-							</div>
-							<div>
-								<p class="text-xs text-gray-500 md:hidden">{{ translate("Time") }}</p>
-								<p class="text-sm text-gray-700">{{ formatRange(log) }}</p>
-							</div>
-							<div>
-								<p class="text-xs text-gray-500 md:hidden">
-									{{ translate("Description") }}
-								</p>
-								<p class="text-sm text-gray-600 whitespace-pre-wrap break-words">
-									{{ log.description || translate("No description") }}
-								</p>
-							</div>
-							<div>
-								<p class="text-xs text-gray-500 md:hidden">{{ translate("Hours") }}</p>
-								<p class="text-sm font-semibold text-gray-900">
-									{{ formatHours(log.hours) }}
-								</p>
-							</div>
-							<div class="flex items-center justify-between md:justify-end gap-2">
+						</details>
+					</div>
+				</div>
+			</div>
+
+			<!-- CALENDAR VIEW -->
+			<div v-if="viewMode === 'calendar'" class="space-y-4">
+				<!-- Calendar Navigation -->
+				<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4">
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-lg font-semibold text-gray-900">
+							{{ formatMonthYear(currentCalendarDate) }}
+						</h2>
+						<div class="flex items-center gap-2">
+							<button
+								@click="goToToday"
+								class="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+							>
+								{{ translate("Today") }}
+							</button>
+							<button
+								@click="navigateCalendar(-1)"
+								class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+							>
+								<ChevronLeft class="w-5 h-5" />
+							</button>
+							<button
+								@click="navigateCalendar(1)"
+								class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+							>
+								<ChevronRight class="w-5 h-5" />
+							</button>
+						</div>
+					</div>
+
+					<!-- Calendar Grid -->
+					<div class="grid grid-cols-7 gap-2">
+						<!-- Day headers -->
+						<div
+							v-for="day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']"
+							:key="day"
+							class="text-center text-xs font-semibold text-gray-500 uppercase py-2"
+						>
+							{{ translate(day) }}
+						</div>
+
+						<!-- Calendar days -->
+						<div
+							v-for="(day, index) in calendarMonth.flat()"
+							:key="index"
+							:class="[
+								'min-h-24 p-2 rounded-lg border transition-colors',
+								day.isCurrentMonth ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100',
+								isToday(day.date) && 'ring-2 ring-amber-500',
+							]"
+						>
+							<div class="flex items-center justify-between mb-1">
 								<span
-									class="px-2 py-0.5 rounded-full text-xs font-medium"
-									:class="getStatusClass(log.status)"
+									:class="[
+										'text-sm font-medium',
+										day.isCurrentMonth ? 'text-gray-900' : 'text-gray-400',
+										isToday(day.date) && 'text-amber-600 font-bold',
+									]"
 								>
-									{{ translate(log.status || "Unknown") }}
+									{{ day.date.getDate() }}
 								</span>
-								<button
-									v-if="isDraftLog(log)"
-									type="button"
-									@click="openEditModal(log)"
-									class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-									:title="translate('Edit draft entry')"
+								<span
+									v-if="day.data.totalHours > 0"
+									class="text-xs font-semibold text-blue-600"
 								>
-									<Pencil class="w-4 h-4" />
-								</button>
+									{{ formatHours(day.data.totalHours) }}h
+								</span>
 							</div>
+
+							<!-- Hours breakdown -->
+							<div v-if="day.data.totalHours > 0" class="space-y-1">
+								<div
+									v-if="day.data.submittedHours > 0"
+									class="flex items-center justify-between text-xs"
+								>
+									<span class="text-emerald-600">{{ translate("Submitted") }}</span>
+									<span class="font-medium text-emerald-700">
+										{{ formatHours(day.data.submittedHours) }}h
+									</span>
+								</div>
+								<div
+									v-if="day.data.draftHours > 0"
+									class="flex items-center justify-between text-xs"
+								>
+									<span class="text-amber-600">{{ translate("Draft") }}</span>
+									<span class="font-medium text-amber-700">
+										{{ formatHours(day.data.draftHours) }}h
+									</span>
+								</div>
+								<div class="text-xs text-gray-500 mt-1">
+									{{ day.data.logs.length }} {{ translate("entries") }}
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- WEEK VIEW -->
+			<div v-if="viewMode === 'week'" class="space-y-4">
+				<!-- Week Navigation -->
+				<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4">
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-lg font-semibold text-gray-900">
+							{{ translate("Week View") }} -
+							{{ formatDayMonth(weekDays[0].date) }} - {{ formatDayMonth(weekDays[6].date) }}
+						</h2>
+						<div class="flex items-center gap-2">
+							<button
+								@click="goToToday"
+								class="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+							>
+								{{ translate("This week") }}
+							</button>
+							<button
+								@click="navigateWeek(-1)"
+								class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+							>
+								<ChevronLeft class="w-5 h-5" />
+							</button>
+							<button
+								@click="navigateWeek(1)"
+								class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+							>
+								<ChevronRight class="w-5 h-5" />
+							</button>
+						</div>
+					</div>
+
+					<!-- Week Grid -->
+					<div class="grid grid-cols-1 md:grid-cols-7 gap-3">
+						<div
+							v-for="day in weekDays"
+							:key="day.dateStr"
+							:class="[
+								'bg-white border-2 rounded-xl p-3 transition-all',
+								isToday(day.date)
+									? 'border-amber-500 shadow-lg'
+									: 'border-gray-200',
+							]"
+						>
+							<!-- Day header -->
+							<div class="mb-3">
+								<div
+									:class="[
+										'text-xs font-medium uppercase',
+										isToday(day.date) ? 'text-amber-600' : 'text-gray-500',
+									]"
+								>
+									{{ formatDayName(day.date) }}
+								</div>
+								<div
+									:class="[
+										'text-lg font-bold',
+										isToday(day.date) ? 'text-amber-600' : 'text-gray-900',
+									]"
+								>
+									{{ day.date.getDate() }}
+								</div>
+							</div>
+
+							<!-- Hours summary -->
+							<div class="space-y-2 mb-3">
+								<div class="flex items-center justify-between">
+									<span class="text-xs font-medium text-gray-600">{{ translate("Total") }}</span>
+									<span
+										:class="[
+											'text-sm font-bold',
+											day.data.totalHours >= 8
+												? 'text-emerald-600'
+												: day.data.totalHours > 0
+												? 'text-amber-600'
+												: 'text-gray-400',
+										]"
+									>
+										{{ formatHours(day.data.totalHours) }}h
+									</span>
+								</div>
+
+								<!-- Goal progress bar (8 hours target) -->
+								<div class="relative">
+									<div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+										<div
+											:class="[
+												'h-full transition-all duration-500 rounded-full',
+												day.data.totalHours >= 8
+													? 'bg-emerald-500'
+													: day.data.totalHours >= 4
+													? 'bg-amber-500'
+													: 'bg-blue-400',
+											]"
+											:style="{ width: `${Math.min((day.data.totalHours / 8) * 100, 100)}%` }"
+										></div>
+									</div>
+									<div class="flex justify-between text-xs text-gray-500 mt-1">
+										<span>0h</span>
+										<span class="font-medium">8h</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Hours breakdown -->
+							<div class="space-y-1.5">
+								<div
+									v-if="day.data.submittedHours > 0"
+									class="flex items-center gap-2 text-xs"
+								>
+									<CheckCircle class="w-3 h-3 text-emerald-600" />
+									<span class="text-emerald-700 font-medium">
+										{{ formatHours(day.data.submittedHours) }}h {{ translate("submitted") }}
+									</span>
+								</div>
+								<div
+									v-if="day.data.draftHours > 0"
+									class="flex items-center gap-2 text-xs"
+								>
+									<Pencil class="w-3 h-3 text-amber-600" />
+									<span class="text-amber-700 font-medium">
+										{{ formatHours(day.data.draftHours) }}h {{ translate("draft") }}
+									</span>
+								</div>
+								<div v-if="day.data.logs.length > 0" class="text-xs text-gray-500 pt-1 border-t">
+									{{ day.data.logs.length }} {{ translate("entries") }}
+								</div>
+							</div>
+
+							<!-- Warning if no entries -->
+							<div
+								v-if="day.data.totalHours === 0 && day.date <= new Date()"
+								class="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg"
+							>
+								<p class="text-xs text-red-600 font-medium">
+									{{ translate("No time logged") }}
+								</p>
+							</div>
+
+							<!-- Success indicator -->
+							<div
+								v-if="day.data.totalHours >= 8"
+								class="mt-3 p-2 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2"
+							>
+								<CheckCircle class="w-4 h-4 text-emerald-600" />
+								<p class="text-xs text-emerald-700 font-medium">
+									{{ translate("Goal reached!") }}
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Week summary -->
+					<div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+						<div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+							<p class="text-xs font-medium text-blue-700 uppercase">
+								{{ translate("Week Total") }}
+							</p>
+							<p class="text-2xl font-bold text-blue-900 mt-1">
+								{{ formatHours(weekDays.reduce((sum, d) => sum + d.data.totalHours, 0)) }}h
+							</p>
+							<p class="text-xs text-blue-600 mt-1">
+								{{ translate("Target") }}: 40h
+							</p>
+						</div>
+						<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+							<p class="text-xs font-medium text-emerald-700 uppercase">
+								{{ translate("Days Completed") }}
+							</p>
+							<p class="text-2xl font-bold text-emerald-900 mt-1">
+								{{ weekDays.filter(d => d.data.totalHours >= 8).length }} / 5
+							</p>
+							<p class="text-xs text-emerald-600 mt-1">
+								{{ translate("Working days") }}
+							</p>
+						</div>
+						<div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+							<p class="text-xs font-medium text-amber-700 uppercase">
+								{{ translate("Average/Day") }}
+							</p>
+							<p class="text-2xl font-bold text-amber-900 mt-1">
+								{{
+									formatHours(
+										weekDays.reduce((sum, d) => sum + d.data.totalHours, 0) / 7
+									)
+								}}h
+							</p>
+							<p class="text-xs text-amber-600 mt-1">
+								{{ translate("This week") }}
+							</p>
 						</div>
 					</div>
 				</div>
@@ -679,5 +1509,14 @@ async function handleEditSave() {
 .slide-fade-leave-to {
 	opacity: 0;
 	transform: translateY(-10px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+	transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+	opacity: 0;
 }
 </style>
