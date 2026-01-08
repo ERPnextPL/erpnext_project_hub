@@ -693,7 +693,7 @@ onMounted(() => {
 		if (shortcutHighlightTimer) {
 			clearTimeout(shortcutHighlightTimer);
 			shortcutHighlightTimer = null;
-	}
+		}
 });
 
 const currentTimelogs = computed(() => {
