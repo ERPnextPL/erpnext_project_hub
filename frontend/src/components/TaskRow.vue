@@ -605,12 +605,12 @@ onUnmounted(() => {
 						</button>
 
 						<Transition name="fade">
-								<div
-									v-if="showDescriptionPreview"
-									class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg break-words leading-relaxed markdown-body"
-									v-html="taskDescriptionMarkdownPreview"
-								></div>
-								</Transition>
+							<div
+								v-if="showDescriptionPreview"
+								class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg break-words leading-relaxed markdown-body"
+								v-html="taskDescriptionMarkdownPreview"
+							></div>
+						</Transition>
 						</div>
 					</div>
 				</div>
