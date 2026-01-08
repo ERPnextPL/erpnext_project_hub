@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
-import { Folder, CheckSquare, Users, Clock } from "lucide-vue-next";
+import { Folder, CheckSquare, Users, Clock, Timer } from "lucide-vue-next";
 
 const route = useRoute();
 const router = useRouter();
@@ -22,6 +22,14 @@ const navItems = [
 		icon: CheckSquare,
 		color: "text-blue-500",
 		bg: "bg-blue-50",
+	},
+	{
+		key: "my-time",
+		to: "/project-hub/my-time-logs",
+		labelKey: "My Time",
+		icon: Timer,
+		color: "text-amber-600",
+		bg: "bg-amber-50",
 	},
 	{
 		key: "team",
@@ -62,6 +70,7 @@ const activeKey = computed(() => {
 	const { name } = route;
 	if (name === "ProjectList" || name === "ProjectOutliner") return "projects";
 	if (name === "MyTasks") return "tasks";
+	if (name === "MyTimeLogs") return "my-time";
 	if (name === "TeamManager") return "team";
 	if (name === "TimeManagement") return "time";
 	return "projects";
