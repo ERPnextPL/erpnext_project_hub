@@ -6,4 +6,4 @@ tags
 node_modules
 __pycache__
 *.timestamp-*.mjs
-erpnext_projekt_hub/public/frontend/
+# erpnext_projekt_hub/public/frontend/ - commented out for Frappe Cloud deployment
