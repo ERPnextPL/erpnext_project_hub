@@ -13,6 +13,7 @@ import {
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import { translate } from "../utils/translation";
+import { getProgressColorClass } from "../utils/progressColors";
 const router = useRouter();
 const activeProjects = ref([]);
 const completedProjects = ref([]);
@@ -58,14 +59,6 @@ function getStatusClass(status) {
 		Cancelled: "bg-gray-100 text-gray-600",
 	};
 	return classes[status] || "bg-gray-100 text-gray-600";
-}
-
-function getProgressColor(percent) {
-	if (percent === 100) return "bg-green-500";
-	if (percent >= 75) return "bg-emerald-500";
-	if (percent >= 50) return "bg-blue-500";
-	if (percent >= 25) return "bg-amber-500";
-	return "bg-gray-300";
 }
 </script>
 
@@ -187,7 +180,7 @@ function getProgressColor(percent) {
 								<div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
 									<div
 										class="h-full rounded-full transition-all duration-300"
-										:class="getProgressColor(project.percent_complete || 0)"
+										:class="getProgressColorClass(project.percent_complete || 0)"
 										:style="{ width: (project.percent_complete || 0) + '%' }"
 									></div>
 								</div>

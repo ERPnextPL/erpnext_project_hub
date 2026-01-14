@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
+import { getProgressColorClass } from "../../utils/progressColors";
 import {
 	Circle,
 	Clock,
@@ -139,11 +140,8 @@ const progressPercent = computed(() => {
 	return Math.max(0, Math.min(100, raw));
 });
 
-const progressBarColorValue = computed(() => {
-	const percent = progressPercent.value;
-	if (percent >= 90) return "#10b981";
-	if (percent > 50) return "#f59e0b";
-	return "#3b82f6";
+const progressBarColorClass = computed(() => {
+	return getProgressColorClass(progressPercent.value);
 });
 
 async function toggleComplete(e) {
@@ -360,7 +358,8 @@ onUnmounted(() => {
 						<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
 							<div
 								class="h-full rounded-full transition-all duration-300"
-								:style="{ width: progressPercent + '%', backgroundColor: progressBarColorValue }"
+								:class="progressBarColorClass"
+								:style="{ width: progressPercent + '%' }"
 							></div>
 						</div>
 					</div>
