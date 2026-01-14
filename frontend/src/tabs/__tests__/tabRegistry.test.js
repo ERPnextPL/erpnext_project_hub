@@ -5,7 +5,7 @@
  * Run with: npm test or your test runner
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'; // or jest
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import tabRegistry, { registerTab, getTabs, getNavItems } from '../tabRegistry';
 import { Folder } from 'lucide-vue-next';
 
@@ -52,7 +52,7 @@ describe('Tab Registry', () => {
 		});
 
 		it('should warn when registering duplicate key', () => {
-			const consoleSpy = jest.spyOn(console, 'warn');
+			const consoleSpy = vi.spyOn(console, 'warn');
 
 			const config = {
 				key: 'duplicate',
@@ -71,6 +71,7 @@ describe('Tab Registry', () => {
 			expect(consoleSpy).toHaveBeenCalledWith(
 				expect.stringContaining('already registered')
 			);
+			consoleSpy.mockRestore();
 		});
 	});
 
