@@ -12,7 +12,6 @@ import {
 	AlertCircle,
 	LayoutList,
 	LayoutGrid,
-	ExternalLink,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
@@ -59,12 +58,6 @@ function handleRetry() {
 async function handleDetailPanelClose() {
 	store.clearSelection();
 	await store.fetchTasks();
-}
-
-function openSelectedTaskInFullWindow() {
-	const taskName = store.selectedTask?.name;
-	if (!taskName) return;
-	realWindow?.open(`/app/task/${taskName}`, "_blank");
 }
 
 // Time log modal handlers
@@ -121,18 +114,6 @@ const detailPanelOpen = computed(() => !!store.selectedTask);
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
-						<button
-							type="button"
-							:disabled="!detailPanelOpen"
-							@click="openSelectedTaskInFullWindow"
-							class="flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-							:class="detailPanelOpen
-								? 'border-gray-300 text-gray-700 hover:bg-gray-50'
-								: 'border-gray-200 text-gray-400'"
-						>
-							<ExternalLink class="w-4 h-4" />
-							{{ translate("Open in full window") }}
-						</button>
 						<a
 							href="/app"
 							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
