@@ -6,6 +6,7 @@ import {
 	Clock,
 	User,
 	FileText,
+	Link,
 	TrendingUp,
 	AlertCircle,
 	ChevronDown,
@@ -70,12 +71,14 @@ const isSaving = ref(false);
 
 const editableExpectedStart = ref("");
 const editableExpectedEnd = ref("");
+const editableDocumentationUrl = ref("");
 
 watch(
 	() => props.project,
 	(p) => {
 		editableExpectedStart.value = p?.expected_start_date || "";
 		editableExpectedEnd.value = p?.expected_end_date || "";
+		editableDocumentationUrl.value = p?.documentation_url || "";
 	},
 	{ immediate: true }
 );
@@ -85,27 +88,51 @@ const toggleExpand = () => {
 };
 
 async function saveDateField(field, value) {
+	await saveProjectField(
+		field,
+		value,
+		translate("Project dates saved"),
+		translate("Could not save project dates"),
+		() => {
+			editableExpectedStart.value = props.project.expected_start_date || "";
+			editableExpectedEnd.value = props.project.expected_end_date || "";
+		}
+	);
+}
+
+async function saveProjectField(field, value, successMessage, errorMessage, onError) {
 	isSaving.value = true;
 	try {
 		await store.updateProject(props.project.name, { [field]: value });
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
-				message: translate("Project dates saved"),
+				message: successMessage,
 				indicator: "green",
 			});
 		}
 	} catch (e) {
-		editableExpectedStart.value = props.project.expected_start_date || "";
-		editableExpectedEnd.value = props.project.expected_end_date || "";
+		onError?.();
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
-				message: translate("Could not save project dates"),
+				message: errorMessage,
 				indicator: "red",
 			});
 		}
 	} finally {
 		isSaving.value = false;
 	}
+}
+
+async function saveDocumentationUrl() {
+	await saveProjectField(
+		"documentation_url",
+		editableDocumentationUrl.value,
+		translate("Documentation link saved"),
+		translate("Could not save documentation link"),
+		() => {
+			editableDocumentationUrl.value = props.project.documentation_url || "";
+		}
+	);
 }
 </script>
 
@@ -259,6 +286,22 @@ async function saveDateField(field, value) {
 										project.customer_name || project.customer || translate("Not assigned")
 									}}
 								</div>
+							</div>
+						</div>
+						<div class="flex items-start gap-2">
+							<Link class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+							<div class="flex-1 min-w-0">
+								<div class="text-xs text-gray-500">
+									{{ translate("Documentation URL") }}
+								</div>
+								<input
+									v-model="editableDocumentationUrl"
+									type="url"
+									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+									:placeholder="translate('https://docs.example.com')"
+									@blur="saveDocumentationUrl"
+									:disabled="isSaving"
+								/>
 							</div>
 						</div>
 					</div>
