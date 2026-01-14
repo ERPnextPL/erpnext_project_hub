@@ -1,38 +1,28 @@
 import { createRouter, createWebHistory } from "vue-router";
+import tabRegistry, { getRoutes, getReservedSegments } from "./tabRegistry";
+import { registerCoreTabs } from "./tabs/coreTabs";
 
-const RESERVED_PROJECT_SEGMENTS = {
-	"my-tasks": "MyTasks",
-	"my-time-logs": "MyTimeLogs",
-	"team-manager": "TeamManager",
-	"time-management": "TimeManagement",
-};
+// Register core tabs
+registerCoreTabs();
+
+// Extension point: PRO version or other plugins can register additional tabs here
+// Example:
+// import { registerProTabs } from 'erpnext_projekt_hub_pro/tabs/proTabs';
+// registerProTabs();
+
+// Mark registry as initialized
+tabRegistry.markInitialized();
+
+// Get routes from registry
+const tabRoutes = getRoutes();
+
+// Get reserved segments from registry
+const RESERVED_PROJECT_SEGMENTS = getReservedSegments();
 
 const routes = [
-	{
-		path: "/project-hub",
-		name: "ProjectList",
-		component: () => import("./pages/ProjectList.vue"),
-	},
-	{
-		path: "/project-hub/my-tasks",
-		name: "MyTasks",
-		component: () => import("./pages/MyTasks.vue"),
-	},
-	{
-		path: "/project-hub/my-time-logs",
-		name: "MyTimeLogs",
-		component: () => import("./pages/MyTimeLogs.vue"),
-	},
-	{
-		path: "/project-hub/team-manager",
-		name: "TeamManager",
-		component: () => import("./pages/TeamManager.vue"),
-	},
-	{
-		path: "/project-hub/time-management",
-		name: "TimeManagement",
-		component: () => import("./pages/TimeManagement.vue"),
-	},
+	// Add all registered tab routes
+	...tabRoutes,
+	// Project Outliner route (must come last to avoid conflicts)
 	{
 		path: "/project-hub/:projectId",
 		name: "ProjectOutliner",
