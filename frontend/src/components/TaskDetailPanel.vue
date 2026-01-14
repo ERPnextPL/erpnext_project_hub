@@ -136,8 +136,6 @@ onMounted(() => {
 	}
 });
 
-const disabledStatuses = new Set(["Template"]);
-
 const statusPalette = {
 	Open: {
 		icon: Circle,
@@ -160,7 +158,7 @@ const statusPalette = {
 	Completed: {
 		icon: CheckCircle2,
 		label: translate("Completed"),
-		bg: "bg-emerald-600 border border-emerald-600",
+		bg: "bg-green-600 border border-green-600",
 		text: "text-white",
 	},
 	Overdue: {
@@ -201,11 +199,12 @@ const priorityPalette = {
 };
 
 const statusOptions = computed(() =>
-	store.taskStatuses.map((status) => ({
-		value: status,
-		palette: statusPalette[status] || statusPalette.Open,
-		disabled: disabledStatuses.has(status),
-	}))
+	store.taskStatuses
+		.filter((status) => status !== "Template")
+		.map((status) => ({
+			value: status,
+			palette: statusPalette[status] || statusPalette.Open,
+		}))
 );
 
 const priorityOptions = computed(() =>
@@ -223,9 +222,7 @@ const currentPriorityPalette = computed(
 	() => priorityPalette[editableTask.value.priority] || priorityPalette.Medium
 );
 
-const statusCycleOrder = computed(() =>
-	statusOptions.value.filter((opt) => !opt.disabled).map((opt) => opt.value)
-);
+const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));
 
 const priorityCycleOrder = computed(() => priorityOptions.value.map((opt) => opt.value));
 
@@ -911,11 +908,10 @@ async function handleSubtaskCreated() {
 										<button
 											v-for="opt in statusOptions"
 											:key="opt.value"
-											:disabled="opt.disabled"
 											type="button"
 											class="flex items-center gap-2 w-full px-3 py-2 text-left text-sm rounded-md transition-colors"
 											:class="[
-												opt.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50',
+												'hover:bg-gray-50',
 												editableTask.status === opt.value ? opt.palette.bg : 'text-gray-600',
 												editableTask.status === opt.value ? opt.palette.text : '',
 											]"
@@ -1129,26 +1125,6 @@ async function handleSubtaskCreated() {
 							</div>
 
 							<div class="flex items-center gap-3">
-								<label class="text-sm text-gray-500 w-20">{{ translate("Actual Start") }}</label>
-								<input
-									v-model="editableTask.actual_start_date"
-									type="date"
-									@blur="handleActualDateBlur('actual_start_date')"
-									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								/>
-							</div>
-
-							<div class="flex items-center gap-3">
-								<label class="text-sm text-gray-500 w-20">{{ translate("Actual End") }}</label>
-								<input
-									v-model="editableTask.actual_end_date"
-									type="date"
-									@blur="handleActualDateBlur('actual_end_date')"
-									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								/>
-							</div>
-
-							<div class="flex items-center gap-3">
 								<label class="text-sm text-gray-500 w-20">{{ translate("Progress") }}</label>
 								<div class="flex-1 flex items-center gap-2">
 									<input
@@ -1191,6 +1167,65 @@ async function handleSubtaskCreated() {
 									v-html="descriptionMarkdownPreview"
 								></div>
 							</div>
+						</div>
+					</Transition>
+				</section>
+
+				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+					<header class="px-4 py-3 border-b border-gray-200">
+						<button
+							type="button"
+							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+							@click="toggleSection('subtasks')"
+							:aria-expanded="sectionStates.subtasks"
+							aria-controls="subtasks-section"
+						>
+							<div class="flex items-center gap-2">
+								<Folder class="w-4 h-4 text-blue-600" />
+								<span>{{ translate("Subtasks") }}</span>
+							</div>
+							<ChevronDown
+								class="w-3 h-3 text-gray-400 transition-transform"
+								:class="sectionStates.subtasks ? 'rotate-180' : ''"
+							/>
+						</button>
+					</header>
+					<Transition name="fade">
+						<div
+							id="subtasks-section"
+							v-show="sectionStates.subtasks"
+							class="px-4 pb-4 pt-3 space-y-3"
+						>
+							<div v-if="task.children?.length > 0" class="space-y-1 mb-2">
+								<div
+									v-for="child in task.children"
+									:key="child.name"
+									class="flex items-center gap-2 text-sm text-gray-600 py-1"
+								>
+									<component
+										:is="child.status === 'Completed' ? CheckCircle2 : Circle"
+										:class="[
+											'w-4 h-4',
+											child.status === 'Completed'
+												? 'text-green-500'
+												: 'text-gray-400',
+										]"
+									/>
+									<span
+										:class="{
+											'line-through text-gray-400': child.status === 'Completed',
+										}"
+									>
+										{{ child.subject }}
+									</span>
+								</div>
+							</div>
+							<QuickAddTask
+								:project-id="task.project"
+								:parent-task="task.name"
+								placeholder="Dodaj podzadanie..."
+								@created="handleSubtaskCreated"
+							/>
 						</div>
 					</Transition>
 				</section>
@@ -1321,65 +1356,6 @@ async function handleSubtaskCreated() {
 									</div>
 								</div>
 							</div>
-						</div>
-					</Transition>
-				</section>
-
-				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-					<header class="px-4 py-3 border-b border-gray-200">
-						<button
-							type="button"
-							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-							@click="toggleSection('subtasks')"
-							:aria-expanded="sectionStates.subtasks"
-							aria-controls="subtasks-section"
-						>
-							<div class="flex items-center gap-2">
-								<Folder class="w-4 h-4 text-blue-600" />
-								<span>{{ translate("Subtasks") }}</span>
-							</div>
-							<ChevronDown
-								class="w-3 h-3 text-gray-400 transition-transform"
-								:class="sectionStates.subtasks ? 'rotate-180' : ''"
-							/>
-						</button>
-					</header>
-					<Transition name="fade">
-						<div
-							id="subtasks-section"
-							v-show="sectionStates.subtasks"
-							class="px-4 pb-4 pt-3 space-y-3"
-						>
-							<div v-if="task.children?.length > 0" class="space-y-1 mb-2">
-								<div
-									v-for="child in task.children"
-									:key="child.name"
-									class="flex items-center gap-2 text-sm text-gray-600 py-1"
-								>
-									<component
-										:is="child.status === 'Completed' ? CheckCircle2 : Circle"
-										:class="[
-											'w-4 h-4',
-											child.status === 'Completed'
-												? 'text-green-500'
-												: 'text-gray-400',
-										]"
-									/>
-									<span
-										:class="{
-											'line-through text-gray-400': child.status === 'Completed',
-										}"
-									>
-										{{ child.subject }}
-									</span>
-								</div>
-							</div>
-							<QuickAddTask
-								:project-id="task.project"
-								:parent-task="task.name"
-								placeholder="Dodaj podzadanie..."
-								@created="handleSubtaskCreated"
-							/>
 						</div>
 					</Transition>
 				</section>
