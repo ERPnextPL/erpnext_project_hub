@@ -1568,7 +1568,10 @@ def get_my_tasks(
 			values["today"] = today_date
 			values["week_end"] = week_end
 		elif due_filter == "overdue":
-			filters.append("t.exp_end_date < %(today)s AND t.status NOT IN ('Completed', 'Cancelled')")
+			filters.append(
+				"t.exp_end_date IS NOT NULL AND t.exp_end_date != '' AND t.exp_end_date < %(today)s "
+				"AND t.status NOT IN ('Completed', 'Cancelled')"
+			)
 			values["today"] = today_date
 
 	# Search filter
