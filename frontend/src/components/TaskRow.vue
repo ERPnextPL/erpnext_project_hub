@@ -35,6 +35,14 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	visibleColumns: {
+		type: Array,
+		required: true,
+	},
+	gridTemplate: {
+		type: String,
+		required: true,
+	},
 });
 
 const emit = defineEmits(["update", "click", "add-subtask", "log-time", "add-task"]);
@@ -470,20 +478,22 @@ onUnmounted(() => {
 
 <template>
 	<div
-		class="task-row grid grid-cols-12 gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all context-menu-wrapper"
+		class="task-row grid gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
 			level === 0
-				? 'bg-white hover:bg-gray-50 border-transparent'
+				? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'
 				: level === 1
-				? 'bg-gray-50/50 hover:bg-gray-100/50 border-blue-200/40'
-				: 'bg-gray-100/30 hover:bg-gray-100/60 border-blue-300/30',
+				? 'bg-gray-50/50 dark:bg-gray-800/80 hover:bg-gray-100/50 dark:hover:bg-gray-700/80 border-blue-200/40 dark:border-blue-500/30'
+				: 'bg-gray-100/30 dark:bg-gray-800/60 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 border-blue-300/30 dark:border-blue-500/30',
 		]"
+		:style="{ gridTemplateColumns: gridTemplate }"
 		@click="handleRowClick"
 		@contextmenu="showMenu"
 	>
-		<!-- Task name with indent -->
-		<div class="col-span-5 flex items-center gap-1 min-w-0">
+		<template v-for="columnId in visibleColumns" :key="columnId">
+			<!-- Task name with indent -->
+			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0">
 			<!-- Drag handle -->
 			<div
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
@@ -495,7 +505,7 @@ onUnmounted(() => {
 			<!-- Indent spacer with tree lines -->
 			<div v-for="i in level" :key="i" class="w-6 flex-shrink-0 relative">
 				<!-- Vertical line -->
-				<div class="absolute left-3 top-0 bottom-0 w-px bg-gray-200"></div>
+				<div class="absolute left-3 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-600"></div>
 			</div>
 
 			<!-- Expand/collapse toggle or connector -->
@@ -504,19 +514,19 @@ onUnmounted(() => {
 				:class="level > 0 ? 'w-6' : 'w-5'"
 			>
 				<!-- Horizontal connector line for subtasks -->
-				<div v-if="level > 0" class="absolute left-0 top-1/2 w-3 h-px bg-gray-200"></div>
+				<div v-if="level > 0" class="absolute left-0 top-1/2 w-3 h-px bg-gray-200 dark:bg-gray-600"></div>
 
 				<button
 					v-if="hasChildren"
 					@click.stop="toggleExpand"
-					class="p-0.5 rounded hover:bg-gray-200 flex-shrink-0 bg-white relative z-10"
+					class="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0 bg-white dark:bg-gray-900 relative z-10"
 				>
-					<ChevronDown v-if="isExpanded" class="w-4 h-4 text-gray-500" />
-					<ChevronRight v-else class="w-4 h-4 text-gray-500" />
+					<ChevronDown v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-300" />
+					<ChevronRight v-else class="w-4 h-4 text-gray-500 dark:text-gray-300" />
 				</button>
 				<div
 					v-else-if="level > 0"
-					class="w-2 h-2 rounded-full bg-gray-300 relative z-10"
+					class="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-500 relative z-10"
 				></div>
 			</div>
 
@@ -605,19 +615,19 @@ onUnmounted(() => {
 						</button>
 
 						<Transition name="fade">
-							<div
-								v-if="showDescriptionPreview"
-								class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg break-words leading-relaxed markdown-body"
-								v-html="taskDescriptionMarkdownPreview"
-							></div>
+						<div
+							v-if="showDescriptionPreview"
+							class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg break-words leading-relaxed markdown-body"
+							v-html="taskDescriptionMarkdownPreview"
+						></div>
 						</Transition>
 						</div>
 					</div>
 				</div>
-		</div>
+			</div>
 
 		<!-- Status -->
-		<div class="col-span-2">
+		<div v-else-if="columnId === 'status'">
 			<button
 				@click.stop="cycleStatus"
 				:class="[
@@ -631,7 +641,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Assignee -->
-		<div class="col-span-2">
+		<div v-else-if="columnId === 'assignee'">
 			<div
 				v-if="firstAssignee"
 				class="flex items-center gap-1 text-sm text-gray-600"
@@ -707,7 +717,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Due date -->
-		<div class="col-span-2">
+		<div v-else-if="columnId === 'due_date'">
 			<div v-if="editingField === 'exp_end_date'" @click.stop>
 				<input
 					ref="inputRef"
@@ -735,19 +745,30 @@ onUnmounted(() => {
 			</button>
 		</div>
 
+		<!-- Expected time -->
+		<div v-else-if="columnId === 'expected_time'" class="text-sm text-gray-700 flex items-center gap-1">
+			<Clock class="w-4 h-4 text-gray-400" />
+			<span>{{ task.expected_time ? task.expected_time + 'h' : '—' }}</span>
+		</div>
+
 		<!-- Priority -->
-		<div class="col-span-1 flex items-center justify-between">
+		<div v-else-if="columnId === 'priority'" class="flex items-center">
 			<span
 				v-if="task.priority"
 				:class="['text-sm font-bold', priorityConfig[task.priority]?.class]"
 			>
 				{{ priorityConfig[task.priority]?.label }}
 			</span>
+			<span v-else class="text-sm text-gray-400">—</span>
+		</div>
+		</template>
 
-			<!-- More menu -->
+		<!-- Actions column -->
+		<div class="flex items-center justify-end">
 			<button
 				@click.stop="showMenu"
 				class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200"
+				:title="translate('More actions')"
 			>
 				<MoreHorizontal class="w-4 h-4 text-gray-500" />
 			</button>

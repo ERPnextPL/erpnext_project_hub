@@ -4,6 +4,7 @@ import { useMyTasksStore } from "../../stores/myTasksStore";
 import MyTaskRowDesktop from "./MyTaskRowDesktop.vue";
 import MyTaskCardMobile from "./MyTaskCardMobile.vue";
 import { useWindowSize } from "@vueuse/core";
+import { ArrowUp, ArrowDown } from "lucide-vue-next";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -112,6 +113,15 @@ const sections = computed(() => {
 		.filter((s) => (groups.get(s) || []).length > 0)
 		.map((s) => ({ key: s, label: statusLabels[s] || s, tasks: groups.get(s) || [] }));
 });
+
+function getSortIcon(column) {
+	if (store.filters.sortBy !== column) return null;
+	return store.filters.sortOrder === "asc" ? ArrowUp : ArrowDown;
+}
+
+function handleSort(column) {
+	store.setSorting(column);
+}
 </script>
 
 <template>
@@ -123,11 +133,61 @@ const sections = computed(() => {
 				v-if="!isMobile"
 				class="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider"
 			>
-				<div class="col-span-4">Zadanie</div>
-				<div class="col-span-2">Projekt</div>
-				<div class="col-span-2">Status</div>
-				<div class="col-span-2">Priorytet</div>
-				<div class="col-span-2">Termin</div>
+				<button
+					@click="handleSort('subject')"
+					class="col-span-4 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					Zadanie
+					<component
+						v-if="getSortIcon('subject')"
+						:is="getSortIcon('subject')"
+						class="w-3 h-3"
+					/>
+				</button>
+				<button
+					@click="handleSort('project')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					Projekt
+					<component
+						v-if="getSortIcon('project')"
+						:is="getSortIcon('project')"
+						class="w-3 h-3"
+					/>
+				</button>
+				<button
+					@click="handleSort('status')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					Status
+					<component
+						v-if="getSortIcon('status')"
+						:is="getSortIcon('status')"
+						class="w-3 h-3"
+					/>
+				</button>
+				<button
+					@click="handleSort('priority')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					Priorytet
+					<component
+						v-if="getSortIcon('priority')"
+						:is="getSortIcon('priority')"
+						class="w-3 h-3"
+					/>
+				</button>
+				<button
+					@click="handleSort('due_date')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					Termin
+					<component
+						v-if="getSortIcon('due_date')"
+						:is="getSortIcon('due_date')"
+						class="w-3 h-3"
+					/>
+				</button>
 			</div>
 
 			<!-- Task rows -->

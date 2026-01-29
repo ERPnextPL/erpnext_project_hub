@@ -10,20 +10,7 @@ import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
-import {
-	ArrowLeft,
-	ChevronDown,
-	ChevronRight,
-	Plus,
-	LayoutList,
-	Columns,
-	GanttChart,
-	PanelLeftClose,
-	PanelLeft,
-	CheckCircle2,
-	Circle,
-	Clock,
-} from "lucide-vue-next";
+import { ArrowLeft, Filter, LayoutList, Columns, GanttChart } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import { translate } from "../utils/translation";
 
@@ -38,35 +25,20 @@ const router = useRouter();
 const store = useTaskStore();
 
 const activeView = ref("list");
-const sidebarCollapsed = ref(false);
+const sidebarCollapsed = ref(true); // Domyślnie zwinięty
+// Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
 const activeFilters = ref({
-	status: [], // Array for multiselect
+	status: ["Open", "Working", "Pending Review", "Overdue"], // Domyślne statusy
 	priority: [], // Array for multiselect
 	assignee: null,
 	dueToday: false,
+	overdue: false, // Nowy filtr dla przeterminowanych zadań
+	search: "",
 });
 
-// Project progress statistics
-const projectStats = computed(() => {
-	const total = store.tasks.length;
-	if (total === 0) return { total: 0, completed: 0, inProgress: 0, open: 0, percent: 0 };
-
-	const completed = store.tasks.filter((t) => t.status === "Completed").length;
-	const cancelled = store.tasks.filter((t) => t.status === "Cancelled").length;
-	const inProgress = store.tasks.filter(
-		(t) => t.status === "Working" || t.status === "Pending Review"
-	).length;
-	const open = store.tasks.filter((t) => t.status === "Open").length;
-
-	// Calculate percent excluding cancelled tasks
-	const activeTotal = total - cancelled;
-	const percent = activeTotal > 0 ? Math.round((completed / activeTotal) * 100) : 0;
-
-	return { total, completed, inProgress, open, cancelled, percent };
-});
 
 onMounted(() => {
-	store.fetchTasks(props.projectId);
+	store.fetchTasks(props.projectId, activeFilters.value);
 });
 
 function goBack() {
@@ -74,7 +46,8 @@ function goBack() {
 }
 
 function handleFilterChange(filters) {
-	activeFilters.value = filters;
+	activeFilters.value = { ...activeFilters.value, ...filters };
+	store.fetchTasks(props.projectId, activeFilters.value);
 }
 
 function handleTaskClick(task) {
@@ -127,47 +100,59 @@ const flattenedTasksWithFilters = computed(() => {
 		const today = getTodayDate();
 		result = result.filter((t) => t.exp_end_date === today);
 	}
+	// Filtr przeterminowanych zadań (według daty, nie statusu)
+	if (activeFilters.value.overdue) {
+		const today = getTodayDate();
+		result = result.filter((t) => {
+			return (
+				t.exp_end_date &&
+				t.exp_end_date < today &&
+				t.status !== "Completed" &&
+				t.status !== "Cancelled"
+			);
+		});
+	}
 
 	return result;
 });
 </script>
 
 <template>
-	<div class="min-h-screen bg-gray-50 flex flex-col">
+	<div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
 		<!-- Header -->
-		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+		<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
 			<div class="px-4 sm:px-6 lg:px-8">
 				<div class="flex flex-wrap items-center justify-between gap-3 min-h-[56px]">
 					<!-- Left: Back + Project name -->
 					<div class="flex items-center gap-3">
 						<button
 							@click="goBack"
-							class="p-1.5 -ml-1.5 rounded-md hover:bg-gray-100 text-gray-500"
+							class="p-1.5 -ml-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
 						>
 							<ArrowLeft class="w-5 h-5" />
 						</button>
 						<div v-if="store.project">
-							<h1 class="text-lg font-semibold text-gray-900">
+							<h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
 								{{ store.project.project_name }}
 							</h1>
 						</div>
-						<div v-else class="h-5 w-40 bg-gray-200 rounded animate-pulse"></div>
+						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Team + View toggles -->
+					<!-- Right: Theme + Team + View toggles -->
 					<div class="flex items-center gap-3 flex-wrap justify-end">
 						<!-- Project Team -->
 						<ProjectTeam :project-id="projectId" />
 						<OutlinerNav />
 
-						<div class="flex items-center bg-gray-100 rounded-lg p-0.5">
+						<div class="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
 							<button
 								@click="activeView = 'list'"
 								:class="[
 									'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
 									activeView === 'list'
-										? 'bg-white text-gray-900 shadow-sm'
-										: 'text-gray-600 hover:text-gray-900',
+										? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+										: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
 								]"
 							>
 								<LayoutList class="w-4 h-4" />
@@ -178,8 +163,8 @@ const flattenedTasksWithFilters = computed(() => {
 								:class="[
 									'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
 									activeView === 'board'
-										? 'bg-white text-gray-900 shadow-sm'
-										: 'text-gray-600 hover:text-gray-900',
+										? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+										: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
 								]"
 							>
 								<Columns class="w-4 h-4" />
@@ -190,8 +175,8 @@ const flattenedTasksWithFilters = computed(() => {
 								:class="[
 									'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
 									activeView === 'timeline'
-										? 'bg-white text-gray-900 shadow-sm'
-										: 'text-gray-600 hover:text-gray-900',
+										? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+										: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
 								]"
 							>
 								<GanttChart class="w-4 h-4" />
@@ -211,31 +196,12 @@ const flattenedTasksWithFilters = computed(() => {
 		</header>
 
 		<!-- Main content -->
-		<div class="flex-1 flex overflow-hidden">
+		<div class="flex-1 flex overflow-hidden relative">
 			<!-- Left sidebar: Milestones + Filters (collapsible) -->
-			<!-- Sidebar toggle button (visible when collapsed) -->
-			<button
-				v-if="sidebarCollapsed"
-				@click="sidebarCollapsed = false"
-				class="flex-shrink-0 bg-white border-r border-gray-200 p-2 hover:bg-gray-50 transition-colors"
-				:title="translate('Show sidebar')"
-			>
-				<PanelLeft class="w-4 h-4 text-gray-500" />
-			</button>
-
 			<aside
-				v-else
-				class="bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto w-64 relative"
+				v-if="!sidebarCollapsed"
+				class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-y-auto w-64 relative"
 			>
-				<!-- Sidebar toggle button (pinned to right edge) -->
-				<button
-					@click="sidebarCollapsed = true"
-					class="absolute right-0 top-20 z-10 bg-white border border-gray-200 border-r-0 rounded-l-md p-1 shadow-sm hover:bg-gray-50"
-					title="Ukryj panel boczny"
-				>
-					<PanelLeftClose class="w-4 h-4 text-gray-500" />
-				</button>
-
 				<div class="w-64">
 					<!-- Milestones Panel -->
 					<MilestonePanel />
@@ -244,6 +210,31 @@ const flattenedTasksWithFilters = computed(() => {
 					<QuickFilters :project="store.project" @filter-change="handleFilterChange" />
 				</div>
 			</aside>
+
+			<!-- Elegant sidebar toggle button (ClickUp/Jira style) -->
+			<button
+				@click="sidebarCollapsed = !sidebarCollapsed"
+				:class="[
+					'absolute top-1/2 -translate-y-1/2 z-20 transition-all duration-200',
+					'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500',
+					'shadow-md hover:shadow-lg',
+					'rounded-r-md',
+					'flex items-center justify-center',
+					'group',
+					'w-6 h-16',
+					sidebarCollapsed ? 'left-0' : 'left-64'
+				]"
+				:title="sidebarCollapsed ? translate('Show filters') : translate('Hide filters')"
+			>
+				<Filter
+					class="w-4 h-4 transition-colors"
+					:class="[
+						sidebarCollapsed
+							? 'text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200'
+							: 'text-blue-600 dark:text-blue-300 group-hover:text-blue-700 dark:group-hover:text-blue-200'
+					]"
+				/>
+			</button>
 
 			<!-- Center: Task list -->
 			<main class="flex-1 overflow-y-auto">

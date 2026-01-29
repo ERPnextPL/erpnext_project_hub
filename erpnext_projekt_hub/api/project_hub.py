@@ -5,6 +5,7 @@ Provides CRUD operations for tasks in a hierarchical tree view.
 
 import frappe
 from frappe import _
+from frappe.utils import cint, today
 
 
 def _get_incomplete_subtasks(task_name: str) -> list:
@@ -25,6 +26,67 @@ def _get_incomplete_subtasks(task_name: str) -> list:
 		incomplete.extend(_get_incomplete_subtasks(subtask["name"]))
 
 	return incomplete
+
+
+def _parse_filter_values(value):
+	"""Normalize filters coming from query string / list."""
+	if value in (None, "", "__all__"):
+		return []
+
+	# Already a list/tuple
+	if isinstance(value, (list, tuple)):
+		return [str(v) for v in value if v]
+
+	# Try JSON first
+	if isinstance(value, str):
+		try:
+			parsed = frappe.parse_json(value)
+			if isinstance(parsed, list):
+				return [str(v) for v in parsed if v]
+		# Fall back to comma separated values
+		except Exception:
+			return [v.strip() for v in value.split(",") if v.strip()]
+
+	return []
+
+
+def _include_missing_parents(tasks: list, project: str, fields: list[str]) -> list:
+	"""
+	When filters exclude some parents we still want to return them so the tree structure
+	is not broken. This function fetches any missing ancestor tasks for the given project.
+	"""
+	if not tasks:
+		return []
+
+	task_names = {task.name for task in tasks}
+	parent_names = {
+		task.parent_task
+		for task in tasks
+		if task.parent_task and task.parent_task not in task_names
+	}
+
+	while parent_names:
+		missing_parents = list(parent_names)
+		parent_docs = frappe.get_all(
+			"Task",
+			filters={"name": ["in", missing_parents], "project": project},
+			fields=fields,
+		)
+
+		if not parent_docs:
+			break
+
+		tasks.extend(parent_docs)
+		task_names.update({p.name for p in parent_docs})
+
+		# Look for next level parents
+		parent_names = {
+			p.parent_task
+			for p in parent_docs
+			if p.parent_task and p.parent_task not in task_names
+		}
+
+	return tasks
 
 
 @frappe.whitelist()
@@ -191,7 +253,16 @@ def get_projects():
 
 
 @frappe.whitelist()
-def get_project_tasks(project: str):
+def get_project_tasks(
+	project: str,
+	status: str | None = None,
+	priority: str | None = None,
+	assignee: str | None = None,
+	due_today: int | None = None,
+	overdue: int | None = None,
+	search: str | None = None,
+	apply_default_status_filter: int = 1,
+):
 	"""
 	Get all tasks for a project with hierarchical structure.
 	Returns tasks sorted by parent and idx for tree building.
@@ -199,34 +270,94 @@ def get_project_tasks(project: str):
 	if not project:
 		frappe.throw(_("Project is required"))
 
+	apply_default_status_filter = cint(apply_default_status_filter)
+	due_today = cint(due_today)
+	overdue = cint(overdue)
+
 	# Get project details
 	project_doc = frappe.get_doc("Project", project)
 
-	# Get all tasks for this project
+	fields = [
+		"name",
+		"subject",
+		"status",
+		"priority",
+		"parent_task",
+		"is_group",
+		"is_milestone",
+		"milestone",
+		"exp_start_date",
+		"exp_end_date",
+		"progress",
+		"expected_time",
+		"description",
+		"_assign",
+		"idx",
+		"creation",
+		"modified",
+		"project",
+	]
+
+	task_filters = {"project": project}
+	or_filters = []
+
+	# Status filter
+	status_list = _parse_filter_values(status)
+	if status is not None:
+		if status_list:
+			task_filters["status"] = ["in", status_list]
+		elif not apply_default_status_filter:
+			# Explicit request to avoid default filter -> no status filter
+			pass
+	if "status" not in task_filters and apply_default_status_filter:
+		task_filters["status"] = ["not in", ["Completed", "Cancelled", "Closed", "Template"]]
+
+	# Priority filter
+	priority_list = _parse_filter_values(priority)
+	if priority_list:
+		task_filters["priority"] = ["in", priority_list]
+
+	# Assignee filter (_assign is stored as JSON text)
+	if assignee:
+		task_filters["_assign"] = ["like", f"%{assignee}%"]
+
+	# Date filters
+	if due_today:
+		task_filters["exp_end_date"] = today()
+	elif overdue:
+		task_filters["exp_end_date"] = ["<", today()]
+		# Unless caller specified otherwise, keep excluding closed statuses
+		if "status" not in task_filters and apply_default_status_filter:
+			task_filters["status"] = ["not in", ["Completed", "Cancelled", "Closed", "Template"]]
+
+	# Search filter
+	if search:
+		or_filters = [
+			["subject", "like", f"%{search}%"],
+			["description", "like", f"%{search}%"],
+			["name", "like", f"%{search}%"],
+		]
+
+	# Get filtered tasks for this project
 	tasks = frappe.get_all(
 		"Task",
-		filters={"project": project},
-		fields=[
-			"name",
-			"subject",
-			"status",
-			"priority",
-			"parent_task",
-			"is_group",
-			"is_milestone",
-			"milestone",
-			"exp_start_date",
-			"exp_end_date",
-			"progress",
-			"expected_time",
-			"description",
-			"_assign",
-			"idx",
-			"creation",
-			"modified",
-			"project",
-		],
+		filters=task_filters,
+		or_filters=or_filters,
+		fields=fields,
 		order_by="parent_task, idx, creation",
+	)
+
+	# Keep tree structure by including missing parents
+	tasks = _include_missing_parents(tasks, project, fields)
+
+	# Deterministic sort
+	tasks = sorted(
+		tasks,
+		key=lambda t: (
+			t.get("parent_task") or "",
+			t.get("idx") or 0,
+			str(t.get("creation") or ""),
+		),
 	)
 
 	# Get total hours from timesheets
@@ -1502,6 +1633,7 @@ def get_my_tasks(
 	due_filter: str | None = None,
 	search: str | None = None,
 	sort_by: str = "default",
+	sort_order: str = "asc",
 	limit: int = 100,
 	offset: int = 0,
 ):
@@ -1514,7 +1646,8 @@ def get_my_tasks(
 		project: Filter by project name
 		due_filter: 'today', 'week', 'overdue', 'all'
 		search: Search in subject
-		sort_by: 'default' (overdue first, then by due date), 'due_date', 'priority', 'modified'
+		sort_by: 'default', 'due_date', 'priority', 'modified', 'subject', 'project', 'status'
+		sort_order: 'asc' or 'desc'
 		limit: Number of results to return
 		offset: Offset for pagination
 
@@ -1584,20 +1717,29 @@ def get_my_tasks(
 
 	# Build ORDER BY clause
 	# Note: MariaDB doesn't support NULLS LAST, use ISNULL() or COALESCE instead
+	sort_direction = "DESC" if sort_order.lower() == "desc" else "ASC"
+
 	if sort_by == "due_date":
-		order_by = "ISNULL(t.exp_end_date), t.exp_end_date ASC, t.modified DESC"
+		order_by = f"ISNULL(t.exp_end_date), t.exp_end_date {sort_direction}, t.modified DESC"
 	elif sort_by == "priority":
-		order_by = """
+		priority_order = "ASC" if sort_order.lower() == "asc" else "DESC"
+		order_by = f"""
 			CASE t.priority
 				WHEN 'Urgent' THEN 1
 				WHEN 'High' THEN 2
 				WHEN 'Medium' THEN 3
 				WHEN 'Low' THEN 4
 				ELSE 5
-			END ASC, ISNULL(t.exp_end_date), t.exp_end_date ASC
+			END {priority_order}, ISNULL(t.exp_end_date), t.exp_end_date ASC
 		"""
 	elif sort_by == "modified":
-		order_by = "t.modified DESC"
+		order_by = f"t.modified {sort_direction}"
+	elif sort_by == "subject":
+		order_by = f"t.subject {sort_direction}, t.modified DESC"
+	elif sort_by == "project":
+		order_by = f"ISNULL(p.project_name), p.project_name {sort_direction}, t.modified DESC"
+	elif sort_by == "status":
+		order_by = f"t.status {sort_direction}, t.modified DESC"
 	else:
 		# Default: overdue first, then by due date, then by modified
 		from frappe.utils import today

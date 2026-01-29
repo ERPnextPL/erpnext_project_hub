@@ -91,6 +91,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		dueFilter: null, // 'today', 'week', 'overdue', 'all'
 		search: "",
 		sortBy: "default",
+		sortOrder: "asc", // 'asc' or 'desc'
 	});
 
 	// Metadata
@@ -137,6 +138,9 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			}
 			if (filters.value.sortBy) {
 				params.sort_by = filters.value.sortBy;
+			}
+			if (filters.value.sortOrder) {
+				params.sort_order = filters.value.sortOrder;
 			}
 
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params);
@@ -361,7 +365,19 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			dueFilter: null,
 			search: "",
 			sortBy: "default",
+			sortOrder: "asc",
 		};
+	}
+
+	function setSorting(column) {
+		// Toggle sort order if clicking the same column
+		if (filters.value.sortBy === column) {
+			filters.value.sortOrder = filters.value.sortOrder === "asc" ? "desc" : "asc";
+		} else {
+			filters.value.sortBy = column;
+			filters.value.sortOrder = "asc";
+		}
+		fetchTasks();
 	}
 
 	function toggleStatusFilter(status) {
@@ -503,6 +519,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		toggleStatusFilter,
 		togglePriorityFilter,
 		shiftOverdueDueDates,
+		setSorting,
 		// Timelog actions
 		fetchActivityTypes,
 		fetchTaskTimelogs,
