@@ -137,17 +137,17 @@ async function saveDocumentationUrl() {
 </script>
 
 <template>
-	<div class="bg-white border-b border-gray-200">
+	<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 		<div
-			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
 			@click="toggleExpand"
 		>
-			<h3 class="text-sm font-semibold text-gray-700">
+			<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
 				{{ translate("Project Information") }}
 			</h3>
-			<button class="p-1 rounded hover:bg-gray-200 transition-colors">
-				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500" />
-				<ChevronDown v-else class="w-4 h-4 text-gray-500" />
+			<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+				<ChevronDown v-else class="w-4 h-4 text-gray-500 dark:text-gray-400" />
 			</button>
 		</div>
 

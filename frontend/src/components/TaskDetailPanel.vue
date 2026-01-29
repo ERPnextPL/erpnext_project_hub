@@ -309,7 +309,27 @@ function validateDates() {
 
 		isSaving.value = true;
 		try {
-			await store.updateTask(props.task.name, { [field]: value });
+			const updates = { [field]: value };
+
+			// Jeśli zmieniamy datę realizacji dla zadania ze statusem "Overdue"
+			// i nowa data nie jest w przeszłości, zmień status na "Open"
+			if (field === "exp_end_date" && props.task.status === "Overdue" && value) {
+				const today = dayjs().startOf("day");
+				const newDueDate = dayjs(value).startOf("day");
+
+				if (!newDueDate.isBefore(today)) {
+					updates.status = "Open";
+					editableTask.value.status = "Open";
+					if (realWindow?.frappe) {
+						realWindow.frappe.show_alert({
+							message: translate("Status changed to Open because new due date is not in the past"),
+							indicator: "blue",
+						});
+					}
+				}
+			}
+
+			await store.updateTask(props.task.name, updates);
 			if (realWindow?.frappe && field === "exp_end_date") {
 				realWindow.frappe.show_alert({
 					message: translate("Date updated successfully"),

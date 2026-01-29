@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']
     MilestonePanel: typeof import('./src/components/MilestonePanel.vue')['default']
@@ -27,6 +28,7 @@ declare module 'vue' {
     TaskDetailPanel: typeof import('./src/components/TaskDetailPanel.vue')['default']
     TaskRow: typeof import('./src/components/TaskRow.vue')['default']
     TaskTree: typeof import('./src/components/TaskTree.vue')['default']
+    ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
     TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']

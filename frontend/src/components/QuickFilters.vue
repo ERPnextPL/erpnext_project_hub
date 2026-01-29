@@ -34,6 +34,7 @@ const activePriority = ref([]); // Array for multiselect
 const activeAssignee = ref(null);
 const myTasksActive = ref(false);
 const dueTodayActive = ref(false);
+const overdueActive = ref(false); // Nowy filtr dla przeterminowanych zadań
 
 const disabledStatuses = ["Template"];
 
@@ -51,8 +52,8 @@ onMounted(async () => {
 		await store.fetchTaskPriorities();
 	}
 
-	// Set default status filters - all except Cancelled and Closed
-	if (activeStatus.value.length === 0) {
+	// Set default status filters - all except Cancelled, Closed, and Completed
+	if (activeStatus.value.length === 0 && store.taskStatuses.length > 0) {
 		activeStatus.value = store.taskStatuses.filter(
 			(status) =>
 				status !== "Cancelled" &&
@@ -60,6 +61,7 @@ onMounted(async () => {
 				status !== "Completed" &&
 				!disabledStatuses.includes(status)
 		);
+		// Emit filters immediately after setting defaults
 		emitFilters();
 	}
 });
@@ -115,7 +117,8 @@ const hasActiveFilters = computed(() => {
 		(activePriority.value && activePriority.value.length > 0) ||
 		activeAssignee.value ||
 		myTasksActive.value ||
-		dueTodayActive.value
+		dueTodayActive.value ||
+		overdueActive.value
 	);
 });
 
@@ -155,12 +158,18 @@ function toggleDueToday() {
 	emitFilters();
 }
 
+function toggleOverdue() {
+	overdueActive.value = !overdueActive.value;
+	emitFilters();
+}
+
 function clearFilters() {
 	activeStatus.value = [];
 	activePriority.value = [];
 	activeAssignee.value = null;
 	myTasksActive.value = false;
 	dueTodayActive.value = false;
+	overdueActive.value = false;
 	emitFilters();
 }
 
@@ -170,6 +179,7 @@ function emitFilters() {
 		priority: activePriority.value,
 		assignee: activeAssignee.value,
 		dueToday: dueTodayActive.value,
+		overdue: overdueActive.value,
 	});
 }
 </script>
@@ -178,70 +188,77 @@ function emitFilters() {
 	<div class="p-4 space-y-6">
 		<!-- Header -->
 		<div class="flex items-center justify-between">
-			<div class="flex items-center gap-2 text-sm font-medium text-gray-700">
+			<div class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
 				<Filter class="w-4 h-4" />
 				{{ translate("Filters") }}
 			</div>
 			<button
 				v-if="hasActiveFilters"
 				@click="clearFilters"
-				class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+				class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center gap-1"
 			>
 				<X class="w-3 h-3" />
 				{{ translate("Clear") }}
 			</button>
 		</div>
 
-		<!-- Quick filters -->
-		<div class="space-y-1">
-			<!-- My Tasks -->
-			<button
-				@click="toggleMyTasks"
-				:class="[
-					'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
-					myTasksActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100',
-				]"
-			>
-				<User :class="['w-4 h-4', myTasksActive ? 'text-blue-600' : 'text-gray-400']" />
-				{{ translate("My Tasks") }}
-			</button>
+		<!-- Szybkie filtry -->
+		<div>
+			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+				{{ translate("Szybkie filtry") }}
+			</h3>
+			<div class="space-y-1">
+				<!-- Przeterminowane (według daty) -->
+				<button
+					@click="toggleOverdue"
+					:class="[
+						'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
+						overdueActive
+							? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
+					]"
+				>
+					<AlertCircle
+						:class="['w-4 h-4', overdueActive ? 'text-red-600 dark:text-red-400' : 'text-gray-400']"
+					/>
+					{{ translate("Przeterminowane") }}
+				</button>
 
-			<!-- Due Today -->
-			<button
-				@click="toggleDueToday"
-				:class="[
-					'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
-					dueTodayActive
-						? 'bg-amber-50 text-amber-700'
-						: 'text-gray-700 hover:bg-gray-100',
-				]"
-			>
-				<Calendar
-					:class="['w-4 h-4', dueTodayActive ? 'text-amber-600' : 'text-gray-400']"
-				/>
-				{{ translate("Due Today") }}
-			</button>
+				<!-- My Tasks -->
+				<button
+					@click="toggleMyTasks"
+					:class="[
+						'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
+						myTasksActive ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
+					]"
+				>
+					<User :class="['w-4 h-4', myTasksActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400']" />
+					{{ translate("My Tasks") }}
+				</button>
 
-			<!-- Overdue -->
-			<button
-				@click="toggleStatus('Overdue')"
-				:class="[
-					'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
-					activeStatus.includes('Overdue')
-						? 'bg-red-50 text-red-700'
-						: 'text-gray-700 hover:bg-gray-100',
-				]"
-			>
-				<AlertCircle class="w-4 h-4 text-red-500" />
-				Overdue
-			</button>
+				<!-- Due Today -->
+				<button
+					@click="toggleDueToday"
+					:class="[
+						'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
+						dueTodayActive
+							? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
+					]"
+				>
+					<Calendar
+						:class="['w-4 h-4', dueTodayActive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400']"
+					/>
+					{{ translate("Due Today") }}
+				</button>
+			</div>
 		</div>
 
-		<hr class="border-gray-200" />
+		<hr class="border-gray-200 dark:border-gray-700" />
 
 		<!-- Status filter -->
 		<div>
-			<h3 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Status</h3>
+			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Status</h3>
 			<div class="space-y-1">
 				<button
 					v-for="status in statuses"
@@ -251,8 +268,8 @@ function emitFilters() {
 						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left relative',
 						status.disabled ? 'opacity-50 cursor-not-allowed' : '',
 						activeStatus.includes(status.value)
-							? 'bg-blue-50 text-blue-700'
-							: 'text-gray-700 hover:bg-gray-100',
+							? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
 					]"
 				>
 					<component :is="status.icon" :class="['w-4 h-4', status.class]" />
@@ -262,7 +279,7 @@ function emitFilters() {
 						v-if="activeStatus.includes(status.value) && !status.disabled"
 						class="ml-auto"
 					>
-						<svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+						<svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
 							<path
 								fill-rule="evenodd"
 								d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -274,11 +291,11 @@ function emitFilters() {
 			</div>
 		</div>
 
-		<hr class="border-gray-200" />
+		<hr class="border-gray-200 dark:border-gray-700" />
 
 		<!-- Priority filter -->
 		<div>
-			<h3 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
 				Priorytet
 			</h3>
 			<div class="space-y-1">
@@ -289,15 +306,15 @@ function emitFilters() {
 					:class="[
 						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left relative',
 						activePriority.includes(priority.value)
-							? 'bg-blue-50 text-blue-700'
-							: 'text-gray-700 hover:bg-gray-100',
+							? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
 					]"
 				>
 					<Flag :class="['w-4 h-4', priority.class]" />
 					{{ priority.label }}
 					<!-- Check indicator for multiselect -->
 					<span v-if="activePriority.includes(priority.value)" class="ml-auto">
-						<svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+						<svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
 							<path
 								fill-rule="evenodd"
 								d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -310,13 +327,13 @@ function emitFilters() {
 		</div>
 
 		<!-- Project info -->
-		<div v-if="project" class="pt-4 border-t border-gray-200">
-			<h3 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+		<div v-if="project" class="pt-4 border-t border-gray-200 dark:border-gray-700">
+			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
 				{{ translate("Project") }}
 			</h3>
-			<div class="text-sm text-gray-700">
+			<div class="text-sm text-gray-700 dark:text-gray-300">
 				<p class="font-medium">{{ project.project_name }}</p>
-				<p v-if="project.percent_complete !== null" class="text-gray-500 mt-1">
+				<p v-if="project.percent_complete !== null" class="text-gray-500 dark:text-gray-400 mt-1">
 					{{ project.percent_complete }}% {{ translate("complete") }}
 				</p>
 			</div>

@@ -138,6 +138,30 @@ function setProjectFilter(project) {
 
 <template>
 	<div class="space-y-4">
+		<!-- Quick Filters -->
+		<div>
+			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+				{{ translate("Szybkie filtry") }}
+			</h4>
+			<div class="flex flex-wrap gap-2">
+				<button
+					@click="toggleDueFilter('overdue')"
+					:class="[
+						'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full border transition-colors',
+						isDueFilterActive('overdue')
+							? 'bg-red-50 border-red-200 text-red-700'
+							: 'border-gray-200 text-gray-600 hover:bg-gray-50',
+						focusRingClasses,
+					]"
+					type="button"
+					:aria-pressed="isDueFilterActive('overdue')"
+				>
+					<AlertCircle :class="['w-3.5 h-3.5', isDueFilterActive('overdue') ? 'text-red-600' : 'text-gray-400']" />
+					{{ translate("Przeterminowane") }}
+				</button>
+			</div>
+		</div>
+
 		<!-- View options -->
 		<div>
 			<h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">

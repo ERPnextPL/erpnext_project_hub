@@ -238,25 +238,25 @@ onMounted(() => {
 </script>
 
 <template>
-	<div class="milestone-panel bg-white border-b border-gray-200">
+	<div class="milestone-panel bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 		<!-- Header -->
 		<div
-			class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+			class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
 			@click="isCollapsed = !isCollapsed"
 		>
 			<div class="flex items-center gap-2">
-				<Diamond class="w-4 h-4 text-blue-600" />
-				<h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+				<Diamond class="w-4 h-4 text-blue-600 dark:text-blue-400" />
+				<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
 					{{ translate("Milestones") }}
 				</h3>
-				<span class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+				<span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
 					{{ store.milestones.length }}
 				</span>
 			</div>
 			<div class="flex items-center gap-2">
 				<button
 					@click.stop="showCreateModal = true"
-					class="p-1 rounded hover:bg-gray-200 text-blue-600"
+					class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400"
 					:title="translate('Add milestone')"
 				>
 					<Plus class="w-4 h-4" />
@@ -271,14 +271,14 @@ onMounted(() => {
 		<!-- Active Filter Indicator -->
 		<div
 			v-if="store.activeMilestoneFilter && !isCollapsed"
-			class="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between"
+			class="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between"
 		>
-			<span class="text-xs text-blue-700">
+			<span class="text-xs text-blue-700 dark:text-blue-400">
 				{{ translate("Filtering by milestone") }}
 			</span>
 			<button
 				@click="store.clearMilestoneFilter()"
-				class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+				class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1"
 			>
 				<X class="w-3 h-3" />
 				{{ translate("Clear") }}
@@ -297,44 +297,44 @@ onMounted(() => {
 				:class="[
 					'p-3 rounded-lg border-2 cursor-pointer transition-all relative',
 					store.activeMilestoneFilter === milestone.name
-						? 'border-blue-500 bg-blue-50 shadow-sm'
+						? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 shadow-sm'
 						: dragOverMilestone === milestone.name
-						? 'border-blue-400 bg-blue-50 shadow-md scale-102'
-						: 'border-transparent hover:bg-gray-50',
+						? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 shadow-md scale-102'
+						: 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700',
 				]"
 				:style="{ borderLeftColor: getBorderColor(milestone), borderLeftWidth: '4px' }"
 			>
 				<!-- Header Row -->
 				<div class="flex items-start justify-between mb-2">
 					<div class="flex items-center gap-2 flex-1 min-w-0">
-						<span class="text-sm font-medium text-gray-900 truncate">
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
 							{{ milestone.milestone_name }}
 						</span>
 					</div>
 					<div class="milestone-menu relative">
 						<button
 							@click="toggleMenu(milestone.name, $event)"
-							class="p-1 rounded hover:bg-gray-200"
+							class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
 						>
-							<MoreVertical class="w-3 h-3 text-gray-500" />
+							<MoreVertical class="w-3 h-3 text-gray-500 dark:text-gray-400" />
 						</button>
 
 						<!-- Context Menu -->
 						<Transition name="menu-fade">
 							<div
 								v-if="openMenuId === milestone.name"
-								class="absolute right-0 mt-1 w-32 bg-white rounded-md shadow-lg border border-gray-200 z-20 py-1"
+								class="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-20 py-1"
 							>
 								<button
 									@click="handleEdit(milestone, $event)"
-									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-2"
 								>
 									<Edit2 class="w-3 h-3" />
 									{{ translate("Edit") }}
 								</button>
 								<button
 									@click="handleDelete(milestone, $event)"
-									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-red-600 flex items-center gap-2"
+									class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-600 text-red-600 dark:text-red-400 flex items-center gap-2"
 								>
 									<Trash2 class="w-3 h-3" />
 									{{ translate("Delete") }}
@@ -346,7 +346,7 @@ onMounted(() => {
 
 				<!-- Progress Bar -->
 				<div class="mb-2">
-					<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+					<div class="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
 						<div
 							class="h-full transition-all duration-300"
 							:style="{
@@ -356,8 +356,8 @@ onMounted(() => {
 						/>
 					</div>
 					<div class="flex items-center justify-between mt-1">
-						<span class="text-xs text-gray-600"> {{ milestone.progress || 0 }}% </span>
-						<span class="text-xs text-gray-500">
+						<span class="text-xs text-gray-600 dark:text-gray-400"> {{ milestone.progress || 0 }}% </span>
+						<span class="text-xs text-gray-500 dark:text-gray-400">
 							{{ milestone.completed_tasks || 0 }}/{{ milestone.total_tasks || 0 }}
 							{{ translate("tasks") }}
 						</span>
@@ -366,7 +366,7 @@ onMounted(() => {
 
 				<!-- Date & Health -->
 				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-1 text-xs text-gray-600">
+					<div class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
 						<Calendar class="w-3 h-3" />
 						<span>{{ formatDate(milestone.milestone_date) }}</span>
 					</div>
@@ -382,12 +382,12 @@ onMounted(() => {
 			</div>
 
 			<!-- Empty State -->
-			<div v-if="store.milestones.length === 0" class="text-center py-6 text-gray-500">
+			<div v-if="store.milestones.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400">
 				<Diamond class="w-8 h-8 mx-auto mb-2 opacity-30" />
 				<p class="text-sm">{{ translate("No milestones") }}</p>
 				<button
 					@click="showCreateModal = true"
-					class="text-xs text-blue-600 hover:underline mt-1"
+					class="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
 				>
 					{{ translate("Create first milestone") }}
 				</button>

@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
 	presets: [require("frappe-ui/tailwind")],
+	darkMode: "class",
 	content: [
 		"./index.html",
 		"./src/**/*.{vue,js,ts,jsx,tsx}",
