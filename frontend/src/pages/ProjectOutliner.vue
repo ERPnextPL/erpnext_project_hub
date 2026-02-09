@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useDebounceFn } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import TaskTree from "../components/TaskTree.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
@@ -10,7 +11,7 @@ import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
-import { ArrowLeft, Filter, LayoutList, Columns, GanttChart } from "lucide-vue-next";
+import { ArrowLeft, Filter, Search, X, RefreshCw, LayoutList, Columns, GanttChart } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import { translate } from "../utils/translation";
 
@@ -26,6 +27,7 @@ const store = useTaskStore();
 
 const activeView = ref("list");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
+const searchInput = ref("");
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
 const activeFilters = ref({
 	status: ["Open", "Working", "Pending Review", "Overdue"], // Domyślne statusy
@@ -36,10 +38,32 @@ const activeFilters = ref({
 	search: "",
 });
 
+const hasActiveFilters = computed(() => {
+	return (
+		activeFilters.value.priority.length > 0 ||
+		activeFilters.value.assignee ||
+		activeFilters.value.dueToday ||
+		activeFilters.value.overdue ||
+		activeFilters.value.search
+	);
+});
+
+const debouncedSearch = useDebounceFn((value) => {
+	activeFilters.value.search = value;
+	store.fetchTasks(props.projectId, activeFilters.value);
+}, 300);
+
+watch(searchInput, (value) => {
+	debouncedSearch(value);
+});
 
 onMounted(() => {
 	store.fetchTasks(props.projectId, activeFilters.value);
 });
+
+function handleRefresh() {
+	store.fetchTasks(props.projectId, activeFilters.value);
+}
 
 function goBack() {
 	router.push({ name: "ProjectList" });
@@ -100,6 +124,11 @@ const flattenedTasksWithFilters = computed(() => {
 		const today = getTodayDate();
 		result = result.filter((t) => t.exp_end_date === today);
 	}
+	// Search filter
+	if (activeFilters.value.search) {
+		const query = activeFilters.value.search.toLowerCase();
+		result = result.filter((t) => t.subject?.toLowerCase().includes(query));
+	}
 	// Filtr przeterminowanych zadań (według daty, nie statusu)
 	if (activeFilters.value.overdue) {
 		const today = getTodayDate();
@@ -139,51 +168,10 @@ const flattenedTasksWithFilters = computed(() => {
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Theme + Team + View toggles -->
+					<!-- Right: Team + Nav + Open in Desk -->
 					<div class="flex items-center gap-3 flex-wrap justify-end">
-						<!-- Project Team -->
 						<ProjectTeam :project-id="projectId" />
 						<OutlinerNav />
-
-						<div class="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-							<button
-								@click="activeView = 'list'"
-								:class="[
-									'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-									activeView === 'list'
-										? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-										: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
-								]"
-							>
-								<LayoutList class="w-4 h-4" />
-								{{ translate("List") }}
-							</button>
-							<button
-								@click="activeView = 'board'"
-								:class="[
-									'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-									activeView === 'board'
-										? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-										: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
-								]"
-							>
-								<Columns class="w-4 h-4" />
-								{{ translate("Board") }}
-							</button>
-							<button
-								@click="activeView = 'timeline'"
-								:class="[
-									'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-									activeView === 'timeline'
-										? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-										: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
-								]"
-							>
-								<GanttChart class="w-4 h-4" />
-								Timeline
-							</button>
-						</div>
-
 						<a
 							:href="`/app/project/${projectId}`"
 							class="text-sm text-gray-500 hover:text-gray-700 ml-4"
@@ -211,31 +199,6 @@ const flattenedTasksWithFilters = computed(() => {
 				</div>
 			</aside>
 
-			<!-- Elegant sidebar toggle button (ClickUp/Jira style) -->
-			<button
-				@click="sidebarCollapsed = !sidebarCollapsed"
-				:class="[
-					'absolute top-1/2 -translate-y-1/2 z-20 transition-all duration-200',
-					'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500',
-					'shadow-md hover:shadow-lg',
-					'rounded-r-md',
-					'flex items-center justify-center',
-					'group',
-					'w-6 h-16',
-					sidebarCollapsed ? 'left-0' : 'left-64'
-				]"
-				:title="sidebarCollapsed ? translate('Show filters') : translate('Hide filters')"
-			>
-				<Filter
-					class="w-4 h-4 transition-colors"
-					:class="[
-						sidebarCollapsed
-							? 'text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200'
-							: 'text-blue-600 dark:text-blue-300 group-hover:text-blue-700 dark:group-hover:text-blue-200'
-					]"
-				/>
-			</button>
-
 			<!-- Center: Task list -->
 			<main class="flex-1 overflow-y-auto">
 				<!-- Project Information Panel -->
@@ -243,6 +206,100 @@ const flattenedTasksWithFilters = computed(() => {
 					v-if="store.project && !store.loading"
 					:project="store.project"
 				/>
+
+				<!-- Toolbar: View tabs + Search + Filter + Refresh -->
+				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[57px] z-10">
+					<div class="px-4 sm:px-6 lg:px-8 py-2">
+						<div class="flex flex-col sm:flex-row sm:items-center gap-3">
+							<!-- Search -->
+							<div class="relative flex-1 max-w-md">
+								<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+								<input
+									v-model="searchInput"
+									type="text"
+									:placeholder="translate('Search tasks...')"
+									class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								/>
+								<button
+									v-if="searchInput"
+									@click="searchInput = ''; activeFilters.search = ''; store.fetchTasks(projectId, activeFilters)"
+									class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+								>
+									<X class="w-4 h-4" />
+								</button>
+							</div>
+
+							<!-- Filter toggle + Refresh -->
+							<div class="flex items-center gap-2">
+								<button
+									@click="sidebarCollapsed = !sidebarCollapsed"
+									:class="[
+										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
+										!sidebarCollapsed || hasActiveFilters
+											? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+											: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+									]"
+								>
+									<Filter class="w-4 h-4" />
+									<span class="hidden sm:inline">{{ translate("Filters") }}</span>
+									<span
+										v-if="hasActiveFilters"
+										class="w-2 h-2 rounded-full bg-blue-600"
+									></span>
+								</button>
+
+								<button
+									@click="handleRefresh"
+									:disabled="store.loading"
+									class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+									:title="translate('Refresh')"
+								>
+									<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
+								</button>
+							</div>
+
+							<!-- View tabs (right-aligned) -->
+							<div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 sm:ml-auto">
+								<button
+									@click="activeView = 'list'"
+									:class="[
+										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										activeView === 'list'
+											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+									]"
+								>
+									<LayoutList class="w-4 h-4" />
+									{{ translate("List") }}
+								</button>
+								<button
+									@click="activeView = 'board'"
+									:class="[
+										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										activeView === 'board'
+											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+									]"
+								>
+									<Columns class="w-4 h-4" />
+									{{ translate("Board") }}
+								</button>
+								<button
+									@click="activeView = 'timeline'"
+									:class="[
+										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										activeView === 'timeline'
+											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+									]"
+								>
+									<GanttChart class="w-4 h-4" />
+									Timeline
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
 
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
 					<div
