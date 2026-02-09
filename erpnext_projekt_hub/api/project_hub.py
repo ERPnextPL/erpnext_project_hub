@@ -1160,6 +1160,7 @@ def update_timelog(
 	description: str | None = None,
 	from_time: str | None = None,
 	to_time: str | None = None,
+	project: str | None = None,
 ):
 	"""Update an existing time log entry."""
 	if not timelog_name:
@@ -1190,6 +1191,14 @@ def update_timelog(
 		timelog.from_time = from_time
 	if to_time:
 		timelog.to_time = to_time
+	if project is not None:
+		if project:
+			if not frappe.db.exists("Project", project):
+				frappe.throw(_("Project {0} does not exist").format(project))
+			project_status = frappe.db.get_value("Project", project, "status")
+			if project_status == "Cancelled":
+				frappe.throw(_("Cannot assign to a cancelled project"))
+		timelog.project = project
 
 	timesheet.save()
 
@@ -1198,6 +1207,7 @@ def update_timelog(
 		"hours": timelog.hours,
 		"activity_type": timelog.activity_type,
 		"description": timelog.description,
+		"project": timelog.project,
 	}
 
 

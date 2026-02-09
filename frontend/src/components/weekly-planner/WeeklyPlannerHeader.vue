@@ -64,9 +64,15 @@ const weekLabel = computed(() => {
 	end.setDate(end.getDate() + 4); // Friday
 
 	const options = { month: "short", day: "numeric" };
-	return `${start.toLocaleDateString("en-US", options)} - ${end.toLocaleDateString(
-		"en-US",
-		options
-	)}, ${start.getFullYear()}`;
+	const startYear = start.getFullYear();
+	const endYear = end.getFullYear();
+	const startLabel = start.toLocaleDateString("en-US", options);
+	const endLabel = end.toLocaleDateString("en-US", options);
+
+	if (startYear !== endYear) {
+		return `${startLabel}, ${startYear} - ${endLabel}, ${endYear}`;
+	}
+
+	return `${startLabel} - ${endLabel}, ${startYear}`;
 });
 </script>
