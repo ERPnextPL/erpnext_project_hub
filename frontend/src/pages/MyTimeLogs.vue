@@ -38,6 +38,7 @@ const editForm = ref({
 	description: "",
 	from_time: "",
 	to_time: "",
+	project: "",
 });
 
 // Helper function for week calculations
@@ -548,6 +549,7 @@ function openEditModal(log) {
 		description: log.description || "",
 		from_time: toLocalInput(log.from_time),
 		to_time: toLocalInput(log.to_time),
+		project: log.project || "",
 	};
 	editModalOpen.value = true;
 }
@@ -561,6 +563,7 @@ function closeEditModal() {
 		description: "",
 		from_time: "",
 		to_time: "",
+		project: "",
 	};
 }
 
@@ -594,6 +597,9 @@ async function handleEditSave() {
 		}
 		if (editForm.value.to_time) {
 			payload.to_time = toFrappeDateTime(editForm.value.to_time);
+		}
+		if (editForm.value.project) {
+			payload.project = editForm.value.project;
 		}
 
 		await store.updateTimelog(editForm.value.timelog_name, payload);
@@ -1424,6 +1430,24 @@ async function handleDeleteLog(log) {
 					</div>
 					<div class="p-5 space-y-4">
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div class="md:col-span-2">
+								<label class="text-xs font-medium text-gray-500">
+									{{ translate("Project") }}
+								</label>
+								<select
+									v-model="editForm.project"
+									class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+								>
+									<option value="">{{ translate("No project") }}</option>
+									<option
+										v-for="project in projectOptions"
+										:key="project.value"
+										:value="project.value"
+									>
+										{{ project.label }}
+									</option>
+								</select>
+							</div>
 							<div>
 								<label class="text-xs font-medium text-gray-500">
 									{{ translate("Hours") }}

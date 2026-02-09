@@ -73,6 +73,15 @@ async function apiCall(method, params = {}) {
 }
 
 export const useTaskStore = defineStore("tasks", () => {
+	const defaultFilters = {
+		status: ["Open", "Working", "Pending Review", "Overdue"],
+		priority: [],
+		assignee: null,
+		dueToday: false,
+		overdue: false,
+		search: "",
+	};
+
 	// State
 	const tasks = ref([]);
 	const project = ref(null);
@@ -81,6 +90,9 @@ export const useTaskStore = defineStore("tasks", () => {
 	const expandedTasks = ref(new Set());
 	const projectTeamRefreshTrigger = ref(0);
 	const projectsSettings = ref(null);
+	const sortBy = ref(null); // Kolumna sortowania
+	const sortOrder = ref("asc"); // 'asc' lub 'desc'
+	const currentFilters = ref({ ...defaultFilters });
 
 	// Computed - build tree structure
 	const taskTree = computed(() => {
@@ -133,12 +145,46 @@ export const useTaskStore = defineStore("tasks", () => {
 	});
 
 	// Actions
-	async function fetchTasks(projectId) {
+	async function fetchTasks(projectId, filters = null) {
 		loading.value = true;
 		try {
-			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
-				project: projectId,
-			});
+			const appliedFilters = filters
+				? { ...defaultFilters, ...filters }
+				: currentFilters.value || { ...defaultFilters };
+
+			currentFilters.value = appliedFilters;
+
+			const params = { project: projectId };
+
+			// Status filter (empty array means user wants all statuses)
+			if ("status" in appliedFilters) {
+				if (Array.isArray(appliedFilters.status) && appliedFilters.status.length > 0) {
+					params.status = appliedFilters.status.join(",");
+				}
+				params.apply_default_status_filter = 0;
+			}
+
+			if (Array.isArray(appliedFilters.priority) && appliedFilters.priority.length > 0) {
+				params.priority = appliedFilters.priority.join(",");
+			}
+
+			if (appliedFilters.assignee) {
+				params.assignee = appliedFilters.assignee;
+			}
+
+			if (appliedFilters.dueToday) {
+				params.due_today = 1;
+			}
+
+			if (appliedFilters.overdue) {
+				params.overdue = 1;
+			}
+
+			if (appliedFilters.search) {
+				params.search = appliedFilters.search;
+			}
+
+			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", params);
 			if (data) {
 				tasks.value = data.tasks || [];
 				project.value = data.project || null;
@@ -729,6 +775,16 @@ async function reorderTask(taskName, newParent, newIdx) {
 		activeMilestoneFilter.value = null;
 	}
 
+	function setSorting(column) {
+		// Toggle sort order if clicking the same column
+		if (sortBy.value === column) {
+			sortOrder.value = sortOrder.value === "asc" ? "desc" : "asc";
+		} else {
+			sortBy.value = column;
+			sortOrder.value = "asc";
+		}
+	}
+
 	return {
 		// State
 		tasks,
@@ -746,6 +802,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 		activeMilestoneFilter,
 		projectTeamRefreshTrigger,
 		projectsSettings,
+		sortBy,
+		sortOrder,
 		// Computed
 		taskTree,
 		flattenedTasks,
@@ -764,6 +822,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		collapseAll,
 		selectTask,
 		clearSelection,
+		setSorting,
 		// User assignment
 		fetchUsers,
 		assignTask,
