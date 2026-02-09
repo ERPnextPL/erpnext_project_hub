@@ -282,7 +282,7 @@ export const useWeeklyPlanningStore = defineStore("weeklyPlanning", () => {
 						const date = data.assignment_date;
 						const hoursDiff = parseFloat(hours) - parseFloat(oldHours);
 
-						if (capacities.value[emp] && capacities.value[emp][date]) {
+						if (capacities.value[emp] && capacities.value[emp][date] !== undefined) {
 							capacities.value[emp][date] += hoursDiff;
 						}
 					}
@@ -323,7 +323,7 @@ export const useWeeklyPlanningStore = defineStore("weeklyPlanning", () => {
 			if (assignment) {
 				const emp = assignment.employee;
 				const date = assignment.assignment_date;
-				if (capacities.value[emp] && capacities.value[emp][date]) {
+				if (capacities.value[emp] && capacities.value[emp][date] !== undefined) {
 					capacities.value[emp][date] -= parseFloat(assignment.allocated_hours || 0);
 				}
 			}
