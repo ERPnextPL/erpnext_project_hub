@@ -34,10 +34,14 @@ function toggleDropdown(event) {
 }
 
 function toggleColumn(columnId) {
+	const column = props.availableColumns.find((item) => item.id === columnId);
 	const newVisibleColumns = [...props.visibleColumns];
 	const index = newVisibleColumns.indexOf(columnId);
 
 	if (index > -1) {
+		if (column?.required) {
+			return;
+		}
 		// Don't allow removing the last column
 		if (newVisibleColumns.length > 1) {
 			newVisibleColumns.splice(index, 1);
@@ -104,7 +108,9 @@ watch(showDropdown, (isOpen) => {
 							v-for="column in availableColumns"
 							:key="column.id"
 							@click="toggleColumn(column.id)"
-							class="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+							:disabled="column.required && isColumnVisible(column.id)"
+							:aria-disabled="column.required && isColumnVisible(column.id)"
+							class="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
 						>
 							<span>{{ column.label }}</span>
 							<Check
