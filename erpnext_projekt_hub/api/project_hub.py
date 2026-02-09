@@ -34,7 +34,7 @@ def _parse_filter_values(value):
 		return []
 
 	# Already a list/tuple
-	if isinstance(value, (list, tuple)):
+	if isinstance(value, list | tuple):
 		return [str(v) for v in value if v]
 
 	# Try JSON first
@@ -60,9 +60,7 @@ def _include_missing_parents(tasks: list, project: str, fields: list[str]) -> li
 
 	task_names = {task.name for task in tasks}
 	parent_names = {
-		task.parent_task
-		for task in tasks
-		if task.parent_task and task.parent_task not in task_names
+		task.parent_task for task in tasks if task.parent_task and task.parent_task not in task_names
 	}
 
 	while parent_names:
@@ -81,9 +79,7 @@ def _include_missing_parents(tasks: list, project: str, fields: list[str]) -> li
 
 		# Look for next level parents
 		parent_names = {
-			p.parent_task
-			for p in parent_docs
-			if p.parent_task and p.parent_task not in task_names
+			p.parent_task for p in parent_docs if p.parent_task and p.parent_task not in task_names
 		}
 
 	return tasks
@@ -594,6 +590,12 @@ def update_task(task_name: str, **kwargs):
 			continue
 		task.set(field, kwargs[field])
 
+	# Set completed_on date when task is completed, clear it otherwise
+	if kwargs.get("status") == "Completed":
+		task.completed_on = today()
+	elif "status" in kwargs and kwargs["status"] != "Completed":
+		task.completed_on = None
+
 	task.save()
 
 	return {
@@ -609,6 +611,7 @@ def update_task(task_name: str, **kwargs):
 		"description": task.description,
 		"project": task.project,
 		"expected_time": getattr(task, "expected_time", None),
+		"completed_on": task.completed_on,
 	}
 
 

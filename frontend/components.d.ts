@@ -8,7 +8,10 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    CapacityBadge: typeof import('./src/components/weekly-planner/CapacityBadge.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
+    DayCell: typeof import('./src/components/weekly-planner/DayCell.vue')['default']
+    HourAllocationModal: typeof import('./src/components/weekly-planner/HourAllocationModal.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']
     MilestonePanel: typeof import('./src/components/MilestonePanel.vue')['default']
@@ -22,15 +25,20 @@ declare module 'vue' {
     ProjectTeam: typeof import('./src/components/ProjectTeam.vue')['default']
     QuickAddTask: typeof import('./src/components/QuickAddTask.vue')['default']
     QuickFilters: typeof import('./src/components/QuickFilters.vue')['default']
+    ResourcePoolSummary: typeof import('./src/components/weekly-planner/ResourcePoolSummary.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StatusBadge: typeof import('./src/components/shared/StatusBadge.vue')['default']
+    TaskCard: typeof import('./src/components/weekly-planner/TaskCard.vue')['default']
     TaskDetailPanel: typeof import('./src/components/TaskDetailPanel.vue')['default']
+    TaskPool: typeof import('./src/components/weekly-planner/TaskPool.vue')['default']
     TaskRow: typeof import('./src/components/TaskRow.vue')['default']
     TaskTree: typeof import('./src/components/TaskTree.vue')['default']
     ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
     TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']
+    WeeklyPlannerGrid: typeof import('./src/components/weekly-planner/WeeklyPlannerGrid.vue')['default']
+    WeeklyPlannerHeader: typeof import('./src/components/weekly-planner/WeeklyPlannerHeader.vue')['default']
   }
 }

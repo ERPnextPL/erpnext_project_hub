@@ -281,7 +281,14 @@
 		}
 	};
 
-	frappe.ready(function () {
-		ensureKanbanHook();
-	});
+	// Use $(document).ready instead of frappe.ready for desk pages
+	if (typeof frappe.ready === "function") {
+		frappe.ready(function () {
+			ensureKanbanHook();
+		});
+	} else {
+		$(document).ready(function () {
+			ensureKanbanHook();
+		});
+	}
 })();

@@ -350,6 +350,7 @@ const sortedTasks = computed(() => {
 				item-key="name"
 				handle=".drag-handle"
 				ghost-class="opacity-50"
+				:disabled="!!store.sortBy"
 				@start="handleDragStart"
 				@end="handleDragEnd"
 			>

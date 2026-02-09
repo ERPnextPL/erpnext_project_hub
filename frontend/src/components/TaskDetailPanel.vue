@@ -308,6 +308,8 @@ function validateDates() {
 		}
 
 		isSaving.value = true;
+		let previousStatus = null;
+		let statusChanged = false;
 		try {
 			const updates = { [field]: value };
 
@@ -319,6 +321,8 @@ function validateDates() {
 
 				if (!newDueDate.isBefore(today)) {
 					updates.status = "Open";
+					previousStatus = editableTask.value.status;
+					statusChanged = true;
 					editableTask.value.status = "Open";
 					if (realWindow?.frappe) {
 						realWindow.frappe.show_alert({
@@ -340,6 +344,9 @@ function validateDates() {
 		} catch (error) {
 			// Revert on error
 			editableTask.value[field] = previousValue;
+			if (statusChanged) {
+				editableTask.value.status = previousStatus;
+			}
 			if (realWindow?.frappe) {
 				realWindow.frappe.show_alert({
 					message: translate("Failed to update field"),

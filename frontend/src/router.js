@@ -1,14 +1,13 @@
 import { createRouter, createWebHistory } from "vue-router";
 import tabRegistry, { getRoutes, getReservedSegments } from "./tabRegistry";
 import { registerCoreTabs } from "./tabs/coreTabs";
+import { registerProTabs } from "./tabs/proTabs";
 
 // Register core tabs
 registerCoreTabs();
 
-// Extension point: PRO version or other plugins can register additional tabs here
-// Example:
-// import { registerProTabs } from 'erpnext_projekt_hub_pro/tabs/proTabs';
-// registerProTabs();
+// Register pro tabs (from projekt_hub_pro)
+registerProTabs();
 
 // Mark registry as initialized
 tabRegistry.markInitialized();
