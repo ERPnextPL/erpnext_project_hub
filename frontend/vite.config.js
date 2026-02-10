@@ -46,6 +46,13 @@ export default defineConfig({
 	],
 	server: {
 		allowedHosts: true,
+		...(proAppExists
+			? {
+					fs: {
+						allow: [proFrontendPath],
+					},
+				}
+			: {}),
 	},
 	resolve: {
 		alias: {
