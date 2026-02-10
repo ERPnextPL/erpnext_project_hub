@@ -73,6 +73,14 @@ repos:
                 erpnext_projekt_hub/public/frontend/assets/.*
             )$
 
+  - repo: local
+    hooks:
+      - id: semgrep-frappe
+        name: "Semgrep (Frappe rules)"
+        entry: scripts/semgrep-ci.sh
+        language: system
+        pass_filenames: false
+
 ci:
     autoupdate_schedule: weekly
     skip: []
