@@ -1,12 +1,16 @@
 import { createRouter, createWebHistory } from "vue-router";
 import tabRegistry, { getRoutes, getReservedSegments } from "./tabRegistry";
 import { registerCoreTabs } from "./tabs/coreTabs";
-import { registerProTabs } from "./tabs/proTabs";
+import { registerProTabs } from "virtual:pro-tabs";
 
 // Register core tabs
 registerCoreTabs();
 
-// Register pro tabs (from projekt_hub_pro)
+// Register PRO tabs from projekt_hub_pro.
+// "virtual:pro-tabs" is a Vite virtual module defined in vite.config.js.
+// At build time it checks if projekt_hub_pro is installed:
+//   - If yes: re-exports registerProTabs from the PRO app
+//   - If no: exports a noop function (no tabs registered)
 registerProTabs();
 
 // Mark registry as initialized

@@ -150,7 +150,7 @@ const flattenedTasksWithFilters = computed(() => {
 	<div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
 		<!-- Header -->
 		<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
-			<div class="px-4 sm:px-6 lg:px-8">
+			<div class="px-0">
 				<div class="flex flex-wrap items-center justify-between gap-3 min-h-[56px]">
 					<!-- Left: Back + Project name -->
 					<div class="flex items-center gap-3">
@@ -209,7 +209,7 @@ const flattenedTasksWithFilters = computed(() => {
 
 				<!-- Toolbar: View tabs + Search + Filter + Refresh -->
 				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[57px] z-10">
-					<div class="px-4 sm:px-6 lg:px-8 py-2">
+					<div class="px-0 py-2">
 						<div class="flex flex-col sm:flex-row sm:items-center gap-3">
 							<!-- Search -->
 							<div class="relative flex-1 max-w-md">

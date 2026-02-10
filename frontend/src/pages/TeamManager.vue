@@ -8,7 +8,7 @@ import { translate } from "../utils/translation";
 	<div class="min-h-screen bg-gray-50">
 		<!-- Header -->
 		<header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="w-full px-0">
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Users class="w-6 h-6 text-purple-600" />
@@ -30,7 +30,7 @@ import { translate } from "../utils/translation";
 		</header>
 
 		<!-- Pro Feature Placeholder -->
-		<div class="max-w-2xl mx-auto px-4 py-16">
+		<div class="w-full px-0 py-16">
 			<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 text-center">
 				<!-- Icon -->
 				<div

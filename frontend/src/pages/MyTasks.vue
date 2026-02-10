@@ -97,37 +97,39 @@ const detailPanelOpen = computed(() => !!store.selectedTask);
 <template>
 	<div class="min-h-screen bg-gray-50">
 		<!-- Header -->
-		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div class="flex items-center justify-between h-16">
-					<div class="flex items-center gap-3">
-						<CheckSquare class="w-6 h-6 text-blue-600" />
-						<h1 class="text-xl font-semibold text-gray-900">
-							{{ translate("My Tasks") }}
-						</h1>
-						<span
-							v-if="store.total > 0"
-							class="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full"
-						>
-							{{ store.total }}
-						</span>
-					</div>
-					<div class="flex items-center gap-3 sm:gap-4">
-						<OutlinerNav />
-						<a
-							href="/app"
-							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
-						>
-							← Back to Desk
-						</a>
+			<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+				<div class="w-full px-4 sm:px-6 lg:px-8">
+					<div class="flex items-center justify-between h-16 gap-4">
+						<div class="flex items-center gap-3 min-w-0">
+							<CheckSquare class="w-6 h-6 text-blue-600 shrink-0" />
+							<div class="flex items-center gap-2 min-w-0 flex-nowrap">
+								<h1 class="text-xl font-semibold text-gray-900 whitespace-nowrap">
+									{{ translate("My Tasks") }}
+								</h1>
+								<span
+									v-if="store.total > 0"
+									class="text-sm text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full shrink-0"
+								>
+									{{ store.total }}
+								</span>
+							</div>
+						</div>
+						<div class="flex items-center gap-3 sm:gap-4 shrink-0">
+							<OutlinerNav />
+							<a
+								href="/app"
+								class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
+							>
+								← Back to Desk
+							</a>
+						</div>
 					</div>
 				</div>
-			</div>
-		</header>
+			</header>
 
 		<!-- Toolbar -->
 		<div class="bg-white border-b border-gray-200 sticky top-16 z-10">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+			<div class="w-full px-4 sm:px-6 lg:px-8 py-3">
 				<div class="flex flex-col sm:flex-row sm:items-center gap-3">
 					<!-- Search -->
 					<div class="relative flex-1 max-w-md">
@@ -225,7 +227,7 @@ const detailPanelOpen = computed(() => !!store.selectedTask);
 		</div>
 
 		<!-- Content -->
-		<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+		<main class="w-full px-4 sm:px-6 lg:px-8 py-6">
 			<!-- Loading state -->
 			<div v-if="store.loading && store.tasks.length === 0" class="space-y-4">
 				<div
