@@ -66,7 +66,7 @@ function getStatusClass(status) {
 	<div class="min-h-screen bg-gray-50">
 		<!-- Header -->
 		<header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="w-full px-0">
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Folder class="w-6 h-6 text-blue-600" />
@@ -88,7 +88,7 @@ function getStatusClass(status) {
 		</header>
 
 		<!-- Content -->
-		<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<main class="w-full px-0 py-8">
 			<!-- Header with info -->
 			<div class="mb-6 flex items-center justify-between">
 				<div>

@@ -629,7 +629,7 @@ async function handleDeleteLog(log) {
 <template>
 	<div class="min-h-screen bg-gray-50">
 		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="w-full px-0">
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Timer class="w-6 h-6 text-amber-600" />
@@ -657,7 +657,7 @@ async function handleDeleteLog(log) {
 		</header>
 
 		<div class="bg-white border-b border-gray-200 sticky top-16 z-10">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+			<div class="w-full px-0 py-3">
 				<!-- Summary Cards Row -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
 					<!-- Total Hours Card -->
@@ -981,7 +981,7 @@ async function handleDeleteLog(log) {
 
 		<div
 			v-if="store.hasActiveFilters"
-			class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-3 flex flex-wrap items-center gap-2"
+			class="w-full px-0 mt-3 flex flex-wrap items-center gap-2"
 		>
 			<div class="flex flex-wrap gap-2 items-center">
 				<span
@@ -1008,7 +1008,7 @@ async function handleDeleteLog(log) {
 			</button>
 		</div>
 
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+		<div class="w-full px-0 py-6">
 			<!-- LIST VIEW -->
 			<div v-if="viewMode === 'list'" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
 				<div v-if="store.loading" class="py-12 text-center">
