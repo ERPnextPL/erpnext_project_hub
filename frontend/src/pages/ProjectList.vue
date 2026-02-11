@@ -12,6 +12,7 @@ import {
 	Flag,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
+import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
 import { getProgressColorClass } from "../utils/progressColors";
 const router = useRouter();
@@ -65,8 +66,8 @@ function getStatusClass(status) {
 <template>
 	<div class="min-h-screen bg-gray-50">
 		<!-- Header -->
-		<header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-			<div class="w-full px-0">
+		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+			<div class="w-full px-4 sm:px-6 lg:px-8">
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Folder class="w-6 h-6 text-blue-600" />
@@ -76,19 +77,13 @@ function getStatusClass(status) {
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
-						<a
-							href="/app"
-							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
-						>
-							← {{ translate("Back to Desk") }}
-						</a>
 					</div>
 				</div>
 			</div>
 		</header>
 
 		<!-- Content -->
-		<main class="w-full px-0 py-8">
+		<main class="w-full px-4 sm:px-6 lg:px-8 py-8">
 			<!-- Header with info -->
 			<div class="mb-6 flex items-center justify-between">
 				<div>
@@ -370,6 +365,8 @@ function getStatusClass(status) {
 				</section>
 			</div>
 		</main>
+
+		<BackToDeskButton />
 	</div>
 </template>
 

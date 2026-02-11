@@ -13,6 +13,7 @@ import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
 import { ArrowLeft, Filter, Search, X, RefreshCw, LayoutList, Columns, GanttChart } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
+import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
 
 const props = defineProps({
@@ -150,7 +151,7 @@ const flattenedTasksWithFilters = computed(() => {
 	<div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
 		<!-- Header -->
 		<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
-			<div class="px-0">
+			<div class="px-4 sm:px-6 lg:px-8">
 				<div class="flex flex-wrap items-center justify-between gap-3 min-h-[56px]">
 					<!-- Left: Back + Project name -->
 					<div class="flex items-center gap-3">
@@ -168,16 +169,10 @@ const flattenedTasksWithFilters = computed(() => {
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Team + Nav + Open in Desk -->
+					<!-- Right: Team + Nav -->
 					<div class="flex items-center gap-3 flex-wrap justify-end">
 						<ProjectTeam :project-id="projectId" />
 						<OutlinerNav />
-						<a
-							:href="`/app/project/${projectId}`"
-							class="text-sm text-gray-500 hover:text-gray-700 ml-4"
-						>
-							{{ translate("Open in Desk") }} →
-						</a>
 					</div>
 				</div>
 			</div>
@@ -209,7 +204,7 @@ const flattenedTasksWithFilters = computed(() => {
 
 				<!-- Toolbar: View tabs + Search + Filter + Refresh -->
 				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[57px] z-10">
-					<div class="px-0 py-2">
+					<div class="px-4 sm:px-6 lg:px-8 py-2">
 						<div class="flex flex-col sm:flex-row sm:items-center gap-3">
 							<!-- Search -->
 							<div class="relative flex-1 max-w-md">
@@ -342,5 +337,7 @@ const flattenedTasksWithFilters = computed(() => {
 				</div>
 			</Transition>
 		</div>
+
+		<BackToDeskButton />
 	</div>
 </template>

@@ -14,6 +14,7 @@ import {
 	LayoutGrid,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
+import BackToDeskButton from "../components/BackToDeskButton.vue";
 import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
 import MyTaskList from "../components/mytasks/MyTaskList.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
@@ -116,12 +117,6 @@ const detailPanelOpen = computed(() => !!store.selectedTask);
 						</div>
 						<div class="flex items-center gap-3 sm:gap-4 shrink-0">
 							<OutlinerNav />
-							<a
-								href="/app"
-								class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
-							>
-								← Back to Desk
-							</a>
 						</div>
 					</div>
 				</div>
@@ -322,6 +317,8 @@ const detailPanelOpen = computed(() => !!store.selectedTask);
 			@close="showTimeLogModal = false"
 			@save="handleTimeLogSave"
 		/>
+
+		<BackToDeskButton />
 	</div>
 </template>
 

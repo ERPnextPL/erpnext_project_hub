@@ -24,6 +24,7 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			{ fieldtype: "Float", label: __("Expected Hrs"), fieldname: "expected_hours" },
 			{ fieldtype: "Datetime", label: __("From Time"), fieldname: "from_time" },
 			{ fieldtype: "Float", label: __("Hours"), fieldname: "hours" },
+			{ fieldtype: "Check", label: __("Is Billable"), fieldname: "is_billable" },
 			{ fieldtype: "Section Break" },
 			{ fieldtype: "HTML", fieldname: "timer_html" },
 		],
@@ -35,6 +36,7 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			project: row.project,
 			task: row.task,
 			expected_hours: row.expected_hours,
+			is_billable: row.is_billable,
 		});
 	} else {
 		// Set default values for new time log
@@ -58,6 +60,7 @@ erpnext.timesheet.timer = function (frm, row, timestamp = 0) {
 			activity_type: configuredActivityType,
 			from_time: currentDate + " " + currentTime,
 			hours: 1, // Default to 1 hour
+			is_billable: 0,
 		});
 	}
 
