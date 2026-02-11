@@ -775,8 +775,6 @@ def bulk_update_tasks(tasks: list):
 			},
 		)
 
-	frappe.db.commit()
-
 	return {"success": True}
 
 
@@ -836,7 +834,6 @@ def assign_task(
 						}
 					)
 					project_user.insert(ignore_permissions=True)
-					frappe.db.commit()
 				except Exception as e:
 					frappe.log_error(f"Failed to auto-assign user {user} to project {task.project}: {e!s}")
 
@@ -910,7 +907,6 @@ def add_project_user(project: str, user: str):
 		}
 	)
 	project_user.insert(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"success": True}
 
@@ -923,7 +919,6 @@ def remove_project_user(project: str, user: str):
 
 	# Delete directly from child table to avoid email notifications
 	frappe.db.delete("Project User", {"parent": project, "user": user})
-	frappe.db.commit()
 
 	return {"success": True}
 
@@ -1014,8 +1009,8 @@ def get_my_timelogs(
 
 	condition_sql = " AND ".join(conditions)
 
-	timelogs = frappe.db.sql(
-		f"""
+	query = (
+		"""
 		SELECT
 			ts.name as timesheet_name,
 			ts.status,
@@ -1039,12 +1034,13 @@ def get_my_timelogs(
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		LEFT JOIN `tabTask` task ON tsd.task = task.name
 		LEFT JOIN `tabProject` proj ON tsd.project = proj.name
-		WHERE {condition_sql}
+		WHERE """
+		+ condition_sql
+		+ """
 		ORDER BY tsd.from_time DESC, tsd.idx DESC
-		""",
-		values,
-		as_dict=1,
+		"""
 	)
+	timelogs = frappe.db.sql(query, values, as_dict=1)
 
 	return {"timelogs": timelogs, "total": len(timelogs)}
 
@@ -1768,8 +1764,8 @@ def get_my_tasks(
 		"""
 
 	# Execute query
-	tasks = frappe.db.sql(
-		f"""
+	query = (
+		"""
 		SELECT
 			t.name,
 			t.subject,
@@ -1790,24 +1786,28 @@ def get_my_tasks(
 		FROM `tabTask` t
 		LEFT JOIN `tabTask` parent ON t.parent_task = parent.name
 		LEFT JOIN `tabProject` p ON t.project = p.name
-		WHERE {where_clause}
-		ORDER BY {order_by}
+		WHERE """
+		+ where_clause
+		+ """
+		ORDER BY """
+		+ order_by
+		+ """
 		LIMIT %(limit)s OFFSET %(offset)s
-	""",
-		{**values, "limit": int(limit), "offset": int(offset)},
-		as_dict=True,
+	"""
 	)
+	tasks = frappe.db.sql(query, {**values, "limit": int(limit), "offset": int(offset)}, as_dict=True)
 
 	# Get total count for pagination
-	total_count = frappe.db.sql(
-		f"""
+	count_query = (
+		"""
 		SELECT COUNT(*) as count
 		FROM `tabTask` t
-		WHERE {where_clause}
-	""",
-		values,
-		as_dict=True,
-	)[0].get("count", 0)
+		WHERE """
+		+ where_clause
+		+ """
+	"""
+	)
+	total_count = frappe.db.sql(count_query, values, as_dict=True)[0].get("count", 0)
 
 	# Add overdue flag
 	from frappe.utils import getdate, today
@@ -1988,9 +1988,6 @@ def shift_overdue_due_dates(limit: int = 100):
 				f"Failed to shift overdue task due date: {task['name']} ({exc})",
 				"Shift Overdue Due Dates",
 			)
-
-	if shifted:
-		frappe.db.commit()
 
 	return {"shifted": shifted}
 
