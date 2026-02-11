@@ -19,6 +19,7 @@ import {
 	CheckCircle,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
+import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { useMyTimeLogsStore } from "../stores/myTimeLogsStore";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
@@ -39,6 +40,7 @@ const editForm = ref({
 	from_time: "",
 	to_time: "",
 	project: "",
+	is_billable: false,
 });
 
 // Helper function for week calculations
@@ -550,6 +552,7 @@ function openEditModal(log) {
 		from_time: toLocalInput(log.from_time),
 		to_time: toLocalInput(log.to_time),
 		project: log.project || "",
+		is_billable: Boolean(log.is_billable),
 	};
 	editModalOpen.value = true;
 }
@@ -564,6 +567,7 @@ function closeEditModal() {
 		from_time: "",
 		to_time: "",
 		project: "",
+		is_billable: false,
 	};
 }
 
@@ -591,6 +595,7 @@ async function handleEditSave() {
 			hours: hoursValue,
 			activity_type: editForm.value.activity_type,
 			description: editForm.value.description || "",
+			is_billable: editForm.value.is_billable ? 1 : 0,
 		};
 		if (editForm.value.from_time) {
 			payload.from_time = toFrappeDateTime(editForm.value.from_time);
@@ -629,7 +634,7 @@ async function handleDeleteLog(log) {
 <template>
 	<div class="min-h-screen bg-gray-50">
 		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
-			<div class="w-full px-0">
+			<div class="w-full px-4 sm:px-6 lg:px-8">
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Timer class="w-6 h-6 text-amber-600" />
@@ -645,19 +650,13 @@ async function handleDeleteLog(log) {
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
-						<a
-							href="/app"
-							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
-						>
-							&larr; Back to Desk
-						</a>
 					</div>
 				</div>
 			</div>
 		</header>
 
 		<div class="bg-white border-b border-gray-200 sticky top-16 z-10">
-			<div class="w-full px-0 py-3">
+			<div class="w-full px-4 sm:px-6 lg:px-8 py-3">
 				<!-- Summary Cards Row -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
 					<!-- Total Hours Card -->
@@ -981,7 +980,7 @@ async function handleDeleteLog(log) {
 
 		<div
 			v-if="store.hasActiveFilters"
-			class="w-full px-0 mt-3 flex flex-wrap items-center gap-2"
+			class="w-full px-4 sm:px-6 lg:px-8 mt-3 flex flex-wrap items-center gap-2"
 		>
 			<div class="flex flex-wrap gap-2 items-center">
 				<span
@@ -1008,7 +1007,7 @@ async function handleDeleteLog(log) {
 			</button>
 		</div>
 
-		<div class="w-full px-0 py-6">
+		<div class="w-full px-4 sm:px-6 lg:px-8 py-6">
 			<!-- LIST VIEW -->
 			<div v-if="viewMode === 'list'" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
 				<div v-if="store.loading" class="py-12 text-center">
@@ -1478,6 +1477,17 @@ async function handleDeleteLog(log) {
 									</option>
 								</select>
 							</div>
+							<div class="flex items-center gap-2 md:col-span-2">
+								<input
+									id="edit-timelog-is-billable"
+									v-model="editForm.is_billable"
+									type="checkbox"
+									class="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+								/>
+								<label for="edit-timelog-is-billable" class="text-sm text-gray-700">
+									{{ translate("Is Billable") }}
+								</label>
+							</div>
 							<div>
 								<label class="text-xs font-medium text-gray-500">
 									{{ translate("From") }}
@@ -1530,6 +1540,8 @@ async function handleDeleteLog(log) {
 				</div>
 			</div>
 		</Transition>
+
+		<BackToDeskButton />
 	</div>
 </template>
 

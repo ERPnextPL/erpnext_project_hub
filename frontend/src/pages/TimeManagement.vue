@@ -1,14 +1,15 @@
 <script setup>
 import { Clock, Lock, Sparkles } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
+import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
 </script>
 
 <template>
 	<div class="min-h-screen bg-gray-50">
 		<!-- Header -->
-		<header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-			<div class="w-full px-0">
+		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+			<div class="w-full px-4 sm:px-6 lg:px-8">
 				<div class="flex items-center justify-between h-16">
 					<div class="flex items-center gap-3">
 						<Clock class="w-6 h-6 text-emerald-600" />
@@ -18,19 +19,13 @@ import { translate } from "../utils/translation";
 					</div>
 					<div class="flex items-center gap-3 sm:gap-4">
 						<OutlinerNav />
-						<a
-							href="/app"
-							class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 whitespace-nowrap"
-						>
-							← Back to Desk
-						</a>
 					</div>
 				</div>
 			</div>
 		</header>
 
 		<!-- Pro Feature Placeholder -->
-		<div class="w-full px-0 py-16">
+		<div class="w-full px-4 sm:px-6 lg:px-8 py-16">
 			<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 text-center">
 				<!-- Icon -->
 				<div
@@ -101,5 +96,7 @@ import { translate } from "../utils/translation";
 				</div>
 			</div>
 		</div>
+
+		<BackToDeskButton />
 	</div>
 </template>

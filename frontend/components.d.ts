@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']

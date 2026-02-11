@@ -56,6 +56,7 @@ const formData = ref({
 	description: "",
 	from_time: "",
 	to_time: "",
+	is_billable: false,
 });
 const hoursInputRef = ref(null);
 
@@ -165,6 +166,7 @@ function resetForm() {
 		description: "",
 		from_time: "",
 		to_time: "",
+		is_billable: false,
 	};
 }
 
@@ -231,6 +233,7 @@ function handleSave() {
 		description: formData.value.description,
 		from_time: toFrappeDateTime(formData.value.from_time),
 		to_time: toFrappeDateTime(formData.value.to_time),
+		is_billable: formData.value.is_billable ? 1 : 0,
 	});
 }
 
@@ -364,6 +367,19 @@ function handleClose() {
 										{{ type }}
 									</option>
 								</select>
+							</div>
+
+							<!-- Is Billable -->
+							<div class="flex items-center gap-3">
+								<input
+									id="timelog-is-billable"
+									v-model="formData.is_billable"
+									type="checkbox"
+									class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+								/>
+								<label for="timelog-is-billable" class="text-sm text-gray-700">
+									{{ translate("Is Billable") }}
+								</label>
 							</div>
 
 							<!-- Description -->
