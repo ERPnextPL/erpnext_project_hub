@@ -7,8 +7,8 @@ if ! command -v semgrep >/dev/null 2>&1; then
   if [[ "${CI:-}" == "true" ]]; then
     python -m pip install semgrep
   else
-    echo "semgrep not found. Install it with: python -m pip install semgrep" >&2
-    exit 1
+    echo "semgrep not found; skipping Semgrep for local pre-commit. Install it with: python -m pip install semgrep" >&2
+    exit 0
   fi
 fi
 
