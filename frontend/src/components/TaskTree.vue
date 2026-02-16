@@ -108,7 +108,11 @@ const gridCols = computed(() => {
 
 // Get visible column config
 const visibleColumnConfigs = computed(() => {
-	return availableColumns.filter(col => visibleColumns.value.includes(col.id));
+	// Keep header order identical to row cell order (visibleColumns).
+	const byId = new Map(availableColumns.map((col) => [col.id, col]));
+	return visibleColumns.value
+		.map((id) => byId.get(id))
+		.filter(Boolean);
 });
 
 // Shared grid template so header and rows stay aligned

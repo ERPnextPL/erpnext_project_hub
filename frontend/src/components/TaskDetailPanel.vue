@@ -37,6 +37,10 @@ const translate = (text) => {
 		: text;
 };
 
+const isTouchDevice = computed(() => {
+	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
+});
+
 const props = defineProps({
 	task: {
 		type: Object,
@@ -819,7 +823,7 @@ async function handleSubtaskCreated() {
 	<aside
 		:class="[
 			'w-full bg-white border-l border-gray-200 flex flex-col flex-shrink-0 overflow-hidden',
-			isFullscreen ? 'max-w-full md:min-w-full' : 'max-w-[480px] md:min-w-[420px]',
+			isFullscreen ? 'max-w-full md:min-w-full' : 'max-w-full sm:max-w-[480px] md:min-w-[420px]',
 		]"
 	>
 		<!-- Header -->
@@ -829,6 +833,7 @@ async function handleSubtaskCreated() {
 			</div>
 			<div class="flex items-center gap-2">
 				<button
+					v-if="!isTouchDevice"
 					type="button"
 					class="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
 					@click="toggleFullscreen"
@@ -898,7 +903,7 @@ async function handleSubtaskCreated() {
 									@blur="saveField('subject', editableTask.subject)"
 								/>
 							</div>
-							<div class="flex items-center justify-between text-[11px] text-gray-500">
+							<div v-if="!isTouchDevice" class="flex items-center justify-between text-[11px] text-gray-500">
 								<span>{{ translate("Keyboard shortcuts") }}</span>
 								<div class="relative" ref="shortcutsInfoRef">
 									<button
@@ -1054,8 +1059,8 @@ async function handleSubtaskCreated() {
 								</Transition>
 							</div>
 
-							<div class="flex items-center gap-3">
-								<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
+							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+								<label class="text-sm text-gray-500 sm:w-20 flex items-center gap-1">
 									<Diamond class="w-3 h-3" />
 									{{ translate("Milestone") }}
 								</label>
@@ -1075,8 +1080,8 @@ async function handleSubtaskCreated() {
 								</select>
 							</div>
 
-							<div class="flex items-center gap-3">
-								<label class="text-sm text-gray-500 w-20 flex items-center gap-1">
+							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+								<label class="text-sm text-gray-500 sm:w-20 flex items-center gap-1">
 									<Folder class="w-3 h-3" />
 									{{ translate("Project") }}
 								</label>
@@ -1095,8 +1100,8 @@ async function handleSubtaskCreated() {
 								</select>
 							</div>
 
-							<div class="flex items-start gap-3">
-								<label class="text-sm text-gray-500 w-20 pt-2">{{
+							<div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-3">
+								<label class="text-sm text-gray-500 sm:w-20 sm:pt-2">{{
 									translate("Assigned")
 								}}</label>
 								<div
@@ -1114,11 +1119,11 @@ async function handleSubtaskCreated() {
 								</div>
 							</div>
 
-					<div class="flex items-center gap-3 relative">
+					<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 relative">
 						<button
 							type="button"
 							ref="dueLabelRef"
-							class="text-sm text-gray-500 w-20 text-left hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+							class="text-sm text-gray-500 sm:w-20 text-left hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
 							@click="toggleDuePresets"
 							:aria-expanded="showDuePresets"
 							aria-controls="due-presets-panel"
@@ -1182,8 +1187,8 @@ async function handleSubtaskCreated() {
 						</button>
 					</div>
 
-							<div class="flex items-center gap-3">
-								<label class="text-sm text-gray-500 w-20">{{ translate("Expected Time") }}</label>
+							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+								<label class="text-sm text-gray-500 sm:w-20">{{ translate("Expected Time") }}</label>
 								<input
 									v-model.number="editableTask.expected_time"
 									type="number"
@@ -1195,8 +1200,8 @@ async function handleSubtaskCreated() {
 								/>
 							</div>
 
-							<div class="flex items-center gap-3">
-								<label class="text-sm text-gray-500 w-20">{{ translate("Start Date") }}</label>
+							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+								<label class="text-sm text-gray-500 sm:w-20">{{ translate("Start Date") }}</label>
 								<input
 									v-model="editableTask.exp_start_date"
 									type="date"
@@ -1205,8 +1210,8 @@ async function handleSubtaskCreated() {
 								/>
 							</div>
 
-							<div class="flex items-center gap-3">
-								<label class="text-sm text-gray-500 w-20">{{ translate("Progress") }}</label>
+							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
+								<label class="text-sm text-gray-500 sm:w-20">{{ translate("Progress") }}</label>
 								<div class="flex-1 flex items-center gap-2">
 									<input
 										v-model.number="editableTask.progress"
