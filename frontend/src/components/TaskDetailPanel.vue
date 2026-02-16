@@ -225,6 +225,12 @@ const currentPriorityPalette = computed(
 	() => priorityPalette[editableTask.value.priority] || priorityPalette.Medium
 );
 
+const directSubtasks = computed(() => {
+	return store.tasks
+		.filter((item) => item.parent_task === props.task.name)
+		.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+});
+
 const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));
 
 const priorityCycleOrder = computed(() => priorityOptions.value.map((opt) => opt.value));
@@ -1271,9 +1277,9 @@ async function handleSubtaskCreated() {
 							v-show="sectionStates.subtasks"
 							class="px-4 pb-4 pt-3 space-y-3"
 						>
-							<div v-if="task.children?.length > 0" class="space-y-1 mb-2">
+							<div v-if="directSubtasks.length > 0" class="space-y-1 mb-2">
 								<div
-									v-for="child in task.children"
+									v-for="child in directSubtasks"
 									:key="child.name"
 									class="flex items-center gap-2 text-sm text-gray-600 py-1"
 								>

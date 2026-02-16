@@ -2006,6 +2006,36 @@ def get_task_detail(task_name: str):
 
 
 @frappe.whitelist()
+def get_task_subtasks(task_name: str):
+	"""
+	Get direct subtasks for a task, sorted by idx.
+	Returns all subtasks regardless of UI filters.
+	"""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+
+	if not frappe.db.exists("Task", task_name):
+		frappe.throw(_("Task {0} does not exist").format(task_name))
+
+	return frappe.get_all(
+		"Task",
+		filters={"parent_task": task_name},
+		fields=[
+			"name",
+			"subject",
+			"status",
+			"priority",
+			"parent_task",
+			"project",
+			"exp_end_date",
+			"progress",
+			"idx",
+		],
+		order_by="idx asc, creation asc",
+	)
+
+
+@frappe.whitelist()
 def create_my_task(
 	subject: str,
 	project: str,

@@ -147,7 +147,7 @@ function applyAndClose() {
 							</div>
 							<select
 								v-model="sortBy"
-								class="px-2 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+								class="min-w-[150px] pl-2 pr-8 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
 							>
 								<option value="deadline">{{ translate("Sort: deadline") }}</option>
 								<option value="name">{{ translate("Sort: name") }}</option>

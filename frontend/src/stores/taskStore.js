@@ -495,6 +495,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// Time log functions
 	const taskTimelogs = ref({});
+	const taskSubtasks = ref({});
 	const activityTypes = ref([]);
 	const taskStatuses = ref([]);
 	const taskPriorities = ref([]);
@@ -593,6 +594,20 @@ async function reorderTask(taskName, newParent, newIdx) {
 			return data;
 		} catch (error) {
 			console.error("Failed to create timelog:", error);
+			throw error;
+		}
+	}
+
+	async function fetchTaskSubtasks(taskName) {
+		try {
+			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_task_subtasks", {
+				task_name: taskName,
+			});
+			taskSubtasks.value[taskName] = data || [];
+			return taskSubtasks.value[taskName];
+		} catch (error) {
+			console.error("Failed to fetch task subtasks:", error);
+			taskSubtasks.value[taskName] = [];
 			throw error;
 		}
 	}
@@ -812,6 +827,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		availableUsers,
 		allProjects,
 		taskTimelogs,
+		taskSubtasks,
 		activityTypes,
 		taskStatuses,
 		taskPriorities,
@@ -855,6 +871,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchTaskPriorities,
 		// Time logs
 		fetchTaskTimelogs,
+		fetchTaskSubtasks,
 		createTimelog,
 		updateTimelog,
 		deleteTimelog,
