@@ -18,6 +18,7 @@ declare module 'vue' {
     MyTaskFilters: typeof import('./src/components/mytasks/MyTaskFilters.vue')['default']
     MyTaskList: typeof import('./src/components/mytasks/MyTaskList.vue')['default']
     MyTaskRowDesktop: typeof import('./src/components/mytasks/MyTaskRowDesktop.vue')['default']
+    OfflineBanner: typeof import('./src/components/OfflineBanner.vue')['default']
     OutlinerNav: typeof import('./src/components/OutlinerNav.vue')['default']
     PriorityBadge: typeof import('./src/components/shared/PriorityBadge.vue')['default']
     ProjectInfoPanel: typeof import('./src/components/ProjectInfoPanel.vue')['default']
