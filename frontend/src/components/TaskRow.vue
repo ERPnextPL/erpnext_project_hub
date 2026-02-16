@@ -207,6 +207,21 @@ const priorityConfig = computed(() => {
 	return config;
 });
 
+const formattedExpectedTime = computed(() => {
+	const raw = props.task?.expected_time;
+	if (raw === null || raw === undefined || raw === "") {
+		return "—";
+	}
+
+	const numeric = Number(raw);
+	if (!Number.isFinite(numeric)) {
+		return "—";
+	}
+
+	const normalized = Number.isInteger(numeric) ? String(numeric) : numeric.toString();
+	return `${normalized}h`;
+});
+
 function toggleExpand() {
 	store.toggleExpand(props.task.name);
 }
@@ -794,9 +809,12 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Expected time -->
-		<div v-else-if="columnId === 'expected_time'" class="text-sm text-gray-700 flex items-center gap-1">
-			<Clock class="w-4 h-4 text-gray-400" />
-			<span>{{ task.expected_time ? task.expected_time + 'h' : '—' }}</span>
+		<div
+			v-else-if="columnId === 'expected_time'"
+			class="text-sm text-gray-700 dark:text-gray-200 flex items-center gap-1"
+		>
+			<Clock class="w-4 h-4 text-gray-400 dark:text-gray-500" />
+			<span>{{ formattedExpectedTime }}</span>
 		</div>
 
 		<!-- Priority -->
