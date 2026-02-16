@@ -11,6 +11,7 @@ declare module 'vue' {
     BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
+    MilestoneFilterModal: typeof import('./src/components/MilestoneFilterModal.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']
     MilestonePanel: typeof import('./src/components/MilestonePanel.vue')['default']
     MyTaskCardMobile: typeof import('./src/components/mytasks/MyTaskCardMobile.vue')['default']

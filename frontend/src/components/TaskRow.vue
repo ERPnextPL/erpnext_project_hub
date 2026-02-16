@@ -88,6 +88,8 @@ const contextMenuPosition = ref({ x: 0, y: 0 });
 // User assignment dropdown
 const showUserDropdown = ref(false);
 const userDropdownPosition = ref({ x: 0, y: 0 });
+const showMilestoneDropdown = ref(false);
+const milestoneDropdownPosition = ref({ x: 0, y: 0 });
 
 const hasChildren = computed(() => {
 	// Check if any task has this task as parent
@@ -124,6 +126,18 @@ const milestoneColor = computed(() => {
 	if (!props.task.milestone) return null;
 	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
 	return milestone?.color || "#3b82f6"; // Default blue if no color set
+});
+
+const milestoneLabel = computed(() => {
+	if (!props.task.milestone) return "";
+	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
+	return milestone?.milestone_name || props.task.milestone;
+});
+
+const milestoneOptions = computed(() => {
+	return [...store.milestones].sort((a, b) =>
+		(a.milestone_name || "").localeCompare(b.milestone_name || "")
+	);
 });
 
 // Load metadata on mount
@@ -358,6 +372,32 @@ async function assignUser(user) {
 	}
 }
 
+function openMilestoneDropdown(e) {
+	e.preventDefault();
+	e.stopPropagation();
+	milestoneDropdownPosition.value = { x: e.clientX, y: e.clientY };
+	showMilestoneDropdown.value = true;
+
+	const closeDropdown = () => {
+		showMilestoneDropdown.value = false;
+		document.removeEventListener("click", closeDropdown);
+	};
+	setTimeout(() => document.addEventListener("click", closeDropdown), 0);
+}
+
+async function assignMilestone(milestoneName) {
+	await store.assignTaskToMilestone(props.task.name, milestoneName || "");
+	showMilestoneDropdown.value = false;
+	if (realWindow?.frappe) {
+		realWindow.frappe.show_alert({
+			message: milestoneName
+				? translate("Task assigned to milestone")
+				: translate("Milestone cleared"),
+			indicator: "green",
+		});
+	}
+}
+
 function showMenu(e) {
 	if (realWindow?.matchMedia?.("(hover: none)").matches) {
 		return;
@@ -569,12 +609,20 @@ onUnmounted(() => {
 				</div>
 
 				<!-- Milestone indicator (always visible if assigned) -->
-				<Diamond
+				<button
 					v-if="task.milestone"
-					class="w-3 h-3 flex-shrink-0"
-					:style="{ color: milestoneColor }"
-					:title="translate('Milestone: ') + task.milestone"
-				/>
+					type="button"
+					class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[11px] font-medium max-w-[180px] hover:bg-gray-50 dark:hover:bg-gray-700"
+					:style="{
+						color: milestoneColor || '#3b82f6',
+						borderColor: milestoneColor || '#93c5fd',
+					}"
+					:title="translate('Milestone: ') + milestoneLabel"
+					@click.stop="openMilestoneDropdown"
+				>
+					<Diamond class="w-3 h-3 flex-shrink-0" />
+					<span class="truncate">{{ milestoneLabel }}</span>
+				</button>
 
 				<div class="flex-1 min-w-0">
 					<input
@@ -762,6 +810,46 @@ onUnmounted(() => {
 			<span v-else class="text-sm text-gray-400">—</span>
 		</div>
 		</template>
+
+		<Teleport to="body">
+			<div
+				v-if="showMilestoneDropdown"
+				class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-56"
+				:style="{
+					left: milestoneDropdownPosition.x + 'px',
+					top: milestoneDropdownPosition.y + 'px',
+				}"
+			>
+				<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
+					{{ translate("Change milestone") }}
+				</div>
+				<button
+					@click="assignMilestone('')"
+					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+				>
+					{{ translate("No milestone") }}
+				</button>
+				<div v-if="milestoneOptions.length" class="border-t border-gray-100 mt-1 pt-1">
+					<button
+						v-for="milestone in milestoneOptions"
+						:key="milestone.name"
+						@click="assignMilestone(milestone.name)"
+						class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2"
+						:class="
+							task.milestone === milestone.name
+								? 'text-blue-700 bg-blue-50'
+								: 'text-gray-700'
+						"
+					>
+						<Diamond
+							class="w-3 h-3"
+							:style="{ color: milestone.color || '#3b82f6' }"
+						/>
+						<span class="truncate">{{ milestone.milestone_name }}</span>
+					</button>
+				</div>
+			</div>
+		</Teleport>
 
 		<!-- Actions column -->
 		<div class="flex items-center justify-end">
