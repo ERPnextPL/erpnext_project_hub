@@ -332,7 +332,6 @@ function handleMobileTaskCreated() {
 				<!-- Toolbar -->
 				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[49px] sm:top-[57px] z-10">
 					<div class="px-3 sm:px-6 lg:px-8 py-2">
-						<!-- Row 1: Search + Filter + Refresh -->
 						<div class="flex items-center gap-2">
 							<!-- Search -->
 							<div class="relative flex-1">
@@ -379,11 +378,9 @@ function handleMobileTaskCreated() {
 							>
 								<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
 							</button>
-						</div>
 
-						<!-- Row 2: View tabs -->
-						<div class="flex items-center justify-between mt-2">
-							<div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+							<!-- View tabs -->
+							<div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 ml-auto">
 								<button
 									@click="activeView = 'list'"
 									:class="[
