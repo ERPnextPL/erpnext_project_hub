@@ -833,6 +833,7 @@ async function handleSubtaskCreated() {
 			</div>
 			<div class="flex items-center gap-2">
 				<button
+					v-if="!isTouchDevice"
 					type="button"
 					class="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
 					@click="toggleFullscreen"
