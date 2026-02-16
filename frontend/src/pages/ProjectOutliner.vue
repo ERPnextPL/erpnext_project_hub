@@ -11,7 +11,16 @@ import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
-import { ArrowLeft, Filter, Search, X, RefreshCw, LayoutList, Columns, GanttChart } from "lucide-vue-next";
+import {
+	ArrowLeft,
+	Filter,
+	Search,
+	X,
+	RefreshCw,
+	LayoutList,
+	Columns,
+	GanttChart,
+} from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
@@ -27,6 +36,7 @@ const router = useRouter();
 const store = useTaskStore();
 
 const activeView = ref("list");
+const listMode = ref("flat");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const searchInput = ref("");
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
@@ -62,6 +72,16 @@ onMounted(() => {
 	store.fetchTasks(props.projectId, activeFilters.value);
 });
 
+watch(
+	() => store.project?.name || props.projectId,
+	(projectName) => {
+		if (projectName) {
+			store.fetchMilestones(projectName);
+		}
+	},
+	{ immediate: true }
+);
+
 function handleRefresh() {
 	store.fetchTasks(props.projectId, activeFilters.value);
 }
@@ -88,7 +108,8 @@ function getTodayDate() {
 // Flattened tasks with levels for proper indentation
 const flattenedTasksWithFilters = computed(() => {
 	// Start with milestone-filtered tasks if active
-	let baseTasks = store.activeMilestoneFilter ? store.tasksFilteredByMilestone : store.tasks;
+	const hasMilestoneFilter = store.activeMilestoneFilter.length > 0;
+	let baseTasks = hasMilestoneFilter ? store.tasksFilteredByMilestone : store.tasks;
 
 	// Build flattened tree from filtered tasks
 	const buildFlattenedTree = (tasks) => {
@@ -144,6 +165,50 @@ const flattenedTasksWithFilters = computed(() => {
 	}
 
 	return result;
+});
+
+function formatMilestoneDate(dateStr) {
+	if (!dateStr) return translate("No deadline");
+	const date = new Date(dateStr);
+	return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+const groupedTasksByMilestone = computed(() => {
+	const groups = new Map();
+	const unassignedKey = "__none__";
+
+	store.milestones.forEach((milestone) => {
+		groups.set(milestone.name, {
+			key: milestone.name,
+			label: milestone.milestone_name,
+			meta: milestone,
+			tasks: [],
+			isUnassigned: false,
+		});
+	});
+
+	groups.set(unassignedKey, {
+		key: unassignedKey,
+		label: translate("No milestone"),
+		meta: null,
+		tasks: [],
+		isUnassigned: true,
+	});
+
+	flattenedTasksWithFilters.value.forEach((task) => {
+		const groupKey = task.milestone && groups.has(task.milestone) ? task.milestone : unassignedKey;
+		groups.get(groupKey).tasks.push(task);
+	});
+
+	const sorted = Array.from(groups.values()).filter((group) => group.tasks.length > 0);
+	sorted.sort((a, b) => {
+		if (a.isUnassigned) return 1;
+		if (b.isUnassigned) return -1;
+		const aDate = a.meta?.milestone_date ? new Date(a.meta.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+		const bDate = b.meta?.milestone_date ? new Date(b.meta.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+		return aDate - bDate;
+	});
+	return sorted;
 });
 </script>
 
@@ -303,7 +368,77 @@ const flattenedTasksWithFilters = computed(() => {
 				</div>
 
 				<div v-else-if="activeView === 'list'">
-					<TaskTree :tasks="flattenedTasksWithFilters" :project-id="projectId" />
+					<div class="px-4 sm:px-6 lg:px-8 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+						<div class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
+							<button
+								@click="listMode = 'flat'"
+								:class="[
+									'px-2.5 py-1.5 text-xs rounded-md flex items-center gap-1.5',
+									listMode === 'flat'
+										? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+										: 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+								]"
+							>
+								<LayoutList class="w-3.5 h-3.5" />
+								{{ translate("Classic list") }}
+							</button>
+							<button
+								@click="listMode = 'milestone'"
+								:class="[
+									'px-2.5 py-1.5 text-xs rounded-md flex items-center gap-1.5',
+									listMode === 'milestone'
+										? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+										: 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+								]"
+							>
+								<Filter class="w-3.5 h-3.5" />
+								{{ translate("Group by milestones") }}
+							</button>
+						</div>
+					</div>
+
+					<TaskTree
+						v-if="listMode === 'flat'"
+						:tasks="flattenedTasksWithFilters"
+						:project-id="projectId"
+					/>
+
+					<div v-else class="space-y-4 p-4 sm:p-6">
+						<section
+							v-for="group in groupedTasksByMilestone"
+							:key="group.key"
+							class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800"
+						>
+							<div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
+								<div class="flex items-center justify-between gap-2">
+									<div class="min-w-0">
+										<div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+											{{ group.label }}
+										</div>
+										<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+											<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
+											<span v-if="group.meta" class="ml-2">
+												{{ formatMilestoneDate(group.meta.milestone_date) }}
+											</span>
+										</div>
+									</div>
+									<div
+										v-if="group.meta"
+										class="text-xs px-2 py-1 rounded-full border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300"
+									>
+										{{ group.meta.completed_tasks || 0 }}/{{ group.meta.total_tasks || 0 }}
+									</div>
+								</div>
+							</div>
+							<TaskTree
+								:tasks="group.tasks"
+								:project-id="projectId"
+								:show-header="false"
+								:show-quick-add="false"
+								:enable-reorder="false"
+							/>
+						</section>
+					</div>
 				</div>
 
 				<div v-else-if="activeView === 'board'" class="h-full">

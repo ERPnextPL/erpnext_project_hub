@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import {
 	Diamond,
 	Plus,
 	Calendar,
+	Filter,
 	MoreVertical,
 	Edit2,
 	Trash2,
@@ -13,6 +14,7 @@ import {
 	ChevronUp,
 } from "lucide-vue-next";
 import MilestoneModal from "./MilestoneModal.vue";
+import MilestoneFilterModal from "./MilestoneFilterModal.vue";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -24,6 +26,7 @@ const translate = (text) => {
 const store = useTaskStore();
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
+const showFilterModal = ref(false);
 const editingMilestone = ref(null);
 const openMenuId = ref(null);
 const isCollapsed = ref(false);
@@ -38,14 +41,6 @@ watch(
 	},
 	{ immediate: true }
 );
-
-function handleMilestoneClick(milestone) {
-	if (store.activeMilestoneFilter === milestone.name) {
-		store.clearMilestoneFilter();
-	} else {
-		store.setMilestoneFilter(milestone.name);
-	}
-}
 
 function toggleMenu(milestoneName, event) {
 	event.stopPropagation();
@@ -180,6 +175,27 @@ function formatDate(dateStr) {
 	return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+const activeMilestoneNames = computed(() => new Set(store.activeMilestoneFilter));
+
+const activeMilestoneLabels = computed(() => {
+	const byName = new Map(store.milestones.map((m) => [m.name, m]));
+	return store.activeMilestoneFilter
+		.map((name) => byName.get(name)?.milestone_name || name)
+		.filter(Boolean);
+});
+
+const milestonesSorted = computed(() => {
+	return [...store.milestones].sort((a, b) => {
+		const aDate = a.milestone_date ? new Date(a.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+		const bDate = b.milestone_date ? new Date(b.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+		return aDate - bDate;
+	});
+});
+
+function applyMilestoneFilters(selectedMilestones) {
+	store.setMilestoneFilter(selectedMilestones);
+}
+
 // Close menu when clicking outside
 function handleClickOutside(event) {
 	if (openMenuId.value && !event.target.closest(".milestone-menu")) {
@@ -235,6 +251,10 @@ async function handleDrop(event, milestoneName) {
 onMounted(() => {
 	document.addEventListener("click", handleClickOutside);
 });
+
+onUnmounted(() => {
+	document.removeEventListener("click", handleClickOutside);
+});
 </script>
 
 <template>
@@ -255,6 +275,17 @@ onMounted(() => {
 			</div>
 			<div class="flex items-center gap-2">
 				<button
+					@click.stop="showFilterModal = true"
+					class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 relative"
+					:title="translate('Filter milestones')"
+				>
+					<Filter class="w-4 h-4" />
+					<span
+						v-if="store.activeMilestoneFilter.length"
+						class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-600"
+					/>
+				</button>
+				<button
 					@click.stop="showCreateModal = true"
 					class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400"
 					:title="translate('Add milestone')"
@@ -270,12 +301,24 @@ onMounted(() => {
 
 		<!-- Active Filter Indicator -->
 		<div
-			v-if="store.activeMilestoneFilter && !isCollapsed"
+			v-if="store.activeMilestoneFilter.length && !isCollapsed"
 			class="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between"
 		>
-			<span class="text-xs text-blue-700 dark:text-blue-400">
-				{{ translate("Filtering by milestone") }}
-			</span>
+			<div class="min-w-0">
+				<span class="text-xs text-blue-700 dark:text-blue-400 block">
+					{{ translate("Filtering by milestone") }}
+				</span>
+				<div class="flex gap-1 mt-1 flex-wrap">
+					<span
+						v-for="label in activeMilestoneLabels"
+						:key="label"
+						class="text-[11px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200 max-w-[140px] truncate"
+						:title="label"
+					>
+						{{ label }}
+					</span>
+				</div>
+			</div>
 			<button
 				@click="store.clearMilestoneFilter()"
 				class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1"
@@ -288,15 +331,14 @@ onMounted(() => {
 		<!-- Milestone List -->
 		<div v-if="!isCollapsed" class="p-2 space-y-2 max-h-64 overflow-y-auto">
 			<div
-				v-for="milestone in store.milestones"
+				v-for="milestone in milestonesSorted"
 				:key="milestone.name"
-				@click="handleMilestoneClick(milestone)"
 				@dragover="handleDragOver($event, milestone.name)"
 				@dragleave="handleDragLeave($event, milestone.name)"
 				@drop="handleDrop($event, milestone.name)"
 				:class="[
-					'p-3 rounded-lg border-2 cursor-pointer transition-all relative',
-					store.activeMilestoneFilter === milestone.name
+					'p-3 rounded-lg border-2 transition-all relative',
+					activeMilestoneNames.has(milestone.name)
 						? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 shadow-sm'
 						: dragOverMilestone === milestone.name
 						? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 shadow-md scale-102'
@@ -382,7 +424,7 @@ onMounted(() => {
 			</div>
 
 			<!-- Empty State -->
-			<div v-if="store.milestones.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400">
+			<div v-if="milestonesSorted.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400">
 				<Diamond class="w-8 h-8 mx-auto mb-2 opacity-30" />
 				<p class="text-sm">{{ translate("No milestones") }}</p>
 				<button
@@ -410,6 +452,14 @@ onMounted(() => {
 				showEditModal = false;
 				editingMilestone = null;
 			"
+		/>
+
+		<MilestoneFilterModal
+			:show="showFilterModal"
+			:milestones="store.milestones"
+			:selected-milestones="store.activeMilestoneFilter"
+			@close="showFilterModal = false"
+			@apply="applyMilestoneFilters"
 		/>
 	</div>
 </template>

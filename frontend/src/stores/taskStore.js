@@ -495,13 +495,14 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// Time log functions
 	const taskTimelogs = ref({});
+	const taskSubtasks = ref({});
 	const activityTypes = ref([]);
 	const taskStatuses = ref([]);
 	const taskPriorities = ref([]);
 
 	// Milestone state
 	const milestones = ref([]);
-	const activeMilestoneFilter = ref(null);
+	const activeMilestoneFilter = ref([]);
 
 	async function fetchActivityTypes() {
 		try {
@@ -593,6 +594,20 @@ async function reorderTask(taskName, newParent, newIdx) {
 			return data;
 		} catch (error) {
 			console.error("Failed to create timelog:", error);
+			throw error;
+		}
+	}
+
+	async function fetchTaskSubtasks(taskName) {
+		try {
+			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_task_subtasks", {
+				task_name: taskName,
+			});
+			taskSubtasks.value[taskName] = data || [];
+			return taskSubtasks.value[taskName];
+		} catch (error) {
+			console.error("Failed to fetch task subtasks:", error);
+			taskSubtasks.value[taskName] = [];
 			throw error;
 		}
 	}
@@ -691,10 +706,10 @@ async function reorderTask(taskName, newParent, newIdx) {
 				await fetchMilestones(project.value.name);
 				await fetchTasks(project.value.name);
 			}
-			// Clear filter if deleted milestone was active
-			if (activeMilestoneFilter.value === milestoneName) {
-				activeMilestoneFilter.value = null;
-			}
+			// Clear deleted milestone from active filters
+			activeMilestoneFilter.value = activeMilestoneFilter.value.filter(
+				(name) => name !== milestoneName
+			);
 			return true;
 		} catch (error) {
 			console.error("Failed to delete milestone:", error);
@@ -725,24 +740,26 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// Computed: tasks filtered by active milestone
 	const tasksFilteredByMilestone = computed(() => {
-		if (!activeMilestoneFilter.value) {
+		if (!activeMilestoneFilter.value.length) {
 			return tasks.value;
 		}
-		return tasks.value.filter((task) => task.milestone === activeMilestoneFilter.value);
+		const selectedMilestones = new Set(activeMilestoneFilter.value);
+		return tasks.value.filter((task) => selectedMilestones.has(task.milestone));
 	});
 
 	// Computed: task tree filtered by milestone
 	const taskTreeFilteredByMilestone = computed(() => {
-		if (!activeMilestoneFilter.value) {
+		if (!activeMilestoneFilter.value.length) {
 			return taskTree.value;
 		}
+		const selectedMilestones = new Set(activeMilestoneFilter.value);
 
 		// Get all tasks that match the milestone or have children that match
 		const matchingTaskNames = new Set();
 
 		// First, find all tasks that directly match
 		tasks.value.forEach((task) => {
-			if (task.milestone === activeMilestoneFilter.value) {
+			if (selectedMilestones.has(task.milestone)) {
 				matchingTaskNames.add(task.name);
 				// Also add all parent tasks
 				let parentName = task.parent_task;
@@ -767,12 +784,27 @@ async function reorderTask(taskName, newParent, newIdx) {
 		return filterTree(taskTree.value);
 	});
 
-	function setMilestoneFilter(milestoneName) {
-		activeMilestoneFilter.value = milestoneName;
+	function setMilestoneFilter(milestoneNameOrNames) {
+		if (Array.isArray(milestoneNameOrNames)) {
+			activeMilestoneFilter.value = milestoneNameOrNames.filter(Boolean);
+			return;
+		}
+		activeMilestoneFilter.value = milestoneNameOrNames ? [milestoneNameOrNames] : [];
+	}
+
+	function toggleMilestoneFilter(milestoneName) {
+		if (!milestoneName) return;
+		if (activeMilestoneFilter.value.includes(milestoneName)) {
+			activeMilestoneFilter.value = activeMilestoneFilter.value.filter(
+				(name) => name !== milestoneName
+			);
+		} else {
+			activeMilestoneFilter.value = [...activeMilestoneFilter.value, milestoneName];
+		}
 	}
 
 	function clearMilestoneFilter() {
-		activeMilestoneFilter.value = null;
+		activeMilestoneFilter.value = [];
 	}
 
 	function setSorting(column) {
@@ -795,6 +827,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		availableUsers,
 		allProjects,
 		taskTimelogs,
+		taskSubtasks,
 		activityTypes,
 		taskStatuses,
 		taskPriorities,
@@ -838,6 +871,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchTaskPriorities,
 		// Time logs
 		fetchTaskTimelogs,
+		fetchTaskSubtasks,
 		createTimelog,
 		updateTimelog,
 		deleteTimelog,
@@ -848,6 +882,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		deleteMilestone,
 		assignTaskToMilestone,
 		setMilestoneFilter,
+		toggleMilestoneFilter,
 		clearMilestoneFilter,
 	};
 });
