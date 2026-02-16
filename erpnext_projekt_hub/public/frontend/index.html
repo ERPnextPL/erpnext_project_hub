@@ -10,13 +10,13 @@
 		</script>
 		{{ include_script("frappe-web.bundle.js?v=20241220-2030") }}
 		<script type="module" crossorigin src="/assets/erpnext_projekt_hub/frontend/assets/main.js"></script>
-		<link rel="modulepreload" crossorigin href="/assets/erpnext_projekt_hub/frontend/assets/chunks/frappe-ui-a308a2dd.js">
+		<link rel="modulepreload" crossorigin href="/assets/erpnext_projekt_hub/frontend/assets/chunks/frappe-ui-b656938c.js">
 		<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
 		<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
 	</head>
 	<body class="antialiased">
 		<div id="app"></div>
-		
+
 
 		<script id="frappe-boot" type="application/json">
 			{{ boot | tojson }}
@@ -32,12 +32,12 @@
 				}
 			}
 		</script>
-	
+
           <script>
               {% for key in boot %}
               window["{{ key }}"] = {{ boot[key] | tojson }};
               {% endfor %}
           </script>
           </body>
-          
+
 </html>

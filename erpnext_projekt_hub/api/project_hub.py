@@ -775,8 +775,6 @@ def bulk_update_tasks(tasks: list):
 			},
 		)
 
-	frappe.db.commit()
-
 	return {"success": True}
 
 
@@ -836,7 +834,6 @@ def assign_task(
 						}
 					)
 					project_user.insert(ignore_permissions=True)
-					frappe.db.commit()
 				except Exception as e:
 					frappe.log_error(f"Failed to auto-assign user {user} to project {task.project}: {e!s}")
 
@@ -910,7 +907,6 @@ def add_project_user(project: str, user: str):
 		}
 	)
 	project_user.insert(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"success": True}
 
@@ -923,7 +919,6 @@ def remove_project_user(project: str, user: str):
 
 	# Delete directly from child table to avoid email notifications
 	frappe.db.delete("Project User", {"parent": project, "user": user})
-	frappe.db.commit()
 
 	return {"success": True}
 
@@ -944,6 +939,7 @@ def get_task_timelogs(task_name: str):
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
+			tsd.is_billable,
 			tsd.from_time,
 			tsd.to_time,
 			tsd.description,
@@ -1013,8 +1009,8 @@ def get_my_timelogs(
 
 	condition_sql = " AND ".join(conditions)
 
-	timelogs = frappe.db.sql(
-		f"""
+	query = (
+		"""
 		SELECT
 			ts.name as timesheet_name,
 			ts.status,
@@ -1023,6 +1019,7 @@ def get_my_timelogs(
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
+			tsd.is_billable,
 			tsd.from_time,
 			tsd.to_time,
 			tsd.description,
@@ -1037,12 +1034,13 @@ def get_my_timelogs(
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		LEFT JOIN `tabTask` task ON tsd.task = task.name
 		LEFT JOIN `tabProject` proj ON tsd.project = proj.name
-		WHERE {condition_sql}
+		WHERE """
+		+ condition_sql
+		+ """
 		ORDER BY tsd.from_time DESC, tsd.idx DESC
-		""",
-		values,
-		as_dict=1,
+		"""
 	)
+	timelogs = frappe.db.sql(query, values, as_dict=1)
 
 	return {"timelogs": timelogs, "total": len(timelogs)}
 
@@ -1055,6 +1053,7 @@ def create_timelog(
 	description: str | None = None,
 	from_time: str | None = None,
 	to_time: str | None = None,
+	is_billable: int | None = None,
 ):
 	"""
 	Create a time log entry for a task.
@@ -1089,22 +1088,24 @@ def create_timelog(
 
 	# Get task details
 	task_doc = frappe.get_doc("Task", task)
+	timelog_meta = frappe.get_meta("Timesheet Detail")
+
+	timelog_row = {
+		"activity_type": activity_type,
+		"hours": hours,
+		"from_time": from_time or frappe.utils.now(),
+		"to_time": to_time or frappe.utils.now(),
+		"description": description or "",
+		"task": task,
+		"project": task_doc.project,
+	}
+	if is_billable is not None and timelog_meta.has_field("is_billable"):
+		timelog_row["is_billable"] = cint(is_billable)
 
 	if existing_timesheet:
 		timesheet = frappe.get_doc("Timesheet", existing_timesheet[0].name)
 		# Add time log detail to existing timesheet
-		timesheet.append(
-			"time_logs",
-			{
-				"activity_type": activity_type,
-				"hours": hours,
-				"from_time": from_time or frappe.utils.now(),
-				"to_time": to_time or frappe.utils.now(),
-				"description": description or "",
-				"task": task,
-				"project": task_doc.project,
-			},
-		)
+		timesheet.append("time_logs", timelog_row)
 		timesheet.save()
 	else:
 		# Create new timesheet with time log in one go
@@ -1114,17 +1115,7 @@ def create_timelog(
 				"employee": get_employee_for_user(user),
 				"start_date": today,
 				"end_date": today,
-				"time_logs": [
-					{
-						"activity_type": activity_type,
-						"hours": hours,
-						"from_time": from_time or frappe.utils.now(),
-						"to_time": to_time or frappe.utils.now(),
-						"description": description or "",
-						"task": task,
-						"project": task_doc.project,
-					}
-				],
+				"time_logs": [timelog_row],
 			}
 		)
 		timesheet.insert()
@@ -1140,6 +1131,7 @@ def create_timelog(
 		"timelog_name": latest_log.name,
 		"activity_type": latest_log.activity_type,
 		"hours": latest_log.hours,
+		"is_billable": getattr(latest_log, "is_billable", 0),
 		"from_time": latest_log.from_time,
 		"to_time": latest_log.to_time,
 		"description": latest_log.description,
@@ -1161,6 +1153,7 @@ def update_timelog(
 	from_time: str | None = None,
 	to_time: str | None = None,
 	project: str | None = None,
+	is_billable: int | None = None,
 ):
 	"""Update an existing time log entry."""
 	if not timelog_name:
@@ -1199,6 +1192,8 @@ def update_timelog(
 			if project_status == "Cancelled":
 				frappe.throw(_("Cannot assign to a cancelled project"))
 		timelog.project = project
+	if is_billable is not None and timelog.meta.has_field("is_billable"):
+		timelog.is_billable = cint(is_billable)
 
 	timesheet.save()
 
@@ -1208,6 +1203,7 @@ def update_timelog(
 		"activity_type": timelog.activity_type,
 		"description": timelog.description,
 		"project": timelog.project,
+		"is_billable": getattr(timelog, "is_billable", 0),
 	}
 
 
@@ -1768,8 +1764,8 @@ def get_my_tasks(
 		"""
 
 	# Execute query
-	tasks = frappe.db.sql(
-		f"""
+	query = (
+		"""
 		SELECT
 			t.name,
 			t.subject,
@@ -1790,24 +1786,28 @@ def get_my_tasks(
 		FROM `tabTask` t
 		LEFT JOIN `tabTask` parent ON t.parent_task = parent.name
 		LEFT JOIN `tabProject` p ON t.project = p.name
-		WHERE {where_clause}
-		ORDER BY {order_by}
+		WHERE """
+		+ where_clause
+		+ """
+		ORDER BY """
+		+ order_by
+		+ """
 		LIMIT %(limit)s OFFSET %(offset)s
-	""",
-		{**values, "limit": int(limit), "offset": int(offset)},
-		as_dict=True,
+	"""
 	)
+	tasks = frappe.db.sql(query, {**values, "limit": int(limit), "offset": int(offset)}, as_dict=True)
 
 	# Get total count for pagination
-	total_count = frappe.db.sql(
-		f"""
+	count_query = (
+		"""
 		SELECT COUNT(*) as count
 		FROM `tabTask` t
-		WHERE {where_clause}
-	""",
-		values,
-		as_dict=True,
-	)[0].get("count", 0)
+		WHERE """
+		+ where_clause
+		+ """
+	"""
+	)
+	total_count = frappe.db.sql(count_query, values, as_dict=True)[0].get("count", 0)
 
 	# Add overdue flag
 	from frappe.utils import getdate, today
@@ -1988,9 +1988,6 @@ def shift_overdue_due_dates(limit: int = 100):
 				f"Failed to shift overdue task due date: {task['name']} ({exc})",
 				"Shift Overdue Due Dates",
 			)
-
-	if shifted:
-		frappe.db.commit()
 
 	return {"shifted": shifted}
 

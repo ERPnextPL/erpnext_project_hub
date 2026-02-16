@@ -1,0 +1,46 @@
+body[data-route^="project-hub"] .layout-main-section,
+body[data-route^="project-hub"] .page-content,
+body[data-route^="project-hub"] .page-content > .row {
+  max-width: none;
+  width: 100%;
+}
+
+body[data-route^="project-hub"] .layout-main-section,
+body[data-route^="project-hub"] .page-content {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Project HUB SPA full-width (website route) */
+body[data-route^="project-hub"] main.max-w-7xl,
+body[data-route^="project-hub"] main.mx-auto,
+body[data-route^="project-hub"] main.px-4,
+body[data-route^="project-hub"] main.sm\:px-6,
+body[data-route^="project-hub"] main.lg\:px-8,
+body[data-route^="project-hub"] main[class*="max-w-"],
+body[data-route^="project-hub"] main[class*="mx-auto"],
+body[data-route^="project-hub"] main[class*="px-"] {
+  max-width: none;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Fallback for website pages without data-route */
+#app main.max-w-7xl,
+#app main.mx-auto,
+#app main.px-4,
+#app main.sm\:px-6,
+#app main.lg\:px-8,
+#app main[class*="max-w-"],
+#app main[class*="mx-auto"],
+#app main[class*="px-"] {
+  max-width: none;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+}

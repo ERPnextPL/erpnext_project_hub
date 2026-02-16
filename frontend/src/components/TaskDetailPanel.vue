@@ -26,6 +26,7 @@ import {
 	Trash2,
 	Diamond,
 	Folder,
+	Info,
 } from "lucide-vue-next";
 import { renderMarkdown } from "../utils/markdown";
 
@@ -54,6 +55,8 @@ const activeTab = ref("details");
 const showTimeLogModal = ref(false);
 const timelogsLoading = ref(false);
 const showMarkdownPreview = ref(false);
+const showShortcutsInfo = ref(false);
+const shortcutsInfoRef = ref(null);
 
 const descriptionMarkdownPreview = computed(() =>
 	renderMarkdown(editableTask.value.description || "")
@@ -554,6 +557,13 @@ function handleDocumentClick(event) {
 	) {
 		showDuePresets.value = false;
 	}
+	if (
+		showShortcutsInfo.value &&
+		shortcutsInfoRef.value &&
+		!shortcutsInfoRef.value.contains(event.target)
+	) {
+		showShortcutsInfo.value = false;
+	}
 }
 
 function handleGlobalKeydown(event) {
@@ -609,6 +619,10 @@ function handleGlobalKeydown(event) {
 		event.preventDefault();
 		persistAllFields();
 		return;
+	}
+
+	if (key === "escape" && showShortcutsInfo.value) {
+		showShortcutsInfo.value = false;
 	}
 }
 
@@ -878,31 +892,65 @@ async function handleSubtaskCreated() {
 									@blur="saveField('subject', editableTask.subject)"
 								/>
 							</div>
-							<div class="flex flex-wrap gap-3 text-[11px] text-gray-500">
-								<span class="flex items-center gap-1">
-									<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">S</kbd>
-									<span>{{ translate("Cycle status") }}</span>
-								</span>
-								<span class="flex items-center gap-1">
-									<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">P</kbd>
-									<span>{{ translate("Cycle priority") }}</span>
-								</span>
-								<span class="flex items-center gap-1">
-									<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">D</kbd>
-									<span>{{ translate("Focus due date") }}</span>
-								</span>
-								<span class="flex items-center gap-1">
-									<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">A</kbd>
-									<span>{{ translate("Open assignees") }}</span>
-								</span>
-								<span class="flex items-center gap-1">
-									<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">T</kbd>
-									<span>{{ translate("Add 15m entry") }}</span>
-								</span>
-								<span class="flex items-center gap-1">
-									<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">Ctrl+J</kbd>
-									<span>{{ translate("Add 30m entry") }}</span>
-								</span>
+							<div class="flex items-center justify-between text-[11px] text-gray-500">
+								<span>{{ translate("Keyboard shortcuts") }}</span>
+								<div class="relative" ref="shortcutsInfoRef">
+									<button
+										type="button"
+										class="inline-flex items-center justify-center h-7 w-7 rounded-full border border-gray-200 bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+										:aria-expanded="showShortcutsInfo"
+										:aria-label="translate('Keyboard shortcuts')"
+										@click="showShortcutsInfo = !showShortcutsInfo"
+									>
+										<Info class="w-4 h-4" />
+									</button>
+									<Transition name="menu-fade">
+										<div
+											v-if="showShortcutsInfo"
+											class="absolute right-0 mt-2 w-72 max-w-[90vw] rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-xs text-gray-700 z-20"
+										>
+											<div class="flex items-center justify-between mb-2">
+												<span class="font-semibold text-gray-900">
+													{{ translate("Keyboard shortcuts") }}
+												</span>
+												<button
+													type="button"
+													class="text-gray-400 hover:text-gray-600"
+													:aria-label="translate('Close dialog')"
+													@click="showShortcutsInfo = false"
+												>
+													<X class="w-3.5 h-3.5" />
+												</button>
+											</div>
+											<div class="space-y-2">
+												<div class="flex items-center justify-between gap-3">
+													<span>{{ translate("Cycle status") }}</span>
+													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">S</kbd>
+												</div>
+												<div class="flex items-center justify-between gap-3">
+													<span>{{ translate("Cycle priority") }}</span>
+													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">P</kbd>
+												</div>
+												<div class="flex items-center justify-between gap-3">
+													<span>{{ translate("Focus due date") }}</span>
+													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">D</kbd>
+												</div>
+												<div class="flex items-center justify-between gap-3">
+													<span>{{ translate("Open assignees") }}</span>
+													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">A</kbd>
+												</div>
+												<div class="flex items-center justify-between gap-3">
+													<span>{{ translate("Add 15m entry") }}</span>
+													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">T</kbd>
+												</div>
+												<div class="flex items-center justify-between gap-3">
+													<span>{{ translate("Add 30m entry") }}</span>
+													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">Ctrl+J</kbd>
+												</div>
+											</div>
+										</div>
+									</Transition>
+								</div>
 							</div>
 
 							<div class="relative" ref="statusMenuRef">

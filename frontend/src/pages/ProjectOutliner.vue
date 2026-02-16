@@ -13,6 +13,7 @@ import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
 import { ArrowLeft, Filter, Search, X, RefreshCw, LayoutList, Columns, GanttChart } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
+import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
 
 const props = defineProps({
@@ -168,16 +169,10 @@ const flattenedTasksWithFilters = computed(() => {
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Team + Nav + Open in Desk -->
+					<!-- Right: Team + Nav -->
 					<div class="flex items-center gap-3 flex-wrap justify-end">
 						<ProjectTeam :project-id="projectId" />
 						<OutlinerNav />
-						<a
-							:href="`/app/project/${projectId}`"
-							class="text-sm text-gray-500 hover:text-gray-700 ml-4"
-						>
-							{{ translate("Open in Desk") }} →
-						</a>
 					</div>
 				</div>
 			</div>
@@ -342,5 +337,7 @@ const flattenedTasksWithFilters = computed(() => {
 				</div>
 			</Transition>
 		</div>
+
+		<BackToDeskButton />
 	</div>
 </template>

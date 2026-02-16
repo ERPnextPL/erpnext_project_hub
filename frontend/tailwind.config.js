@@ -6,6 +6,7 @@ export default {
 		"./index.html",
 		"./src/**/*.{vue,js,ts,jsx,tsx}",
 		"../node_modules/frappe-ui/src/**/*.{vue,js,ts}",
+		"../../projekt_hub_pro/projekt_hub_pro/public/frontend/src/**/*.{vue,js,ts,jsx,tsx}",
 	],
 	theme: {
 		extend: {
