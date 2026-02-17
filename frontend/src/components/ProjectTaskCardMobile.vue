@@ -117,14 +117,20 @@ const assignedUsers = computed(() => {
 	}
 });
 
+const usersByEmail = computed(() => {
+	return new Map((store.availableUsers || []).map((u) => [u.name, u]));
+});
+
 const firstAssignee = computed(() => {
 	if (assignedUsers.value.length === 0) return null;
 	const email = assignedUsers.value[0];
-	const name = email.split("@")[0];
+	const user = usersByEmail.value.get(email);
+	const displayName = user?.full_name || user?.name || email;
+	const initials = displayName.trim().charAt(0).toUpperCase() || "?";
 	return {
 		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
-		initials: name.charAt(0).toUpperCase(),
+		displayName,
+		initials,
 	};
 });
 

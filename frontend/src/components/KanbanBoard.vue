@@ -33,6 +33,9 @@ const props = defineProps({
 const emit = defineEmits(["task-click", "task-update"]);
 
 const store = useTaskStore();
+const usersByEmail = computed(() => {
+	return new Map((store.availableUsers || []).map((u) => [u.name, u]));
+});
 
 // Status configuration
 const statusConfig = {
@@ -157,11 +160,13 @@ function getAssignee(task) {
 		const assigns = JSON.parse(task._assign);
 		if (Array.isArray(assigns) && assigns.length > 0) {
 			const email = assigns[0];
-			const name = email.split("@")[0];
+			const user = usersByEmail.value.get(email);
+			const displayName = user?.full_name || user?.name || email;
+			const initials = displayName.trim().charAt(0).toUpperCase() || "?";
 			return {
 				email,
-				displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
-				initials: name.charAt(0).toUpperCase(),
+				displayName,
+				initials,
 			};
 		}
 	} catch {

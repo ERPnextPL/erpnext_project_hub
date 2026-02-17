@@ -75,6 +75,9 @@ watch(searchInput, (value) => {
 
 onMounted(() => {
 	store.fetchTasks(props.projectId, activeFilters.value);
+	if (store.availableUsers.length === 0) {
+		store.fetchUsers();
+	}
 });
 
 watch(

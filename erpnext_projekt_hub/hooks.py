@@ -205,7 +205,7 @@ doc_events = {
 # Request Events
 # ----------------
 # before_request = ["erpnext_projekt_hub.utils.before_request"]
-# after_request = ["erpnext_projekt_hub.utils.after_request"]
+after_request = ["erpnext_projekt_hub.api.pwa.add_sw_allowed_header"]
 
 # Job Events
 # ----------

@@ -1,19 +1,14 @@
 """
-Service Worker for Projekt HUB PWA.
-Served at /project-hub/sw with scope /project-hub/
+PWA Service Worker endpoint.
 
-Caching strategies:
-- App Shell (HTML, JS, CSS, icons): Cache First
-- API GET endpoints (get_*): Network First (cache for offline viewing)
-- API write endpoints (create_*, update_*, delete_*): Network Only
-- Metadata (statuses, priorities): Cache First with TTL
+Serves the service worker JavaScript via Frappe API with correct MIME type.
+The SW is served at /api/method/erpnext_projekt_hub.api.pwa.service_worker
+and needs Service-Worker-Allowed header (set via after_request hook in hooks.py)
+to extend its scope to /project-hub/.
 """
 
 import frappe
 
-no_cache = 1
-
-# Bump CACHE_VERSION when deploying new code to force SW update
 SW_JS = """\
 const CACHE_VERSION = 'projekt-hub-v1';
 const STATIC_CACHE = CACHE_VERSION + '-static';
@@ -250,12 +245,30 @@ async function buildAPICacheKey(request, endpoint) {
 """
 
 
-def get_context(context):
-	"""Return service worker as JavaScript content, not HTML."""
+@frappe.whitelist(allow_guest=False)
+def service_worker():
+	"""Serve the PWA service worker as JavaScript binary response.
+
+	Frappe's binary response type sets Content-Type based on filename extension,
+	so filename='sw.js' → Content-Type: application/javascript.
+	The Service-Worker-Allowed header is added via after_request hook in hooks.py.
+	"""
 	frappe.local.response.update(
 		{
-			"content_type": "application/javascript; charset=utf-8",
-			"content": SW_JS,
+			"type": "binary",
+			"filename": "sw.js",
+			"filecontent": SW_JS.encode("utf-8"),
 		}
 	)
-	raise frappe.RequestAborted
+
+
+def add_sw_allowed_header(response=None, **kwargs):
+	"""after_request hook: add Service-Worker-Allowed header for SW endpoint."""
+	if response is None:
+		return
+	try:
+		path = frappe.request.path if frappe.request else ""
+		if "pwa.service_worker" in path:
+			response.headers["Service-Worker-Allowed"] = "/project-hub"
+	except Exception:
+		pass
