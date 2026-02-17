@@ -19,12 +19,17 @@ const CACHE_VERSION = 'projekt-hub-v1';
 const STATIC_CACHE = CACHE_VERSION + '-static';
 const API_CACHE = CACHE_VERSION + '-api';
 
-// Static assets to pre-cache on install
-const PRECACHE_URLS = [
+// Critical assets: SW install FAILS if any of these can't be cached.
+// This guarantees the app shell works offline.
+const CRITICAL_PRECACHE_URLS = [
   '/project-hub',
   '/assets/erpnext_projekt_hub/frontend/assets/main.js',
   '/assets/erpnext_projekt_hub/frontend/assets/index.css',
   '/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css',
+];
+
+// Optional assets: cached if available, failures don't block SW install.
+const OPTIONAL_PRECACHE_URLS = [
   '/assets/erpnext_projekt_hub/frontend/manifest.json',
   '/assets/erpnext_projekt_hub/frontend/favicon.svg',
   '/assets/erpnext_projekt_hub/frontend/icons/icon-192.png',
@@ -65,10 +70,17 @@ const METADATA_CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 // ─── Install: pre-cache app shell ───────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).catch((err) => {
-        console.warn('[SW] Pre-cache failed for some URLs:', err);
-      });
+    caches.open(STATIC_CACHE).then(async (cache) => {
+      // Critical assets MUST succeed - if any fail, SW install is aborted
+      await cache.addAll(CRITICAL_PRECACHE_URLS);
+      // Optional assets - cache individually, ignore failures
+      await Promise.allSettled(
+        OPTIONAL_PRECACHE_URLS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn('[SW] Optional pre-cache skipped:', url, err);
+          })
+        )
+      );
     })
   );
   self.skipWaiting();
@@ -171,18 +183,14 @@ async function networkFirstForAPI(request, endpoint) {
     }
     return response;
   } catch (err) {
-    // Offline: serve from cache
+    // Offline: serve ANY cached data regardless of age.
+    // Stale data is always better than no data when offline.
     const cache = await caches.open(API_CACHE);
     const cached = await cache.match(cacheKey);
     if (cached) {
-      // Check age for non-metadata endpoints
-      const cachedAt = parseInt(cached.headers.get('X-SW-Cached-At') || '0');
-      const maxAge = isMetadataEndpoint(endpoint) ? METADATA_CACHE_MAX_AGE : API_CACHE_MAX_AGE;
-      if (Date.now() - cachedAt < maxAge) {
-        return cached;
-      }
+      return cached;
     }
-    // No cache or expired: return offline error as JSON (Frappe format)
+    // Nothing in cache at all: return offline error as JSON (Frappe format)
     return new Response(
       JSON.stringify({ message: 'Offline - no cached data available', _offline: true }),
       { status: 503, headers: { 'Content-Type': 'application/json' } }
