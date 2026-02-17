@@ -111,14 +111,20 @@ const assignedUsers = computed(() => {
 	}
 });
 
+const usersByEmail = computed(() => {
+	return new Map((store.availableUsers || []).map((u) => [u.name, u]));
+});
+
 const firstAssignee = computed(() => {
 	if (assignedUsers.value.length === 0) return null;
 	const email = assignedUsers.value[0];
-	// Extract name from email (before @)
-	const name = email.split("@")[0];
+	const user = usersByEmail.value.get(email);
+	const displayName = user?.full_name || user?.name || email;
+	const initials = displayName.trim().charAt(0).toUpperCase() || "?";
 	return {
 		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
+		displayName,
+		initials,
 	};
 });
 
@@ -761,7 +767,7 @@ onUnmounted(() => {
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
 						>
 							<User class="w-4 h-4 text-gray-400" />
-							{{ user.full_name || user.name.split("@")[0] }}
+							{{ user.full_name || user.name }}
 						</button>
 					</div>
 					<div class="border-t border-gray-100 mt-1 pt-1">
