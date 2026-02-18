@@ -289,6 +289,20 @@ async function saveDocumentationUrl() {
 							</div>
 						</div>
 						<div class="flex items-start gap-2">
+							<User class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+							<div class="flex-1 min-w-0">
+								<div class="text-xs text-gray-500">
+									{{ translate("Project Manager") }}
+								</div>
+								<div
+									class="text-sm font-medium text-gray-900 truncate"
+									:title="project.project_manager"
+								>
+									{{ project.project_manager || translate("Not assigned") }}
+								</div>
+							</div>
+						</div>
+						<div class="flex items-start gap-2">
 							<Link class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
 								<div class="text-xs text-gray-500">
