@@ -270,5 +270,6 @@ def add_sw_allowed_header(response=None, **kwargs):
 		path = frappe.request.path if frappe.request else ""
 		if "pwa.service_worker" in path:
 			response.headers["Service-Worker-Allowed"] = "/project-hub"
+			response.headers["Content-Type"] = "application/javascript"
 	except Exception:
 		pass
