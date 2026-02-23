@@ -13,15 +13,14 @@ export_python_type_annotations = True
 required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "erpnext_projekt_hub",
-# 		"logo": "/assets/erpnext_projekt_hub/logo.png",
-# 		"title": "Projekt HUB",
-# 		"route": "/erpnext_projekt_hub",
-# 		"has_permission": "erpnext_projekt_hub.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "erpnext_projekt_hub",
+		"logo": "/assets/erpnext_projekt_hub/logo-hub.svg",
+		"title": "Projekt HUB",
+		"route": "/project-hub",
+	}
+]
 
 # Includes in <head>
 # ------------------
