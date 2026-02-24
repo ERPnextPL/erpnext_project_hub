@@ -274,11 +274,9 @@ function handleMobileTaskCreated() {
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Team (hidden on mobile) + Nav -->
+					<!-- Right: Team + Nav -->
 					<div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-						<div class="hidden sm:block">
-							<ProjectTeam :project-id="projectId" />
-						</div>
+						<ProjectTeam :project-id="projectId" />
 						<OutlinerNav />
 					</div>
 				</div>
