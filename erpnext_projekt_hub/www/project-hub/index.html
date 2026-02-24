@@ -4,8 +4,8 @@
 {% block title %}Project Outliner{% endblock %}
 
 {% block head_include %}
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css?v={{ frappe.utils.get_build_version() }}">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css?v={{ frappe.utils.get_build_version() }}">
 <!-- PWA: Web App Manifest -->
 <link rel="manifest" href="/assets/erpnext_projekt_hub/frontend/manifest.json">
 <meta name="theme-color" content="#3b82f6">
@@ -21,7 +21,7 @@
 {% endblock %}
 
 {% block script %}
-<!-- PWA: Service Worker Registration -->
+<!-- PWA: Service Worker Registration + update notification -->
 <script>
 	if ('serviceWorker' in navigator) {
 		window.addEventListener('load', () => {
@@ -33,6 +33,48 @@
 					console.warn('Service Worker registration failed:', error);
 				});
 		});
+
+		// Listen for update notification from SW activate handler
+		navigator.serviceWorker.addEventListener('message', function(event) {
+			if (event.data && event.data.type === 'SW_UPDATED') {
+				_showUpdateBanner();
+			}
+		});
+	}
+
+	function _showUpdateBanner() {
+		if (document.getElementById('ph-update-banner')) return;
+		var banner = document.createElement('div');
+		banner.id = 'ph-update-banner';
+		banner.style.cssText = [
+			'position:fixed',
+			'bottom:16px',
+			'left:50%',
+			'transform:translateX(-50%)',
+			'z-index:99999',
+			'background:#1e40af',
+			'color:#fff',
+			'padding:10px 20px',
+			'border-radius:8px',
+			'box-shadow:0 4px 16px rgba(0,0,0,0.25)',
+			'font-size:14px',
+			'display:flex',
+			'align-items:center',
+			'gap:12px',
+			'white-space:nowrap',
+		].join(';');
+		banner.innerHTML =
+			'<span>Dostępna nowa wersja aplikacji.</span>' +
+			'<button onclick="window.location.reload()" style="' +
+				'background:#fff;color:#1e40af;border:none;' +
+				'padding:5px 14px;border-radius:6px;cursor:pointer;' +
+				'font-weight:600;font-size:13px;' +
+			'">Odśwież</button>' +
+			'<button onclick="this.parentNode.remove()" style="' +
+				'background:transparent;color:#93c5fd;border:none;' +
+				'cursor:pointer;font-size:18px;line-height:1;padding:0 2px;' +
+			'">×</button>';
+		document.body.appendChild(banner);
 	}
 </script>
 {{ super() }}
