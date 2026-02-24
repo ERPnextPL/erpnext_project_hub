@@ -101,6 +101,12 @@ export default defineConfig({
 						"projekt-hub-pro": proFrontendPath,
 						// Allow PRO app to import from base app's tabRegistry
 						"@erpnext-projekt-hub": path.resolve(__dirname, "src"),
+						// Resolve shared packages from base app's node_modules so that
+						// PRO app source files (which have no own node_modules) can import
+						// the same packages without Rollup failing to find them.
+						"lucide-vue-next": path.resolve(__dirname, "node_modules/lucide-vue-next"),
+						pinia: path.resolve(__dirname, "node_modules/pinia"),
+						"vue-router": path.resolve(__dirname, "node_modules/vue-router"),
 					}
 				: {}),
 		},
