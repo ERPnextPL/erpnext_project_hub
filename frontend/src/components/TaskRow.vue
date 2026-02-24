@@ -419,11 +419,19 @@ async function assignMilestone(milestoneName) {
 	}
 }
 
+function closeContextMenu() {
+	showContextMenu.value = false;
+}
+
 function showMenu(e) {
 	if (realWindow?.matchMedia?.("(hover: none)").matches) {
 		return;
 	}
 	e.preventDefault();
+
+	// Close any other open context menus first
+	document.dispatchEvent(new CustomEvent("close-all-context-menus"));
+
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
 	showContextMenu.value = true;
 
@@ -530,10 +538,12 @@ function handleGlobalClick(event) {
 
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
+	document.addEventListener("close-all-context-menus", closeContextMenu);
 });
 
 onUnmounted(() => {
 	document.removeEventListener("click", handleGlobalClick);
+	document.removeEventListener("close-all-context-menus", closeContextMenu);
 });
 </script>
 
