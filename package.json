@@ -2,7 +2,7 @@
   "name": "erpnext-projekt-hub",
   "version": "1.0.0",
   "scripts": {
-    "build": "npm --prefix frontend ci --include=dev && npm --prefix frontend run build",
+    "build": "if [ -d '../../projekt_hub_pro/projekt_hub_pro/public/frontend/src' ]; then npm --prefix frontend ci --include=dev && npm --prefix frontend run build; else echo 'projekt_hub_pro not found in bench — skipping Vue rebuild, using pre-committed assets'; fi",
     "dev": "cd frontend && npm run dev",
     "install-frontend": "cd frontend && npm install"
   }
