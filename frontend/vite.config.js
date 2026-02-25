@@ -2,7 +2,6 @@ import vue from "@vitejs/plugin-vue";
 import frappeui from "frappe-ui/vite";
 import path from "path";
 import fs from "fs";
-import { execFileSync } from "child_process";
 import { defineConfig } from "vite";
 
 // Resolve projekt_hub_pro frontend path
@@ -12,37 +11,19 @@ const proFrontendPath = path.resolve(
 );
 
 /**
- * Determine whether projekt_hub_pro is installed.
+ * Determine whether projekt_hub_pro should be included in the build.
  *
- * Primary:  run scripts/detect-pro.py which queries the Frappe database.
- *           Works on both self-hosted and Frappe Cloud / Press — no persistent
- *           file needed, the source of truth is always the database.
+ * Rule: include PRO tabs whenever the PRO app source files are present on disk.
+ * This covers both local development (both apps checked out) and Frappe Cloud /
+ * Press deployments (both apps deployed to the bench).
  *
- * Fallback: check for frontend/.pro-enabled marker file.
- *           Used in CI environments or when the DB is not reachable during build.
+ * Access control is enforced by backend API role checks — the frontend build
+ * does not need to guard features based on DB installation state.
+ * If PRO is not installed on the site, its API endpoints will not be registered
+ * and all API calls from the PRO tabs will return appropriate errors.
  */
 function detectProApp() {
-	if (!fs.existsSync(proFrontendPath)) return false;
-
-	try {
-		const script = path.resolve(__dirname, "scripts/detect-pro.py");
-		// Use bench virtualenv Python so frappe and its dependencies are available.
-		// Fall back to python3 if the venv doesn't exist (e.g. fresh CI checkout).
-		const benchRoot = path.resolve(__dirname, "../../..");
-		const venvPython = path.join(benchRoot, "env", "bin", "python");
-		const pythonCmd = fs.existsSync(venvPython) ? venvPython : "python3";
-		const result = execFileSync(pythonCmd, [script], {
-			encoding: "utf-8",
-			timeout: 15000,
-		});
-		if (result.trim() === "True") return true;
-		if (result.trim() === "False") return false;
-	} catch (_) {
-		// DB unreachable or python not found — fall through to marker file
-	}
-
-	// Fallback: marker file created by projekt_hub_pro after_install hook
-	return fs.existsSync(path.resolve(__dirname, ".pro-enabled"));
+	return fs.existsSync(proFrontendPath);
 }
 
 const proAppExists = detectProApp();
