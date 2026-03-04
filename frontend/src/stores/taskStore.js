@@ -287,6 +287,18 @@ async function updateTask(taskName, updates) {
 		}
 	}
 
+function handleRemoteTaskUpdate(data) {
+	if (!data?.task || data.project !== project.value?.name) return;
+	const updatedTask = data.task;
+	const index = tasks.value.findIndex((t) => t.name === updatedTask.name);
+	if (index !== -1) {
+		tasks.value[index] = { ...tasks.value[index], ...updatedTask };
+	}
+	if (selectedTask.value?.name === updatedTask.name) {
+		selectedTask.value = { ...selectedTask.value, ...updatedTask };
+	}
+}
+
 async function fetchTaskDetail(taskName) {
 	try {
 		const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_task_detail", {
@@ -846,6 +858,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchTasks,
 		createTask,
 		updateTask,
+		handleRemoteTaskUpdate,
 		fetchTaskDetail,
 		updateProject,
 		deleteTask,

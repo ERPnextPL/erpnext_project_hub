@@ -26,6 +26,7 @@ const props = defineProps({
 const emit = defineEmits(["close", "save"]);
 
 const store = useTaskStore();
+const isSaving = ref(false);
 const realWindow = getRealWindow();
 
 const userLocale = computed(() => {
@@ -192,7 +193,9 @@ function toFrappeDateTime(datetimeLocalStr) {
 	return `${datetimeLocalStr.replace("T", " ")}:00`;
 }
 
-function handleSave() {
+async function handleSave() {
+	if (isSaving.value) return;
+
 	// Validate hours
 	if (!formData.value.hours || parseFloat(formData.value.hours) <= 0) {
 		showAlert("Please enter a valid number of hours");
@@ -226,15 +229,38 @@ function handleSave() {
 	// Calculate to_time before saving
 	calculateToTime();
 
-	emit("save", {
-		task: props.task.name,
-		hours: parseFloat(formData.value.hours),
-		activity_type: formData.value.activity_type,
-		description: formData.value.description,
-		from_time: toFrappeDateTime(formData.value.from_time),
-		to_time: toFrappeDateTime(formData.value.to_time),
-		is_billable: formData.value.is_billable ? 1 : 0,
-	});
+	isSaving.value = true;
+	try {
+		const payload = {
+			task: props.task.name,
+			hours: parseFloat(formData.value.hours),
+			activity_type: formData.value.activity_type,
+			description: formData.value.description,
+			from_time: toFrappeDateTime(formData.value.from_time),
+			to_time: toFrappeDateTime(formData.value.to_time),
+			is_billable: formData.value.is_billable ? 1 : 0,
+		};
+
+		await store.createTimelog(payload);
+
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Time log saved successfully"),
+				indicator: "green",
+			});
+		}
+
+		emit("close");
+	} catch (error) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Failed to save time log"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		isSaving.value = false;
+	}
 }
 
 function formatDisplayTime(datetimeStr, localeOverride) {
@@ -412,9 +438,14 @@ function handleClose() {
 							</button>
 							<button
 								@click="handleSave"
-								class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+								:disabled="isSaving"
+								class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 							>
-								Zapisz
+								<div
+									v-if="isSaving"
+									class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+								></div>
+								{{ isSaving ? "Zapisywanie..." : "Zapisz" }}
 							</button>
 						</div>
 					</div>

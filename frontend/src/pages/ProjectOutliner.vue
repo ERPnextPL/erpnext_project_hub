@@ -1,14 +1,15 @@
 <script setup>
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
+import { getRealWindow } from "../utils/translation";
 import TaskTree from "../components/TaskTree.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
-import MilestonePanel from "../components/MilestonePanel.vue";
+import MilestoneSidebar from "../components/MilestoneSidebar.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
@@ -22,6 +23,7 @@ import {
 	LayoutList,
 	Columns,
 	GanttChart,
+	Diamond,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -36,6 +38,7 @@ const props = defineProps({
 
 const router = useRouter();
 const store = useTaskStore();
+const realWindow = getRealWindow();
 
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 768);
@@ -43,6 +46,7 @@ const isMobile = computed(() => width.value < 768);
 const activeView = ref("list");
 const listMode = ref("flat");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
+const milestoneSidebarOpen = ref(false);
 const searchInput = ref("");
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
 const activeFilters = ref({
@@ -73,11 +77,20 @@ watch(searchInput, (value) => {
 	debouncedSearch(value);
 });
 
+function handleRemoteTaskUpdate(data) {
+	store.handleRemoteTaskUpdate(data);
+}
+
 onMounted(() => {
 	store.fetchTasks(props.projectId, activeFilters.value);
 	if (store.availableUsers.length === 0) {
 		store.fetchUsers();
 	}
+	realWindow?.frappe?.realtime?.on("projekt_hub_task_updated", handleRemoteTaskUpdate);
+});
+
+onUnmounted(() => {
+	realWindow?.frappe?.realtime?.off("projekt_hub_task_updated", handleRemoteTaskUpdate);
 });
 
 watch(
@@ -219,10 +232,13 @@ const groupedTasksByMilestone = computed(() => {
 	return sorted;
 });
 
-// Mobile: close sidebar when switching to mobile
+// Mobile: close sidebars when switching to mobile
 watch(isMobile, (mobile) => {
 	if (mobile && !sidebarCollapsed.value) {
 		sidebarCollapsed.value = true;
+	}
+	if (mobile && milestoneSidebarOpen.value) {
+		milestoneSidebarOpen.value = false;
 	}
 });
 
@@ -285,27 +301,41 @@ function handleMobileTaskCreated() {
 
 		<!-- Main content -->
 		<div class="flex-1 flex overflow-hidden relative">
-			<!-- Left sidebar: Desktop = inline, Mobile = drawer overlay -->
-			<!-- Desktop sidebar -->
+			<!-- Milestone sidebar: Desktop = inline, Mobile = drawer overlay -->
+			<aside
+				v-if="milestoneSidebarOpen && !isMobile"
+				class="flex-shrink-0 overflow-y-auto relative"
+			>
+				<MilestoneSidebar @close="milestoneSidebarOpen = false" />
+			</aside>
+
+			<!-- Milestone sidebar mobile drawer -->
+			<Transition name="slide-drawer">
+				<div v-if="milestoneSidebarOpen && isMobile" class="fixed inset-0 z-30 flex">
+					<div class="absolute inset-0 bg-black/30" @click="milestoneSidebarOpen = false"></div>
+					<aside class="relative z-10 shadow-xl overflow-y-auto">
+						<MilestoneSidebar @close="milestoneSidebarOpen = false" />
+					</aside>
+				</div>
+			</Transition>
+
+			<!-- Filter sidebar: Desktop = inline, Mobile = drawer overlay -->
 			<aside
 				v-if="!sidebarCollapsed && !isMobile"
 				class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-y-auto w-64 relative"
 			>
 				<div class="w-64">
-					<MilestonePanel />
 					<QuickFilters :project="store.project" @filter-change="handleFilterChange" />
 				</div>
 			</aside>
 
-			<!-- Mobile sidebar drawer -->
+			<!-- Filter sidebar mobile drawer -->
 			<Transition name="slide-drawer">
 				<div
 					v-if="!sidebarCollapsed && isMobile"
 					class="fixed inset-0 z-30 flex"
 				>
-					<!-- Overlay -->
 					<div class="absolute inset-0 bg-black/30" @click="closeSidebar"></div>
-					<!-- Drawer -->
 					<aside class="relative z-10 bg-white dark:bg-gray-800 w-72 max-w-[85vw] overflow-y-auto shadow-xl">
 						<div class="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
 							<span class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ translate("Filters") }}</span>
@@ -316,7 +346,6 @@ function handleMobileTaskCreated() {
 								<X class="w-4 h-4" />
 							</button>
 						</div>
-						<MilestonePanel />
 						<QuickFilters :project="store.project" @filter-change="handleFilterChange" />
 					</aside>
 				</div>
@@ -351,6 +380,25 @@ function handleMobileTaskCreated() {
 									<X class="w-4 h-4" />
 								</button>
 							</div>
+
+							<!-- Milestones toggle -->
+							<button
+								@click="milestoneSidebarOpen = !milestoneSidebarOpen"
+								:class="[
+									'flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm rounded-lg border transition-colors flex-shrink-0',
+									milestoneSidebarOpen || store.activeMilestoneFilter.length
+										? 'bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300'
+										: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+								]"
+								:title="translate('Milestones')"
+							>
+								<Diamond class="w-4 h-4" />
+								<span class="hidden sm:inline">{{ translate("Milestones") }}</span>
+								<span
+									v-if="store.activeMilestoneFilter.length"
+									class="w-2 h-2 rounded-full bg-purple-600"
+								></span>
+							</button>
 
 							<!-- Filter toggle -->
 							<button

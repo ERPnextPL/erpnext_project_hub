@@ -2,6 +2,7 @@ import vue from "@vitejs/plugin-vue";
 import frappeui from "frappe-ui/vite";
 import path from "path";
 import fs from "fs";
+import { execFileSync } from "child_process";
 import { defineConfig } from "vite";
 
 // Resolve projekt_hub_pro frontend path
@@ -13,17 +14,27 @@ const proFrontendPath = path.resolve(
 /**
  * Determine whether projekt_hub_pro should be included in the build.
  *
- * Rule: include PRO tabs whenever the PRO app source files are present on disk.
- * This covers both local development (both apps checked out) and Frappe Cloud /
- * Press deployments (both apps deployed to the bench).
- *
- * Access control is enforced by backend API role checks — the frontend build
- * does not need to guard features based on DB installation state.
- * If PRO is not installed on the site, its API endpoints will not be registered
- * and all API calls from the PRO tabs will return appropriate errors.
+ * Rule: projekt_hub_pro must be both present on disk AND installed in the DB.
+ * Uses detect-pro.py to query tabInstalled Application directly.
+ * If the DB is unreachable (offline build), falls back to False so that
+ * PRO tabs are never shown when installation cannot be confirmed.
  */
 function detectProApp() {
-	return fs.existsSync(proFrontendPath);
+	if (!fs.existsSync(proFrontendPath)) return false;
+	try {
+		const scriptPath = path.resolve(__dirname, "scripts", "detect-pro.py");
+		// Prefer the bench virtualenv Python (has pymysql/psycopg2).
+		// Fall back to system python3 if the venv isn't present.
+		const benchPython = path.resolve(__dirname, "../../../env/bin/python3");
+		const pythonExe = fs.existsSync(benchPython) ? benchPython : "python3";
+		const result = execFileSync(pythonExe, [scriptPath], {
+			encoding: "utf-8",
+			cwd: path.resolve(__dirname, ".."),
+		}).trim();
+		return result === "True";
+	} catch {
+		return false;
+	}
 }
 
 const proAppExists = detectProApp();
