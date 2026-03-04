@@ -251,7 +251,7 @@ function handleSort(column) {
 							<div
 								v-if="item.type === 'context'"
 								class="grid gap-4 px-4 py-2 bg-gray-50 text-xs text-gray-600"
-								style="grid-template-columns: 2fr 1fr 0.9fr 0.6fr 0.5fr"
+								:style="{ gridTemplateColumns }"
 							>
 								<div class="col-span-full truncate">↳ {{ item.subject }}</div>
 							</div>

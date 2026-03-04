@@ -46,9 +46,20 @@ def validate_task_due_dates(doc, method):
 		parent_exp_end_date = frappe.db.get_value("Task", doc.parent_task, "exp_end_date")
 		if parent_exp_end_date:
 			if getdate(doc.exp_end_date) > getdate(parent_exp_end_date):
-				# Zaktualizuj datę parent
+				# Use max date across all siblings (from DB) + current doc's date,
+				# so parent validation doesn't fail due to another sibling with a later date.
+				siblings = frappe.get_all(
+					"Task",
+					filters={"parent_task": doc.parent_task, "name": ["!=", doc.name]},
+					fields=["exp_end_date"],
+				)
+				max_date = max(
+					[getdate(s.exp_end_date) for s in siblings if s.exp_end_date]
+					+ [getdate(doc.exp_end_date)]
+				)
+
 				parent_doc = frappe.get_doc("Task", doc.parent_task)
-				parent_doc.exp_end_date = doc.exp_end_date
+				parent_doc.exp_end_date = str(max_date)
 				parent_doc.flags.ignore_recursion_check = True
 				parent_doc.save()
 
@@ -59,7 +70,7 @@ def validate_task_due_dates(doc, method):
 						"to {1} because subtask '{2}' has a later due date."
 					).format(
 						frappe.bold(doc.parent_task),
-						frappe.bold(format_date(doc.exp_end_date)),
+						frappe.bold(format_date(max_date)),
 						frappe.bold(doc.name),
 					),
 					title=_("Date updated"),
