@@ -600,7 +600,7 @@ def update_task(task_name: str, **kwargs):
 
 	task.save()
 
-	return {
+	result = {
 		"name": task.name,
 		"subject": task.subject,
 		"status": task.status,
@@ -615,6 +615,14 @@ def update_task(task_name: str, **kwargs):
 		"expected_time": getattr(task, "expected_time", None),
 		"completed_on": task.completed_on,
 	}
+
+	frappe.publish_realtime(
+		"projekt_hub_task_updated",
+		{"project": task.project, "task": result},
+		after_commit=True,
+	)
+
+	return result
 
 
 @frappe.whitelist()
@@ -782,12 +790,23 @@ def bulk_update_tasks(tasks: list):
 
 @frappe.whitelist()
 def get_users():
-	"""Get list of users that can be assigned to tasks."""
+	"""Get list of users that can be assigned to tasks (only users with an active Employee record)."""
+	employee_user_ids = frappe.get_all(
+		"Employee",
+		filters={"status": "Active"},
+		pluck="user_id",
+	)
+	# Remove empty/None values
+	employee_user_ids = [uid for uid in employee_user_ids if uid]
+
+	if not employee_user_ids:
+		return []
+
 	users = frappe.get_all(
 		"User",
 		filters={
 			"enabled": 1,
-			"user_type": "System User",
+			"name": ["in", employee_user_ids],
 		},
 		fields=["name", "full_name", "user_image"],
 		order_by="full_name",
@@ -2124,3 +2143,41 @@ def get_projects_settings():
 			"ignore_employee_time_overlap": False,
 			"fetch_timesheet_in_sales_invoice": False,
 		}
+
+
+@frappe.whitelist()
+def get_task_attachments(task_name: str):
+	"""Get all file attachments for a task."""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+
+	frappe.has_permission("Task", "read", task_name, throw=True)
+
+	return frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": "Task",
+			"attached_to_name": task_name,
+			"is_folder": 0,
+		},
+		fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"],
+		order_by="creation desc",
+	)
+
+
+@frappe.whitelist()
+def delete_task_attachment(file_name: str):
+	"""Delete a file attachment from a task."""
+	if not file_name:
+		frappe.throw(_("File name is required"))
+
+	file_doc = frappe.get_doc("File", file_name)
+
+	if file_doc.attached_to_doctype != "Task":
+		frappe.throw(_("Invalid attachment"))
+
+	frappe.has_permission("Task", "write", file_doc.attached_to_name, throw=True)
+
+	frappe.delete_doc("File", file_name)
+
+	return {"success": True}

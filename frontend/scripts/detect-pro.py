@@ -75,7 +75,10 @@ def main():
 	db_name = config.get("db_name")
 	db_password = config.get("db_password", "")
 	db_host = config.get("db_host", "127.0.0.1") or "127.0.0.1"
-	db_port = int(config.get("db_port") or 3306)
+	try:
+		db_port = int(config.get("db_port") or 3306)
+	except (ValueError, TypeError):
+		db_port = 3306
 	db_type = config.get("db_type", "mariadb")
 
 	if not db_name:
