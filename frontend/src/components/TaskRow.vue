@@ -67,11 +67,9 @@ const milestoneHintTimeout = ref(null);
 
 const taskDescription = computed(() => (props.task.description || "").trim());
 const descriptionPreviewLabel = computed(() => {
-	if (!taskDescription.value) {
-		return "";
-	}
-	const firstLine = taskDescription.value.split("\n")[0]?.trim();
-	return firstLine || "";
+	if (!taskDescription.value) return "";
+	const stripped = taskDescription.value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+	return stripped || "";
 });
 const descriptionPreviewText = computed(() => {
 	if (!taskDescription.value) return "";
@@ -668,7 +666,7 @@ onUnmounted(() => {
 								:title="translate('Click to view full description')"
 							>
 							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
-							<span v-if="descriptionPreviewLabel">{{
+							<span v-if="descriptionPreviewLabel" class="line-clamp-3">{{
 								descriptionPreviewLabel
 							}}</span>
 						</button>

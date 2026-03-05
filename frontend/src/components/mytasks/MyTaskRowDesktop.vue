@@ -260,7 +260,7 @@ onUnmounted(() => {
 			gridTemplateColumns: props.gridTemplate + ' auto',
 		}"
 		:class="[
-			'grid gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center',
+			'grid gap-4 px-4 py-5 hover:bg-gray-50 cursor-pointer transition-colors items-center',
 			isUpdating && 'opacity-60',
 		]"
 	>
@@ -331,8 +331,7 @@ onUnmounted(() => {
 					v-if="task.progress !== null && task.progress !== undefined"
 					class="mt-2 space-y-1"
 				>
-					<div class="flex items-center justify-between text-xs text-gray-500">
-						<span>{{ translate("Progress") }}</span>
+					<div class="flex items-center text-xs text-gray-500">
 						<span class="font-semibold text-gray-700">{{ progressPercent }}%</span>
 					</div>
 					<div class="w-40 h-1.5 bg-gray-100 rounded-full overflow-hidden">

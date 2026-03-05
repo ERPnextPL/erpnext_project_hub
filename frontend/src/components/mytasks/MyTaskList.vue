@@ -275,13 +275,13 @@ function handleSort(column) {
 					</div>
 
 					<!-- Mobile: flat list -->
-					<template v-else>
+					<div v-else class="flex flex-col gap-3 p-3">
 						<MyTaskCardMobile
 							v-for="task in section.tasks"
 							:key="task.name"
 							:task="task"
 						/>
-					</template>
+					</div>
 				</template>
 			</div>
 		</div>

@@ -90,6 +90,7 @@ class TabRegistry {
 			icon: tab.icon,
 			color: tab.color,
 			bg: tab.bg,
+			managerOnly: tab.managerOnly ?? false,
 		}));
 	}
 

@@ -11,6 +11,7 @@ import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
 import MilestoneSidebar from "../components/MilestoneSidebar.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
+import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
 import QuickAddTask from "../components/QuickAddTask.vue";
@@ -356,6 +357,12 @@ function handleMobileTaskCreated() {
 				<!-- Project Information Panel -->
 				<ProjectInfoPanel
 					v-if="store.project && !store.loading"
+					:project="store.project"
+				/>
+
+				<!-- Manager Summary Panel (visible only to project manager / System Manager) -->
+				<ProjectManagerPanel
+					v-if="store.project && !store.loading && store.project.is_manager"
 					:project="store.project"
 				/>
 

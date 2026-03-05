@@ -23,6 +23,7 @@ declare module 'vue' {
     OutlinerNav: typeof import('./src/components/OutlinerNav.vue')['default']
     PriorityBadge: typeof import('./src/components/shared/PriorityBadge.vue')['default']
     ProjectInfoPanel: typeof import('./src/components/ProjectInfoPanel.vue')['default']
+    ProjectManagerPanel: typeof import('./src/components/ProjectManagerPanel.vue')['default']
     ProjectTaskCardMobile: typeof import('./src/components/ProjectTaskCardMobile.vue')['default']
     ProjectTeam: typeof import('./src/components/ProjectTeam.vue')['default']
     QuickAddTask: typeof import('./src/components/QuickAddTask.vue')['default']
@@ -36,6 +37,7 @@ declare module 'vue' {
     ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
     TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
+    UpdateBanner: typeof import('./src/components/UpdateBanner.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']
   }
 }

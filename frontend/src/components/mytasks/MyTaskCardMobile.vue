@@ -351,8 +351,7 @@ onUnmounted(() => {
 						v-if="task.progress !== null && task.progress !== undefined"
 						class="mt-3 space-y-1"
 					>
-						<div class="flex items-center justify-between text-[11px] text-gray-500">
-							<span>{{ translate("Progress") }}</span>
+						<div class="flex items-center text-[11px] text-gray-500">
 							<span class="font-semibold text-gray-700">{{ progressPercent }}%</span>
 						</div>
 						<div class="w-40 h-1.5 bg-gray-100 rounded-full overflow-hidden">

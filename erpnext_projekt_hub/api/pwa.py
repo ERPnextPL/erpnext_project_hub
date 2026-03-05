@@ -101,7 +101,15 @@ self.addEventListener('install', (event) => {{
       );
     }})
   );
-  self.skipWaiting();
+  // Do NOT call skipWaiting() here - wait for user to trigger the update.
+  // This prevents active tabs from breaking when new chunk hashes are deployed.
+}});
+
+// ─── Message: allow client to trigger SW activation ─────────────────
+self.addEventListener('message', (event) => {{
+  if (event.data && event.data.type === 'SKIP_WAITING') {{
+    self.skipWaiting();
+  }}
 }});
 
 // ─── Activate: clean old caches, notify clients of update ───────────
@@ -128,14 +136,34 @@ self.addEventListener('activate', (event) => {{
 self.addEventListener('fetch', (event) => {{
   const url = new URL(event.request.url);
 
-  // 1) Static assets (/assets/erpnext_projekt_hub/frontend/...)
+  // 1) Entry-point assets without content hash in filename (main.js, CSS).
+  //    These are revalidated on every deploy via ?v= param but the filename
+  //    stays the same - use Network First so a fresh build is always served.
+  const NON_HASHED_ASSETS = [
+    '/assets/erpnext_projekt_hub/frontend/assets/main.js',
+    '/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css',
+    '/assets/erpnext_projekt_hub/frontend/assets/index.css',
+  ];
+  if (NON_HASHED_ASSETS.some((p) => url.pathname === p)) {{
+    event.respondWith(networkFirstForPage(event.request));
+    return;
+  }}
+
+  // 2) Content-hashed chunks (/assets/.../chunks/Name-<hash>.js)
+  //    These are immutable - Cache First is safe.
+  if (url.pathname.startsWith('/assets/erpnext_projekt_hub/frontend/assets/chunks/')) {{
+    event.respondWith(cacheFirst(event.request, STATIC_CACHE));
+    return;
+  }}
+
+  // 3) Other static assets (/assets/erpnext_projekt_hub/frontend/...)
   //    Strategy: Cache First, fallback to network
   if (url.pathname.startsWith('/assets/erpnext_projekt_hub/frontend/')) {{
     event.respondWith(cacheFirst(event.request, STATIC_CACHE));
     return;
   }}
 
-  // 2) JS chunk files loaded lazily (also static)
+  // 4) JS chunk files loaded lazily (also static)
   if (url.pathname.startsWith('/assets/') && url.pathname.endsWith('.js')) {{
     event.respondWith(cacheFirst(event.request, STATIC_CACHE));
     return;
@@ -170,19 +198,25 @@ self.addEventListener('fetch', (event) => {{
 
 // Cache First: check cache, fallback to network (and update cache)
 async function cacheFirst(request, cacheName) {{
-  const cached = await caches.match(request);
-  if (cached) return cached;
-
   try {{
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
     const response = await fetch(request);
     if (response.ok) {{
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
+      return response;
     }}
-    return response;
+    // Non-ok response (e.g. 404 HTML from Frappe) - never serve HTML for a JS
+    // module request as Firefox will block it with a MIME type error.
+    console.warn('[SW] cacheFirst: network returned', response.status, 'for', request.url);
+    return new Response('', {{ status: response.status, statusText: response.statusText }});
   }} catch (err) {{
-    // Offline and not in cache
-    return new Response('Offline', {{ status: 503, statusText: 'Offline' }});
+    // Offline and not in cache - return a valid error response to prevent
+    // NS_ERROR_CORRUPTED_CONTENT caused by unhandled promise rejections in SW
+    console.warn('[SW] cacheFirst failed for:', request.url, err);
+    return new Response('', {{ status: 503, statusText: 'Offline' }});
   }}
 }}
 
