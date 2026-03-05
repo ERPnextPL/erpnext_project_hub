@@ -12,6 +12,7 @@ Endpoints are restricted to Project Manager / Team Lead / Consultant roles.
 """
 
 from datetime import timedelta
+from math import isfinite
 
 import frappe
 from frappe import _
@@ -69,6 +70,11 @@ def _has_doctype(doctype: str) -> bool:
 	return bool(frappe.db.exists("DocType", doctype))
 
 
+def _doctype_has_field(doctype: str, fieldname: str) -> bool:
+	meta = frappe.get_meta(doctype)
+	return bool(meta.get_field(fieldname))
+
+
 def _get_week_allocations(
 	employees: list[dict], week_start: str, week_end: str, days: list[str]
 ) -> list[dict]:
@@ -86,6 +92,11 @@ def _get_week_allocations(
 	}
 
 	if _has_doctype("Project Assignment"):
+		has_notes_field = _doctype_has_field("Project Assignment", "notes")
+		assignment_fields = ["name", "employee", "project", "from_date", "to_date", "hours_per_day"]
+		if has_notes_field:
+			assignment_fields.append("notes")
+
 		assignments = frappe.get_all(
 			"Project Assignment",
 			filters={
@@ -95,7 +106,7 @@ def _get_week_allocations(
 				"docstatus": ["!=", 2],
 				"status": ["!=", "Cancelled"],
 			},
-			fields=["name", "employee", "project", "from_date", "to_date", "hours_per_day"],
+			fields=assignment_fields,
 			order_by="from_date, project",
 		)
 
@@ -115,7 +126,7 @@ def _get_week_allocations(
 							"project": assignment["project"],
 							"allocation_date": current_str,
 							"hours": assignment.get("hours_per_day") or 0,
-							"notes": "",
+							"notes": (assignment.get("notes") or "") if has_notes_field else "",
 							"project_name": project_name_map.get(
 								assignment["project"], assignment["project"]
 							),
@@ -333,29 +344,50 @@ def save_allocation(
 	"""
 	_check_permission()
 
-	hours = float(hours) if hours else 0.0
+	try:
+		hours = float(hours) if hours else 0.0
+	except (TypeError, ValueError):
+		frappe.throw(_("Hours must be a valid number"))
+
+	if not isfinite(hours):
+		frappe.throw(_("Hours must be a finite number"))
+	if hours < 0:
+		frappe.throw(_("Hours cannot be negative"))
 
 	if _has_doctype("Project Assignment"):
+		has_notes_field = _doctype_has_field("Project Assignment", "notes")
+		notes = notes or ""
+		if notes.strip() and not has_notes_field:
+			frappe.throw(
+				_(
+					"Notes are not supported for Project Assignment in this environment. "
+					"Use Project Allocation with notes field or add custom notes field."
+				)
+			)
+
 		if name and frappe.db.exists("Project Assignment", name):
 			doc = frappe.get_doc("Project Assignment", name)
 			doc.project = project
 			doc.from_date = allocation_date
 			doc.to_date = allocation_date
 			doc.hours_per_day = hours
+			if has_notes_field:
+				doc.notes = notes
 			doc.status = "Active"
 			doc.save()
 		else:
-			doc = frappe.get_doc(
-				{
-					"doctype": "Project Assignment",
-					"employee": employee,
-					"project": project,
-					"from_date": allocation_date,
-					"to_date": allocation_date,
-					"hours_per_day": hours,
-					"status": "Active",
-				}
-			)
+			payload = {
+				"doctype": "Project Assignment",
+				"employee": employee,
+				"project": project,
+				"from_date": allocation_date,
+				"to_date": allocation_date,
+				"hours_per_day": hours,
+				"status": "Active",
+			}
+			if has_notes_field:
+				payload["notes"] = notes
+			doc = frappe.get_doc(payload)
 			doc.insert()
 		return {
 			"name": doc.name,
@@ -363,6 +395,7 @@ def save_allocation(
 			"project": doc.project,
 			"allocation_date": str(doc.from_date),
 			"hours": doc.hours_per_day,
+			"notes": (getattr(doc, "notes", None) or "") if has_notes_field else "",
 		}
 
 	if _has_doctype("Project Allocation"):

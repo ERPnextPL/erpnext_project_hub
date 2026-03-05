@@ -145,7 +145,7 @@ self.addEventListener('fetch', (event) => {{
     '/assets/erpnext_projekt_hub/frontend/assets/index.css',
   ];
   if (NON_HASHED_ASSETS.some((p) => url.pathname === p)) {{
-    event.respondWith(networkFirstForPage(event.request));
+    event.respondWith(networkFirstForAsset(event.request));
     return;
   }}
 
@@ -273,6 +273,23 @@ async function networkFirstForPage(request) {{
       '<html><body><h1>Offline</h1><p>Projekt HUB is not available offline yet. Please reconnect.</p></body></html>',
       {{ status: 503, headers: {{ 'Content-Type': 'text/html' }} }}
     );
+  }}
+}}
+
+// Network First for static entry assets (main.js / index.css / frappe-ui.css).
+// Never fallback to HTML app shell for asset requests.
+async function networkFirstForAsset(request) {{
+  try {{
+    const response = await fetch(request);
+    if (response.ok) {{
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(request, response.clone());
+    }}
+    return response;
+  }} catch (err) {{
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return new Response('', {{ status: 503, statusText: 'Offline' }});
   }}
 }}
 

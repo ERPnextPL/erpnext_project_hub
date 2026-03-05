@@ -735,8 +735,7 @@ def update_task(task_name: str, **kwargs):
 	frappe.publish_realtime(
 		"projekt_hub_task_updated",
 		{"project": task.project, "task": result},
-		doctype="Task",
-		docname=task.name,
+		room=frappe.realtime.get_site_room(),
 		after_commit=True,
 	)
 

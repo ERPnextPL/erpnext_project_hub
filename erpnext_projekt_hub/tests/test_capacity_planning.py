@@ -75,6 +75,7 @@ from erpnext_projekt_hub.api.capacity_planning import (
 	_color_for_project,
 	_week_days,
 	get_capacity_planning_data,
+	save_allocation,
 )
 
 # ── Tiny _dict helper ─────────────────────────────────────────────────────────
@@ -372,6 +373,23 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 		emp = result["employees"][0]
 		self.assertAlmostEqual(emp["weekly_planned_hours"], 10.0)
 		self.assertAlmostEqual(emp["weekly_free_hours"], DEFAULT_DAILY_HOURS * 5 - 10.0)
+
+
+class TestSaveAllocationValidation(unittest.TestCase):
+	def setUp(self):
+		_frappe.session.user = "admin@example.com"
+		_frappe.get_roles = MagicMock(return_value=["Projects Manager"])
+		_frappe.throw = _throw
+		_cp.frappe = _frappe
+
+	def test_rejects_negative_hours(self):
+		with self.assertRaises(Exception):
+			save_allocation(
+				employee="EMP-001",
+				project="PROJ-001",
+				allocation_date="2025-03-03",
+				hours=-1,
+			)
 
 
 if __name__ == "__main__":
