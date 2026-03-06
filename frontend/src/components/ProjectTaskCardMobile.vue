@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { useTaskAssignees } from "../composables/useTaskAssignees";
 import { getRealWindow, translate } from "../utils/translation";
 import dayjs from "dayjs";
 import {
@@ -34,6 +35,11 @@ const emit = defineEmits(["click", "update", "add-subtask"]);
 const store = useTaskStore();
 const isUpdating = ref(false);
 const realWindow = getRealWindow();
+
+// Use the shared assignees composable
+const { assignedUsers, usersByEmail, firstAssignee } = useTaskAssignees(
+	computed(() => props.task)
+);
 
 const statusConfig = {
 	Open: {
@@ -107,26 +113,6 @@ const canAddSubtask = computed(() => {
 	return !["Completed", "Cancelled"].includes(props.task.status);
 });
 
-const assignedUsers = computed(() => {
-	if (!props.task._assign) return [];
-	try {
-		const assigns = JSON.parse(props.task._assign);
-		return Array.isArray(assigns) ? assigns : [];
-	} catch {
-		return [];
-	}
-});
-
-const firstAssignee = computed(() => {
-	if (assignedUsers.value.length === 0) return null;
-	const email = assignedUsers.value[0];
-	const name = email.split("@")[0];
-	return {
-		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
-		initials: name.charAt(0).toUpperCase(),
-	};
-});
 
 const milestoneLabel = computed(() => {
 	if (!props.task.milestone) return "";

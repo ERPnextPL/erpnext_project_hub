@@ -39,6 +39,14 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	visibleColumns: {
+		type: Array,
+		default: () => ["subject", "project", "status", "priority", "due_date"],
+	},
+	gridTemplate: {
+		type: String,
+		default: "2fr 1fr 0.9fr 0.6fr 0.5fr",
+	},
 });
 
 const emit = defineEmits(["open-time-log-modal", "toggle-expand"]);
@@ -156,11 +164,9 @@ const progressBarColorClass = computed(() => {
 
 const taskDescription = computed(() => (props.task.description || "").trim());
 const descriptionPreviewLabel = computed(() => {
-	if (!taskDescription.value) {
-		return "";
-	}
-	const firstLine = taskDescription.value.split("\n")[0]?.trim();
-	return firstLine || "";
+	if (!taskDescription.value) return "";
+	const stripped = taskDescription.value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+	return stripped.slice(0, 120) || "";
 });
 
 const formattedDate = computed(() => {
@@ -249,16 +255,20 @@ onUnmounted(() => {
 	<div
 		@click="openTask"
 		@contextmenu="showMenu"
-		:style="props.indentLevel ? { paddingLeft: props.indentLevel * 16 + 'px' } : undefined"
+		:style="{
+			paddingLeft: props.indentLevel ? props.indentLevel * 16 + 'px' : undefined,
+			gridTemplateColumns: props.gridTemplate + ' auto',
+		}"
 		:class="[
-			'grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center',
+			'grid gap-4 px-4 py-5 hover:bg-gray-50 cursor-pointer transition-colors items-center',
 			isUpdating && 'opacity-60',
 		]"
 	>
 		<!-- Task subject -->
 		<div
-			class="col-span-4 flex items-start gap-3 min-w-0"
-			:title="taskDescription || undefined"
+			v-if="props.visibleColumns.includes('subject')"
+			class="flex items-start gap-3 min-w-0 overflow-hidden"
+			:title="descriptionPreviewLabel || undefined"
 		>
 			<button
 				v-if="props.hierarchyEnabled && props.hasChildren"
@@ -291,12 +301,10 @@ onUnmounted(() => {
 					]"
 				/>
 			</button>
-			<div class="min-w-0">
-				<div v-if="taskDescription" class="flex items-center gap-1 text-xs text-gray-400">
+			<div class="min-w-0 overflow-hidden">
+				<div v-if="descriptionPreviewLabel" class="flex items-center gap-1 text-xs text-gray-400 min-w-0">
 					<FileText class="w-3 h-3 flex-shrink-0" />
-					<span v-if="descriptionPreviewLabel" class="truncate">{{
-						descriptionPreviewLabel
-					}}</span>
+					<span class="truncate">{{ descriptionPreviewLabel }}</span>
 				</div>
 
 				<div
@@ -323,11 +331,10 @@ onUnmounted(() => {
 					v-if="task.progress !== null && task.progress !== undefined"
 					class="mt-2 space-y-1"
 				>
-					<div class="flex items-center justify-between text-xs text-gray-500">
-						<span>{{ translate("Progress") }}</span>
+					<div class="flex items-center text-xs text-gray-500">
 						<span class="font-semibold text-gray-700">{{ progressPercent }}%</span>
 					</div>
-					<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+					<div class="w-40 h-1.5 bg-gray-100 rounded-full overflow-hidden">
 						<div
 							class="h-full rounded-full transition-all duration-300"
 							:class="progressBarColorClass"
@@ -339,7 +346,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Project -->
-		<div class="col-span-2 flex items-center min-w-0">
+		<div v-if="props.visibleColumns.includes('project')" class="flex items-center min-w-0 overflow-hidden">
 			<div
 				v-if="task.project_name"
 				class="flex items-center gap-1.5 text-sm text-gray-500 truncate"
@@ -351,7 +358,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Status -->
-		<div class="col-span-2 flex items-center relative status-dropdown" @click.stop>
+		<div v-if="props.visibleColumns.includes('status')" class="flex items-center relative status-dropdown" @click.stop>
 			<button
 				@click="store.toggleInlineDropdown(task.name, 'status')"
 				:class="[
@@ -388,7 +395,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Priority -->
-		<div class="col-span-2 flex items-center relative priority-dropdown" @click.stop>
+		<div v-if="props.visibleColumns.includes('priority')" class="flex items-center relative priority-dropdown" @click.stop>
 					<button
 						@click="store.toggleInlineDropdown(task.name, 'priority')"
 						:class="[
@@ -425,7 +432,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Due date -->
-		<div class="col-span-2 flex items-center" @click.stop>
+		<div v-if="props.visibleColumns.includes('due_date')" class="flex items-center" @click.stop>
 			<div :class="['flex items-center gap-1.5 text-sm', dateClass]">
 				<Calendar class="w-3.5 h-3.5" />
 				<span v-if="formattedDate">{{ formattedDate }}</span>
@@ -438,6 +445,9 @@ onUnmounted(() => {
 				</span>
 			</div>
 		</div>
+
+		<!-- Spacer for the column-settings column in the header -->
+		<div></div>
 
 		<!-- Context menu -->
 		<Teleport to="body">

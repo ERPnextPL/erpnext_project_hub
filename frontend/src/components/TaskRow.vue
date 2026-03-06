@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { useTaskAssignees } from "../composables/useTaskAssignees";
 import { getRealWindow, translate } from "../utils/translation";
 import {
 	GripVertical,
@@ -50,6 +51,11 @@ const emit = defineEmits(["update", "click", "add-subtask", "log-time", "add-tas
 const store = useTaskStore();
 const realWindow = getRealWindow();
 
+// Use the shared assignees composable
+const { assignedUsers, usersByEmail, firstAssignee } = useTaskAssignees(
+	computed(() => props.task)
+);
+
 // Inline editing state
 const editingField = ref(null);
 const editValue = ref("");
@@ -61,11 +67,9 @@ const milestoneHintTimeout = ref(null);
 
 const taskDescription = computed(() => (props.task.description || "").trim());
 const descriptionPreviewLabel = computed(() => {
-	if (!taskDescription.value) {
-		return "";
-	}
-	const firstLine = taskDescription.value.split("\n")[0]?.trim();
-	return firstLine || "";
+	if (!taskDescription.value) return "";
+	const stripped = taskDescription.value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+	return stripped || "";
 });
 const descriptionPreviewText = computed(() => {
 	if (!taskDescription.value) return "";
@@ -101,26 +105,6 @@ const canAddSubtask = computed(() => {
 	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
 });
 
-const assignedUsers = computed(() => {
-	if (!props.task._assign) return [];
-	try {
-		const assigns = JSON.parse(props.task._assign);
-		return Array.isArray(assigns) ? assigns : [];
-	} catch {
-		return [];
-	}
-});
-
-const firstAssignee = computed(() => {
-	if (assignedUsers.value.length === 0) return null;
-	const email = assignedUsers.value[0];
-	// Extract name from email (before @)
-	const name = email.split("@")[0];
-	return {
-		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
-	};
-});
 
 const milestoneColor = computed(() => {
 	if (!props.task.milestone) return null;
@@ -413,11 +397,19 @@ async function assignMilestone(milestoneName) {
 	}
 }
 
+function closeContextMenu() {
+	showContextMenu.value = false;
+}
+
 function showMenu(e) {
 	if (realWindow?.matchMedia?.("(hover: none)").matches) {
 		return;
 	}
 	e.preventDefault();
+
+	// Close any other open context menus first
+	document.dispatchEvent(new CustomEvent("close-all-context-menus"));
+
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
 	showContextMenu.value = true;
 
@@ -524,10 +516,12 @@ function handleGlobalClick(event) {
 
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
+	document.addEventListener("close-all-context-menus", closeContextMenu);
 });
 
 onUnmounted(() => {
 	document.removeEventListener("click", handleGlobalClick);
+	document.removeEventListener("close-all-context-menus", closeContextMenu);
 });
 </script>
 
@@ -672,7 +666,7 @@ onUnmounted(() => {
 								:title="translate('Click to view full description')"
 							>
 							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
-							<span v-if="descriptionPreviewLabel">{{
+							<span v-if="descriptionPreviewLabel" class="line-clamp-3">{{
 								descriptionPreviewLabel
 							}}</span>
 						</button>
@@ -761,7 +755,7 @@ onUnmounted(() => {
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
 						>
 							<User class="w-4 h-4 text-gray-400" />
-							{{ user.full_name || user.name.split("@")[0] }}
+							{{ user.full_name || user.name }}
 						</button>
 					</div>
 					<div class="border-t border-gray-100 mt-1 pt-1">

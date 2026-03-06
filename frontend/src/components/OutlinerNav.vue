@@ -8,7 +8,11 @@ const router = useRouter();
 
 // Get navigation items from Tab Registry
 // This allows plugins to add additional tabs dynamically
-const navItems = getNavItems();
+const isManager = (window.frappe?.user_roles || window.frappe?.boot?.user?.roles || []).some(
+	(r) => ["Projects Manager", "Project Manager", "System Manager", "Administrator"].includes(r)
+);
+
+const navItems = getNavItems().filter((item) => !item.managerOnly || isManager);
 
 const translate = (text) => {
 	return typeof window !== "undefined" && typeof window.__ === "function"

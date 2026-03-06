@@ -7,4 +7,7 @@ node_modules
 __pycache__
 .venv/
 *.timestamp-*.mjs
-# erpnext_projekt_hub/public/frontend/ - commented out for Frappe Cloud deployment
+# erpnext_projekt_hub/public/frontend/ - committed for Frappe Cloud deployment (Press)
+# frontend/.pro-enabled is intentionally committed — it tells the Vite build to include
+# PRO tabs when projekt_hub_pro source files are present (needed on Press where DB
+# may be unreachable during bench build)

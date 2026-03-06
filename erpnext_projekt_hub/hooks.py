@@ -13,15 +13,14 @@ export_python_type_annotations = True
 required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "erpnext_projekt_hub",
-# 		"logo": "/assets/erpnext_projekt_hub/logo.png",
-# 		"title": "Projekt HUB",
-# 		"route": "/erpnext_projekt_hub",
-# 		"has_permission": "erpnext_projekt_hub.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "erpnext_projekt_hub",
+		"logo": "/assets/erpnext_projekt_hub/logo-hub.svg",
+		"title": "Projekt HUB",
+		"route": "/project-hub",
+	}
+]
 
 # Includes in <head>
 # ------------------
@@ -148,6 +147,8 @@ after_install = "erpnext_projekt_hub.install.after_install"
 
 doc_events = {
 	"Task": {
+		"before_validate": "erpnext_projekt_hub.events.task_events.before_validate_task",
+		"validate": "erpnext_projekt_hub.events.task_events.validate_task_due_dates",
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
 	}
@@ -205,7 +206,7 @@ doc_events = {
 # Request Events
 # ----------------
 # before_request = ["erpnext_projekt_hub.utils.before_request"]
-# after_request = ["erpnext_projekt_hub.utils.after_request"]
+after_request = ["erpnext_projekt_hub.api.pwa.add_sw_allowed_header"]
 
 # Job Events
 # ----------
@@ -258,7 +259,12 @@ doc_events = {
 # Fixtures
 # --------
 fixtures = [
-	{"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
+	{
+		"dt": "Custom Field",
+		"filters": [
+			["name", "in", ["Task-milestone", "Project-project_manager", "Project-documentation_url"]]
+		],
+	},
 	{
 		"dt": "Workspace Link",
 		"filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]],

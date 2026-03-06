@@ -27,7 +27,10 @@ import {
 	Diamond,
 	Folder,
 	Info,
+	Image,
+	Upload,
 } from "lucide-vue-next";
+import { useFileUpload } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
@@ -87,6 +90,7 @@ const defaultSectionState = {
 	details: true,
 	timeLog: false,
 	subtasks: true,
+	attachments: false,
 };
 
 function loadSectionStates() {
@@ -106,6 +110,13 @@ function loadSectionStates() {
 
 const sectionStates = ref(loadSectionStates());
 const timeLogsFetched = ref(false);
+const attachments = ref([]);
+const attachmentsLoading = ref(false);
+const attachmentsFetched = ref(false);
+const uploadProgress = ref(0);
+const isUploading = ref(false);
+const fileInputRef = ref(null);
+const isDragOver = ref(false);
 const dueInputRef = ref(null);
 const assigneeControlRef = ref(null);
 const timeLogModalHours = ref(1);
@@ -257,6 +268,11 @@ const duePresetOptions = computed(() => [
 // Milestone handling
 async function handleMilestoneChange(event) {
 	const newMilestone = event.target.value || null;
+	const previousMilestone = editableTask.value.milestone;
+
+	// Update local state immediately for UI feedback
+	editableTask.value.milestone = newMilestone;
+
 	try {
 		await store.assignTaskToMilestone(props.task.name, newMilestone);
 		if (realWindow?.frappe) {
@@ -268,6 +284,8 @@ async function handleMilestoneChange(event) {
 			});
 		}
 	} catch (error) {
+		// Revert on error
+		editableTask.value.milestone = previousMilestone;
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
 				message: translate("Failed to update milestone"),
@@ -697,11 +715,25 @@ watch(
 );
 
 watch(
+	() => sectionStates.value.attachments,
+	(open) => {
+		if (open) {
+			ensureAttachmentsLoaded();
+		}
+	}
+);
+
+watch(
 	() => props.task?.name,
 	() => {
 		timeLogsFetched.value = false;
+		attachmentsFetched.value = false;
+		attachments.value = [];
 		if (sectionStates.value.timeLog) {
 			ensureTimeLogsLoaded();
+		}
+		if (sectionStates.value.attachments) {
+			ensureAttachmentsLoaded();
 		}
 	}
 );
@@ -729,6 +761,9 @@ onMounted(() => {
 	document.addEventListener("keydown", handleGlobalKeydown);
 	if (sectionStates.value.timeLog) {
 		ensureTimeLogsLoaded();
+	}
+	if (sectionStates.value.attachments) {
+		ensureAttachmentsLoaded();
 	}
 });
 
@@ -815,6 +850,160 @@ async function handleSubtaskCreated() {
 	const updatedTask = store.taskTree.find((t) => t.name === props.task.name);
 	if (updatedTask) {
 		store.selectTask(updatedTask);
+	}
+}
+
+// ── Attachments ──────────────────────────────────────────────
+
+function getCsrfToken() {
+	if (realWindow?.frappe?.csrf_token && realWindow.frappe.csrf_token !== "None") {
+		return realWindow.frappe.csrf_token;
+	}
+	if (realWindow?.csrf_token && realWindow.csrf_token !== "{{ csrf_token }}") {
+		return realWindow.csrf_token;
+	}
+	return "";
+}
+
+async function attachmentApiCall(method, params = {}) {
+	const formData = new FormData();
+	Object.entries(params).forEach(([key, value]) => {
+		if (value !== null && value !== undefined) {
+			formData.append(key, value);
+		}
+	});
+	const response = await fetch(`/api/method/${method}`, {
+		method: "POST",
+		headers: { "X-Frappe-CSRF-Token": getCsrfToken() },
+		body: formData,
+	});
+	const data = await response.json();
+	if (data.exc) throw new Error(data._server_messages || "API error");
+	return data.message;
+}
+
+async function fetchAttachments() {
+	attachmentsLoading.value = true;
+	try {
+		attachments.value = await attachmentApiCall(
+			"erpnext_projekt_hub.api.project_hub.get_task_attachments",
+			{ task_name: props.task.name }
+		);
+	} catch (error) {
+		console.error("Failed to load attachments:", error);
+	} finally {
+		attachmentsLoading.value = false;
+	}
+}
+
+function ensureAttachmentsLoaded() {
+	if (!attachmentsFetched.value) {
+		attachmentsFetched.value = true;
+		fetchAttachments();
+	}
+}
+
+function isImageFile(file) {
+	return /^(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(file.file_type || "");
+}
+
+function formatFileSize(bytes) {
+	if (!bytes) return "";
+	if (bytes < 1024) return bytes + " B";
+	if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+	return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function triggerFileInput() {
+	fileInputRef.value?.click();
+}
+
+async function handleFileSelect(event) {
+	const files = event.target.files;
+	if (!files?.length) return;
+	await uploadFiles(files);
+	event.target.value = "";
+}
+
+function handleDragOver(event) {
+	event.preventDefault();
+	isDragOver.value = true;
+}
+
+function handleDragLeave() {
+	isDragOver.value = false;
+}
+
+async function handleDrop(event) {
+	event.preventDefault();
+	isDragOver.value = false;
+	const files = event.dataTransfer?.files;
+	if (!files?.length) return;
+	await uploadFiles(files);
+}
+
+async function uploadFiles(files) {
+	isUploading.value = true;
+	uploadProgress.value = 0;
+	const total = files.length;
+	let completed = 0;
+
+	try {
+		for (const file of files) {
+			const uploader = useFileUpload();
+			await uploader.upload(file, {
+				doctype: "Task",
+				docname: props.task.name,
+				optimize: true,
+				max_width: 1920,
+				max_height: 1920,
+			});
+			completed++;
+			uploadProgress.value = Math.round((completed / total) * 100);
+		}
+
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: total === 1 ? "Plik dodany" : `Dodano ${total} plików`,
+				indicator: "green",
+			});
+		}
+
+		await fetchAttachments();
+	} catch (error) {
+		console.error("Upload failed:", error);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: "Nie udało się przesłać pliku",
+				indicator: "red",
+			});
+		}
+	} finally {
+		isUploading.value = false;
+		uploadProgress.value = 0;
+	}
+}
+
+async function deleteAttachment(fileName) {
+	if (!confirm(translate("Are you sure you want to delete this attachment?"))) return;
+
+	try {
+		await attachmentApiCall(
+			"erpnext_projekt_hub.api.project_hub.delete_task_attachment",
+			{ file_name: fileName }
+		);
+		attachments.value = attachments.value.filter((f) => f.name !== fileName);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: "Załącznik usunięty", indicator: "green" });
+		}
+	} catch (error) {
+		console.error("Failed to delete attachment:", error);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: "Nie udało się usunąć załącznika",
+				indicator: "red",
+			});
+		}
 	}
 }
 </script>
@@ -1065,7 +1254,7 @@ async function handleSubtaskCreated() {
 									{{ translate("Milestone") }}
 								</label>
 								<select
-									:value="task.milestone || ''"
+									:value="editableTask.milestone || ''"
 									@change="handleMilestoneChange"
 									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								>
@@ -1312,6 +1501,140 @@ async function handleSubtaskCreated() {
 								placeholder="Dodaj podzadanie..."
 								@created="handleSubtaskCreated"
 							/>
+						</div>
+					</Transition>
+				</section>
+
+				<!-- Attachments section -->
+				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+					<header class="px-4 py-3 border-b border-gray-200">
+						<button
+							type="button"
+							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+							@click="toggleSection('attachments')"
+							:aria-expanded="sectionStates.attachments"
+							aria-controls="attachments-section"
+						>
+							<div class="flex items-center gap-2">
+								<Paperclip class="w-4 h-4 text-blue-600" />
+								<span>{{ translate("Attachments") }}</span>
+								<span v-if="attachments.length > 0" class="text-xs text-gray-500">
+									({{ attachments.length }})
+								</span>
+							</div>
+							<ChevronDown
+								class="w-3 h-3 text-gray-400 transition-transform"
+								:class="sectionStates.attachments ? 'rotate-180' : ''"
+							/>
+						</button>
+					</header>
+					<Transition name="fade">
+						<div
+							id="attachments-section"
+							v-show="sectionStates.attachments"
+							class="px-4 pb-4 pt-3 space-y-3"
+							@dragover="handleDragOver"
+							@dragleave="handleDragLeave"
+							@drop="handleDrop"
+						>
+							<!-- Upload controls -->
+							<div class="flex items-center justify-between">
+								<h3 class="text-sm font-medium text-gray-700">
+									{{ translate("Attachments") }}
+								</h3>
+								<button
+									type="button"
+									@click="triggerFileInput"
+									:disabled="isUploading"
+									class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+								>
+									<Upload class="w-3.5 h-3.5" />
+									{{ translate("Add file") }}
+								</button>
+								<input
+									ref="fileInputRef"
+									type="file"
+									accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+									multiple
+									class="hidden"
+									@change="handleFileSelect"
+								/>
+							</div>
+
+							<!-- Upload progress -->
+							<div v-if="isUploading" class="space-y-1">
+								<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+									<div
+										class="h-full bg-blue-500 rounded-full transition-all"
+										:style="{ width: uploadProgress + '%' }"
+									/>
+								</div>
+								<p class="text-xs text-gray-500 text-center">
+									{{ translate("Uploading") }}... {{ uploadProgress }}%
+								</p>
+							</div>
+
+							<!-- Drag & Drop overlay -->
+							<div
+								v-if="isDragOver"
+								class="border-2 border-dashed border-blue-400 bg-blue-50 rounded-lg p-6 text-center"
+							>
+								<Upload class="w-6 h-6 text-blue-400 mx-auto mb-1" />
+								<p class="text-sm text-blue-600">{{ translate("Drop files here") }}</p>
+							</div>
+
+							<!-- Loading -->
+							<div v-if="attachmentsLoading" class="text-center py-4">
+								<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+							</div>
+
+							<!-- Empty state -->
+							<div
+								v-else-if="attachments.length === 0 && !isDragOver"
+								class="text-sm text-gray-500 text-center py-4"
+							>
+								{{ translate("No attachments") }}
+							</div>
+
+							<!-- Attachment grid -->
+							<div v-else class="grid grid-cols-3 gap-2">
+								<div
+									v-for="file in attachments"
+									:key="file.name"
+									class="group relative rounded-lg border border-gray-200 overflow-hidden bg-gray-50 hover:border-blue-300 transition-colors cursor-pointer"
+									@click="realWindow?.open(file.file_url, '_blank')"
+								>
+									<!-- Image thumbnail -->
+									<div v-if="isImageFile(file)" class="aspect-square">
+										<img
+											:src="file.file_url"
+											:alt="file.file_name"
+											class="w-full h-full object-cover"
+											loading="lazy"
+										/>
+									</div>
+									<!-- Non-image file -->
+									<div v-else class="aspect-square flex flex-col items-center justify-center p-2">
+										<FileText class="w-8 h-8 text-gray-400 mb-1" />
+										<span class="text-[10px] text-gray-500 truncate w-full text-center">
+											{{ file.file_name }}
+										</span>
+									</div>
+									<!-- File info overlay -->
+									<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+										<p class="text-[10px] text-white truncate">{{ file.file_name }}</p>
+										<p v-if="file.file_size" class="text-[9px] text-white/70">{{ formatFileSize(file.file_size) }}</p>
+									</div>
+									<!-- Delete button -->
+									<button
+										@click.stop="deleteAttachment(file.name)"
+										class="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-red-100 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+										:title="translate('Delete attachment')"
+									>
+										<Trash2 class="w-3 h-3" />
+									</button>
+								</div>
+							</div>
 						</div>
 					</Transition>
 				</section>
