@@ -537,6 +537,8 @@ def update_project(
 	if not frappe.has_permission("Project", "write", doc=project_doc):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
+	documentation_url_provided = documentation_url is not None
+
 	if expected_start_date == "":
 		expected_start_date = None
 	if expected_end_date == "":
@@ -549,7 +551,7 @@ def update_project(
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
-	if documentation_url is not None and frappe.get_meta("Project").has_field("documentation_url"):
+	if documentation_url_provided and frappe.get_meta("Project").has_field("documentation_url"):
 		frappe.db.set_value("Project", project, "documentation_url", documentation_url)
 
 	# Get updated project data

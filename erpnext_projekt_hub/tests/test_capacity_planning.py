@@ -53,13 +53,20 @@ _frappe.db.sql = MagicMock(return_value=[])
 _frappe.db.exists = MagicMock(return_value=False)
 _frappe.log_error = MagicMock()
 
+
 # Mock get_meta to return object with get_field method
 def _mock_get_meta(doctype):
 	meta = MagicMock()
 	meta.get_field = MagicMock(return_value=None)
 	return meta
 
+
 _frappe.get_meta = MagicMock(side_effect=_mock_get_meta)
+
+# Mock cache to prevent AttributeError during cleanup
+_frappe.cache = MagicMock()
+_frappe.cache.get_keys = MagicMock(return_value=[])
+
 _frappe._ = lambda x: x
 
 _frappe_utils = types.ModuleType("frappe.utils")
