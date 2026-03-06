@@ -408,6 +408,7 @@ def get_project_tasks(
 			"customer": project_doc.customer,
 			"customer_name": customer_name,
 			"notes": getattr(project_doc, "notes", None),
+			"documentation_url": getattr(project_doc, "documentation_url", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
 			"is_manager": is_manager,
@@ -526,6 +527,7 @@ def update_project(
 	project: str,
 	expected_start_date: str | None = None,
 	expected_end_date: str | None = None,
+	documentation_url: str | None = None,
 ):
 	if not project:
 		frappe.throw(_("Project is required"))
@@ -539,12 +541,16 @@ def update_project(
 		expected_start_date = None
 	if expected_end_date == "":
 		expected_end_date = None
+	if documentation_url == "":
+		documentation_url = None
 
 	# Update fields directly in database to avoid triggering notifications
 	if expected_start_date is not None:
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
+	if documentation_url is not None and frappe.get_meta("Project").has_field("documentation_url"):
+		frappe.db.set_value("Project", project, "documentation_url", documentation_url)
 
 	# Get updated project data
 	project_doc.reload()
@@ -587,6 +593,7 @@ def update_project(
 		"customer": project_doc.customer,
 		"customer_name": customer_name,
 		"notes": getattr(project_doc, "notes", None),
+		"documentation_url": getattr(project_doc, "documentation_url", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
 	}
@@ -732,12 +739,24 @@ def update_task(task_name: str, **kwargs):
 		"completed_on": task.completed_on,
 	}
 
-	frappe.publish_realtime(
-		"projekt_hub_task_updated",
-		{"project": task.project, "task": result},
-		room=frappe.realtime.get_site_room(),
-		after_commit=True,
+	# Publish only to users linked with this project (plus current user) to avoid
+	# leaking task payloads to all Desk users.
+	project_users = frappe.get_all(
+		"Project User",
+		filters={"parent": task.project, "parenttype": "Project"},
+		pluck="user",
 	)
+	allowed_users = {u for u in project_users if u}
+	if frappe.session.user and frappe.session.user != "Guest":
+		allowed_users.add(frappe.session.user)
+
+	for user in allowed_users:
+		frappe.publish_realtime(
+			"projekt_hub_task_updated",
+			{"project": task.project, "task": result},
+			user=user,
+			after_commit=True,
+		)
 
 	return result
 

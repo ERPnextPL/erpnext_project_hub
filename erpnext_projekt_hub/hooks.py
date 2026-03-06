@@ -261,7 +261,9 @@ after_request = ["erpnext_projekt_hub.api.pwa.add_sw_allowed_header"]
 fixtures = [
 	{
 		"dt": "Custom Field",
-		"filters": [["name", "in", ["Task-milestone", "Project-project_manager"]]],
+		"filters": [
+			["name", "in", ["Task-milestone", "Project-project_manager", "Project-documentation_url"]]
+		],
 	},
 	{
 		"dt": "Workspace Link",
