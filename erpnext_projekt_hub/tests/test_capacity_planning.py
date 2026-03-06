@@ -50,7 +50,16 @@ _frappe.get_roles = MagicMock(return_value=["Projects Manager"])
 _frappe.get_all = MagicMock(return_value=[])
 _frappe.db = MagicMock()
 _frappe.db.sql = MagicMock(return_value=[])
+_frappe.db.exists = MagicMock(return_value=False)
 _frappe.log_error = MagicMock()
+
+# Mock get_meta to return object with get_field method
+def _mock_get_meta(doctype):
+	meta = MagicMock()
+	meta.get_field = MagicMock(return_value=None)
+	return meta
+
+_frappe.get_meta = MagicMock(side_effect=_mock_get_meta)
 _frappe._ = lambda x: x
 
 _frappe_utils = types.ModuleType("frappe.utils")
@@ -180,10 +189,33 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	def setUp(self):
 		_frappe.session.user = "admin@example.com"
 		_frappe.get_roles = MagicMock(return_value=["Projects Manager"])
-		_frappe.get_all = MagicMock(return_value=[])
 		_frappe.db.sql = MagicMock(return_value=[])
 		_frappe.throw = _throw
 		_cp.frappe = _frappe
+
+		# Mock data storage for different DocTypes
+		self._mock_data = {
+			"Employee": [],
+			"Project": [],
+			"Project Allocation": [],
+			"Project Assignment": [],
+		}
+
+		# Create a context-aware mock that returns different data per DocType
+		def mock_get_all(doctype, *args, **kwargs):
+			return self._mock_data.get(doctype, [])
+
+		_frappe.get_all = MagicMock(side_effect=mock_get_all)
+
+		# Mock db.exists to return True for Project Allocation
+		def mock_exists(doctype, name=None):
+			if doctype == "DocType" and name == "Project Allocation":
+				return True
+			if doctype == "DocType" and name == "Project Assignment":
+				return False
+			return False
+
+		_frappe.db.exists = MagicMock(side_effect=mock_exists)
 
 	# ── basic ─────────────────────────────────────────────────────────────
 
@@ -194,7 +226,7 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 		self.assertIn("project_colors", result)
 
 	def test_employee_no_allocations_still_in_results(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
 		result = get_capacity_planning_data("2025-03-03")
 		self.assertEqual(len(result["employees"]), 1)
 		emp = result["employees"][0]
@@ -204,8 +236,8 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	# ── allocation in cell ────────────────────────────────────────────────
 
 	def test_allocation_appears_in_correct_day_cell(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
 		result = get_capacity_planning_data("2025-03-03")
 		emp = result["employees"][0]
 		monday = result["days"][0]
@@ -215,16 +247,16 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 		self.assertAlmostEqual(emp["days"][monday]["free_hours"], 4.0)
 
 	def test_allocation_not_in_wrong_day(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
 		result = get_capacity_planning_data("2025-03-03")
 		emp = result["employees"][0]
 		tuesday = result["days"][1]
 		self.assertEqual(emp["days"][tuesday]["allocations"], [])
 
 	def test_multiple_projects_same_day(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [
 			_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4),
 			_alloc("PA-002", "EMP-001", "PROJ-2", "2025-03-03", 3),
 		]
@@ -238,8 +270,8 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	# ── overload ──────────────────────────────────────────────────────────
 
 	def test_overload_flag_when_more_than_daily_capacity(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [
 			_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 5),
 			_alloc("PA-002", "EMP-001", "PROJ-2", "2025-03-03", 5),
 		]
@@ -248,8 +280,8 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 		self.assertTrue(result["employees"][0]["days"][monday]["overloaded"])
 
 	def test_no_overload_at_exactly_capacity(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 8)]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 8)]
 		result = get_capacity_planning_data("2025-03-03")
 		monday = result["days"][0]
 		self.assertFalse(result["employees"][0]["days"][monday]["overloaded"])
@@ -257,25 +289,25 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	# ── project filter ────────────────────────────────────────────────────
 
 	def test_project_filter_includes_employee_with_allocation(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
 		result = get_capacity_planning_data("2025-03-03", project="PROJ-1")
 		self.assertEqual(len(result["employees"]), 1)
 		self.assertTrue(result["employees"][0]["has_project_allocs"])
 
 	def test_project_filter_includes_free_employee(self):
-		_frappe.get_all.return_value = [
+		self._mock_data["Employee"] = [
 			_emp("EMP-001", "Jan Kowalski", "jan@x.com"),
 			_emp("EMP-002", "Anna Nowak", "anna@x.com"),
 		]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
 		# Anna has no allocations → she has free capacity → included
 		result = get_capacity_planning_data("2025-03-03", project="PROJ-1")
 		users = [e["user"] for e in result["employees"]]
 		self.assertIn("anna@x.com", users)
 
 	def test_project_filter_excludes_fully_booked_unrelated(self):
-		_frappe.get_all.return_value = [
+		self._mock_data["Employee"] = [
 			_emp("EMP-001", "Jan Kowalski", "jan@x.com"),
 			_emp("EMP-002", "Anna Nowak", "anna@x.com"),
 		]
@@ -290,7 +322,7 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 			_alloc("PA-A-4", "EMP-002", "PROJ-2", "2025-03-07", 8),
 			_alloc("PA-J-0", "EMP-001", "PROJ-1", "2025-03-03", 4),
 		]
-		_frappe.db.sql.return_value = week_allocs
+		self._mock_data["Project Allocation"] = week_allocs
 		result = get_capacity_planning_data("2025-03-03", project="PROJ-1")
 		users = [e["user"] for e in result["employees"]]
 		self.assertIn("jan@x.com", users)
@@ -299,7 +331,7 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	# ── sorting ───────────────────────────────────────────────────────────
 
 	def test_sorted_alphabetically_without_filter(self):
-		_frappe.get_all.return_value = [
+		self._mock_data["Employee"] = [
 			_emp("EMP-002", "Zenon Malinowski", "zenon@x.com"),
 			_emp("EMP-001", "Anna Nowak", "anna@x.com"),
 		]
@@ -308,11 +340,11 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 		self.assertEqual(names, sorted(names, key=str.lower))
 
 	def test_project_employees_sorted_first(self):
-		_frappe.get_all.return_value = [
+		self._mock_data["Employee"] = [
 			_emp("EMP-001", "Anna Nowak", "anna@x.com"),
 			_emp("EMP-002", "Zenon Malinowski", "zenon@x.com"),
 		]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-002", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-002", "PROJ-1", "2025-03-03", 4)]
 		result = get_capacity_planning_data("2025-03-03", project="PROJ-1")
 		self.assertEqual(result["employees"][0]["user"], "zenon@x.com")
 
@@ -336,8 +368,8 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	# ── project_colors in response ────────────────────────────────────────
 
 	def test_project_colors_in_response(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
 		result = get_capacity_planning_data("2025-03-03")
 		self.assertIn("PROJ-1", result["project_colors"])
 		color = result["project_colors"]["PROJ-1"]
@@ -345,8 +377,8 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 		self.assertIn("text", color)
 
 	def test_allocation_chip_contains_color(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
 		result = get_capacity_planning_data("2025-03-03")
 		alloc = result["employees"][0]["days"]["2025-03-03"]["allocations"][0]
 		self.assertIn("color", alloc)
@@ -355,8 +387,8 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	# ── AND filter ─────────────────────────────────────────────────────────
 
 	def test_and_filter_employee_plus_project(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4)]
 		result = get_capacity_planning_data("2025-03-03", project="PROJ-1", employee_user="jan@x.com")
 		self.assertEqual(len(result["employees"]), 1)
 		self.assertEqual(result["employees"][0]["user"], "jan@x.com")
@@ -364,8 +396,8 @@ class TestGetCapacityPlanningData(unittest.TestCase):
 	# ── weekly totals ──────────────────────────────────────────────────────
 
 	def test_weekly_planned_hours_sum(self):
-		_frappe.get_all.return_value = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
-		_frappe.db.sql.return_value = [
+		self._mock_data["Employee"] = [_emp("EMP-001", "Jan Kowalski", "jan@x.com")]
+		self._mock_data["Project Allocation"] = [
 			_alloc("PA-001", "EMP-001", "PROJ-1", "2025-03-03", 4),
 			_alloc("PA-002", "EMP-001", "PROJ-1", "2025-03-04", 6),
 		]
