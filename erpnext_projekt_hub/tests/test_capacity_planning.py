@@ -92,6 +92,7 @@ def tearDownModule():
 	else:
 		sys.modules["frappe.utils"] = _ORIG_FRAPPE_UTILS_MODULE
 
+
 # ── Import module under test ─────────────────────────────────────────────────
 
 if "erpnext_projekt_hub.api.capacity_planning" in sys.modules:
