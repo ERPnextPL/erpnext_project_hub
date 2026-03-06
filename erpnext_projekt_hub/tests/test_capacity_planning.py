@@ -16,6 +16,9 @@ import unittest
 from datetime import date
 from unittest.mock import MagicMock
 
+_ORIG_FRAPPE_MODULE = sys.modules.get("frappe")
+_ORIG_FRAPPE_UTILS_MODULE = sys.modules.get("frappe.utils")
+
 # ── Stub `frappe` before any app import ──────────────────────────────────────
 
 
@@ -75,6 +78,19 @@ _frappe.utils = _frappe_utils
 
 sys.modules["frappe"] = _frappe
 sys.modules["frappe.utils"] = _frappe_utils
+
+
+def tearDownModule():
+	"""Restore original frappe modules so other tests/bench internals are unaffected."""
+	if _ORIG_FRAPPE_MODULE is None:
+		sys.modules.pop("frappe", None)
+	else:
+		sys.modules["frappe"] = _ORIG_FRAPPE_MODULE
+
+	if _ORIG_FRAPPE_UTILS_MODULE is None:
+		sys.modules.pop("frappe.utils", None)
+	else:
+		sys.modules["frappe.utils"] = _ORIG_FRAPPE_UTILS_MODULE
 
 # ── Import module under test ─────────────────────────────────────────────────
 
