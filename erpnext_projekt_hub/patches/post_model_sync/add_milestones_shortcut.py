@@ -22,6 +22,7 @@ def execute():
 		changed = True
 
 	if changed:
+		workspace.flags.ignore_links = True
 		workspace.save(ignore_permissions=True)
 
 

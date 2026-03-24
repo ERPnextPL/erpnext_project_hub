@@ -12,6 +12,7 @@ import {
 	X,
 	ChevronDown,
 	ChevronUp,
+	GripVertical,
 } from "lucide-vue-next";
 import MilestoneModal from "./MilestoneModal.vue";
 import MilestoneFilterModal from "./MilestoneFilterModal.vue";
@@ -186,6 +187,9 @@ const activeMilestoneLabels = computed(() => {
 
 const milestonesSorted = computed(() => {
 	return [...store.milestones].sort((a, b) => {
+		if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order;
+		if (a.sort_order != null) return -1;
+		if (b.sort_order != null) return 1;
 		const aDate = a.milestone_date ? new Date(a.milestone_date).getTime() : Number.POSITIVE_INFINITY;
 		const bDate = b.milestone_date ? new Date(b.milestone_date).getTime() : Number.POSITIVE_INFINITY;
 		return aDate - bDate;
@@ -206,45 +210,85 @@ function handleClickOutside(event) {
 // Drag & Drop handlers
 const dragOverMilestone = ref(null);
 
-function handleDragOver(event, milestoneName) {
+// Milestone reorder drag state
+const draggingMilestoneName = ref(null);
+const reorderDropIndex = ref(null);
+
+function handleMilestoneDragStart(event, milestoneName) {
+	draggingMilestoneName.value = milestoneName;
+	event.dataTransfer.setData("application/x-milestone-reorder", milestoneName);
+	// Clear text/plain so browser text content isn't passed as a task name
+	event.dataTransfer.setData("text/plain", "");
+	event.dataTransfer.effectAllowed = "move";
+}
+
+function handleMilestoneDragEnd() {
+	draggingMilestoneName.value = null;
+	reorderDropIndex.value = null;
+}
+
+function handleDragOver(event, milestoneName, index) {
 	event.preventDefault();
-	event.dataTransfer.dropEffect = "move";
-	dragOverMilestone.value = milestoneName;
+	if (draggingMilestoneName.value) {
+		event.dataTransfer.dropEffect = "move";
+		reorderDropIndex.value = index;
+		dragOverMilestone.value = null;
+	} else {
+		event.dataTransfer.dropEffect = "move";
+		dragOverMilestone.value = milestoneName;
+		reorderDropIndex.value = null;
+	}
 }
 
 function handleDragLeave(event, milestoneName) {
 	if (event.currentTarget.contains(event.relatedTarget)) return;
-	if (dragOverMilestone.value === milestoneName) {
-		dragOverMilestone.value = null;
-	}
+	if (dragOverMilestone.value === milestoneName) dragOverMilestone.value = null;
+	reorderDropIndex.value = null;
 }
 
-async function handleDrop(event, milestoneName) {
+async function handleDrop(event, milestoneName, index) {
 	event.preventDefault();
-	dragOverMilestone.value = null;
 
+	if (draggingMilestoneName.value) {
+		const draggedName = draggingMilestoneName.value;
+		draggingMilestoneName.value = null;
+		reorderDropIndex.value = null;
+
+		const list = [...milestonesSorted.value];
+		const fromIdx = list.findIndex((m) => m.name === draggedName);
+		if (fromIdx !== -1 && fromIdx !== index) {
+			const [removed] = list.splice(fromIdx, 1);
+			list.splice(index, 0, removed);
+			try {
+				await store.reorderMilestones(list.map((m) => m.name));
+			} catch {
+				realWindow?.frappe?.show_alert({
+					message: translate("Failed to reorder milestones"),
+					indicator: "red",
+				});
+			}
+		}
+		return;
+	}
+
+	dragOverMilestone.value = null;
 	const taskName = event.dataTransfer.getData("text/plain");
 	if (!taskName) return;
 
-	// Find the task
 	const task = store.tasks.find((t) => t.name === taskName);
 	if (!task) return;
 
 	try {
 		await store.assignTaskToMilestone(taskName, milestoneName);
-		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({
-				message: translate("Task assigned to milestone"),
-				indicator: "green",
-			});
-		}
-	} catch (error) {
-		if (realWindow?.frappe) {
-			realWindow.frappe.show_alert({
-				message: translate("Failed to assign task"),
-				indicator: "red",
-			});
-		}
+		realWindow?.frappe?.show_alert({
+			message: translate("Task assigned to milestone"),
+			indicator: "green",
+		});
+	} catch {
+		realWindow?.frappe?.show_alert({
+			message: translate("Failed to assign task"),
+			indicator: "red",
+		});
 	}
 }
 
@@ -331,14 +375,21 @@ onUnmounted(() => {
 		<!-- Milestone List -->
 		<div v-if="!isCollapsed" class="p-2 space-y-2 max-h-64 overflow-y-auto">
 			<div
-				v-for="milestone in milestonesSorted"
+				v-for="(milestone, index) in milestonesSorted"
 				:key="milestone.name"
-				@dragover="handleDragOver($event, milestone.name)"
+				draggable="true"
+				@dragstart="handleMilestoneDragStart($event, milestone.name)"
+				@dragend="handleMilestoneDragEnd"
+				@dragover="handleDragOver($event, milestone.name, index)"
 				@dragleave="handleDragLeave($event, milestone.name)"
-				@drop="handleDrop($event, milestone.name)"
+				@drop="handleDrop($event, milestone.name, index)"
 				:class="[
 					'p-3 rounded-lg border-2 transition-all relative',
-					activeMilestoneNames.has(milestone.name)
+					draggingMilestoneName === milestone.name
+						? 'opacity-40'
+						: reorderDropIndex === index && draggingMilestoneName !== milestone.name
+						? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 shadow-md'
+						: activeMilestoneNames.has(milestone.name)
 						? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 shadow-sm'
 						: dragOverMilestone === milestone.name
 						? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 shadow-md scale-102'
@@ -349,6 +400,7 @@ onUnmounted(() => {
 				<!-- Header Row -->
 				<div class="flex items-start justify-between mb-2">
 					<div class="flex items-center gap-2 flex-1 min-w-0">
+						<GripVertical class="w-3 h-3 text-gray-300 dark:text-gray-600 flex-shrink-0 cursor-grab active:cursor-grabbing" />
 						<span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
 							{{ milestone.milestone_name }}
 						</span>

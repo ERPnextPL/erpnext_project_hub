@@ -515,6 +515,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	// Milestone state
 	const milestones = ref([]);
 	const activeMilestoneFilter = ref([]);
+	const milestoneSortBy = ref("manual"); // 'manual' | 'deadline' | 'name' | 'progress'
 
 	async function fetchActivityTypes() {
 		try {
@@ -750,6 +751,25 @@ async function reorderTask(taskName, newParent, newIdx) {
 		}
 	}
 
+	async function reorderMilestones(milestoneNames) {
+		// Optimistic update
+		const nameToOrder = Object.fromEntries(milestoneNames.map((name, idx) => [name, idx]));
+		milestones.value = milestones.value
+			.map((m) => ({ ...m, sort_order: nameToOrder[m.name] ?? m.sort_order }))
+			.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
+
+		try {
+			await apiCall("erpnext_projekt_hub.api.project_hub.reorder_milestones", {
+				project: project.value.name,
+				milestone_names: JSON.stringify(milestoneNames),
+			});
+		} catch (error) {
+			console.error("Failed to reorder milestones:", error);
+			if (project.value?.name) await fetchMilestones(project.value.name);
+			throw error;
+		}
+	}
+
 	// Computed: tasks filtered by active milestone
 	const tasksFilteredByMilestone = computed(() => {
 		if (!activeMilestoneFilter.value.length) {
@@ -845,6 +865,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		taskPriorities,
 		milestones,
 		activeMilestoneFilter,
+		milestoneSortBy,
 		projectTeamRefreshTrigger,
 		projectsSettings,
 		sortBy,
@@ -894,6 +915,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateMilestone,
 		deleteMilestone,
 		assignTaskToMilestone,
+		reorderMilestones,
 		setMilestoneFilter,
 		toggleMilestoneFilter,
 		clearMilestoneFilter,

@@ -444,50 +444,40 @@ def get_project_financials(project: str):
 	hours_by_user = frappe.db.sql(
 		"""
 		SELECT
-			ts.employee_name,
 			ts.owner AS user_email,
-			COALESCE(SUM(tsd.hours), 0) AS hours,
-			ts.docstatus
+			COALESCE(MAX(ts.employee_name), u.full_name, ts.owner) AS employee_name,
+			COALESCE(SUM(CASE WHEN ts.docstatus = 1 THEN tsd.hours ELSE 0 END), 0) AS submitted_hours,
+			COALESCE(SUM(CASE WHEN ts.docstatus = 0 THEN tsd.hours ELSE 0 END), 0) AS draft_hours,
+			COALESCE(SUM(tsd.hours), 0) AS total_hours
 		FROM `tabTimesheet Detail` tsd
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+		LEFT JOIN `tabUser` u ON ts.owner = u.name
 		WHERE tsd.project = %s AND ts.docstatus < 2
-		GROUP BY ts.owner, ts.employee_name, ts.docstatus
-		ORDER BY hours DESC
+		GROUP BY ts.owner
+		ORDER BY total_hours DESC
 		""",
 		project,
 		as_dict=True,
 	)
 
-	# Aggregate submitted vs draft
 	submitted_hours = 0.0
 	draft_hours = 0.0
-	hours_map: dict = {}
+	hours_per_user = []
 	for row in hours_by_user:
-		key = row["user_email"] or row["employee_name"] or "Unknown"
+		s = float(row["submitted_hours"])
+		d = float(row["draft_hours"])
+		submitted_hours += s
+		draft_hours += d
 		label = row["employee_name"] or row["user_email"] or "Unknown"
-		if key not in hours_map:
-			hours_map[key] = {"label": label, "submitted": 0.0, "draft": 0.0}
-		if row["docstatus"] == 1:
-			hours_map[key]["submitted"] += float(row["hours"])
-			submitted_hours += float(row["hours"])
-		else:
-			hours_map[key]["draft"] += float(row["hours"])
-			draft_hours += float(row["hours"])
-
-	hours_per_user = sorted(
-		[
+		hours_per_user.append(
 			{
-				"user": k,
-				"label": v["label"],
-				"submitted": round(v["submitted"], 2),
-				"draft": round(v["draft"], 2),
-				"total": round(v["submitted"] + v["draft"], 2),
+				"user": row["user_email"] or label,
+				"label": label,
+				"submitted": round(s, 2),
+				"draft": round(d, 2),
+				"total": round(s + d, 2),
 			}
-			for k, v in hours_map.items()
-		],
-		key=lambda x: x["total"],
-		reverse=True,
-	)
+		)
 
 	# ── Estimated hours ───────────────────────────────────────────────────────
 	estimated_hours_result = frappe.db.sql(
@@ -1627,15 +1617,33 @@ def get_project_milestones(project: str):
 			"progress",
 			"total_tasks",
 			"completed_tasks",
+			"sort_order",
 		],
-		order_by="milestone_date asc, creation asc",
+		order_by="sort_order asc, milestone_date asc, creation asc",
 	)
 
 	for milestone in milestones:
-		# Calculate health status
 		milestone["health"] = _calculate_milestone_health(milestone)
 
 	return milestones
+
+
+@frappe.whitelist()
+def reorder_milestones(project: str, milestone_names: list | str):
+	"""Persist manual sort order for milestones of a project."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	if isinstance(milestone_names, str):
+		import json as _json
+
+		milestone_names = _json.loads(milestone_names)
+
+	for idx, name in enumerate(milestone_names):
+		frappe.db.set_value("Project Milestone", name, "sort_order", idx, update_modified=False)
+
+	frappe.db.commit()
+	return {"success": True}
 
 
 def _calculate_milestone_health(milestone):
