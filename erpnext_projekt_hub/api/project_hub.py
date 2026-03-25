@@ -490,9 +490,15 @@ def get_project_financials(project: str):
 	estimated_costing = float(getattr(project_doc, "estimated_costing", 0) or 0)
 	total_costing_amount = float(getattr(project_doc, "total_costing_amount", 0) or 0)
 	total_purchase_cost = float(getattr(project_doc, "total_purchase_cost", 0) or 0)
+	total_consumed_material_cost = float(getattr(project_doc, "total_consumed_material_cost", 0) or 0)
 	gross_margin = float(getattr(project_doc, "gross_margin", 0) or 0)
 	per_gross_margin = float(getattr(project_doc, "per_gross_margin", 0) or 0)
 	total_sales_amount = float(getattr(project_doc, "total_sales_amount", 0) or 0)
+
+	# ── Budget margin ─────────────────────────────────────────────────────────
+	total_current_cost = total_costing_amount + total_purchase_cost + total_consumed_material_cost
+	budget_margin = (estimated_costing - total_current_cost) if estimated_costing > 0 else 0.0
+	per_budget_margin = (budget_margin / estimated_costing * 100) if estimated_costing > 0 else 0.0
 
 	# ── Simple cost estimate based on hours ──────────────────────────────────
 	total_reported_hours = round(submitted_hours + draft_hours, 2)
@@ -501,6 +507,10 @@ def get_project_financials(project: str):
 		"estimated_costing": estimated_costing,
 		"total_costing_amount": total_costing_amount,
 		"total_purchase_cost": total_purchase_cost,
+		"total_consumed_material_cost": round(total_consumed_material_cost, 2),
+		"total_current_cost": round(total_current_cost, 2),
+		"budget_margin": round(budget_margin, 2),
+		"per_budget_margin": round(per_budget_margin, 2),
 		"gross_margin": gross_margin,
 		"per_gross_margin": per_gross_margin,
 		"total_sales_amount": total_sales_amount,

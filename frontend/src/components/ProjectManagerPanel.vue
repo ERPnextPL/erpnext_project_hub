@@ -132,6 +132,14 @@ const marginStatus = computed(() => {
 	if (pct >= 0) return "warn";
 	return "bad";
 });
+
+const budgetMarginStatus = computed(() => {
+	if (!financials.value || !financials.value.estimated_costing) return null;
+	const pct = financials.value.per_budget_margin;
+	if (pct >= 30) return "good";
+	if (pct >= 0) return "warn";
+	return "bad";
+});
 </script>
 
 <template>
@@ -218,50 +226,52 @@ const marginStatus = computed(() => {
 							</div>
 						</div>
 
-						<!-- Margin card (only when financial data exists) -->
+						<!-- Budget Margin card (only when budget is set) -->
 						<div
-							v-if="hasFinancialData"
+							v-if="financials.estimated_costing > 0"
 							class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2"
 						>
 							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-								<TrendingUp v-if="marginStatus !== 'bad'" class="w-3.5 h-3.5" />
+								<TrendingUp v-if="budgetMarginStatus !== 'bad'" class="w-3.5 h-3.5" />
 								<TrendingDown v-else class="w-3.5 h-3.5 text-red-500" />
-								{{ translate("Gross Margin") }}
+								{{ translate("Budget Margin") }}
 							</div>
 							<div class="flex items-end gap-2">
 								<span
 									class="text-2xl font-bold"
 									:class="{
-										'text-green-600': marginStatus === 'good',
-										'text-amber-500': marginStatus === 'warn',
-										'text-red-600': marginStatus === 'bad',
-										'text-gray-900 dark:text-gray-100': !marginStatus,
+										'text-green-600': budgetMarginStatus === 'good',
+										'text-amber-500': budgetMarginStatus === 'warn',
+										'text-red-600': budgetMarginStatus === 'bad',
+										'text-gray-900 dark:text-gray-100': !budgetMarginStatus,
 									}"
 								>
-									{{ financials.per_gross_margin > 0 || financials.gross_margin !== 0
-										? financials.per_gross_margin.toFixed(1) + '%'
-										: '—' }}
+									{{ financials.per_budget_margin.toFixed(1) + '%' }}
 								</span>
 								<span class="text-sm text-gray-500 pb-0.5">
-									{{ formatCurrency(financials.gross_margin) }}
+									{{ formatCurrency(financials.budget_margin) }}
 								</span>
 							</div>
 							<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 pt-1">
 								<div>
-									<span class="block text-gray-400">{{ translate("Revenue") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_sales_amount) }}</span>
+									<span class="block text-gray-400">{{ translate("Budget") }}</span>
+									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.estimated_costing) }}</span>
+								</div>
+								<div>
+									<span class="block text-gray-400">{{ translate("Current cost") }}</span>
+									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_current_cost) }}</span>
 								</div>
 								<div>
 									<span class="block text-gray-400">{{ translate("Cost (timesheets)") }}</span>
 									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_costing_amount) }}</span>
 								</div>
-								<div v-if="financials.estimated_costing > 0">
-									<span class="block text-gray-400">{{ translate("Budget") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.estimated_costing) }}</span>
-								</div>
 								<div v-if="financials.total_purchase_cost > 0">
 									<span class="block text-gray-400">{{ translate("Purchase cost") }}</span>
 									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_purchase_cost) }}</span>
+								</div>
+								<div v-if="financials.total_consumed_material_cost > 0">
+									<span class="block text-gray-400">{{ translate("Material cost") }}</span>
+									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_consumed_material_cost) }}</span>
 								</div>
 							</div>
 						</div>
