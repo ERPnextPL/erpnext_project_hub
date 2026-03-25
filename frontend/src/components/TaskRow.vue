@@ -699,28 +699,40 @@ onUnmounted(() => {
 
 		<!-- Assignee -->
 		<div v-else-if="columnId === 'assignee'">
-			<div
-				v-if="firstAssignee"
-				class="flex items-center gap-1 text-sm text-gray-600"
-				:title="
-					firstAssignee.email +
-					(assignedUsers.length > 1 ? ' +' + (assignedUsers.length - 1) : '')
-				"
-			>
-				<User class="w-4 h-4 text-gray-400" />
-				<span class="truncate">{{ firstAssignee.displayName }}</span>
-				<span v-if="assignedUsers.length > 1" class="text-xs text-gray-400">
-					+{{ assignedUsers.length - 1 }}
-				</span>
+			<div class="flex items-center gap-1">
+				<div
+					v-if="firstAssignee"
+					class="flex items-center gap-1 text-sm text-gray-600 flex-1"
+					:title="
+						firstAssignee.email +
+						(assignedUsers.length > 1 ? ' +' + (assignedUsers.length - 1) : '')
+					"
+				>
+					<User class="w-4 h-4 text-gray-400 flex-shrink-0" />
+					<span class="truncate">{{ firstAssignee.displayName }}</span>
+					<span v-if="assignedUsers.length > 1" class="text-xs text-gray-400 flex-shrink-0">
+						+{{ assignedUsers.length - 1 }}
+					</span>
+				</div>
+				<button
+					v-if="!firstAssignee"
+					@click.stop="showUserAssignDropdown"
+					class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+					:title="translate('Click to assign user')"
+				>
+					<User class="w-4 h-4" />
+				</button>
+				<button
+					v-else
+					@click.stop="showUserAssignDropdown"
+					class="text-gray-300 hover:text-gray-500 p-0.5 rounded hover:bg-gray-200 opacity-0 hover:opacity-100 transition-opacity flex-shrink-0"
+					:title="translate('Change assignee')"
+				>
+					<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+						<path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1 4.5 4.5 0 11-4.814 6.98z" />
+					</svg>
+				</button>
 			</div>
-			<button
-				v-else
-				@click.stop="showUserAssignDropdown"
-				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-				:title="translate('Click to assign user')"
-			>
-				<User class="w-4 h-4" />
-			</button>
 
 			<!-- User assignment dropdown -->
 			<Teleport to="body">

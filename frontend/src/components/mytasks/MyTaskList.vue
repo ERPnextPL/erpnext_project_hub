@@ -26,7 +26,8 @@ const COLUMN_WIDTHS = {
 	project: "1fr",
 	status: "0.9fr",
 	priority: "0.6fr",
-	due_date: "0.5fr",
+	due_date: "0.8fr",
+	assignee: "1fr",
 };
 
 const availableColumns = [
@@ -67,9 +68,16 @@ function saveVisibleColumns(columns) {
 	visibleColumns.value = columns;
 }
 
-const gridTemplateColumns = computed(() =>
-	visibleColumns.value.map((id) => COLUMN_WIDTHS[id] || "1fr").join(" ")
-);
+const gridTemplateColumns = computed(() => {
+	const widths = visibleColumns.value.map((id) => {
+		if (!COLUMN_WIDTHS[id]) {
+			console.warn(`No width defined for column: ${id}, using default 1fr`);
+			return "1fr";
+		}
+		return COLUMN_WIDTHS[id];
+	});
+	return widths.join(" ");
+});
 
 const visibleColumnConfigs = computed(() => {
 	const byId = new Map(availableColumns.map((c) => [c.id, c]));
