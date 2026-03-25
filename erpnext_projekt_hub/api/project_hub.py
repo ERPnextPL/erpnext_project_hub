@@ -444,50 +444,40 @@ def get_project_financials(project: str):
 	hours_by_user = frappe.db.sql(
 		"""
 		SELECT
-			ts.employee_name,
 			ts.owner AS user_email,
-			COALESCE(SUM(tsd.hours), 0) AS hours,
-			ts.docstatus
+			COALESCE(MAX(ts.employee_name), u.full_name, ts.owner) AS employee_name,
+			COALESCE(SUM(CASE WHEN ts.docstatus = 1 THEN tsd.hours ELSE 0 END), 0) AS submitted_hours,
+			COALESCE(SUM(CASE WHEN ts.docstatus = 0 THEN tsd.hours ELSE 0 END), 0) AS draft_hours,
+			COALESCE(SUM(tsd.hours), 0) AS total_hours
 		FROM `tabTimesheet Detail` tsd
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+		LEFT JOIN `tabUser` u ON ts.owner = u.name
 		WHERE tsd.project = %s AND ts.docstatus < 2
-		GROUP BY ts.owner, ts.employee_name, ts.docstatus
-		ORDER BY hours DESC
+		GROUP BY ts.owner
+		ORDER BY total_hours DESC
 		""",
 		project,
 		as_dict=True,
 	)
 
-	# Aggregate submitted vs draft
 	submitted_hours = 0.0
 	draft_hours = 0.0
-	hours_map: dict = {}
+	hours_per_user = []
 	for row in hours_by_user:
-		key = row["user_email"] or row["employee_name"] or "Unknown"
+		s = float(row["submitted_hours"])
+		d = float(row["draft_hours"])
+		submitted_hours += s
+		draft_hours += d
 		label = row["employee_name"] or row["user_email"] or "Unknown"
-		if key not in hours_map:
-			hours_map[key] = {"label": label, "submitted": 0.0, "draft": 0.0}
-		if row["docstatus"] == 1:
-			hours_map[key]["submitted"] += float(row["hours"])
-			submitted_hours += float(row["hours"])
-		else:
-			hours_map[key]["draft"] += float(row["hours"])
-			draft_hours += float(row["hours"])
-
-	hours_per_user = sorted(
-		[
+		hours_per_user.append(
 			{
-				"user": k,
-				"label": v["label"],
-				"submitted": round(v["submitted"], 2),
-				"draft": round(v["draft"], 2),
-				"total": round(v["submitted"] + v["draft"], 2),
+				"user": row["user_email"] or label,
+				"label": label,
+				"submitted": round(s, 2),
+				"draft": round(d, 2),
+				"total": round(s + d, 2),
 			}
-			for k, v in hours_map.items()
-		],
-		key=lambda x: x["total"],
-		reverse=True,
-	)
+		)
 
 	# ── Estimated hours ───────────────────────────────────────────────────────
 	estimated_hours_result = frappe.db.sql(
@@ -500,9 +490,15 @@ def get_project_financials(project: str):
 	estimated_costing = float(getattr(project_doc, "estimated_costing", 0) or 0)
 	total_costing_amount = float(getattr(project_doc, "total_costing_amount", 0) or 0)
 	total_purchase_cost = float(getattr(project_doc, "total_purchase_cost", 0) or 0)
+	total_consumed_material_cost = float(getattr(project_doc, "total_consumed_material_cost", 0) or 0)
 	gross_margin = float(getattr(project_doc, "gross_margin", 0) or 0)
 	per_gross_margin = float(getattr(project_doc, "per_gross_margin", 0) or 0)
 	total_sales_amount = float(getattr(project_doc, "total_sales_amount", 0) or 0)
+
+	# ── Budget margin ─────────────────────────────────────────────────────────
+	total_current_cost = total_costing_amount + total_purchase_cost + total_consumed_material_cost
+	budget_margin = (estimated_costing - total_current_cost) if estimated_costing > 0 else 0.0
+	per_budget_margin = (budget_margin / estimated_costing * 100) if estimated_costing > 0 else 0.0
 
 	# ── Simple cost estimate based on hours ──────────────────────────────────
 	total_reported_hours = round(submitted_hours + draft_hours, 2)
@@ -511,6 +507,10 @@ def get_project_financials(project: str):
 		"estimated_costing": estimated_costing,
 		"total_costing_amount": total_costing_amount,
 		"total_purchase_cost": total_purchase_cost,
+		"total_consumed_material_cost": round(total_consumed_material_cost, 2),
+		"total_current_cost": round(total_current_cost, 2),
+		"budget_margin": round(budget_margin, 2),
+		"per_budget_margin": round(per_budget_margin, 2),
 		"gross_margin": gross_margin,
 		"per_gross_margin": per_gross_margin,
 		"total_sales_amount": total_sales_amount,
@@ -1627,15 +1627,68 @@ def get_project_milestones(project: str):
 			"progress",
 			"total_tasks",
 			"completed_tasks",
+			"sort_order",
 		],
-		order_by="milestone_date asc, creation asc",
+		order_by="sort_order asc, milestone_date asc, creation asc",
 	)
 
 	for milestone in milestones:
-		# Calculate health status
 		milestone["health"] = _calculate_milestone_health(milestone)
 
 	return milestones
+
+
+@frappe.whitelist()
+def reorder_milestones(project: str, milestone_names: list | str):
+	"""Persist manual sort order for milestones of a project."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	# ── Permission check ─────────────────────────────────────────────────────
+	current_user = frappe.session.user
+	user_roles = frappe.get_roles(current_user)
+	is_admin = (
+		"System Manager" in user_roles or "Administrator" in user_roles or "Projects Manager" in user_roles
+	)
+
+	# Get project doc to verify access
+	project_doc = frappe.get_doc("Project", project)
+	is_project_manager = project_doc.project_manager == current_user
+	is_team_member = current_user in [m.user for m in (project_doc.team or [])]
+
+	if not (is_admin or is_project_manager or is_team_member):
+		frappe.throw(_("You do not have permission to reorder milestones"), frappe.PermissionError)
+
+	# ── Validate milestones belong to project ────────────────────────────────
+	if isinstance(milestone_names, str):
+		import json as _json
+
+		milestone_names = _json.loads(milestone_names)
+
+	# Get all milestones for this project
+	valid_milestone_names = set(
+		frappe.db.get_list(
+			"Project Milestone",
+			filters={"project": project},
+			fields=["name"],
+			pluck="name",
+		)
+	)
+
+	# Verify all provided milestone names belong to this project
+	for name in milestone_names:
+		if name not in valid_milestone_names:
+			frappe.throw(
+				_("Milestone {0} does not belong to project {1}").format(name, project),
+				frappe.ValidationError,
+			)
+
+	# ── Update sort order ────────────────────────────────────────────────────
+	for idx, name in enumerate(milestone_names):
+		frappe.db.set_value("Project Milestone", name, "sort_order", idx, update_modified=False)
+
+	frappe.db.commit()
+	return {"success": True}
 
 
 def _calculate_milestone_health(milestone):

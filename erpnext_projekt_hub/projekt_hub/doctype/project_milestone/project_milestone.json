@@ -21,7 +21,8 @@
 		"total_tasks",
 		"completed_tasks",
 		"column_break_stats",
-		"color"
+		"color",
+		"sort_order"
 	],
 	"fields": [
 		{
@@ -51,6 +52,7 @@
 			"fieldtype": "Select",
 			"in_list_view": 1,
 			"in_standard_filter": 1,
+			"search_index": 1,
 			"label": "Status",
 			"options": "Open\nIn Progress\nCompleted\nCancelled"
 		},
@@ -59,6 +61,7 @@
 			"fieldname": "priority",
 			"fieldtype": "Select",
 			"in_list_view": 1,
+			"search_index": 1,
 			"label": "Priority",
 			"options": "Low\nMedium\nHigh\nUrgent"
 		},
@@ -71,6 +74,7 @@
 			"fieldname": "milestone_date",
 			"fieldtype": "Date",
 			"in_list_view": 1,
+			"search_index": 1,
 			"label": "Target Date"
 		},
 		{
@@ -121,6 +125,13 @@
 			"fieldname": "color",
 			"fieldtype": "Color",
 			"label": "Color"
+		},
+		{
+			"default": "0",
+			"fieldname": "sort_order",
+			"fieldtype": "Int",
+			"hidden": 1,
+			"label": "Sort Order"
 		}
 	],
 	"index_web_pages_for_search": 1,

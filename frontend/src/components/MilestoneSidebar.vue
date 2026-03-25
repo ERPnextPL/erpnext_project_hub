@@ -11,6 +11,7 @@ import {
 	X,
 	Search,
 	CheckCircle2,
+	GripVertical,
 } from "lucide-vue-next";
 import MilestoneModal from "./MilestoneModal.vue";
 import { translate } from "../utils/translation";
@@ -28,11 +29,18 @@ const openMenuId = ref(null);
 
 // Inline filter state
 const search = ref("");
-const sortBy = ref("deadline");
 const includeDone = ref(false);
+const sortBy = computed({
+	get: () => store.milestoneSortBy,
+	set: (val) => { store.milestoneSortBy = val; },
+});
 
-// Drag & drop
+// Drag & drop (task assignment)
 const dragOverMilestone = ref(null);
+
+// Milestone reorder drag state
+const draggingMilestoneName = ref(null);
+const reorderDropIndex = ref(null);
 
 // Filtered + sorted milestones
 const visibleMilestones = computed(() => {
@@ -50,8 +58,18 @@ const visibleMilestones = computed(() => {
 		list.sort((a, b) => (a.milestone_name || "").localeCompare(b.milestone_name || ""));
 	} else if (sortBy.value === "progress") {
 		list.sort((a, b) => (b.progress || 0) - (a.progress || 0));
-	} else {
+	} else if (sortBy.value === "deadline") {
 		list.sort((a, b) => {
+			const aDate = a.milestone_date ? new Date(a.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+			const bDate = b.milestone_date ? new Date(b.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+			return aDate - bDate;
+		});
+	} else {
+		// manual
+		list.sort((a, b) => {
+			if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order;
+			if (a.sort_order != null) return -1;
+			if (b.sort_order != null) return 1;
 			const aDate = a.milestone_date ? new Date(a.milestone_date).getTime() : Number.POSITIVE_INFINITY;
 			const bDate = b.milestone_date ? new Date(b.milestone_date).getTime() : Number.POSITIVE_INFINITY;
 			return aDate - bDate;
@@ -130,20 +148,76 @@ async function handleUpdate(data) {
 	}
 }
 
-// Drag & drop
-function handleDragOver(event, milestoneName) {
+// Drag & drop helpers
+function handleMilestoneDragStart(event, milestoneName) {
+	draggingMilestoneName.value = milestoneName;
+	event.dataTransfer.setData("application/x-milestone-reorder", milestoneName);
+	// Clear text/plain so browser text content isn't passed as a task name
+	event.dataTransfer.setData("text/plain", "");
+	event.dataTransfer.effectAllowed = "move";
+}
+
+function handleMilestoneDragEnd() {
+	draggingMilestoneName.value = null;
+	reorderDropIndex.value = null;
+}
+
+function isMilestoneReorderDrag(event) {
+	return (
+		draggingMilestoneName.value ||
+		event.dataTransfer.types.includes("application/x-milestone-reorder")
+	);
+}
+
+function handleDragOver(event, milestoneName, index) {
 	event.preventDefault();
-	event.dataTransfer.dropEffect = "move";
-	dragOverMilestone.value = milestoneName;
+	if (isMilestoneReorderDrag(event)) {
+		event.dataTransfer.dropEffect = "move";
+		reorderDropIndex.value = index;
+		dragOverMilestone.value = null;
+	} else {
+		event.dataTransfer.dropEffect = "move";
+		dragOverMilestone.value = milestoneName;
+		reorderDropIndex.value = null;
+	}
 }
 
 function handleDragLeave(event, milestoneName) {
 	if (event.currentTarget.contains(event.relatedTarget)) return;
 	if (dragOverMilestone.value === milestoneName) dragOverMilestone.value = null;
+	reorderDropIndex.value = null;
 }
 
-async function handleDrop(event, milestoneName) {
+async function handleDrop(event, milestoneName, index) {
 	event.preventDefault();
+
+	const draggedMilestoneName =
+		draggingMilestoneName.value ||
+		event.dataTransfer.getData("application/x-milestone-reorder") ||
+		null;
+
+	if (draggedMilestoneName) {
+		const draggedName = draggedMilestoneName;
+		draggingMilestoneName.value = null;
+		reorderDropIndex.value = null;
+
+		const list = [...visibleMilestones.value];
+		const fromIdx = list.findIndex((m) => m.name === draggedName);
+		if (fromIdx !== -1 && fromIdx !== index) {
+			const [removed] = list.splice(fromIdx, 1);
+			list.splice(index, 0, removed);
+			try {
+				await store.reorderMilestones(list.map((m) => m.name));
+			} catch {
+				realWindow?.frappe?.show_alert({
+					message: translate("Failed to reorder milestones"),
+					indicator: "red",
+				});
+			}
+		}
+		return;
+	}
+
 	dragOverMilestone.value = null;
 	const taskName = event.dataTransfer.getData("text/plain");
 	if (!taskName) return;
@@ -259,6 +333,7 @@ onUnmounted(() => document.removeEventListener("click", handleClickOutside));
 					v-model="sortBy"
 					class="flex-1 min-w-0 pl-2 pr-6 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300"
 				>
+					<option value="manual">{{ translate("Sort: manual") }}</option>
 					<option value="deadline">{{ translate("Sort: deadline") }}</option>
 					<option value="name">{{ translate("Sort: name") }}</option>
 					<option value="progress">{{ translate("Sort: progress") }}</option>
@@ -322,15 +397,22 @@ onUnmounted(() => document.removeEventListener("click", handleClickOutside));
 		<!-- Milestone list -->
 		<div class="flex-1 overflow-y-auto p-2 space-y-2">
 			<div
-				v-for="milestone in visibleMilestones"
+				v-for="(milestone, index) in visibleMilestones"
 				:key="milestone.name"
-				@dragover="handleDragOver($event, milestone.name)"
+				:draggable="sortBy === 'manual'"
+				@dragstart="sortBy === 'manual' && handleMilestoneDragStart($event, milestone.name)"
+				@dragend="handleMilestoneDragEnd"
+				@dragover="handleDragOver($event, milestone.name, index)"
 				@dragleave="handleDragLeave($event, milestone.name)"
-				@drop="handleDrop($event, milestone.name)"
+				@drop="handleDrop($event, milestone.name, index)"
 				@click="store.toggleMilestoneFilter(milestone.name)"
 				:class="[
 					'p-3 rounded-lg border-2 transition-all relative cursor-pointer',
-					activeMilestoneNames.has(milestone.name)
+					draggingMilestoneName === milestone.name
+						? 'opacity-40'
+						: reorderDropIndex === index && draggingMilestoneName !== milestone.name && sortBy === 'manual'
+						? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20 shadow-md'
+						: activeMilestoneNames.has(milestone.name)
 						? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20 shadow-sm'
 						: dragOverMilestone === milestone.name
 						? 'border-purple-300 bg-purple-50 dark:bg-purple-900/20 shadow-md'
@@ -341,9 +423,15 @@ onUnmounted(() => document.removeEventListener("click", handleClickOutside));
 				<!-- Header row -->
 				<div class="flex items-start justify-between mb-2">
 					<div class="flex items-center gap-1.5 flex-1 min-w-0">
+						<!-- Drag handle (manual sort only) -->
+						<GripVertical
+							v-if="sortBy === 'manual'"
+							class="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0 cursor-grab active:cursor-grabbing"
+							@click.stop
+						/>
 						<!-- Active filter checkmark -->
 						<CheckCircle2
-							v-if="activeMilestoneNames.has(milestone.name)"
+							v-else-if="activeMilestoneNames.has(milestone.name)"
 							class="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0"
 						/>
 						<span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">

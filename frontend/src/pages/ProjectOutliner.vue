@@ -25,6 +25,7 @@ import {
 	Columns,
 	GanttChart,
 	Diamond,
+	GripVertical,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -49,6 +50,10 @@ const listMode = ref("flat");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const milestoneSidebarOpen = ref(false);
 const searchInput = ref("");
+
+// Milestone group reorder drag state
+const draggingGroupKey = ref(null);
+const groupReorderDropIndex = ref(null);
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
 const activeFilters = ref({
 	status: ["Open", "Working", "Pending Review", "Overdue"], // Domyślne statusy
@@ -189,6 +194,57 @@ const flattenedTasksWithFilters = computed(() => {
 	return result;
 });
 
+function handleGroupDragStart(event, groupKey) {
+	draggingGroupKey.value = groupKey;
+	event.dataTransfer.setData("application/x-milestone-reorder", groupKey);
+	event.dataTransfer.setData("text/plain", "");
+	event.dataTransfer.effectAllowed = "move";
+}
+
+function handleGroupDragEnd() {
+	draggingGroupKey.value = null;
+	groupReorderDropIndex.value = null;
+}
+
+function handleGroupDragOver(event, index) {
+	if (!draggingGroupKey.value && !event.dataTransfer.types.includes("application/x-milestone-reorder")) return;
+	event.preventDefault();
+	event.dataTransfer.dropEffect = "move";
+	groupReorderDropIndex.value = index;
+}
+
+function handleGroupDragLeave(event) {
+	if (event.currentTarget.contains(event.relatedTarget)) return;
+	groupReorderDropIndex.value = null;
+}
+
+async function handleGroupDrop(event, index) {
+	event.preventDefault();
+	const draggedKey = draggingGroupKey.value || event.dataTransfer.getData("application/x-milestone-reorder");
+	draggingGroupKey.value = null;
+	groupReorderDropIndex.value = null;
+
+	if (!draggedKey) return;
+
+	const list = [...groupedTasksByMilestone.value];
+	const fromIdx = list.findIndex((g) => g.key === draggedKey);
+	if (fromIdx === -1 || fromIdx === index) return;
+
+	const [removed] = list.splice(fromIdx, 1);
+	list.splice(index, 0, removed);
+
+	// Only send non-unassigned milestone names
+	const milestoneNames = list.filter((g) => !g.isUnassigned).map((g) => g.key);
+	try {
+		await store.reorderMilestones(milestoneNames);
+	} catch {
+		realWindow?.frappe?.show_alert({
+			message: translate("Failed to reorder milestones"),
+			indicator: "red",
+		});
+	}
+}
+
 function formatMilestoneDate(dateStr) {
 	if (!dateStr) return translate("No deadline");
 	const date = new Date(dateStr);
@@ -223,9 +279,27 @@ const groupedTasksByMilestone = computed(() => {
 	});
 
 	const sorted = Array.from(groups.values()).filter((group) => group.tasks.length > 0);
+	const mode = store.milestoneSortBy || "manual";
 	sorted.sort((a, b) => {
 		if (a.isUnassigned) return 1;
 		if (b.isUnassigned) return -1;
+		if (mode === "name") {
+			return (a.label || "").localeCompare(b.label || "");
+		}
+		if (mode === "progress") {
+			return (b.meta?.progress || 0) - (a.meta?.progress || 0);
+		}
+		if (mode === "deadline") {
+			const aDate = a.meta?.milestone_date ? new Date(a.meta.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+			const bDate = b.meta?.milestone_date ? new Date(b.meta.milestone_date).getTime() : Number.POSITIVE_INFINITY;
+			return aDate - bDate;
+		}
+		// manual
+		const aOrder = a.meta?.sort_order;
+		const bOrder = b.meta?.sort_order;
+		if (aOrder != null && bOrder != null) return aOrder - bOrder;
+		if (aOrder != null) return -1;
+		if (bOrder != null) return 1;
 		const aDate = a.meta?.milestone_date ? new Date(a.meta.milestone_date).getTime() : Number.POSITIVE_INFINITY;
 		const bDate = b.meta?.milestone_date ? new Date(b.meta.milestone_date).getTime() : Number.POSITIVE_INFINITY;
 		return aDate - bDate;
@@ -302,13 +376,15 @@ function handleMobileTaskCreated() {
 
 		<!-- Main content -->
 		<div class="flex-1 flex overflow-hidden relative">
-			<!-- Milestone sidebar: Desktop = inline, Mobile = drawer overlay -->
-			<aside
-				v-if="milestoneSidebarOpen && !isMobile"
-				class="flex-shrink-0 overflow-y-auto relative"
-			>
-				<MilestoneSidebar @close="milestoneSidebarOpen = false" />
-			</aside>
+			<!-- Milestone sidebar: Desktop = inline with slide animation -->
+			<Transition name="slide-sidebar">
+				<div
+					v-if="milestoneSidebarOpen && !isMobile"
+					class="flex-shrink-0 overflow-y-auto relative"
+				>
+					<MilestoneSidebar @close="milestoneSidebarOpen = false" />
+				</div>
+			</Transition>
 
 			<!-- Milestone sidebar mobile drawer -->
 			<Transition name="slide-drawer">
@@ -524,21 +600,40 @@ function handleMobileTaskCreated() {
 
 						<div v-else class="space-y-4 p-4 sm:p-6">
 							<section
-								v-for="group in groupedTasksByMilestone"
+								v-for="(group, index) in groupedTasksByMilestone"
 								:key="group.key"
-								class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800"
+								:draggable="store.milestoneSortBy === 'manual' && !group.isUnassigned"
+								@dragstart="store.milestoneSortBy === 'manual' && !group.isUnassigned && handleGroupDragStart($event, group.key)"
+								@dragend="handleGroupDragEnd"
+								@dragover="handleGroupDragOver($event, index)"
+								@dragleave="handleGroupDragLeave"
+								@drop="handleGroupDrop($event, index)"
+								:class="[
+									'border rounded-xl overflow-hidden bg-white dark:bg-gray-800 transition-all',
+									draggingGroupKey === group.key
+										? 'opacity-40 border-gray-200 dark:border-gray-700'
+										: groupReorderDropIndex === index && draggingGroupKey !== group.key
+										? 'border-purple-400 shadow-md'
+										: 'border-gray-200 dark:border-gray-700',
+								]"
 							>
 								<div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
 									<div class="flex items-center justify-between gap-2">
-										<div class="min-w-0">
-											<div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-												{{ group.label }}
-											</div>
-											<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-												<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
-												<span v-if="group.meta" class="ml-2">
-													{{ formatMilestoneDate(group.meta.milestone_date) }}
-												</span>
+										<div class="flex items-center gap-1.5 min-w-0">
+											<GripVertical
+												v-if="store.milestoneSortBy === 'manual' && !group.isUnassigned"
+												class="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0 cursor-grab active:cursor-grabbing"
+											/>
+											<div class="min-w-0">
+												<div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+													{{ group.label }}
+												</div>
+												<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+													<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
+													<span v-if="group.meta" class="ml-2">
+														{{ formatMilestoneDate(group.meta.milestone_date) }}
+													</span>
+												</div>
 											</div>
 										</div>
 										<div
@@ -585,21 +680,40 @@ function handleMobileTaskCreated() {
 
 						<div v-else class="p-3 space-y-3">
 							<section
-								v-for="group in groupedTasksByMilestone"
+								v-for="(group, index) in groupedTasksByMilestone"
 								:key="group.key"
-								class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800"
+								:draggable="store.milestoneSortBy === 'manual' && !group.isUnassigned"
+								@dragstart="store.milestoneSortBy === 'manual' && !group.isUnassigned && handleGroupDragStart($event, group.key)"
+								@dragend="handleGroupDragEnd"
+								@dragover="handleGroupDragOver($event, index)"
+								@dragleave="handleGroupDragLeave"
+								@drop="handleGroupDrop($event, index)"
+								:class="[
+									'border rounded-xl overflow-hidden bg-white dark:bg-gray-800 transition-all',
+									draggingGroupKey === group.key
+										? 'opacity-40 border-gray-200 dark:border-gray-700'
+										: groupReorderDropIndex === index && draggingGroupKey !== group.key
+										? 'border-purple-400 shadow-md'
+										: 'border-gray-200 dark:border-gray-700',
+								]"
 							>
 								<div class="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
 									<div class="flex items-center justify-between gap-2">
-										<div class="min-w-0">
-											<div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-												{{ group.label }}
-											</div>
-											<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-												<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
-												<span v-if="group.meta" class="ml-2">
-													{{ formatMilestoneDate(group.meta.milestone_date) }}
-												</span>
+										<div class="flex items-center gap-1.5 min-w-0">
+											<GripVertical
+												v-if="store.milestoneSortBy === 'manual' && !group.isUnassigned"
+												class="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 flex-shrink-0 cursor-grab active:cursor-grabbing"
+											/>
+											<div class="min-w-0">
+												<div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+													{{ group.label }}
+												</div>
+												<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+													<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
+													<span v-if="group.meta" class="ml-2">
+														{{ formatMilestoneDate(group.meta.milestone_date) }}
+													</span>
+												</div>
 											</div>
 										</div>
 										<div
@@ -679,5 +793,16 @@ function handleMobileTaskCreated() {
 .slide-drawer-enter-from aside,
 .slide-drawer-leave-to aside {
 	transform: translateX(-100%);
+}
+
+/* Desktop milestone sidebar slide-in from left */
+.slide-sidebar-enter-active,
+.slide-sidebar-leave-active {
+	transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.slide-sidebar-enter-from,
+.slide-sidebar-leave-to {
+	transform: translateX(-100%);
+	opacity: 0;
 }
 </style>

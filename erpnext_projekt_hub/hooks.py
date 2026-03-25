@@ -255,23 +255,3 @@ after_request = ["erpnext_projekt_hub.api.pwa.add_sw_allowed_header"]
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-
-# Fixtures
-# --------
-fixtures = [
-	{
-		"dt": "Custom Field",
-		"filters": [
-			["name", "in", ["Task-milestone", "Project-project_manager", "Project-documentation_url"]]
-		],
-	},
-	{
-		"dt": "Workspace Link",
-		"filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]],
-	},
-	{
-		"dt": "Workspace Shortcut",
-		"filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]],
-	},
-	{"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
-]

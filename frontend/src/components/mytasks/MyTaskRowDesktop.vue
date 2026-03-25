@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
@@ -52,6 +53,7 @@ const props = defineProps({
 const emit = defineEmits(["open-time-log-modal", "toggle-expand"]);
 
 const store = useMyTasksStore();
+const router = useRouter();
 const realWindow = getRealWindow();
 
 const isUpdating = ref(false);
@@ -215,6 +217,13 @@ function openTask() {
 	store.selectTask(props.task);
 }
 
+function navigateToProject(e) {
+	e.stopPropagation();
+	if (props.task.project) {
+		router.push({ name: "ProjectOutliner", params: { projectId: props.task.project } });
+	}
+}
+
 function showMenu(e) {
 	if (isTouchDevice()) return;
 	e.preventDefault();
@@ -349,10 +358,11 @@ onUnmounted(() => {
 		<div v-if="props.visibleColumns.includes('project')" class="flex items-center min-w-0 overflow-hidden">
 			<div
 				v-if="task.project_name"
-				class="flex items-center gap-1.5 text-sm text-gray-500 truncate"
+				class="flex items-center gap-1.5 text-sm text-gray-500 truncate cursor-pointer hover:text-gray-700"
+				@click.stop="navigateToProject"
 			>
 				<Folder class="w-3.5 h-3.5 flex-shrink-0" />
-				<span class="truncate">{{ task.project_name }}</span>
+				<span class="truncate hover:underline">{{ task.project_name }}</span>
 			</div>
 			<span v-else class="text-gray-300">—</span>
 		</div>
