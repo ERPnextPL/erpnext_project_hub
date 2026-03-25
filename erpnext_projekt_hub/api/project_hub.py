@@ -1644,11 +1644,46 @@ def reorder_milestones(project: str, milestone_names: list | str):
 	if not project:
 		frappe.throw(_("Project is required"))
 
+	# ── Permission check ─────────────────────────────────────────────────────
+	current_user = frappe.session.user
+	user_roles = frappe.get_roles(current_user)
+	is_admin = (
+		"System Manager" in user_roles or "Administrator" in user_roles or "Projects Manager" in user_roles
+	)
+
+	# Get project doc to verify access
+	project_doc = frappe.get_doc("Project", project)
+	is_project_manager = project_doc.project_manager == current_user
+	is_team_member = current_user in [m.user for m in (project_doc.team or [])]
+
+	if not (is_admin or is_project_manager or is_team_member):
+		frappe.throw(_("You do not have permission to reorder milestones"), frappe.PermissionError)
+
+	# ── Validate milestones belong to project ────────────────────────────────
 	if isinstance(milestone_names, str):
 		import json as _json
 
 		milestone_names = _json.loads(milestone_names)
 
+	# Get all milestones for this project
+	valid_milestone_names = set(
+		frappe.db.get_list(
+			"Project Milestone",
+			filters={"project": project},
+			fields=["name"],
+			pluck="name",
+		)
+	)
+
+	# Verify all provided milestone names belong to this project
+	for name in milestone_names:
+		if name not in valid_milestone_names:
+			frappe.throw(
+				_("Milestone {0} does not belong to project {1}").format(name, project),
+				frappe.ValidationError,
+			)
+
+	# ── Update sort order ────────────────────────────────────────────────────
 	for idx, name in enumerate(milestone_names):
 		frappe.db.set_value("Project Milestone", name, "sort_order", idx, update_modified=False)
 
