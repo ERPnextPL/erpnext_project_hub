@@ -80,18 +80,33 @@ class TabRegistry {
 
 	/**
 	 * Get navigation items (subset of tab data for navigation component)
+	 * Filters out duplicate routeNames, keeping only the last registered version
 	 * @returns {Array} Array of navigation items
 	 */
 	getNavItems() {
-		return this.getTabs().map(tab => ({
-			key: tab.key,
-			to: tab.path,
-			labelKey: tab.labelKey,
-			icon: tab.icon,
-			color: tab.color,
-			bg: tab.bg,
-			managerOnly: tab.managerOnly ?? false,
-		}));
+		// Track which routeNames we've already added (keep last/latest one)
+		const seenRouteNames = new Set();
+		const tabs = this.getTabs();
+		const navItems = [];
+
+		// Iterate backwards to process the latest-registered tab first
+		for (let i = tabs.length - 1; i >= 0; i--) {
+			const tab = tabs[i];
+			if (!seenRouteNames.has(tab.routeName)) {
+				seenRouteNames.add(tab.routeName);
+				navItems.unshift({
+					key: tab.key,
+					to: tab.path,
+					labelKey: tab.labelKey,
+					icon: tab.icon,
+					color: tab.color,
+					bg: tab.bg,
+					managerOnly: tab.managerOnly ?? false,
+				});
+			}
+		}
+
+		return navItems;
 	}
 
 	/**
@@ -137,7 +152,14 @@ class TabRegistry {
 	 * @returns {Object|undefined} Tab configuration
 	 */
 	getTabByRouteName(routeName) {
-		return this.getTabs().find(tab => tab.routeName === routeName);
+		// Return the LAST matching tab (pro version registered later will override core version)
+		const tabs = this.getTabs();
+		for (let i = tabs.length - 1; i >= 0; i--) {
+			if (tabs[i].routeName === routeName) {
+				return tabs[i];
+			}
+		}
+		return undefined;
 	}
 
 	/**

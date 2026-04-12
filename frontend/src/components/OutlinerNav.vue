@@ -22,6 +22,8 @@ const translate = (text) => {
 
 const scrollerRef = ref(null);
 const itemRefs = ref({});
+const touchStartX = ref(0);
+const touchStartScrollLeft = ref(0);
 
 // Normalize Vue component refs to raw DOM elements
 const normalizeEl = (el) => {
@@ -30,6 +32,47 @@ const normalizeEl = (el) => {
 };
 
 const handleResize = () => scrollActiveIntoView("auto");
+
+// 🎯 KROK 1: Obsługa wheel scrolla (scroll myszką)
+// Kiedy użytkownik scrolluje myszką - zamiast scrollować w pionie,
+// scrollujemy w poziomie przez menu
+function handleWheel(event) {
+	const scroller = normalizeEl(scrollerRef.value);
+	if (!scroller) return;
+
+	// Jeśli jest scroll, zapobiegamy domyślnemu zachowaniu
+	if (scroller.scrollWidth > scroller.clientWidth) {
+		event.preventDefault();
+		// event.deltaY to ilość scrollu (dodatnia = dół, ujemna = góra)
+		// Zamieniamy to na horizontal scroll
+		scroller.scrollLeft += event.deltaY;
+	}
+}
+
+// 🎯 KROK 2: Obsługa touch/swipe (dla telefonów)
+// Kiedy użytkownik dotknie ekranu - zapisujemy pozycję początkową
+function handleTouchStart(event) {
+	touchStartX.value = event.touches[0].clientX;
+	const scroller = normalizeEl(scrollerRef.value);
+	if (scroller) {
+		touchStartScrollLeft.value = scroller.scrollLeft;
+	}
+}
+
+// Kiedy użytkownik przesuwa palec - obliczamy różnicę i scrollujemy
+function handleTouchMove(event) {
+	if (touchStartX.value === 0) return; // Nie zaczęliśmy od dotknięcia
+
+	const scroller = normalizeEl(scrollerRef.value);
+	if (!scroller) return;
+
+	// Obliczamy o ile się przesunął palec
+	const deltaX = event.touches[0].clientX - touchStartX.value;
+
+	// Jeśli przesunął się w lewo (deltaX ujemny), scrollujemy w prawo (dodajemy)
+	// Jeśli przesunął się w prawo (deltaX dodatni), scrollujemy w lewo (odejmujemy)
+	scroller.scrollLeft = touchStartScrollLeft.value - deltaX;
+}
 
 const activeKey = computed(() => {
 	const { name } = route;
@@ -88,6 +131,17 @@ function handleNavigate(to) {
 onMounted(() => {
 	scrollActiveIntoView("auto");
 	window.addEventListener("resize", handleResize);
+
+	// 🎯 KROK 3: Podłączamy nasze handlery do elementu
+	const scroller = normalizeEl(scrollerRef.value);
+	if (scroller) {
+		// Wheel scroll - scroll myszką
+		scroller.addEventListener("wheel", handleWheel, { passive: false });
+		// Touch start - palec dotyka ekranu
+		scroller.addEventListener("touchstart", handleTouchStart, { passive: true });
+		// Touch move - palec się przesuwa
+		scroller.addEventListener("touchmove", handleTouchMove, { passive: true });
+	}
 });
 
 watch(activeKey, () => {
@@ -96,15 +150,36 @@ watch(activeKey, () => {
 
 onBeforeUnmount(() => {
 	window.removeEventListener("resize", handleResize);
+
+	// 🎯 KROK 4: Usuwamy event listenery by nie zajmowały pamięci
+	const scroller = normalizeEl(scrollerRef.value);
+	if (scroller) {
+		scroller.removeEventListener("wheel", handleWheel);
+		scroller.removeEventListener("touchstart", handleTouchStart);
+		scroller.removeEventListener("touchmove", handleTouchMove);
+	}
 });
 </script>
 
 <template>
 	<div class="flex items-center gap-3">
-		<div
-			ref="scrollerRef"
-			class="relative w-full max-w-[200px] sm:max-w-[260px] overflow-x-auto scrollbar-hide py-1"
-		>
+		<!-- 🎯 KROK 5: Gradient fade wrapper - tworzy efekt gradientu na krawędziach -->
+		<div class="relative w-full max-w-[200px] sm:max-w-[260px]">
+			<!-- Gradient fade na lewej stronie -->
+			<div
+				class="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none z-10"
+			></div>
+
+			<!-- Gradient fade na prawej stronie -->
+			<div
+				class="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none z-10"
+			></div>
+
+			<!-- Główny scroller -->
+			<div
+				ref="scrollerRef"
+				class="overflow-x-auto scrollbar-hide py-1"
+			>
 			<div class="flex items-center gap-2 px-1">
 				<RouterLink
 					v-for="item in navItems"
@@ -131,6 +206,7 @@ onBeforeUnmount(() => {
 						{{ translate(item.labelKey) }}
 					</span>
 				</RouterLink>
+			</div>
 			</div>
 		</div>
 	</div>
