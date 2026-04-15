@@ -22,6 +22,7 @@ declare module 'vue' {
     OfflineBanner: typeof import('./src/components/OfflineBanner.vue')['default']
     OutlinerNav: typeof import('./src/components/OutlinerNav.vue')['default']
     PriorityBadge: typeof import('./src/components/shared/PriorityBadge.vue')['default']
+    ProjectAttachmentsSidebar: typeof import('./src/components/ProjectAttachmentsSidebar.vue')['default']
     ProjectInfoPanel: typeof import('./src/components/ProjectInfoPanel.vue')['default']
     ProjectManagerPanel: typeof import('./src/components/ProjectManagerPanel.vue')['default']
     ProjectTaskCardMobile: typeof import('./src/components/ProjectTaskCardMobile.vue')['default']

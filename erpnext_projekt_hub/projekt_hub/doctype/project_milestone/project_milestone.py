@@ -1,6 +1,8 @@
 # Copyright (c) 2024, Krzysztof and contributors
 # For license information, please see license.txt
 
+from datetime import datetime
+
 import frappe
 from frappe import _
 from frappe.model.document import Document

@@ -183,14 +183,14 @@ function getStatusClass(status) {
 
 							<div class="space-y-2">
 								<div class="flex items-center gap-2 text-sm text-gray-500">
-									<span
-										:class="[
-											'px-2 py-0.5 rounded-full text-xs font-medium',
-											getStatusClass(project.status),
-										]"
-									>
-										{{ project.status }}
-									</span>
+								<span
+									:class="[
+										'px-2 py-0.5 rounded-full text-xs font-medium',
+										getStatusClass(project.status),
+									]"
+								>
+									{{ translate(project.status) }}
+								</span>
 								</div>
 
 								<div

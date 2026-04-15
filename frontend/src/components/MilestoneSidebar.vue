@@ -15,11 +15,13 @@ import {
 } from "lucide-vue-next";
 import MilestoneModal from "./MilestoneModal.vue";
 import { translate } from "../utils/translation";
+import { useWindowSize } from "../utils/composables";
 
 const emit = defineEmits(["close"]);
 
 const store = useTaskStore();
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
+const { width } = useWindowSize();
 
 // Modal state
 const showCreateModal = ref(false);
@@ -79,6 +81,7 @@ const visibleMilestones = computed(() => {
 });
 
 const activeMilestoneNames = computed(() => new Set(store.activeMilestoneFilter));
+const showMilestoneLabels = computed(() => width.value < 765 || width.value > 1800);
 
 // Preset filter actions
 function setPresetAll() {
@@ -406,6 +409,7 @@ onUnmounted(() => document.removeEventListener("click", handleClickOutside));
 				@dragleave="handleDragLeave($event, milestone.name)"
 				@drop="handleDrop($event, milestone.name, index)"
 				@click="store.toggleMilestoneFilter(milestone.name)"
+				:title="showMilestoneLabels ? '' : milestone.milestone_name"
 				:class="[
 					'p-3 rounded-lg border-2 transition-all relative cursor-pointer',
 					draggingMilestoneName === milestone.name
@@ -434,7 +438,16 @@ onUnmounted(() => document.removeEventListener("click", handleClickOutside));
 							v-else-if="activeMilestoneNames.has(milestone.name)"
 							class="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0"
 						/>
-						<span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+						<span
+							v-if="showMilestoneLabels"
+							class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+						>
+							{{ milestone.milestone_name }}
+						</span>
+						<span
+							v-else
+							class="sr-only"
+						>
 							{{ milestone.milestone_name }}
 						</span>
 					</div>

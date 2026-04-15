@@ -1,9 +1,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow } from "../utils/translation";
+import { useDebounceFn, useWindowSize } from "../utils/composables";
 import TaskTree from "../components/TaskTree.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
@@ -11,6 +11,7 @@ import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
 import MilestoneSidebar from "../components/MilestoneSidebar.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
+import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
@@ -26,6 +27,7 @@ import {
 	GanttChart,
 	Diamond,
 	GripVertical,
+	Paperclip,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -49,6 +51,7 @@ const activeView = ref("list");
 const listMode = ref("flat");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const milestoneSidebarOpen = ref(false);
+const attachmentsSidebarOpen = ref(false);
 const searchInput = ref("");
 
 // Milestone group reorder drag state
@@ -315,10 +318,17 @@ watch(isMobile, (mobile) => {
 	if (mobile && milestoneSidebarOpen.value) {
 		milestoneSidebarOpen.value = false;
 	}
+	if (mobile && attachmentsSidebarOpen.value) {
+		attachmentsSidebarOpen.value = false;
+	}
 });
 
 function closeSidebar() {
 	sidebarCollapsed.value = true;
+}
+
+function closeAttachmentsSidebar() {
+	attachmentsSidebarOpen.value = false;
 }
 
 // Mobile task card handlers
@@ -368,6 +378,19 @@ function handleMobileTaskCreated() {
 					<!-- Right: Team + Nav -->
 					<div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
 						<ProjectTeam :project-id="projectId" />
+						<button
+							@click="attachmentsSidebarOpen = !attachmentsSidebarOpen"
+							:class="[
+								'flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-sm rounded-lg border transition-colors flex-shrink-0',
+								attachmentsSidebarOpen
+									? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+									: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+							]"
+							:title="translate('Attachments')"
+						>
+							<Paperclip class="w-4 h-4" />
+							<span class="hidden sm:inline">{{ translate("Attachments") }}</span>
+						</button>
 						<OutlinerNav />
 					</div>
 				</div>
@@ -386,12 +409,40 @@ function handleMobileTaskCreated() {
 				</div>
 			</Transition>
 
+			<!-- Attachments sidebar: Desktop = inline with slide animation -->
+			<Transition name="slide-sidebar-right">
+				<div
+					v-if="attachmentsSidebarOpen && !isMobile"
+					class="order-last flex-shrink-0 overflow-y-auto relative"
+				>
+					<ProjectAttachmentsSidebar
+						:project-id="projectId"
+						:project="store.project"
+						@close="closeAttachmentsSidebar"
+					/>
+				</div>
+			</Transition>
+
 			<!-- Milestone sidebar mobile drawer -->
 			<Transition name="slide-drawer">
 				<div v-if="milestoneSidebarOpen && isMobile" class="fixed inset-0 z-30 flex">
 					<div class="absolute inset-0 bg-black/30" @click="milestoneSidebarOpen = false"></div>
 					<aside class="relative z-10 shadow-xl overflow-y-auto">
 						<MilestoneSidebar @close="milestoneSidebarOpen = false" />
+					</aside>
+				</div>
+			</Transition>
+
+			<!-- Attachments sidebar mobile drawer -->
+			<Transition name="slide-drawer-right">
+				<div v-if="attachmentsSidebarOpen && isMobile" class="fixed inset-0 z-30 flex justify-end">
+					<div class="absolute inset-0 bg-black/30" @click="closeAttachmentsSidebar"></div>
+					<aside class="relative z-10 shadow-xl overflow-y-auto">
+						<ProjectAttachmentsSidebar
+							:project-id="projectId"
+							:project="store.project"
+							@close="closeAttachmentsSidebar"
+						/>
 					</aside>
 				</div>
 			</Transition>
@@ -547,7 +598,7 @@ function handleMobileTaskCreated() {
 									]"
 								>
 									<GanttChart class="w-4 h-4" />
-									<span class="hidden sm:inline">Timeline</span>
+									<span class="hidden sm:inline">{{ translate("Timeline") }}</span>
 								</button>
 							</div>
 						</div>
@@ -804,5 +855,34 @@ function handleMobileTaskCreated() {
 .slide-sidebar-leave-to {
 	transform: translateX(-100%);
 	opacity: 0;
+}
+
+/* Desktop attachments sidebar slide-in from right */
+.slide-sidebar-right-enter-active,
+.slide-sidebar-right-leave-active {
+	transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.slide-sidebar-right-enter-from,
+.slide-sidebar-right-leave-to {
+	transform: translateX(100%);
+	opacity: 0;
+}
+
+/* Mobile attachments drawer slide-in from right */
+.slide-drawer-right-enter-active,
+.slide-drawer-right-leave-active {
+	transition: opacity 0.25s ease;
+}
+.slide-drawer-right-enter-active aside,
+.slide-drawer-right-leave-active aside {
+	transition: transform 0.25s ease;
+}
+.slide-drawer-right-enter-from,
+.slide-drawer-right-leave-to {
+	opacity: 0;
+}
+.slide-drawer-right-enter-from aside,
+.slide-drawer-right-leave-to aside {
+	transform: translateX(100%);
 }
 </style>

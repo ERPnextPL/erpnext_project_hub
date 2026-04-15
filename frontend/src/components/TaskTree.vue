@@ -159,7 +159,7 @@ async function handleTaskUpdate(taskName, updates) {
 		await store.updateTask(taskName, updates);
 	} catch (error) {
 		// Check if this is an incomplete subtasks error
-		const errorMsg = error.message || "Failed to update task";
+		const errorMsg = error.message || translate("Failed to update task");
 		const isSubtaskError = errorMsg.includes("subtask") || errorMsg.includes("not completed");
 
 		if (window.frappe) {
@@ -265,11 +265,11 @@ async function handleTimeLogSave(timelogData) {
 		showTimeLogModal.value = false;
 		selectedTaskForTimeLog.value = null;
 		if (window.frappe) {
-			frappe.show_alert({ message: "Time log saved successfully", indicator: "green" });
+			frappe.show_alert({ message: translate("Time log saved successfully"), indicator: "green" });
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
+			frappe.show_alert({ message: translate("Failed to save time log"), indicator: "red" });
 		}
 	}
 }

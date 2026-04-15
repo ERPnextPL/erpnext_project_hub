@@ -30,7 +30,7 @@ import {
 	Image,
 	Upload,
 } from "lucide-vue-next";
-import { useFileUpload } from "frappe-ui";
+import { TextEditor, useFileUpload } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
@@ -91,6 +91,7 @@ const defaultSectionState = {
 	timeLog: false,
 	subtasks: true,
 	attachments: false,
+	comments: false,
 };
 
 function loadSectionStates() {
@@ -113,6 +114,14 @@ const timeLogsFetched = ref(false);
 const attachments = ref([]);
 const attachmentsLoading = ref(false);
 const attachmentsFetched = ref(false);
+const comments = ref([]);
+const commentsLoading = ref(false);
+const commentsFetched = ref(false);
+const commentText = ref("");
+const commentMentions = ref([]);
+const commentEditorRef = ref(null);
+const commentSubmitting = ref(false);
+const commentHasContent = computed(() => stripHtml(commentText.value).length > 0);
 const uploadProgress = ref(0);
 const isUploading = ref(false);
 const fileInputRef = ref(null);
@@ -132,6 +141,12 @@ watch(
 	() => props.task,
 	(newTask) => {
 		editableTask.value = { ...newTask };
+		attachmentsFetched.value = false;
+		attachments.value = [];
+		commentsFetched.value = false;
+		comments.value = [];
+		commentText.value = "";
+		commentMentions.value = [];
 	},
 	{ deep: true }
 );
@@ -144,6 +159,15 @@ watch(
 	{ immediate: true }
 );
 
+watch(
+	() => sectionStates.value.comments,
+	(isOpen) => {
+		if (isOpen) {
+			ensureCommentsLoaded();
+		}
+	}
+);
+
 // Load metadata on mount
 onMounted(() => {
 	if (store.taskStatuses.length === 0) {
@@ -152,6 +176,7 @@ onMounted(() => {
 	if (store.taskPriorities.length === 0) {
 		store.fetchTaskPriorities();
 	}
+	fetchCommentMentions();
 });
 
 const statusPalette = {
@@ -729,11 +754,17 @@ watch(
 		timeLogsFetched.value = false;
 		attachmentsFetched.value = false;
 		attachments.value = [];
+		commentsFetched.value = false;
+		comments.value = [];
+		commentText.value = "";
 		if (sectionStates.value.timeLog) {
 			ensureTimeLogsLoaded();
 		}
 		if (sectionStates.value.attachments) {
 			ensureAttachmentsLoaded();
+		}
+		if (sectionStates.value.comments) {
+			ensureCommentsLoaded();
 		}
 	}
 );
@@ -896,6 +927,48 @@ async function fetchAttachments() {
 	}
 }
 
+function stripHtml(html) {
+	if (!html) return "";
+	return String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function handleCommentChange(value) {
+	commentText.value = value || "";
+}
+
+async function fetchComments() {
+	commentsLoading.value = true;
+	try {
+		comments.value = await attachmentApiCall(
+			"erpnext_projekt_hub.api.project_hub.get_task_comments",
+			{ task_name: props.task.name }
+		);
+	} catch (error) {
+		console.error("Failed to load comments:", error);
+	} finally {
+		commentsLoading.value = false;
+	}
+}
+
+async function fetchCommentMentions() {
+	try {
+		commentMentions.value = (await attachmentApiCall(
+			"frappe.desk.search.get_names_for_mentions",
+			{ search_term: "" }
+		)) || [];
+	} catch (error) {
+		console.error("Failed to load comment mentions:", error);
+		commentMentions.value = [];
+	}
+}
+
+function ensureCommentsLoaded() {
+	if (!commentsFetched.value) {
+		commentsFetched.value = true;
+		fetchComments();
+	}
+}
+
 function ensureAttachmentsLoaded() {
 	if (!attachmentsFetched.value) {
 		attachmentsFetched.value = true;
@@ -947,16 +1020,16 @@ async function uploadFiles(files) {
 	uploadProgress.value = 0;
 	const total = files.length;
 	let completed = 0;
+	const uploader = useFileUpload();
 
 	try {
 		for (const file of files) {
-			const uploader = useFileUpload();
+			const isImage = file?.type?.startsWith("image/");
 			await uploader.upload(file, {
 				doctype: "Task",
 				docname: props.task.name,
-				optimize: true,
-				max_width: 1920,
-				max_height: 1920,
+				optimize: isImage,
+				...(isImage ? { max_width: 1920, max_height: 1920 } : {}),
 			});
 			completed++;
 			uploadProgress.value = Math.round((completed / total) * 100);
@@ -974,13 +1047,48 @@ async function uploadFiles(files) {
 		console.error("Upload failed:", error);
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
-				message: "Nie udało się przesłać pliku",
+				message: error?.message || "Nie udało się przesłać pliku",
 				indicator: "red",
 			});
 		}
 	} finally {
 		isUploading.value = false;
 		uploadProgress.value = 0;
+	}
+}
+
+async function submitComment() {
+	const editor = commentEditorRef.value?.editor;
+	const content = editor?.getHTML?.().trim?.() || commentText.value.trim();
+	if (!content || commentSubmitting.value) return;
+
+	commentSubmitting.value = true;
+	try {
+		await attachmentApiCall("erpnext_projekt_hub.api.project_hub.add_task_comment", {
+			task_name: props.task.name,
+			content,
+		});
+		commentText.value = "";
+		if (editor?.commands?.setContent) {
+			editor.commands.setContent("");
+		}
+		await fetchComments();
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Comment added"),
+				indicator: "green",
+			});
+		}
+	} catch (error) {
+		console.error("Failed to add comment:", error);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: error?.message || translate("Failed to add comment"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		commentSubmitting.value = false;
 	}
 }
 
@@ -1042,7 +1150,7 @@ async function deleteAttachment(fileName) {
 					type="button"
 					@click="emit('close')"
 					class="p-1 rounded hover:bg-gray-100 text-gray-500"
-					title="Close"
+					:title="translate('Close')"
 				>
 					<X class="w-5 h-5" />
 				</button>
@@ -1451,6 +1559,85 @@ async function deleteAttachment(fileName) {
 						<button
 							type="button"
 							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+							@click="toggleSection('comments')"
+							:aria-expanded="sectionStates.comments"
+							aria-controls="comments-section"
+						>
+							<div class="flex items-center gap-2">
+								<MessageSquare class="w-4 h-4 text-blue-600" />
+								<span>{{ translate("Comments") }}</span>
+								<span v-if="comments.length > 0" class="text-xs text-gray-500">
+									({{ comments.length }})
+								</span>
+							</div>
+							<ChevronDown
+								class="w-3 h-3 text-gray-400 transition-transform"
+								:class="sectionStates.comments ? 'rotate-180' : ''"
+							/>
+						</button>
+					</header>
+					<Transition name="fade">
+						<div id="comments-section" v-show="sectionStates.comments" class="px-4 pb-4 pt-3 space-y-3">
+							<div class="space-y-2">
+								<label class="block text-sm font-medium text-gray-700">
+									{{ translate("Add a comment") }}
+								</label>
+								<TextEditor
+									ref="commentEditorRef"
+									:content="commentText"
+									@change="handleCommentChange"
+									:editable="true"
+									:mentions="commentMentions"
+									:placeholder="() => translate('Type your comment...')"
+									editor-class="min-h-[120px] rounded-md border border-gray-300 bg-white text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+								/>
+								<div class="flex justify-end">
+									<button
+										type="button"
+										@click="submitComment"
+										:disabled="commentSubmitting || !commentHasContent"
+										class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+										<span v-if="commentSubmitting" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+										{{ translate("Post Comment") }}
+									</button>
+								</div>
+							</div>
+
+							<div v-if="commentsLoading" class="text-center py-4">
+								<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+							</div>
+
+							<div v-else-if="comments.length === 0" class="text-sm text-gray-500 text-center py-4">
+								{{ translate("No comments yet") }}
+							</div>
+
+								<div v-else class="space-y-3">
+									<div
+										v-for="comment in comments"
+										:key="comment.name"
+										class="rounded-lg border border-gray-200 bg-gray-50 p-3"
+									>
+									<div class="flex items-center justify-between gap-3 mb-2">
+										<div class="text-xs font-medium text-gray-700">
+											{{ comment.comment_by || comment.owner }}
+										</div>
+										<div class="text-xs text-gray-500">
+											{{ comment.creation }}
+										</div>
+									</div>
+										<div class="text-sm text-gray-700 whitespace-pre-wrap" v-html="comment.content"></div>
+									</div>
+								</div>
+							</div>
+						</Transition>
+				</section>
+
+				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+					<header class="px-4 py-3 border-b border-gray-200">
+						<button
+							type="button"
+							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
 							@click="toggleSection('subtasks')"
 							:aria-expanded="sectionStates.subtasks"
 							aria-controls="subtasks-section"
@@ -1758,7 +1945,7 @@ async function deleteAttachment(fileName) {
 										<button
 											@click="handleDeleteTimelog(log.timelog_name)"
 											class="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"
-											title="Delete time log"
+											:title="translate('Delete time log')"
 										>
 											<Trash2 class="w-3.5 h-3.5" />
 										</button>
@@ -1775,16 +1962,16 @@ async function deleteAttachment(fileName) {
 		<div class="border-t border-gray-200 px-4 py-3">
 			<div class="flex items-center justify-between text-xs text-gray-500">
 				<div class="flex items-center gap-3">
-					<span v-if="task.creation">Utworzono {{ task.creation }}</span>
+					<span v-if="task.creation">{{ translate('Created') }} {{ task.creation }}</span>
 					<span
 						v-if="autosaveIndicatorVisible"
 						class="text-emerald-600 flex items-center gap-1 font-semibold"
 					>
 						<span aria-hidden="true">✓</span>
-						Zapisano
+						{{ translate("Saved") }}
 					</span>
 				</div>
-				<span v-if="isSaving" class="text-blue-600">Zapisywanie...</span>
+				<span v-if="isSaving" class="text-blue-600">{{ translate("Saving...") }}</span>
 			</div>
 		</div>
 

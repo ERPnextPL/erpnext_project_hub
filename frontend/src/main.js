@@ -21,6 +21,10 @@ if (!rootContext.window) {
 	rootContext.window.__ = (text, replacements) => stubTranslate(text, replacements);
 }
 
+if (rootContext.window?.frappe?.csrf_token && rootContext.window.frappe.csrf_token !== "None") {
+	rootContext.window.csrf_token = rootContext.window.frappe.csrf_token;
+}
+
 // Configure frappe-ui
 setConfig("resourceFetcher", frappeRequest);
 
