@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { translate } from "../utils/translation";
 
 function getCsrfToken() {
 	if (window.frappe && window.frappe.csrf_token && window.frappe.csrf_token !== "None") {
@@ -110,7 +111,7 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 			timelogs.value = data?.timelogs || [];
 			total.value = data?.total || timelogs.value.length;
 		} catch (err) {
-			error.value = err.message || "Failed to fetch time logs";
+			error.value = err.message || translate("Failed to fetch time logs");
 			console.error("Failed to fetch time logs:", err);
 		} finally {
 			loading.value = false;
@@ -139,7 +140,7 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks_projects", {});
 			projectChoices.value = data || [];
 	} catch (err) {
-			console.error("Failed to fetch project choices:", err);
+			console.error(translate("Failed to fetch project choices:"), err);
 			projectChoices.value = [];
 		}
 	}
@@ -160,7 +161,7 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 			await fetchLogs();
 			return true;
 		} catch (error) {
-			console.error("Failed to delete time log:", error);
+			console.error(translate("Failed to delete time log:"), error);
 			throw error;
 		}
 	}

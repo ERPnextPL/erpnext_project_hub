@@ -5,7 +5,7 @@ Provides CRUD operations for tasks in a hierarchical tree view.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, today
+from frappe.utils import cint, sanitize_html, today
 
 
 def _get_incomplete_subtasks(task_name: str) -> list:
@@ -83,6 +83,42 @@ def _include_missing_parents(tasks: list, project: str, fields: list[str]) -> li
 		}
 
 	return tasks
+
+
+def _get_document_attachments(doctype: str, docname: str):
+	"""Return file attachments for a standard Frappe document."""
+	if not docname:
+		frappe.throw(_("{0} name is required").format(doctype))
+
+	frappe.has_permission(doctype, "read", docname, throw=True)
+
+	return frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": doctype,
+			"attached_to_name": docname,
+			"is_folder": 0,
+		},
+		fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"],
+		order_by="creation desc",
+	)
+
+
+def _delete_document_attachment(doctype: str, file_name: str):
+	"""Delete a file attachment from a standard Frappe document."""
+	if not file_name:
+		frappe.throw(_("File name is required"))
+
+	file_doc = frappe.get_doc("File", file_name)
+
+	if file_doc.attached_to_doctype != doctype:
+		frappe.throw(_("Invalid attachment"))
+
+	frappe.has_permission(doctype, "write", file_doc.attached_to_name, throw=True)
+
+	frappe.delete_doc("File", file_name)
+
+	return {"success": True}
 
 
 @frappe.whitelist()
@@ -2451,36 +2487,74 @@ def get_projects_settings():
 @frappe.whitelist()
 def get_task_attachments(task_name: str):
 	"""Get all file attachments for a task."""
+	return _get_document_attachments("Task", task_name)
+
+
+@frappe.whitelist()
+def get_project_attachments(project_name: str):
+	"""Get all file attachments for a project."""
+	return _get_document_attachments("Project", project_name)
+
+
+@frappe.whitelist()
+def get_task_comments(task_name: str):
+	"""Get standard Comment records for a task."""
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
 	frappe.has_permission("Task", "read", task_name, throw=True)
 
-	return frappe.get_all(
-		"File",
+	comments = frappe.get_all(
+		"Comment",
 		filters={
-			"attached_to_doctype": "Task",
-			"attached_to_name": task_name,
-			"is_folder": 0,
+			"reference_doctype": "Task",
+			"reference_name": task_name,
+			"comment_type": "Comment",
 		},
-		fields=["name", "file_name", "file_url", "file_type", "file_size", "is_private"],
+		fields=["name", "content", "creation", "owner", "comment_by", "comment_email", "published"],
 		order_by="creation desc",
 	)
+
+	for comment in comments:
+		comment["content"] = sanitize_html(comment.get("content") or "", linkify=True)
+
+	return comments
+
+
+@frappe.whitelist(methods=["POST"])
+def add_task_comment(task_name: str, content: str):
+	"""Create a standard Comment on a task."""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+	if not content or not content.strip():
+		frappe.throw(_("The comment cannot be empty"))
+
+	task = frappe.get_doc("Task", task_name)
+	task.check_permission("read")
+
+	comment = task.add_comment(
+		text=content.strip(),
+		comment_email=frappe.session.user,
+		comment_by=frappe.session.user,
+	)
+	return {
+		"name": comment.name,
+		"content": sanitize_html(comment.content or "", linkify=True),
+		"creation": comment.creation,
+		"owner": comment.owner,
+		"comment_by": comment.comment_by,
+		"comment_email": comment.comment_email,
+		"published": comment.published,
+	}
 
 
 @frappe.whitelist()
 def delete_task_attachment(file_name: str):
 	"""Delete a file attachment from a task."""
-	if not file_name:
-		frappe.throw(_("File name is required"))
+	return _delete_document_attachment("Task", file_name)
 
-	file_doc = frappe.get_doc("File", file_name)
 
-	if file_doc.attached_to_doctype != "Task":
-		frappe.throw(_("Invalid attachment"))
-
-	frappe.has_permission("Task", "write", file_doc.attached_to_name, throw=True)
-
-	frappe.delete_doc("File", file_name)
-
-	return {"success": True}
+@frappe.whitelist()
+def delete_project_attachment(file_name: str):
+	"""Delete a file attachment from a project."""
+	return _delete_document_attachment("Project", file_name)

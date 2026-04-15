@@ -6,4 +6,5 @@
 # Patches added in this section will be executed after doctypes are migrated
 erpnext_projekt_hub.patches.post_model_sync.add_milestones_shortcut
 erpnext_projekt_hub.patches.post_model_sync.add_workspace_shortcuts
+erpnext_projekt_hub.patches.post_model_sync.add_kokpit_projektow_shortcut
 erpnext_projekt_hub.patches.post_model_sync.add_milestone_sort_order

@@ -147,10 +147,9 @@ after_install = "erpnext_projekt_hub.install.after_install"
 
 doc_events = {
 	"Task": {
-		"before_validate": "erpnext_projekt_hub.events.task_events.before_validate_task",
-		"validate": "erpnext_projekt_hub.events.task_events.validate_task_due_dates",
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
+		"after_delete": "erpnext_projekt_hub.events.task_events.on_task_after_delete",
 	}
 }
 

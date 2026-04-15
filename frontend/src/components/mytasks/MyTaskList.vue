@@ -4,8 +4,8 @@ import { useMyTasksStore } from "../../stores/myTasksStore";
 import MyTaskRowDesktop from "./MyTaskRowDesktop.vue";
 import MyTaskCardMobile from "./MyTaskCardMobile.vue";
 import ColumnSettings from "../ColumnSettings.vue";
-import { useWindowSize } from "@vueuse/core";
 import { ArrowUp, ArrowDown } from "lucide-vue-next";
+import { useWindowSize } from "../../utils/composables";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -24,7 +24,7 @@ const COLUMNS_STORAGE_KEY = "my-tasks-visible-columns";
 const COLUMN_WIDTHS = {
 	subject: "2fr",
 	project: "1fr",
-	status: "0.9fr",
+	status: "0.45fr",
 	priority: "0.6fr",
 	due_date: "0.8fr",
 	assignee: "1fr",

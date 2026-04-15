@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { translate } from "../utils/translation";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -255,10 +256,17 @@ async function updateTask(taskName, updates) {
 							.join(", ");
 						const moreCount =
 							incompleteSubtasks.length > 3
-								? ` and ${incompleteSubtasks.length - 3} more`
+								? translate(" and {0} more", [incompleteSubtasks.length - 3])
 								: "";
 						frappe.show_alert({
-							message: `Cannot complete task. ${incompleteSubtasks.length} subtask(s) are not completed: ${subtaskNames}${moreCount}`,
+							message: translate(
+								"Cannot complete task. {count} subtask(s) are not completed: {names}{more}",
+								{
+									count: incompleteSubtasks.length,
+									names: subtaskNames,
+									more: moreCount,
+								}
+							),
 							indicator: "blue",
 						});
 					}
