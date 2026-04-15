@@ -5,8 +5,7 @@ Provides CRUD operations for tasks in a hierarchical tree view.
 
 import frappe
 from frappe import _
-from frappe.utils import sanitize_html
-from frappe.utils import cint, today
+from frappe.utils import cint, sanitize_html, today
 
 
 def _get_incomplete_subtasks(task_name: str) -> list:

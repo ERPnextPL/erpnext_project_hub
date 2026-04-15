@@ -33,13 +33,13 @@ def on_task_update(doc, method):
 	Called on Task.on_update event.
 	"""
 	if hasattr(doc, "milestone") and doc.milestone:
-		_update_milestone_progress(doc.milestone)
+		update_milestone_progress(doc.milestone)
 
 	# If milestone changed, also update the old one
 	if hasattr(doc, "_doc_before_save") and doc._doc_before_save:
 		old_milestone = doc._doc_before_save.get("milestone")
 		if old_milestone and old_milestone != doc.milestone:
-			_update_milestone_progress(old_milestone)
+			update_milestone_progress(old_milestone)
 
 
 def on_task_trash(doc, method):
@@ -58,10 +58,10 @@ def on_task_after_delete(doc, method=None):
 	Called on Task.after_delete event.
 	"""
 	if hasattr(doc, "milestone") and doc.milestone:
-		_update_milestone_progress(doc.milestone)
+		update_milestone_progress(doc.milestone)
 
 
-def _update_milestone_progress(milestone_name):
+def update_milestone_progress(milestone_name):
 	"""
 	Recalculate and update a milestone's progress fields.
 
