@@ -25,14 +25,14 @@ export function isProTabsAvailable() {
 	);
 }
 
-export async function loadProTabs(registerCoreTabsFn) {
+export function loadProTabs(registerCoreTabsFn) {
 	const win = getWindow();
 
 	// Allow PRO bundles to register themselves through a public global hook.
 	const globalRegister = win?.__PROJECT_HUB_PRO_REGISTER_TABS__;
 	if (typeof globalRegister === "function") {
 		try {
-			await Promise.resolve(globalRegister(registerCoreTabsFn));
+			globalRegister(registerCoreTabsFn);
 			return true;
 		} catch (error) {
 			console.error("PRO tab registration hook failed", error);
@@ -44,7 +44,7 @@ export async function loadProTabs(registerCoreTabsFn) {
 	const bootRegister = getBootInfo().project_hub_pro_register_tabs;
 	if (typeof bootRegister === "function") {
 		try {
-			await Promise.resolve(bootRegister(registerCoreTabsFn));
+			bootRegister(registerCoreTabsFn);
 			return true;
 		} catch (error) {
 			console.error("PRO boot tab registration hook failed", error);

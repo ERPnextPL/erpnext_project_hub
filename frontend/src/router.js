@@ -9,7 +9,7 @@ registerCoreTabs();
 // Register PRO tabs if the runtime exposes them.
 // This avoids a hard build-time dependency on the PRO app bundle.
 if (isProTabsAvailable()) {
-	await loadProTabs(registerCoreTabs);
+	loadProTabs(registerCoreTabs);
 }
 
 // Mark registry as initialized
