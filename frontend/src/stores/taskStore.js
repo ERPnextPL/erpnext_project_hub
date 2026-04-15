@@ -256,10 +256,17 @@ async function updateTask(taskName, updates) {
 							.join(", ");
 						const moreCount =
 							incompleteSubtasks.length > 3
-								? ` ${translate("and")} ${incompleteSubtasks.length - 3} ${translate("more")}`
+								? translate(" and {0} more", [incompleteSubtasks.length - 3])
 								: "";
 						frappe.show_alert({
-							message: `${translate("Cannot complete task.")} ${incompleteSubtasks.length} ${translate("subtask(s) are not completed:")} ${subtaskNames}${moreCount}`,
+							message: translate(
+								"Cannot complete task. {count} subtask(s) are not completed: {names}{more}",
+								{
+									count: incompleteSubtasks.length,
+									names: subtaskNames,
+									more: moreCount,
+								}
+							),
 							indicator: "blue",
 						});
 					}

@@ -22,7 +22,7 @@ const translate = (text) => {
 
 const scrollerRef = ref(null);
 const itemRefs = ref({});
-const touchStartX = ref(0);
+const touchStartX = ref(null);
 const touchStartScrollLeft = ref(0);
 
 // Normalize Vue component refs to raw DOM elements
@@ -52,7 +52,7 @@ function handleWheel(event) {
 // 🎯 KROK 2: Obsługa touch/swipe (dla telefonów)
 // Kiedy użytkownik dotknie ekranu - zapisujemy pozycję początkową
 function handleTouchStart(event) {
-	touchStartX.value = event.touches[0].clientX;
+	touchStartX.value = event.touches[0]?.clientX ?? null;
 	const scroller = normalizeEl(scrollerRef.value);
 	if (scroller) {
 		touchStartScrollLeft.value = scroller.scrollLeft;
@@ -61,7 +61,7 @@ function handleTouchStart(event) {
 
 // Kiedy użytkownik przesuwa palec - obliczamy różnicę i scrollujemy
 function handleTouchMove(event) {
-	if (touchStartX.value === 0) return; // Nie zaczęliśmy od dotknięcia
+	if (touchStartX.value === null) return; // Nie zaczęliśmy od dotknięcia
 
 	const scroller = normalizeEl(scrollerRef.value);
 	if (!scroller) return;
@@ -72,6 +72,10 @@ function handleTouchMove(event) {
 	// Jeśli przesunął się w lewo (deltaX ujemny), scrollujemy w prawo (dodajemy)
 	// Jeśli przesunął się w prawo (deltaX dodatni), scrollujemy w lewo (odejmujemy)
 	scroller.scrollLeft = touchStartScrollLeft.value - deltaX;
+}
+
+function handleTouchEnd() {
+	touchStartX.value = null;
 }
 
 const activeKey = computed(() => {
@@ -141,6 +145,8 @@ onMounted(() => {
 		scroller.addEventListener("touchstart", handleTouchStart, { passive: true });
 		// Touch move - palec się przesuwa
 		scroller.addEventListener("touchmove", handleTouchMove, { passive: true });
+		scroller.addEventListener("touchend", handleTouchEnd, { passive: true });
+		scroller.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 	}
 });
 
@@ -157,6 +163,8 @@ onBeforeUnmount(() => {
 		scroller.removeEventListener("wheel", handleWheel);
 		scroller.removeEventListener("touchstart", handleTouchStart);
 		scroller.removeEventListener("touchmove", handleTouchMove);
+		scroller.removeEventListener("touchend", handleTouchEnd);
+		scroller.removeEventListener("touchcancel", handleTouchEnd);
 	}
 });
 </script>

@@ -23,6 +23,7 @@
 class TabRegistry {
 	constructor() {
 		this.tabs = new Map();
+		this.registrationCounter = 0;
 		this.initialized = false;
 	}
 
@@ -53,6 +54,7 @@ class TabRegistry {
 		const tab = {
 			...tabConfig,
 			order: tabConfig.order ?? 50,
+			registrationIndex: this.registrationCounter++,
 		};
 
 		this.tabs.set(tabConfig.key, tab);
@@ -79,17 +81,28 @@ class TabRegistry {
 	}
 
 	/**
+	 * Get all registered tabs sorted by registration time
+	 * @returns {Array} Array of tab configurations
+	 */
+	getTabsByRegistrationOrder() {
+		return Array.from(this.tabs.values()).sort(
+			(a, b) => a.registrationIndex - b.registrationIndex
+		);
+	}
+
+	/**
 	 * Get navigation items (subset of tab data for navigation component)
 	 * Filters out duplicate routeNames, keeping only the last registered version
 	 * @returns {Array} Array of navigation items
 	 */
 	getNavItems() {
-		// Track which routeNames we've already added (keep last/latest one)
+		// Track which routeNames we've already added (keep last/latest registered one)
 		const seenRouteNames = new Set();
-		const tabs = this.getTabs();
+		const tabs = this.getTabsByRegistrationOrder();
+		const tabByKey = new Map(tabs.map((tab) => [tab.key, tab]));
 		const navItems = [];
 
-		// Iterate backwards to process the latest-registered tab first
+		// Iterate backwards so the newest registration wins for duplicate routeNames
 		for (let i = tabs.length - 1; i >= 0; i--) {
 			const tab = tabs[i];
 			if (!seenRouteNames.has(tab.routeName)) {
@@ -106,7 +119,14 @@ class TabRegistry {
 			}
 		}
 
-		return navItems;
+		return navItems.sort((a, b) => {
+			const tabA = tabByKey.get(a.key);
+			const tabB = tabByKey.get(b.key);
+			if ((tabA?.order ?? 50) !== (tabB?.order ?? 50)) {
+				return (tabA?.order ?? 50) - (tabB?.order ?? 50);
+			}
+			return (tabA?.registrationIndex ?? 0) - (tabB?.registrationIndex ?? 0);
+		});
 	}
 
 	/**
@@ -127,7 +147,7 @@ class TabRegistry {
 	 */
 	getReservedSegments() {
 		const segments = {};
-		this.getTabs().forEach(tab => {
+		this.getTabsByRegistrationOrder().forEach(tab => {
 			// Extract the last segment from the path (e.g., "my-tasks" from "/project-hub/my-tasks")
 			const segment = tab.path.split('/').pop();
 			if (segment && segment !== 'project-hub') {
@@ -153,7 +173,7 @@ class TabRegistry {
 	 */
 	getTabByRouteName(routeName) {
 		// Return the LAST matching tab (pro version registered later will override core version)
-		const tabs = this.getTabs();
+		const tabs = this.getTabsByRegistrationOrder();
 		for (let i = tabs.length - 1; i >= 0; i--) {
 			if (tabs[i].routeName === routeName) {
 				return tabs[i];

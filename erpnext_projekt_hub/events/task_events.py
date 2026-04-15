@@ -93,4 +93,3 @@ def _update_milestone_progress(milestone_name):
 		},
 		update_modified=False,
 	)
-	frappe.db.commit()
