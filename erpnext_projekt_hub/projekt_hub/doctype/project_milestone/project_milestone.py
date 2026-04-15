@@ -21,18 +21,19 @@ class ProjectMilestone(Document):
 
 	def update_statistics(self):
 		"""Calculate progress based on linked tasks"""
-		if not self.name:
-			# New document, skip calculation
+		milestone_key = self.name or self.milestone_name
+		if not milestone_key:
+			# New document without an identifier, skip calculation
 			return
 
-		total_tasks = frappe.db.count("Task", {"milestone": self.name})
-		completed_tasks = frappe.db.count("Task", {"milestone": self.name, "status": "Completed"})
+		total_tasks = frappe.db.count("Task", {"milestone": milestone_key})
+		completed_tasks = frappe.db.count("Task", {"milestone": milestone_key, "status": "Completed"})
 
 		self.total_tasks = total_tasks
 		self.completed_tasks = completed_tasks
 
 		if total_tasks > 0:
-			self.progress = int((completed_tasks / total_tasks) * 100)
+			self.progress = round((completed_tasks / total_tasks) * 100, 2)
 		else:
 			self.progress = 0
 

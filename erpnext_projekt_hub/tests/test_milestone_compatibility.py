@@ -7,8 +7,8 @@ Tests use code inspection to avoid Frappe framework dependencies.
 Run with: bench run-tests --app erpnext_projekt_hub
 """
 
-import unittest
 import inspect
+import unittest
 
 
 class TestHubMilestoneLogicSync(unittest.TestCase):
@@ -16,7 +16,9 @@ class TestHubMilestoneLogicSync(unittest.TestCase):
 
 	def test_completed_status_not_closed(self):
 		"""Project Milestone must use 'Completed' status, not 'Closed'"""
-		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import ProjectMilestone
+		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import (
+			ProjectMilestone,
+		)
 
 		# Get source code of update_statistics method
 		source = inspect.getsource(ProjectMilestone.update_statistics)
@@ -30,7 +32,9 @@ class TestHubMilestoneLogicSync(unittest.TestCase):
 
 	def test_uses_db_count_not_get_list(self):
 		"""Should use efficient frappe.db.count() not frappe.get_list()"""
-		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import ProjectMilestone
+		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import (
+			ProjectMilestone,
+		)
 
 		source = inspect.getsource(ProjectMilestone.update_statistics)
 
@@ -39,10 +43,12 @@ class TestHubMilestoneLogicSync(unittest.TestCase):
 
 	def test_get_health_status_method(self):
 		"""Test get_health_status method is available"""
-		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import ProjectMilestone
+		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import (
+			ProjectMilestone,
+		)
 
 		# Should have get_health_status method
-		self.assertTrue(hasattr(ProjectMilestone, 'get_health_status'))
+		self.assertTrue(hasattr(ProjectMilestone, "get_health_status"))
 
 		source = inspect.getsource(ProjectMilestone.get_health_status)
 
@@ -53,7 +59,9 @@ class TestHubMilestoneLogicSync(unittest.TestCase):
 
 	def test_auto_advance_logic_exists(self):
 		"""Verify auto-advance logic exists in update_statistics"""
-		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import ProjectMilestone
+		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import (
+			ProjectMilestone,
+		)
 
 		source = inspect.getsource(ProjectMilestone.update_statistics)
 
@@ -76,16 +84,15 @@ class TestHubMilestoneLogicSync(unittest.TestCase):
 
 	def test_doctype_exists(self):
 		"""Verify Project Milestone doctype is properly defined"""
-		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import ProjectMilestone
+		from erpnext_projekt_hub.projekt_hub.doctype.project_milestone.project_milestone import (
+			ProjectMilestone,
+		)
 
 		# Should have required methods
-		required_methods = ['validate', 'on_trash', 'get_health_status', 'update_statistics']
+		required_methods = ["validate", "on_trash", "get_health_status", "update_statistics"]
 		for method_name in required_methods:
-			self.assertTrue(
-				hasattr(ProjectMilestone, method_name),
-				f"Missing required method: {method_name}"
-			)
+			self.assertTrue(hasattr(ProjectMilestone, method_name), f"Missing required method: {method_name}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 	unittest.main()

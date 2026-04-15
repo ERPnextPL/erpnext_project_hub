@@ -62,6 +62,7 @@ const activeTab = ref("details");
 const showTimeLogModal = ref(false);
 const timelogsLoading = ref(false);
 const showMarkdownPreview = ref(false);
+const isEditingDescription = ref(false);
 const showShortcutsInfo = ref(false);
 const shortcutsInfoRef = ref(null);
 
@@ -147,6 +148,11 @@ watch(
 		comments.value = [];
 		commentText.value = "";
 		commentMentions.value = [];
+		isEditingDescription.value = false;
+		showMarkdownPreview.value = false;
+		ensureCommentsLoaded();
+		ensureAttachmentsLoaded();
+		ensureTimeLogsLoaded();
 	},
 	{ deep: true }
 );
@@ -159,15 +165,6 @@ watch(
 	{ immediate: true }
 );
 
-watch(
-	() => sectionStates.value.comments,
-	(isOpen) => {
-		if (isOpen) {
-			ensureCommentsLoaded();
-		}
-	}
-);
-
 // Load metadata on mount
 onMounted(() => {
 	if (store.taskStatuses.length === 0) {
@@ -177,6 +174,9 @@ onMounted(() => {
 		store.fetchTaskPriorities();
 	}
 	fetchCommentMentions();
+	ensureCommentsLoaded();
+	ensureAttachmentsLoaded();
+	ensureTimeLogsLoaded();
 });
 
 const statusPalette = {
@@ -265,6 +265,39 @@ const currentPriorityPalette = computed(
 	() => priorityPalette[editableTask.value.priority] || priorityPalette.Medium
 );
 
+const isClosed = computed(() =>
+	["Completed", "Cancelled"].includes(editableTask.value.status)
+);
+
+const taskIssueTitle = computed(() => editableTask.value.subject || props.task.subject || props.task.name);
+
+const completedSubtasks = computed(() => {
+	return directSubtasks.value.filter((item) => item.status === "Completed").length;
+});
+
+const taskCompletion = computed(() => {
+	const totalSubtasks = directSubtasks.value.length;
+	if (totalSubtasks > 0) {
+		const percent = Math.round((completedSubtasks.value / totalSubtasks) * 100);
+		return {
+			source: "checklist",
+			percent,
+			label: `${completedSubtasks.value}/${totalSubtasks} subtasks done`,
+			hint: percent >= 100 ? translate("Ready to close") : translate("Checklist progress"),
+		};
+	}
+
+	const manualProgress = Number(editableTask.value.progress ?? props.task.progress ?? 0);
+	return {
+		source: "manual",
+		percent: Math.max(0, Math.min(100, manualProgress)),
+		label: `${manualProgress}%`,
+		hint: translate("Manual progress"),
+	};
+});
+
+const hasDescription = computed(() => Boolean((editableTask.value.description || "").trim()));
+
 const directSubtasks = computed(() => {
 	return store.tasks
 		.filter((item) => item.parent_task === props.task.name)
@@ -342,6 +375,22 @@ async function handleProjectChange() {
 			});
 		}
 	}
+}
+
+function startDescriptionEdit() {
+	isEditingDescription.value = true;
+	showMarkdownPreview.value = true;
+}
+
+function cancelDescriptionEdit() {
+	editableTask.value.description = props.task.description || "";
+	isEditingDescription.value = false;
+	showMarkdownPreview.value = false;
+}
+
+async function saveDescription() {
+	await saveField("description", editableTask.value.description);
+	isEditingDescription.value = false;
 }
 
 function validateDates() {
@@ -586,6 +635,20 @@ function markAsWorking() {
 	}
 }
 
+function markAsOpen() {
+	const openOption = statusOptions.value.find((opt) => opt.value === "Open");
+	if (openOption) {
+		handleStatusSelection(openOption);
+	}
+}
+
+function markAsClosed() {
+	const closedOption = statusOptions.value.find((opt) => opt.value === "Completed");
+	if (closedOption) {
+		handleStatusSelection(closedOption);
+	}
+}
+
 function handleDocumentClick(event) {
 	if (
 		statusMenuOpen.value &&
@@ -757,15 +820,9 @@ watch(
 		commentsFetched.value = false;
 		comments.value = [];
 		commentText.value = "";
-		if (sectionStates.value.timeLog) {
-			ensureTimeLogsLoaded();
-		}
-		if (sectionStates.value.attachments) {
-			ensureAttachmentsLoaded();
-		}
-		if (sectionStates.value.comments) {
-			ensureCommentsLoaded();
-		}
+		ensureTimeLogsLoaded();
+		ensureAttachmentsLoaded();
+		ensureCommentsLoaded();
 	}
 );
 
@@ -1120,291 +1177,427 @@ async function deleteAttachment(fileName) {
 	<aside
 		:class="[
 			'w-full bg-white border-l border-gray-200 flex flex-col flex-shrink-0 overflow-hidden',
-			isFullscreen ? 'max-w-full md:min-w-full' : 'max-w-full sm:max-w-[480px] md:min-w-[420px]',
+			isFullscreen ? 'max-w-full md:min-w-full' : 'max-w-full sm:max-w-[640px] xl:min-w-[1120px]',
 		]"
 	>
-		<!-- Header -->
-		<div class="sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
-			<div class="flex items-center gap-2">
-				<span class="text-sm font-medium text-gray-500">{{ task.name }}</span>
-			</div>
-			<div class="flex items-center gap-2">
-				<button
-					v-if="!isTouchDevice"
-					type="button"
-					class="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-					@click="toggleFullscreen"
-					:title="isFullscreen ? translate('Exit fullscreen') : translate('Fullscreen')"
-				>
-					<component :is="isFullscreen ? Minimize2 : Maximize2" class="w-4 h-4" />
-				</button>
-				<button
-					type="button"
-					@click="openInDesk"
-					class="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center gap-1 text-xs font-medium"
-				>
-					<ExternalLink class="w-4 h-4" />
-					<span class="hidden md:inline">{{ translate("Open full window") }}</span>
-				</button>
-				<button
-					type="button"
-					@click="emit('close')"
-					class="p-1 rounded hover:bg-gray-100 text-gray-500"
-					:title="translate('Close')"
-				>
-					<X class="w-5 h-5" />
-				</button>
-			</div>
-		</div>
-
-		<!-- Content -->
-		<div class="flex-1 overflow-y-auto">
-			<div class="p-4 space-y-4">
-				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-				<header class="px-4 py-3 border-b border-gray-200">
-					<button
-						type="button"
-						class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-						@click="toggleSection('details')"
-						:aria-expanded="sectionStates.details"
-						aria-controls="details-section"
-					>
-							<div class="flex items-center gap-2">
-								<FileText class="w-4 h-4 text-blue-600" />
-								<span>{{ translate("Details") }}</span>
-							</div>
-							<ChevronDown
-								class="w-3 h-3 text-gray-400 transition-transform"
-								:class="sectionStates.details ? 'rotate-180' : ''"
-							/>
-						</button>
-					</header>
-					<Transition name="fade">
-						<div
-							id="details-section"
-							v-show="sectionStates.details"
-							class="px-4 pb-4 pt-2 space-y-4 relative"
-						>
-							<div
-								v-if="showDetailsSkeleton"
-								class="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur"
+		<header class="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur">
+			<div class="px-4 py-4">
+				<div class="flex items-start justify-between gap-4">
+					<div class="min-w-0 flex-1">
+						<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+							<span class="font-semibold text-gray-700">{{ task.name }}</span>
+							<span v-if="task.project">{{ task.project }}</span>
+							<span v-if="props.task.is_overdue" class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">
+								{{ translate("Overdue") }}
+							</span>
+						</div>
+						<input
+							v-model="editableTask.subject"
+							type="text"
+							class="mt-1 w-full border-0 bg-transparent p-0 text-2xl font-semibold text-gray-900 placeholder:text-gray-400 focus:ring-0"
+							:placeholder="translate('Task title')"
+							@blur="saveField('subject', editableTask.subject)"
+						/>
+						<div class="mt-3 flex flex-wrap items-center gap-2">
+							<button
+								type="button"
+								class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+								:class="[currentStatusPalette.bg, currentStatusPalette.text]"
+								@click="markAsWorking"
+								:title="translate('Click to mark as working')"
 							>
-								<div class="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+								<component :is="currentStatusPalette.icon" class="w-3.5 h-3.5" />
+								{{ currentStatusPalette.label }}
+							</button>
+							<span
+								class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+								:class="[currentPriorityPalette.bg, currentPriorityPalette.text]"
+							>
+								<Flag class="w-3.5 h-3.5" />
+								{{ currentPriorityPalette.label }}
+							</span>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+								@click="focusAssigneeField"
+							>
+								<User class="w-3.5 h-3.5" />
+								{{ translate("Assignee") }}
+							</button>
+							<button
+								type="button"
+								class="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+								@click="focusDueField"
+							>
+								<Calendar class="w-3.5 h-3.5" />
+								{{ translate("Due date") }}
+							</button>
+							<div class="relative" ref="shortcutsInfoRef">
+								<button
+									type="button"
+									class="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+									@click="showShortcutsInfo = !showShortcutsInfo"
+								>
+									<Info class="w-3.5 h-3.5" />
+									{{ translate("Shortcuts") }}
+								</button>
+								<Transition name="menu-fade">
+									<div
+										v-if="showShortcutsInfo"
+										class="absolute left-0 top-full z-40 mt-2 w-72 rounded-2xl border border-gray-200 bg-white p-4 text-xs text-gray-700 shadow-xl"
+									>
+										<div class="mb-3 flex items-center justify-between">
+											<div class="font-semibold text-gray-900">{{ translate("Keyboard shortcuts") }}</div>
+											<button type="button" class="text-gray-400 hover:text-gray-600" @click="showShortcutsInfo = false">
+												<X class="h-3.5 w-3.5" />
+											</button>
+										</div>
+										<div class="space-y-2">
+											<div class="flex items-center justify-between gap-3">
+												<span>{{ translate("Cycle status") }}</span>
+												<kbd class="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-semibold uppercase">S</kbd>
+											</div>
+											<div class="flex items-center justify-between gap-3">
+												<span>{{ translate("Cycle priority") }}</span>
+												<kbd class="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-semibold uppercase">P</kbd>
+											</div>
+											<div class="flex items-center justify-between gap-3">
+												<span>{{ translate("Focus due date") }}</span>
+												<kbd class="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-semibold uppercase">D</kbd>
+											</div>
+											<div class="flex items-center justify-between gap-3">
+												<span>{{ translate("Open assignee") }}</span>
+												<kbd class="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-semibold uppercase">A</kbd>
+											</div>
+											<div class="flex items-center justify-between gap-3">
+												<span>{{ translate("Add time log") }}</span>
+												<kbd class="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-semibold uppercase">T</kbd>
+											</div>
+											<div class="flex items-center justify-between gap-3">
+												<span>{{ translate("Add 30m entry") }}</span>
+												<kbd class="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-semibold uppercase">Ctrl+J</kbd>
+											</div>
+										</div>
+									</div>
+								</Transition>
 							</div>
-							<div>
-								<input
-									v-model="editableTask.subject"
-									type="text"
-									class="w-full text-lg font-semibold text-gray-900 border-0 p-0 focus:ring-0 placeholder:text-gray-400"
-									placeholder="Task name"
-									@blur="saveField('subject', editableTask.subject)"
+						</div>
+					</div>
+
+					<div class="flex items-center gap-2 shrink-0">
+						<button
+							v-if="!isTouchDevice"
+							type="button"
+							class="rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+							@click="toggleFullscreen"
+							:title="isFullscreen ? translate('Exit fullscreen') : translate('Fullscreen')"
+						>
+							<component :is="isFullscreen ? Minimize2 : Maximize2" class="w-4 h-4" />
+						</button>
+						<button
+							type="button"
+							class="rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+							@click="openInDesk"
+							:title="translate('Open full window')"
+						>
+							<ExternalLink class="w-4 h-4" />
+						</button>
+						<button
+							type="button"
+							class="rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50"
+							@click="emit('close')"
+							:title="translate('Close')"
+						>
+							<X class="w-5 h-5" />
+						</button>
+					</div>
+				</div>
+			</div>
+		</header>
+
+		<div class="flex-1 overflow-y-auto bg-gray-50">
+			<div class="px-4 py-4">
+				<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+					<div class="min-w-0 space-y-6">
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+								<div>
+									<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+										{{ translate("Description") }}
+									</div>
+									<div class="text-sm text-gray-500">
+										{{ translate("Primary task context") }}
+									</div>
+								</div>
+								<div class="flex items-center gap-2">
+									<button
+										v-if="hasDescription && !isEditingDescription"
+										type="button"
+										class="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+										@click="startDescriptionEdit"
+									>
+										{{ translate("Edit") }}
+									</button>
+									<button
+										v-if="isEditingDescription"
+										type="button"
+										class="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+										@click="cancelDescriptionEdit"
+									>
+										{{ translate("Cancel") }}
+									</button>
+									<button
+										v-if="isEditingDescription"
+										type="button"
+										class="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+										@click="saveDescription"
+									>
+										{{ translate("Save") }}
+									</button>
+								</div>
+							</div>
+							<div class="p-4">
+								<div v-if="isEditingDescription" class="space-y-3">
+									<textarea
+										v-model="editableTask.description"
+										rows="8"
+										class="w-full rounded-xl border border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
+										:placeholder="translate('Add description...')"
+									/>
+									<div v-if="showMarkdownPreview" class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap break-words" v-html="descriptionMarkdownPreview"></div>
+								</div>
+								<div v-else-if="hasDescription" class="space-y-3 text-sm leading-6 text-gray-700">
+									<div class="whitespace-pre-wrap break-words" v-html="descriptionMarkdownPreview"></div>
+								</div>
+								<button
+									v-else
+									type="button"
+									class="w-full rounded-xl border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+									@click="startDescriptionEdit"
+								>
+									{{ translate("Add description") }}
+								</button>
+							</div>
+						</section>
+
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+								<div>
+									<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+										{{ translate("Activity") }}
+									</div>
+									<div class="text-sm text-gray-500">
+										{{ comments.length }} {{ translate("comments") }}
+									</div>
+								</div>
+								<span class="text-xs text-gray-500">
+									{{ task.creation ? `${translate('Created')} ${task.creation}` : '' }}
+								</span>
+							</div>
+							<div class="p-4 space-y-4">
+								<div class="space-y-2">
+									<div class="text-sm font-medium text-gray-700">
+										{{ translate("Add a comment") }}
+									</div>
+									<TextEditor
+										ref="commentEditorRef"
+										:content="commentText"
+										@change="handleCommentChange"
+										:editable="true"
+										:mentions="commentMentions"
+										:placeholder="() => translate('Type your comment...')"
+										editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+									/>
+									<div class="flex justify-end">
+										<button
+											type="button"
+											@click="submitComment"
+											:disabled="commentSubmitting || !commentHasContent"
+											class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											<span v-if="commentSubmitting" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+											{{ translate("Post Comment") }}
+										</button>
+									</div>
+								</div>
+
+								<div v-if="commentsLoading" class="py-8 text-center">
+									<div class="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+								</div>
+
+								<div v-else-if="comments.length === 0" class="py-8 text-center text-sm text-gray-500">
+									{{ translate("No comments yet") }}
+								</div>
+
+								<div v-else class="space-y-3">
+									<div
+										v-for="comment in comments"
+										:key="comment.name"
+										class="rounded-xl border border-gray-200 bg-gray-50 p-4"
+									>
+										<div class="mb-2 flex items-center justify-between gap-3">
+											<div class="text-xs font-semibold text-gray-700">
+												{{ comment.comment_by || comment.owner }}
+											</div>
+											<div class="text-xs text-gray-500">{{ comment.creation }}</div>
+										</div>
+										<div class="text-sm text-gray-700 whitespace-pre-wrap" v-html="comment.content"></div>
+									</div>
+								</div>
+							</div>
+						</section>
+
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+								<div>
+									<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+										{{ translate("Checklist") }}
+									</div>
+									<div class="text-sm text-gray-500">
+										{{ directSubtasks.length ? `${completedSubtasks} / ${directSubtasks.length}` : translate('No subtasks') }}
+									</div>
+								</div>
+								<QuickAddTask
+									:project-id="task.project"
+									:parent-task="task.name"
+									placeholder="Dodaj podzadanie..."
+									@created="handleSubtaskCreated"
 								/>
 							</div>
-							<div v-if="!isTouchDevice" class="flex items-center justify-between text-[11px] text-gray-500">
-								<span>{{ translate("Keyboard shortcuts") }}</span>
-								<div class="relative" ref="shortcutsInfoRef">
+							<div class="p-4 space-y-4">
+								<div>
+									<div class="mb-2 flex items-center justify-between text-xs text-gray-500">
+										<span>{{ taskCompletion.hint }}</span>
+										<span>{{ taskCompletion.label }}</span>
+									</div>
+									<div class="h-2 overflow-hidden rounded-full bg-gray-100">
+										<div
+											class="h-full rounded-full transition-all duration-300"
+											:class="taskCompletion.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'"
+											:style="{ width: taskCompletion.percent + '%' }"
+										></div>
+									</div>
+								</div>
+
+								<div v-if="directSubtasks.length === 0" class="rounded-xl border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500">
+									{{ translate("No subtasks yet") }}
+								</div>
+								<div v-else class="space-y-2">
+									<div
+										v-for="child in directSubtasks"
+										:key="child.name"
+										class="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3"
+									>
+										<component
+											:is="child.status === 'Completed' ? CheckCircle2 : Circle"
+											:class="['mt-0.5 h-4 w-4 flex-shrink-0', child.status === 'Completed' ? 'text-green-500' : 'text-gray-400']"
+										/>
+										<div class="min-w-0 flex-1">
+											<div :class="child.status === 'Completed' ? 'text-gray-400 line-through' : 'text-gray-800'" class="text-sm font-medium">
+												{{ child.subject }}
+											</div>
+											<div class="mt-1 text-xs text-gray-500">
+												{{ child.status }}
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</section>
+					</div>
+
+					<aside class="min-w-0 space-y-4">
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="border-b border-gray-200 px-4 py-3">
+								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									{{ translate("Metadata") }}
+								</div>
+							</div>
+							<div class="space-y-4 p-4">
+								<div class="relative" ref="statusMenuRef">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Status") }}
+									</div>
 									<button
 										type="button"
-										class="inline-flex items-center justify-center h-7 w-7 rounded-full border border-gray-200 bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-										:aria-expanded="showShortcutsInfo"
-										:aria-label="translate('Keyboard shortcuts')"
-										@click="showShortcutsInfo = !showShortcutsInfo"
+										class="flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+										:class="[currentStatusPalette.bg, currentStatusPalette.text]"
+										@click="toggleStatusMenu"
 									>
-										<Info class="w-4 h-4" />
+										<div class="flex items-center gap-2">
+											<component :is="currentStatusPalette.icon" class="h-4 w-4" />
+											<span class="font-medium">{{ currentStatusPalette.label }}</span>
+										</div>
+										<ChevronDown class="h-3 w-3 text-gray-400" />
 									</button>
 									<Transition name="menu-fade">
 										<div
-											v-if="showShortcutsInfo"
-											class="absolute right-0 mt-2 w-72 max-w-[90vw] rounded-lg border border-gray-200 bg-white shadow-lg p-3 text-xs text-gray-700 z-20"
+											v-if="statusMenuOpen"
+											class="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
 										>
-											<div class="flex items-center justify-between mb-2">
-												<span class="font-semibold text-gray-900">
-													{{ translate("Keyboard shortcuts") }}
-												</span>
-												<button
-													type="button"
-													class="text-gray-400 hover:text-gray-600"
-													:aria-label="translate('Close dialog')"
-													@click="showShortcutsInfo = false"
-												>
-													<X class="w-3.5 h-3.5" />
-												</button>
-											</div>
-											<div class="space-y-2">
-												<div class="flex items-center justify-between gap-3">
-													<span>{{ translate("Cycle status") }}</span>
-													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">S</kbd>
-												</div>
-												<div class="flex items-center justify-between gap-3">
-													<span>{{ translate("Cycle priority") }}</span>
-													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">P</kbd>
-												</div>
-												<div class="flex items-center justify-between gap-3">
-													<span>{{ translate("Focus due date") }}</span>
-													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">D</kbd>
-												</div>
-												<div class="flex items-center justify-between gap-3">
-													<span>{{ translate("Open assignees") }}</span>
-													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">A</kbd>
-												</div>
-												<div class="flex items-center justify-between gap-3">
-													<span>{{ translate("Add 15m entry") }}</span>
-													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">T</kbd>
-												</div>
-												<div class="flex items-center justify-between gap-3">
-													<span>{{ translate("Add 30m entry") }}</span>
-													<kbd class="px-1.5 py-0.5 border border-gray-300 bg-gray-50 rounded text-[10px] font-semibold uppercase">Ctrl+J</kbd>
-												</div>
-											</div>
+											<button
+												v-for="opt in statusOptions"
+												:key="opt.value"
+												type="button"
+												class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
+												:class="editableTask.status === opt.value ? opt.palette.text : 'text-gray-600'"
+												@click="handleStatusSelection(opt)"
+											>
+												<component :is="opt.palette.icon" class="h-4 w-4" />
+												{{ opt.palette.label }}
+											</button>
+										</div>
+									</Transition>
+								</div>
+
+								<div class="relative" ref="priorityMenuRef">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Priority") }}
+									</div>
+									<button
+										type="button"
+										class="flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+										:class="[currentPriorityPalette.bg, currentPriorityPalette.text]"
+										@click="togglePriorityMenu"
+									>
+										<div class="flex items-center gap-2">
+											<Flag class="h-4 w-4" />
+											<span class="font-medium">{{ currentPriorityPalette.label }}</span>
+										</div>
+										<ChevronDown class="h-3 w-3 text-gray-400" />
+									</button>
+									<Transition name="menu-fade">
+										<div
+											v-if="priorityMenuOpen"
+											class="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
+										>
+											<button
+												v-for="opt in priorityOptions"
+												:key="opt.value"
+												type="button"
+												class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
+												:class="editableTask.priority === opt.value ? opt.palette.text : 'text-gray-600'"
+												@click="handlePrioritySelection(opt)"
+											>
+												<Flag class="h-4 w-4" />
+												{{ opt.palette.label }}
+											</button>
 										</div>
 									</Transition>
 								</div>
 							</div>
+						</section>
 
-							<div class="relative" ref="statusMenuRef">
-								<label class="text-sm text-gray-500 mb-2 block">{{ translate("Status") }}</label>
-								<button
-									type="button"
-									class="flex items-center gap-2 px-3 py-2 border rounded-lg text-sm w-full justify-between transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-									:class="[
-										currentStatusPalette.bg,
-										currentStatusPalette.text,
-										shortcutHighlight === 'status' ? 'ring-2 ring-blue-400' : '',
-									]"
-									@click="toggleStatusMenu"
-									:title="`${translate('Status')} (S)`"
-								>
-									<div class="flex items-center gap-2">
-										<component
-											:is="currentStatusPalette.icon"
-											class="w-4 h-4"
-										/>
-										<span class="font-medium truncate">{{ currentStatusPalette.label }}</span>
-									</div>
-									<ChevronDown class="w-3 h-3 text-gray-400" />
-								</button>
-								<Transition name="menu-fade">
-									<div
-										v-if="statusMenuOpen"
-										class="absolute z-10 mt-2 w-full rounded-md border border-gray-200 bg-white shadow-lg p-2 space-y-1"
-									>
-										<button
-											v-for="opt in statusOptions"
-											:key="opt.value"
-											type="button"
-											class="flex items-center gap-2 w-full px-3 py-2 text-left text-sm rounded-md transition-colors"
-											:class="[
-												'hover:bg-gray-50',
-												editableTask.status === opt.value ? opt.palette.bg : 'text-gray-600',
-												editableTask.status === opt.value ? opt.palette.text : '',
-											]"
-											@click="handleStatusSelection(opt)"
-										>
-											<component
-												:is="opt.palette.icon"
-												class="w-4 h-4"
-											/>
-											{{ opt.palette.label }}
-										</button>
-									</div>
-								</Transition>
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="border-b border-gray-200 px-4 py-3">
+								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									{{ translate("Assignee") }}
+								</div>
 							</div>
-
-							<div class="relative" ref="priorityMenuRef">
-								<label class="text-sm text-gray-500 mb-2 block flex items-center gap-1">
-									<Flag class="w-3.5 h-3.5" />
-									Priorytet
-								</label>
-								<button
-									type="button"
-									class="flex items-center gap-2 px-3 py-2 border rounded-lg text-sm w-full justify-between transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-									:class="[
-										currentPriorityPalette.bg,
-										currentPriorityPalette.text,
-										shortcutHighlight === 'priority' ? 'ring-2 ring-blue-400' : '',
-									]"
-									@click="togglePriorityMenu"
-									:title="`${translate('Priority')} (P)`"
-								>
-									<div class="flex items-center gap-2">
-										<Flag class="w-4 h-4" />
-										<span class="font-medium truncate">{{ currentPriorityPalette.label }}</span>
-									</div>
-									<ChevronDown class="w-3 h-3 text-gray-400" />
-								</button>
-								<Transition name="menu-fade">
-									<div
-										v-if="priorityMenuOpen"
-										class="absolute z-10 mt-2 w-full rounded-md border border-gray-200 bg-white shadow-lg p-2 space-y-1"
-									>
-										<button
-											v-for="opt in priorityOptions"
-											:key="opt.value"
-											type="button"
-											class="flex items-center gap-2 w-full px-3 py-2 text-left text-sm rounded-md transition-colors"
-											:class="[
-												opt.palette.bg,
-												opt.palette.text,
-												editableTask.priority === opt.value ? 'shadow' : 'hover:bg-gray-50',
-											]"
-											@click="handlePrioritySelection(opt)"
-										>
-											<Flag class="w-4 h-4" />
-											{{ opt.palette.label }}
-										</button>
-									</div>
-								</Transition>
-							</div>
-
-							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-								<label class="text-sm text-gray-500 sm:w-20 flex items-center gap-1">
-									<Diamond class="w-3 h-3" />
-									{{ translate("Milestone") }}
-								</label>
-								<select
-									:value="editableTask.milestone || ''"
-									@change="handleMilestoneChange"
-									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								>
-									<option value="">{{ translate("No milestone") }}</option>
-									<option
-										v-for="milestone in store.milestones"
-										:key="milestone.name"
-										:value="milestone.name"
-									>
-										{{ milestone.milestone_name }}
-									</option>
-								</select>
-							</div>
-
-							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-								<label class="text-sm text-gray-500 sm:w-20 flex items-center gap-1">
-									<Folder class="w-3 h-3" />
-									{{ translate("Project") }}
-								</label>
-								<select
-									v-model="editableTask.project"
-									@change="handleProjectChange"
-									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								>
-									<option
-										v-for="proj in store.allProjects"
-										:key="proj.name"
-										:value="proj.name"
-									>
-										{{ proj.project_name }}
-									</option>
-								</select>
-							</div>
-
-							<div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-3">
-								<label class="text-sm text-gray-500 sm:w-20 sm:pt-2">{{
-									translate("Assigned")
-								}}</label>
+							<div class="p-4">
 								<div
-									class="flex-1 transition focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1"
-									:class="shortcutHighlight === 'assignee' ? 'ring-2 ring-blue-400 rounded-md' : ''"
-									:title="`A — ${translate('Assign user...')}`"
+									class="transition focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1"
+									:class="shortcutHighlight === 'assignee' ? 'ring-2 ring-blue-400 rounded-xl' : ''"
 								>
 									<UserSelect
 										ref="assigneeControlRef"
@@ -1415,557 +1608,339 @@ async function deleteAttachment(fileName) {
 									/>
 								</div>
 							</div>
+						</section>
 
-					<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 relative">
-						<button
-							type="button"
-							ref="dueLabelRef"
-							class="text-sm text-gray-500 sm:w-20 text-left hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-							@click="toggleDuePresets"
-							:aria-expanded="showDuePresets"
-							aria-controls="due-presets-panel"
-							aria-haspopup="listbox"
-							:title="`${translate('Due Date')} (D)`"
-						>
-							{{ translate("Due Date") }}
-						</button>
-						<div
-							class="flex-1 relative"
-							:class="shortcutHighlight === 'due' ? 'ring-2 ring-blue-400 rounded-md' : ''"
-						>
-							<input
-								ref="dueInputRef"
-								v-model="editableTask.exp_end_date"
-								type="date"
-								@blur="handleActualDateBlur('exp_end_date')"
-								class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-							/>
-							<Transition name="menu-fade">
-								<div
-									v-if="showDuePresets"
-									ref="duePresetsRef"
-									id="due-presets-panel"
-									class="absolute z-10 left-0 top-full mt-2 w-56 rounded-md border border-gray-200 bg-white shadow-lg p-2 space-y-1"
-									@click.stop
-								>
-									<button
-										v-for="preset in duePresetOptions"
-										:key="preset.label"
-										type="button"
-										class="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-50"
-										@click="handleDuePresetClick(preset)"
-									>
-										{{ preset.label }}
-									</button>
-								</div>
-							</Transition>
-						</div>
-					</div>
-					<div v-if="dateValidationError" class="px-4 text-xs text-red-600">
-						{{ dateValidationError }}
-					</div>
-					<div
-						v-if="props.task.is_overdue"
-						class="flex flex-wrap items-center gap-2 px-4 text-xs text-blue-600"
-					>
-						<button
-							type="button"
-							class="px-2 py-1 font-medium rounded border border-blue-100 bg-blue-50"
-							@click="shiftDueToTomorrow"
-						>
-							{{ translate("Przesuń termin") }}
-						</button>
-						<button
-							type="button"
-							class="px-2 py-1 font-medium rounded border border-blue-100 bg-blue-50"
-							@click="markAsWorking"
-						>
-							{{ translate("Oznacz jako w toku") }}
-						</button>
-					</div>
-
-							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-								<label class="text-sm text-gray-500 sm:w-20">{{ translate("Expected Time") }}</label>
-								<input
-									v-model.number="editableTask.expected_time"
-									type="number"
-									min="0"
-									step="0.25"
-									@blur="saveField('expected_time', editableTask.expected_time)"
-									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-									:placeholder="translate('e.g. 4')"
-								/>
-							</div>
-
-							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-								<label class="text-sm text-gray-500 sm:w-20">{{ translate("Start Date") }}</label>
-								<input
-									v-model="editableTask.exp_start_date"
-									type="date"
-									@blur="handleActualDateBlur('exp_start_date')"
-									class="flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								/>
-							</div>
-
-							<div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-								<label class="text-sm text-gray-500 sm:w-20">{{ translate("Progress") }}</label>
-								<div class="flex-1 flex items-center gap-2">
-									<input
-										v-model.number="editableTask.progress"
-										type="range"
-										min="0"
-										max="100"
-										@change="saveField('progress', editableTask.progress)"
-										class="flex-1"
-									/>
-									<span class="text-sm text-gray-600 w-10 text-right">
-										{{ editableTask.progress || 0 }}%
-									</span>
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="border-b border-gray-200 px-4 py-3">
+								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									{{ translate("Context") }}
 								</div>
 							</div>
-
-							<div>
-								<div class="flex items-center justify-between">
-									<label class="text-sm font-medium text-gray-700 mb-2 block">{{
-										translate("Description")
-									}}</label>
-									<button
-										type="button"
-										@click="showMarkdownPreview = !showMarkdownPreview"
-										class="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-									>
-										{{ descriptionPreviewButtonLabel }}
-									</button>
-								</div>
-								<textarea
-									v-model="editableTask.description"
-									rows="4"
-									class="w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-									:placeholder="translate('Add description...')"
-									@blur="saveField('description', editableTask.description)"
-								></textarea>
-								<div
-									v-if="showMarkdownPreview"
-									class="mt-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 shadow-sm whitespace-pre-wrap break-words"
-									v-html="descriptionMarkdownPreview"
-								></div>
-							</div>
-						</div>
-					</Transition>
-				</section>
-
-				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-					<header class="px-4 py-3 border-b border-gray-200">
-						<button
-							type="button"
-							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-							@click="toggleSection('comments')"
-							:aria-expanded="sectionStates.comments"
-							aria-controls="comments-section"
-						>
-							<div class="flex items-center gap-2">
-								<MessageSquare class="w-4 h-4 text-blue-600" />
-								<span>{{ translate("Comments") }}</span>
-								<span v-if="comments.length > 0" class="text-xs text-gray-500">
-									({{ comments.length }})
-								</span>
-							</div>
-							<ChevronDown
-								class="w-3 h-3 text-gray-400 transition-transform"
-								:class="sectionStates.comments ? 'rotate-180' : ''"
-							/>
-						</button>
-					</header>
-					<Transition name="fade">
-						<div id="comments-section" v-show="sectionStates.comments" class="px-4 pb-4 pt-3 space-y-3">
-							<div class="space-y-2">
-								<label class="block text-sm font-medium text-gray-700">
-									{{ translate("Add a comment") }}
-								</label>
-								<TextEditor
-									ref="commentEditorRef"
-									:content="commentText"
-									@change="handleCommentChange"
-									:editable="true"
-									:mentions="commentMentions"
-									:placeholder="() => translate('Type your comment...')"
-									editor-class="min-h-[120px] rounded-md border border-gray-300 bg-white text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
-								/>
-								<div class="flex justify-end">
-									<button
-										type="button"
-										@click="submitComment"
-										:disabled="commentSubmitting || !commentHasContent"
-										class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-									>
-										<span v-if="commentSubmitting" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-										{{ translate("Post Comment") }}
-									</button>
-								</div>
-							</div>
-
-							<div v-if="commentsLoading" class="text-center py-4">
-								<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-							</div>
-
-							<div v-else-if="comments.length === 0" class="text-sm text-gray-500 text-center py-4">
-								{{ translate("No comments yet") }}
-							</div>
-
-								<div v-else class="space-y-3">
-									<div
-										v-for="comment in comments"
-										:key="comment.name"
-										class="rounded-lg border border-gray-200 bg-gray-50 p-3"
-									>
-									<div class="flex items-center justify-between gap-3 mb-2">
-										<div class="text-xs font-medium text-gray-700">
-											{{ comment.comment_by || comment.owner }}
-										</div>
-										<div class="text-xs text-gray-500">
-											{{ comment.creation }}
-										</div>
+							<div class="space-y-4 p-4">
+								<div>
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Project") }}
 									</div>
-										<div class="text-sm text-gray-700 whitespace-pre-wrap" v-html="comment.content"></div>
+									<select
+										v-model="editableTask.project"
+										@change="handleProjectChange"
+										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option
+											v-for="proj in store.allProjects"
+											:key="proj.name"
+											:value="proj.name"
+										>
+											{{ proj.project_name }}
+										</option>
+									</select>
+								</div>
+								<div>
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Milestone") }}
+									</div>
+									<select
+										:value="editableTask.milestone || ''"
+										@change="handleMilestoneChange"
+										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									>
+										<option value="">{{ translate("No milestone") }}</option>
+										<option
+											v-for="milestone in store.milestones"
+											:key="milestone.name"
+											:value="milestone.name"
+										>
+											{{ milestone.milestone_name }}
+										</option>
+									</select>
+								</div>
+							</div>
+						</section>
+
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="border-b border-gray-200 px-4 py-3">
+								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									{{ translate("Schedule") }}
+								</div>
+							</div>
+							<div class="space-y-4 p-4">
+								<div class="flex flex-col gap-2">
+									<div class="text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Due date") }}
+									</div>
+									<div class="relative" :class="shortcutHighlight === 'due' ? 'ring-2 ring-blue-400 rounded-xl' : ''">
+										<input
+											ref="dueInputRef"
+											v-model="editableTask.exp_end_date"
+											type="date"
+											@blur="handleActualDateBlur('exp_end_date')"
+											class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										/>
+										<button
+											ref="dueLabelRef"
+											type="button"
+											class="mt-2 text-xs font-medium text-blue-600 hover:text-blue-800"
+											@click="toggleDuePresets"
+										>
+											{{ translate("Quick presets") }}
+										</button>
+										<Transition name="menu-fade">
+											<div
+												v-if="showDuePresets"
+												ref="duePresetsRef"
+												id="due-presets-panel"
+												class="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
+												@click.stop
+											>
+												<button
+													v-for="preset in duePresetOptions"
+													:key="preset.label"
+													type="button"
+													class="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
+													@click="handleDuePresetClick(preset)"
+												>
+													{{ preset.label }}
+												</button>
+											</div>
+										</Transition>
 									</div>
 								</div>
-							</div>
-						</Transition>
-				</section>
-
-				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-					<header class="px-4 py-3 border-b border-gray-200">
-						<button
-							type="button"
-							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-							@click="toggleSection('subtasks')"
-							:aria-expanded="sectionStates.subtasks"
-							aria-controls="subtasks-section"
-						>
-							<div class="flex items-center gap-2">
-								<Folder class="w-4 h-4 text-blue-600" />
-								<span>{{ translate("Subtasks") }}</span>
-							</div>
-							<ChevronDown
-								class="w-3 h-3 text-gray-400 transition-transform"
-								:class="sectionStates.subtasks ? 'rotate-180' : ''"
-							/>
-						</button>
-					</header>
-					<Transition name="fade">
-						<div
-							id="subtasks-section"
-							v-show="sectionStates.subtasks"
-							class="px-4 pb-4 pt-3 space-y-3"
-						>
-							<div v-if="directSubtasks.length > 0" class="space-y-1 mb-2">
-								<div
-									v-for="child in directSubtasks"
-									:key="child.name"
-									class="flex items-center gap-2 text-sm text-gray-600 py-1"
-								>
-									<component
-										:is="child.status === 'Completed' ? CheckCircle2 : Circle"
-										:class="[
-											'w-4 h-4',
-											child.status === 'Completed'
-												? 'text-green-500'
-												: 'text-gray-400',
-										]"
-									/>
-									<span
-										:class="{
-											'line-through text-gray-400': child.status === 'Completed',
-										}"
-									>
-										{{ child.subject }}
-									</span>
-								</div>
-							</div>
-							<QuickAddTask
-								:project-id="task.project"
-								:parent-task="task.name"
-								placeholder="Dodaj podzadanie..."
-								@created="handleSubtaskCreated"
-							/>
-						</div>
-					</Transition>
-				</section>
-
-				<!-- Attachments section -->
-				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-					<header class="px-4 py-3 border-b border-gray-200">
-						<button
-							type="button"
-							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-							@click="toggleSection('attachments')"
-							:aria-expanded="sectionStates.attachments"
-							aria-controls="attachments-section"
-						>
-							<div class="flex items-center gap-2">
-								<Paperclip class="w-4 h-4 text-blue-600" />
-								<span>{{ translate("Attachments") }}</span>
-								<span v-if="attachments.length > 0" class="text-xs text-gray-500">
-									({{ attachments.length }})
-								</span>
-							</div>
-							<ChevronDown
-								class="w-3 h-3 text-gray-400 transition-transform"
-								:class="sectionStates.attachments ? 'rotate-180' : ''"
-							/>
-						</button>
-					</header>
-					<Transition name="fade">
-						<div
-							id="attachments-section"
-							v-show="sectionStates.attachments"
-							class="px-4 pb-4 pt-3 space-y-3"
-							@dragover="handleDragOver"
-							@dragleave="handleDragLeave"
-							@drop="handleDrop"
-						>
-							<!-- Upload controls -->
-							<div class="flex items-center justify-between">
-								<h3 class="text-sm font-medium text-gray-700">
-									{{ translate("Attachments") }}
-								</h3>
-								<button
-									type="button"
-									@click="triggerFileInput"
-									:disabled="isUploading"
-									class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
-								>
-									<Upload class="w-3.5 h-3.5" />
-									{{ translate("Add file") }}
-								</button>
-								<input
-									ref="fileInputRef"
-									type="file"
-									accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-									multiple
-									class="hidden"
-									@change="handleFileSelect"
-								/>
-							</div>
-
-							<!-- Upload progress -->
-							<div v-if="isUploading" class="space-y-1">
-								<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-									<div
-										class="h-full bg-blue-500 rounded-full transition-all"
-										:style="{ width: uploadProgress + '%' }"
-									/>
-								</div>
-								<p class="text-xs text-gray-500 text-center">
-									{{ translate("Uploading") }}... {{ uploadProgress }}%
-								</p>
-							</div>
-
-							<!-- Drag & Drop overlay -->
-							<div
-								v-if="isDragOver"
-								class="border-2 border-dashed border-blue-400 bg-blue-50 rounded-lg p-6 text-center"
-							>
-								<Upload class="w-6 h-6 text-blue-400 mx-auto mb-1" />
-								<p class="text-sm text-blue-600">{{ translate("Drop files here") }}</p>
-							</div>
-
-							<!-- Loading -->
-							<div v-if="attachmentsLoading" class="text-center py-4">
-								<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-							</div>
-
-							<!-- Empty state -->
-							<div
-								v-else-if="attachments.length === 0 && !isDragOver"
-								class="text-sm text-gray-500 text-center py-4"
-							>
-								{{ translate("No attachments") }}
-							</div>
-
-							<!-- Attachment grid -->
-							<div v-else class="grid grid-cols-3 gap-2">
-								<div
-									v-for="file in attachments"
-									:key="file.name"
-									class="group relative rounded-lg border border-gray-200 overflow-hidden bg-gray-50 hover:border-blue-300 transition-colors cursor-pointer"
-									@click="realWindow?.open(file.file_url, '_blank')"
-								>
-									<!-- Image thumbnail -->
-									<div v-if="isImageFile(file)" class="aspect-square">
-										<img
-											:src="file.file_url"
-											:alt="file.file_name"
-											class="w-full h-full object-cover"
-											loading="lazy"
+								<div class="grid grid-cols-2 gap-3">
+									<div>
+										<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+											{{ translate("Start") }}
+										</div>
+										<input
+											v-model="editableTask.exp_start_date"
+											type="date"
+											@blur="handleActualDateBlur('exp_start_date')"
+											class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
 										/>
 									</div>
-									<!-- Non-image file -->
-									<div v-else class="aspect-square flex flex-col items-center justify-center p-2">
-										<FileText class="w-8 h-8 text-gray-400 mb-1" />
-										<span class="text-[10px] text-gray-500 truncate w-full text-center">
-											{{ file.file_name }}
-										</span>
+									<div>
+										<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+											{{ translate("Expected time") }}
+										</div>
+										<input
+											v-model.number="editableTask.expected_time"
+											type="number"
+											min="0"
+											step="0.25"
+											@blur="saveField('expected_time', editableTask.expected_time)"
+											class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											:placeholder="translate('e.g. 4')"
+										/>
 									</div>
-									<!-- File info overlay -->
-									<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-										<p class="text-[10px] text-white truncate">{{ file.file_name }}</p>
-										<p v-if="file.file_size" class="text-[9px] text-white/70">{{ formatFileSize(file.file_size) }}</p>
-									</div>
-									<!-- Delete button -->
+								</div>
+								<div v-if="dateValidationError" class="text-xs text-red-600">
+									{{ dateValidationError }}
+								</div>
+								<div v-if="props.task.is_overdue" class="flex flex-wrap gap-2">
 									<button
-										@click.stop="deleteAttachment(file.name)"
-										class="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-red-100 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-										:title="translate('Delete attachment')"
+										type="button"
+										class="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700"
+										@click="shiftDueToTomorrow"
 									>
-										<Trash2 class="w-3 h-3" />
+										{{ translate("Push by 1 day") }}
+									</button>
+									<button
+										type="button"
+										class="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700"
+										@click="markAsWorking"
+									>
+										{{ translate("Mark working") }}
 									</button>
 								</div>
 							</div>
-						</div>
-					</Transition>
-				</section>
+						</section>
 
-				<section class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-					<header class="px-4 py-3 border-b border-gray-200">
-						<button
-							type="button"
-							class="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
-							@click="toggleSection('timeLog')"
-							:aria-expanded="sectionStates.timeLog"
-							aria-controls="time-log-section"
-						>
-							<div class="flex items-center gap-2">
-								<Clock class="w-4 h-4 text-blue-600" />
-								<span>{{ translate("Time Log") }}</span>
-								<span v-if="currentTimelogs.total_hours > 0" class="text-xs text-gray-500">
-									({{ currentTimelogs.total_hours.toFixed(2) }} hrs)
-								</span>
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="border-b border-gray-200 px-4 py-3">
+								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									{{ translate("Progress") }}
+								</div>
 							</div>
-							<ChevronDown
-								class="w-3 h-3 text-gray-400 transition-transform"
-								:class="sectionStates.timeLog ? 'rotate-180' : ''"
-							/>
-						</button>
-					</header>
-					<Transition name="fade">
-						<div
-							id="time-log-section"
-							v-show="sectionStates.timeLog"
-							class="px-4 pb-4 pt-3 space-y-4 relative"
-						>
-							<div
-								v-if="showTimeLogSkeleton"
-								class="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur"
-							>
-								<div class="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
-							</div>
-							<div class="flex items-center justify-between">
+							<div class="space-y-4 p-4">
 								<div>
-									<h3 class="text-sm font-medium text-gray-700">
-										{{ translate("Time Log") }}
-									</h3>
-									<p
-										v-if="currentTimelogs.total_hours > 0"
-										class="text-xs text-gray-500 mt-0.5"
+									<div class="mb-2 flex items-center justify-between text-xs text-gray-500">
+										<span>{{ taskCompletion.hint }}</span>
+										<span>{{ taskCompletion.label }}</span>
+									</div>
+									<div class="h-2 overflow-hidden rounded-full bg-gray-100">
+										<div
+											class="h-full rounded-full transition-all duration-300"
+											:class="taskCompletion.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'"
+											:style="{ width: taskCompletion.percent + '%' }"
+										></div>
+									</div>
+								</div>
+								<div class="text-xs text-gray-500">
+									{{ translate("Progress follows checklist completion when subtasks exist.") }}
+								</div>
+							</div>
+						</section>
+
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="border-b border-gray-200 px-4 py-3">
+								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									{{ translate("Attachments") }}
+								</div>
+							</div>
+							<div class="space-y-4 p-4" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
+								<div class="flex items-center justify-between gap-2">
+									<div class="text-xs text-gray-500">
+										{{ attachments.length }} {{ translate("files") }}
+									</div>
+									<button
+										type="button"
+										@click="triggerFileInput"
+										:disabled="isUploading"
+										class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
 									>
-										{{ translate("Total") }}:
-										{{ currentTimelogs.total_hours.toFixed(2) }}
-										{{ translate("hrs") }}.
+										<Upload class="h-3.5 w-3.5" />
+										{{ translate("Add file") }}
+									</button>
+									<input
+										ref="fileInputRef"
+										type="file"
+										accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+										multiple
+										class="hidden"
+										@change="handleFileSelect"
+									/>
+								</div>
+								<div v-if="isUploading" class="space-y-1">
+									<div class="h-1.5 overflow-hidden rounded-full bg-gray-100">
+										<div
+											class="h-full rounded-full bg-blue-500 transition-all"
+											:style="{ width: uploadProgress + '%' }"
+										></div>
+									</div>
+									<p class="text-center text-xs text-gray-500">
+										{{ translate("Uploading") }}... {{ uploadProgress }}%
 									</p>
 								</div>
-								<button
-									type="button"
-									@click="openTimeLogModalWithPreset({ hours: 1, autoFocus: true })"
-									:title="`${translate('Add time')} (T / Ctrl+J)`"
-									:class="[
-										'flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
-										shortcutHighlight === 'time' ? 'ring-2 ring-blue-400' : '',
-									]"
-								>
-									<Plus class="w-3.5 h-3.5" />
-									{{ translate("Add time") }}
-								</button>
-							</div>
-
-							<div v-if="timelogsLoading" class="text-center py-4">
-								<div
-									class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"
-								></div>
-							</div>
-
-							<div
-								v-else-if="currentTimelogs.timelogs.length === 0"
-								class="text-sm text-gray-500 text-center py-4"
-							>
-								{{ translate("No time entries") }}
-							</div>
-
-							<div v-else class="space-y-2">
-								<div
-									v-for="log in currentTimelogs.timelogs"
-									:key="log.timelog_name"
-									class="bg-gray-50 rounded-md p-3 text-sm relative"
-								>
-									<div class="flex items-start justify-between gap-2">
-										<div class="flex-1">
-											<div class="flex items-center gap-2 mb-1">
-												<Clock class="w-3.5 h-3.5 text-blue-600" />
-												<span class="font-semibold text-gray-900"
-													>{{ log.hours }} hrs</span
-												>
-												<span class="text-xs text-gray-500">{{
-													log.activity_type
-												}}</span>
-												<span
-													v-if="log.status"
-													:class="[
-														'px-2 py-0.5 rounded-full text-xs font-medium',
-														log.status === 'Submitted'
-															? 'bg-green-100 text-green-800'
-															: log.status === 'Billed'
-															? 'bg-blue-100 text-blue-800'
-															: log.status === 'Draft'
-															? 'bg-gray-100 text-gray-800'
-															: 'bg-gray-100 text-gray-800',
-													]"
-												>
-													{{ log.status }}
-												</span>
-											</div>
-											<p v-if="log.description" class="text-gray-600 text-xs mb-1">
-												{{ log.description }}
+								<div v-else-if="attachmentsLoading" class="py-6 text-center">
+									<div class="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+								</div>
+								<div v-else-if="attachments.length === 0 && !isDragOver" class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">
+									{{ translate("No attachments yet") }}
+								</div>
+								<div v-else class="grid grid-cols-2 gap-2">
+									<div
+										v-for="file in attachments"
+										:key="file.name"
+										class="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
+										@click="realWindow?.open(file.file_url, '_blank')"
+									>
+										<div v-if="isImageFile(file)" class="aspect-square">
+											<img
+												:src="file.file_url"
+												:alt="file.file_name"
+												class="h-full w-full object-cover"
+												loading="lazy"
+											/>
+										</div>
+										<div v-else class="aspect-square flex flex-col items-center justify-center p-2">
+											<FileText class="mb-1 h-7 w-7 text-gray-400" />
+											<span class="w-full truncate text-center text-[10px] text-gray-500">
+												{{ file.file_name }}
+											</span>
+										</div>
+										<div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+											<p class="truncate text-[10px] text-white">{{ file.file_name }}</p>
+											<p v-if="file.file_size" class="text-[9px] text-white/70">
+												{{ formatFileSize(file.file_size) }}
 											</p>
-											<div class="flex items-center gap-2 text-xs text-gray-500">
-												<span>{{ log.user_full_name }}</span>
-												<span>•</span>
-												<span>{{ formatDate(log.from_time) }}</span>
-											</div>
 										</div>
 										<button
-											@click="handleDeleteTimelog(log.timelog_name)"
-											class="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600"
-											:title="translate('Delete time log')"
+											type="button"
+											@click.stop="deleteAttachment(file.name)"
+											class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-gray-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+											:title="translate('Delete attachment')"
 										>
-											<Trash2 class="w-3.5 h-3.5" />
+											<Trash2 class="h-3 w-3" />
 										</button>
 									</div>
 								</div>
+								<div v-if="isDragOver" class="rounded-xl border-2 border-dashed border-blue-400 bg-blue-50 px-4 py-6 text-center text-sm text-blue-700">
+									{{ translate("Drop files here") }}
+								</div>
 							</div>
-						</div>
-					</Transition>
-				</section>
+						</section>
+
+						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+							<div class="border-b border-gray-200 px-4 py-3">
+								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+									{{ translate("Time Log") }}
+								</div>
+							</div>
+							<div class="space-y-4 p-4">
+								<div class="flex items-center justify-between gap-2">
+									<div class="text-xs text-gray-500">
+										{{ currentTimelogs.total_hours > 0 ? `${currentTimelogs.total_hours.toFixed(2)} hrs` : translate("No entries") }}
+									</div>
+									<button
+										type="button"
+										@click="openTimeLogModalWithPreset({ hours: 1, autoFocus: true })"
+										class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50"
+									>
+										<Plus class="h-3.5 w-3.5" />
+										{{ translate("Add time") }}
+									</button>
+								</div>
+								<div v-if="timelogsLoading" class="py-6 text-center">
+									<div class="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+								</div>
+								<div v-else-if="currentTimelogs.timelogs.length === 0" class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">
+									{{ translate("No time entries") }}
+								</div>
+								<div v-else class="space-y-2">
+									<div
+										v-for="log in currentTimelogs.timelogs"
+										:key="log.timelog_name"
+										class="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm"
+									>
+										<div class="flex items-start justify-between gap-2">
+											<div class="min-w-0 flex-1">
+												<div class="mb-1 flex flex-wrap items-center gap-2">
+													<Clock class="h-3.5 w-3.5 text-blue-600" />
+													<span class="font-semibold text-gray-900">{{ log.hours }} hrs</span>
+													<span class="text-xs text-gray-500">{{ log.activity_type }}</span>
+												</div>
+												<p v-if="log.description" class="mb-1 text-xs text-gray-600">
+													{{ log.description }}
+												</p>
+												<div class="flex items-center gap-2 text-xs text-gray-500">
+													<span>{{ log.user_full_name }}</span>
+													<span>•</span>
+													<span>{{ formatDate(log.from_time) }}</span>
+												</div>
+											</div>
+											<button
+												@click="handleDeleteTimelog(log.timelog_name)"
+												class="rounded-md p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+												:title="translate('Delete time log')"
+											>
+												<Trash2 class="h-3.5 w-3.5" />
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+						</section>
+					</aside>
+				</div>
 			</div>
 		</div>
 
-		<!-- Footer -->
-		<div class="border-t border-gray-200 px-4 py-3">
+		<div class="border-t border-gray-200 bg-white px-4 py-3">
 			<div class="flex items-center justify-between text-xs text-gray-500">
 				<div class="flex items-center gap-3">
 					<span v-if="task.creation">{{ translate('Created') }} {{ task.creation }}</span>
 					<span
 						v-if="autosaveIndicatorVisible"
-						class="text-emerald-600 flex items-center gap-1 font-semibold"
+						class="flex items-center gap-1 font-semibold text-emerald-600"
 					>
 						<span aria-hidden="true">✓</span>
 						{{ translate("Saved") }}
