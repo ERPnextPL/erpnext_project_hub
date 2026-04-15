@@ -31,18 +31,25 @@ export async function loadProTabs(registerCoreTabsFn) {
 	// Allow PRO bundles to register themselves through a public global hook.
 	const globalRegister = win?.__PROJECT_HUB_PRO_REGISTER_TABS__;
 	if (typeof globalRegister === "function") {
-		await Promise.resolve(globalRegister(registerCoreTabsFn));
-		return true;
+		try {
+			await Promise.resolve(globalRegister(registerCoreTabsFn));
+			return true;
+		} catch (error) {
+			console.error("PRO tab registration hook failed", error);
+		}
 	}
 
 	// Support boot-time hook provided by a PRO app if it wants to expose
 	// registration without polluting the global namespace.
 	const bootRegister = getBootInfo().project_hub_pro_register_tabs;
 	if (typeof bootRegister === "function") {
-		await Promise.resolve(bootRegister(registerCoreTabsFn));
-		return true;
+		try {
+			await Promise.resolve(bootRegister(registerCoreTabsFn));
+			return true;
+		} catch (error) {
+			console.error("PRO boot tab registration hook failed", error);
+		}
 	}
 
 	return false;
 }
-
