@@ -5,6 +5,7 @@ Provides CRUD operations for tasks in a hierarchical tree view.
 
 import frappe
 from frappe import _
+from frappe.utils import sanitize_html
 from frappe.utils import cint, today
 
 
@@ -2504,7 +2505,7 @@ def get_task_comments(task_name: str):
 
 	frappe.has_permission("Task", "read", task_name, throw=True)
 
-	return frappe.get_all(
+	comments = frappe.get_all(
 		"Comment",
 		filters={
 			"reference_doctype": "Task",
@@ -2514,6 +2515,11 @@ def get_task_comments(task_name: str):
 		fields=["name", "content", "creation", "owner", "comment_by", "comment_email", "published"],
 		order_by="creation desc",
 	)
+
+	for comment in comments:
+		comment["content"] = sanitize_html(comment.get("content") or "", linkify=True)
+
+	return comments
 
 
 @frappe.whitelist(methods=["POST"])
@@ -2534,7 +2540,7 @@ def add_task_comment(task_name: str, content: str):
 	)
 	return {
 		"name": comment.name,
-		"content": comment.content,
+		"content": sanitize_html(comment.content or "", linkify=True),
 		"creation": comment.creation,
 		"owner": comment.owner,
 		"comment_by": comment.comment_by,

@@ -149,6 +149,7 @@ doc_events = {
 	"Task": {
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
+		"after_delete": "erpnext_projekt_hub.events.task_events.on_task_after_delete",
 	}
 }
 

@@ -203,6 +203,7 @@ class TabRegistry {
 	 */
 	reset() {
 		this.tabs.clear();
+		this.registrationCounter = 0;
 		this.initialized = false;
 	}
 }

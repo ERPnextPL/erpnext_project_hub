@@ -44,9 +44,18 @@ def on_task_update(doc, method):
 
 def on_task_trash(doc, method):
 	"""
-	Update milestone progress when a task is deleted.
+	Prepare for task deletion.
 
 	Called on Task.on_trash event.
+	"""
+	return
+
+
+def on_task_after_delete(doc, method=None):
+	"""
+	Update milestone progress after a task is deleted.
+
+	Called on Task.after_delete event.
 	"""
 	if hasattr(doc, "milestone") and doc.milestone:
 		_update_milestone_progress(doc.milestone)
