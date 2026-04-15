@@ -63,3 +63,17 @@ export function registerProTabsConditional() {
 		console.log('PRO license not detected, PRO tabs not registered');
 	}
 }
+
+/**
+ * Public runtime hook for PRO bundles.
+ *
+ * A PRO app can assign this function to `window.__PROJECT_HUB_PRO_REGISTER_TABS__`
+ * during its own bootstrapping. The base app will call it if available.
+ */
+export function exposeProTabsHook() {
+	if (typeof window === "undefined") return;
+
+	window.__PROJECT_HUB_PRO_REGISTER_TABS__ = () => {
+		registerProTabs();
+	};
+}
