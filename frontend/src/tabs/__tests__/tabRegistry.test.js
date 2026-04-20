@@ -225,43 +225,13 @@ describe('Tab Registry', () => {
 			expect(tabRegistry.isInitialized()).toBe(true);
 		});
 
-	it('should reset initialization state on reset', () => {
-		tabRegistry.markInitialized();
-		expect(tabRegistry.isInitialized()).toBe(true);
+		it('should reset initialization state on reset', () => {
+			tabRegistry.markInitialized();
+			expect(tabRegistry.isInitialized()).toBe(true);
 
-		tabRegistry.reset();
-		expect(tabRegistry.isInitialized()).toBe(false);
-	});
-
-	it('should reset registration counter on reset', () => {
-		registerTab({
-			key: 'first',
-			routeName: 'FirstRoute',
-			path: '/first',
-			labelKey: 'First',
-			icon: Folder,
-			color: '',
-			bg: '',
-			component: () => {},
+			tabRegistry.reset();
+			expect(tabRegistry.isInitialized()).toBe(false);
 		});
-
-		expect(tabRegistry.getTab('first').registrationIndex).toBe(0);
-
-		tabRegistry.reset();
-
-		registerTab({
-			key: 'second',
-			routeName: 'SecondRoute',
-			path: '/second',
-			labelKey: 'Second',
-			icon: Folder,
-			color: '',
-			bg: '',
-			component: () => {},
-		});
-
-		expect(tabRegistry.getTab('second').registrationIndex).toBe(0);
-	});
 	});
 
 	describe('Unregistration', () => {

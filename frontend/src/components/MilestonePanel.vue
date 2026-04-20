@@ -1,21 +1,18 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import {
 	Diamond,
 	Plus,
 	Calendar,
-	Filter,
 	MoreVertical,
 	Edit2,
 	Trash2,
 	X,
 	ChevronDown,
 	ChevronUp,
-	GripVertical,
 } from "lucide-vue-next";
 import MilestoneModal from "./MilestoneModal.vue";
-import MilestoneFilterModal from "./MilestoneFilterModal.vue";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -27,7 +24,6 @@ const translate = (text) => {
 const store = useTaskStore();
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
-const showFilterModal = ref(false);
 const editingMilestone = ref(null);
 const openMenuId = ref(null);
 const isCollapsed = ref(false);
@@ -42,6 +38,14 @@ watch(
 	},
 	{ immediate: true }
 );
+
+function handleMilestoneClick(milestone) {
+	if (store.activeMilestoneFilter === milestone.name) {
+		store.clearMilestoneFilter();
+	} else {
+		store.setMilestoneFilter(milestone.name);
+	}
+}
 
 function toggleMenu(milestoneName, event) {
 	event.stopPropagation();
@@ -62,7 +66,7 @@ async function handleDelete(milestone, event) {
 	if (
 		!confirm(
 			translate(
-				`Delete milestone "${milestone.milestone_name}"? Tasks will be detached but not deleted.`
+				`Delete milestone "${getMilestoneLabel(milestone)}"? Tasks will be detached but not deleted.`
 			)
 		)
 	) {
@@ -85,6 +89,10 @@ async function handleDelete(milestone, event) {
 			});
 		}
 	}
+}
+
+function getMilestoneLabel(milestone) {
+	return milestone.milestone_name || milestone.name || translate("Untitled milestone");
 }
 
 async function handleCreate(data) {
@@ -176,30 +184,6 @@ function formatDate(dateStr) {
 	return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const activeMilestoneNames = computed(() => new Set(store.activeMilestoneFilter));
-
-const activeMilestoneLabels = computed(() => {
-	const byName = new Map(store.milestones.map((m) => [m.name, m]));
-	return store.activeMilestoneFilter
-		.map((name) => byName.get(name)?.milestone_name || name)
-		.filter(Boolean);
-});
-
-const milestonesSorted = computed(() => {
-	return [...store.milestones].sort((a, b) => {
-		if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order;
-		if (a.sort_order != null) return -1;
-		if (b.sort_order != null) return 1;
-		const aDate = a.milestone_date ? new Date(a.milestone_date).getTime() : Number.POSITIVE_INFINITY;
-		const bDate = b.milestone_date ? new Date(b.milestone_date).getTime() : Number.POSITIVE_INFINITY;
-		return aDate - bDate;
-	});
-});
-
-function applyMilestoneFilters(selectedMilestones) {
-	store.setMilestoneFilter(selectedMilestones);
-}
-
 // Close menu when clicking outside
 function handleClickOutside(event) {
 	if (openMenuId.value && !event.target.closest(".milestone-menu")) {
@@ -210,94 +194,50 @@ function handleClickOutside(event) {
 // Drag & Drop handlers
 const dragOverMilestone = ref(null);
 
-// Milestone reorder drag state
-const draggingMilestoneName = ref(null);
-const reorderDropIndex = ref(null);
-
-function handleMilestoneDragStart(event, milestoneName) {
-	draggingMilestoneName.value = milestoneName;
-	event.dataTransfer.setData("application/x-milestone-reorder", milestoneName);
-	// Clear text/plain so browser text content isn't passed as a task name
-	event.dataTransfer.setData("text/plain", "");
-	event.dataTransfer.effectAllowed = "move";
-}
-
-function handleMilestoneDragEnd() {
-	draggingMilestoneName.value = null;
-	reorderDropIndex.value = null;
-}
-
-function handleDragOver(event, milestoneName, index) {
+function handleDragOver(event, milestoneName) {
 	event.preventDefault();
-	if (draggingMilestoneName.value) {
-		event.dataTransfer.dropEffect = "move";
-		reorderDropIndex.value = index;
-		dragOverMilestone.value = null;
-	} else {
-		event.dataTransfer.dropEffect = "move";
-		dragOverMilestone.value = milestoneName;
-		reorderDropIndex.value = null;
-	}
+	event.dataTransfer.dropEffect = "move";
+	dragOverMilestone.value = milestoneName;
 }
 
 function handleDragLeave(event, milestoneName) {
 	if (event.currentTarget.contains(event.relatedTarget)) return;
-	if (dragOverMilestone.value === milestoneName) dragOverMilestone.value = null;
-	reorderDropIndex.value = null;
+	if (dragOverMilestone.value === milestoneName) {
+		dragOverMilestone.value = null;
+	}
 }
 
-async function handleDrop(event, milestoneName, index) {
+async function handleDrop(event, milestoneName) {
 	event.preventDefault();
-
-	if (draggingMilestoneName.value) {
-		const draggedName = draggingMilestoneName.value;
-		draggingMilestoneName.value = null;
-		reorderDropIndex.value = null;
-
-		const list = [...milestonesSorted.value];
-		const fromIdx = list.findIndex((m) => m.name === draggedName);
-		if (fromIdx !== -1 && fromIdx !== index) {
-			const [removed] = list.splice(fromIdx, 1);
-			list.splice(index, 0, removed);
-			try {
-				await store.reorderMilestones(list.map((m) => m.name));
-			} catch {
-				realWindow?.frappe?.show_alert({
-					message: translate("Failed to reorder milestones"),
-					indicator: "red",
-				});
-			}
-		}
-		return;
-	}
-
 	dragOverMilestone.value = null;
+
 	const taskName = event.dataTransfer.getData("text/plain");
 	if (!taskName) return;
 
+	// Find the task
 	const task = store.tasks.find((t) => t.name === taskName);
 	if (!task) return;
 
 	try {
 		await store.assignTaskToMilestone(taskName, milestoneName);
-		realWindow?.frappe?.show_alert({
-			message: translate("Task assigned to milestone"),
-			indicator: "green",
-		});
-	} catch {
-		realWindow?.frappe?.show_alert({
-			message: translate("Failed to assign task"),
-			indicator: "red",
-		});
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Task assigned to milestone"),
+				indicator: "green",
+			});
+		}
+	} catch (error) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Failed to assign task"),
+				indicator: "red",
+			});
+		}
 	}
 }
 
 onMounted(() => {
 	document.addEventListener("click", handleClickOutside);
-});
-
-onUnmounted(() => {
-	document.removeEventListener("click", handleClickOutside);
 });
 </script>
 
@@ -319,17 +259,6 @@ onUnmounted(() => {
 			</div>
 			<div class="flex items-center gap-2">
 				<button
-					@click.stop="showFilterModal = true"
-					class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 relative"
-					:title="translate('Filter milestones')"
-				>
-					<Filter class="w-4 h-4" />
-					<span
-						v-if="store.activeMilestoneFilter.length"
-						class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-600"
-					/>
-				</button>
-				<button
 					@click.stop="showCreateModal = true"
 					class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400"
 					:title="translate('Add milestone')"
@@ -345,24 +274,12 @@ onUnmounted(() => {
 
 		<!-- Active Filter Indicator -->
 		<div
-			v-if="store.activeMilestoneFilter.length && !isCollapsed"
+			v-if="store.activeMilestoneFilter && !isCollapsed"
 			class="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between"
 		>
-			<div class="min-w-0">
-				<span class="text-xs text-blue-700 dark:text-blue-400 block">
-					{{ translate("Filtering by milestone") }}
-				</span>
-				<div class="flex gap-1 mt-1 flex-wrap">
-					<span
-						v-for="label in activeMilestoneLabels"
-						:key="label"
-						class="text-[11px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200 max-w-[140px] truncate"
-						:title="label"
-					>
-						{{ label }}
-					</span>
-				</div>
-			</div>
+			<span class="text-xs text-blue-700 dark:text-blue-400">
+				{{ translate("Filtering by milestone") }}
+			</span>
 			<button
 				@click="store.clearMilestoneFilter()"
 				class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1"
@@ -375,21 +292,15 @@ onUnmounted(() => {
 		<!-- Milestone List -->
 		<div v-if="!isCollapsed" class="p-2 space-y-2 max-h-64 overflow-y-auto">
 			<div
-				v-for="(milestone, index) in milestonesSorted"
+				v-for="milestone in store.milestones"
 				:key="milestone.name"
-				draggable="true"
-				@dragstart="handleMilestoneDragStart($event, milestone.name)"
-				@dragend="handleMilestoneDragEnd"
-				@dragover="handleDragOver($event, milestone.name, index)"
+				@click="handleMilestoneClick(milestone)"
+				@dragover="handleDragOver($event, milestone.name)"
 				@dragleave="handleDragLeave($event, milestone.name)"
-				@drop="handleDrop($event, milestone.name, index)"
+				@drop="handleDrop($event, milestone.name)"
 				:class="[
-					'p-3 rounded-lg border-2 transition-all relative',
-					draggingMilestoneName === milestone.name
-						? 'opacity-40'
-						: reorderDropIndex === index && draggingMilestoneName !== milestone.name
-						? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 shadow-md'
-						: activeMilestoneNames.has(milestone.name)
+					'p-3 rounded-lg border-2 cursor-pointer transition-all relative',
+					store.activeMilestoneFilter === milestone.name
 						? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 shadow-sm'
 						: dragOverMilestone === milestone.name
 						? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 shadow-md scale-102'
@@ -400,9 +311,8 @@ onUnmounted(() => {
 				<!-- Header Row -->
 				<div class="flex items-start justify-between mb-2">
 					<div class="flex items-center gap-2 flex-1 min-w-0">
-						<GripVertical class="w-3 h-3 text-gray-300 dark:text-gray-600 flex-shrink-0 cursor-grab active:cursor-grabbing" />
 						<span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-							{{ milestone.milestone_name }}
+							{{ getMilestoneLabel(milestone) }}
 						</span>
 					</div>
 					<div class="milestone-menu relative">
@@ -476,7 +386,7 @@ onUnmounted(() => {
 			</div>
 
 			<!-- Empty State -->
-			<div v-if="milestonesSorted.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400">
+			<div v-if="store.milestones.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400">
 				<Diamond class="w-8 h-8 mx-auto mb-2 opacity-30" />
 				<p class="text-sm">{{ translate("No milestones") }}</p>
 				<button
@@ -504,14 +414,6 @@ onUnmounted(() => {
 				showEditModal = false;
 				editingMilestone = null;
 			"
-		/>
-
-		<MilestoneFilterModal
-			:show="showFilterModal"
-			:milestones="store.milestones"
-			:selected-milestones="store.activeMilestoneFilter"
-			@close="showFilterModal = false"
-			@apply="applyMilestoneFilters"
 		/>
 	</div>
 </template>

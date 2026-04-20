@@ -1,8 +1,6 @@
 # Copyright (c) 2024, Krzysztof and contributors
 # For license information, please see license.txt
 
-from datetime import datetime
-
 import frappe
 from frappe import _
 from frappe.model.document import Document
@@ -22,7 +20,7 @@ class ProjectMilestone(Document):
 	def update_statistics(self):
 		"""Calculate progress based on linked tasks"""
 		if not self.name:
-			# New document, skip calculation until the doc has a real name
+			# New document, skip calculation
 			return
 
 		total_tasks = frappe.db.count("Task", {"milestone": self.name})
@@ -32,7 +30,7 @@ class ProjectMilestone(Document):
 		self.completed_tasks = completed_tasks
 
 		if total_tasks > 0:
-			self.progress = round((completed_tasks / total_tasks) * 100, 2)
+			self.progress = int((completed_tasks / total_tasks) * 100)
 		else:
 			self.progress = 0
 

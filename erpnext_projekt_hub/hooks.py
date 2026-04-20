@@ -13,14 +13,15 @@ export_python_type_annotations = True
 required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
-add_to_apps_screen = [
-	{
-		"name": "erpnext_projekt_hub",
-		"logo": "/assets/erpnext_projekt_hub/logo-hub.svg",
-		"title": "Projekt HUB",
-		"route": "/project-hub",
-	}
-]
+# add_to_apps_screen = [
+# 	{
+# 		"name": "erpnext_projekt_hub",
+# 		"logo": "/assets/erpnext_projekt_hub/logo.png",
+# 		"title": "Projekt HUB",
+# 		"route": "/erpnext_projekt_hub",
+# 		"has_permission": "erpnext_projekt_hub.api.permission.has_app_permission"
+# 	}
+# ]
 
 # Includes in <head>
 # ------------------
@@ -149,7 +150,6 @@ doc_events = {
 	"Task": {
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
-		"after_delete": "erpnext_projekt_hub.events.task_events.on_task_after_delete",
 	}
 }
 
@@ -205,7 +205,7 @@ doc_events = {
 # Request Events
 # ----------------
 # before_request = ["erpnext_projekt_hub.utils.before_request"]
-after_request = ["erpnext_projekt_hub.api.pwa.add_sw_allowed_header"]
+# after_request = ["erpnext_projekt_hub.utils.after_request"]
 
 # Job Events
 # ----------
@@ -254,3 +254,18 @@ after_request = ["erpnext_projekt_hub.api.pwa.add_sw_allowed_header"]
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
+
+# Fixtures
+# --------
+fixtures = [
+	{"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
+	{
+		"dt": "Workspace Link",
+		"filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]],
+	},
+	{
+		"dt": "Workspace Shortcut",
+		"filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]],
+	},
+	{"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
+]

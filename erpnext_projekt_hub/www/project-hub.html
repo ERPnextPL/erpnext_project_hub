@@ -6,38 +6,13 @@
 {% block head_include %}
 <link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
 <link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
-<!-- PWA: Web App Manifest -->
-<link rel="manifest" href="/assets/erpnext_projekt_hub/frontend/manifest.json">
-<meta name="theme-color" content="#3b82f6">
-<!-- PWA: capability flags (mobile-web-app-capable for Chrome/Android, apple-mobile-web-app-capable for iOS Safari) -->
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Projekt HUB">
-<link rel="apple-touch-icon" href="/assets/erpnext_projekt_hub/frontend/icons/apple-touch-icon.png">
 {% endblock %}
 
 {% block page_content %}
 <div id="app"></div>
 {% endblock %}
 
-{% block footer %}{% endblock %}
-
 {% block script %}
-<!-- PWA: Service Worker Registration -->
-<script>
-	if ('serviceWorker' in navigator) {
-		window.addEventListener('load', () => {
-			navigator.serviceWorker.register('/api/method/erpnext_projekt_hub.api.pwa.service_worker', { scope: '/project-hub/' })
-				.then(registration => {
-					console.log('Service Worker registered:', registration);
-				})
-				.catch(error => {
-					console.warn('Service Worker registration failed:', error);
-				});
-		});
-	}
-</script>
 {{ super() }}
 <script>
 	window.csrf_token = '{{ csrf_token }}';

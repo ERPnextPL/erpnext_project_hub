@@ -4,16 +4,12 @@ import frappe
 from frappe.utils import generate_hash
 
 WORKSPACE_NAME = "Projects"
-APP_NAME = "erpnext_projekt_hub"
 SHORTCUT_LABEL = "Project Milestone"
 SHORTCUT_DOCTYPE = "Project Milestone"
 LEGACY_SHORTCUT_LABELS = {"Milestones"}
 
 
 def execute():
-	if APP_NAME not in frappe.get_installed_apps():
-		return
-
 	if not frappe.db.exists("Workspace", WORKSPACE_NAME):
 		return
 
@@ -26,7 +22,6 @@ def execute():
 		changed = True
 
 	if changed:
-		workspace.flags.ignore_links = True
 		workspace.save(ignore_permissions=True)
 
 

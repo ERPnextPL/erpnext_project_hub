@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
@@ -27,7 +26,6 @@ const props = defineProps({
 });
 
 const store = useMyTasksStore();
-const router = useRouter();
 const isUpdating = ref(false);
 const showSubtaskForm = ref(false);
 const subtaskSubject = ref("");
@@ -161,13 +159,6 @@ async function toggleComplete(e) {
 function openTask() {
 	showDescriptionPreview.value = false;
 	store.selectTask(props.task);
-}
-
-function navigateToProject(e) {
-	e.stopPropagation();
-	if (props.task.project) {
-		router.push({ name: "ProjectOutliner", params: { projectId: props.task.project } });
-	}
 }
 
 async function createSubtask() {
@@ -311,13 +302,9 @@ onUnmounted(() => {
 				<!-- Meta row -->
 				<div class="flex flex-wrap items-center gap-2 text-sm">
 					<!-- Project -->
-					<div
-						v-if="task.project_name"
-						class="flex items-center gap-1 text-gray-500 cursor-pointer hover:text-gray-700"
-						@click.stop="navigateToProject"
-					>
+					<div v-if="task.project_name" class="flex items-center gap-1 text-gray-500">
 						<Folder class="w-3.5 h-3.5" />
-						<span class="truncate max-w-[120px] hover:underline">{{ task.project_name }}</span>
+						<span class="truncate max-w-[120px]">{{ task.project_name }}</span>
 					</div>
 
 					<!-- Status badge -->
@@ -364,10 +351,11 @@ onUnmounted(() => {
 						v-if="task.progress !== null && task.progress !== undefined"
 						class="mt-3 space-y-1"
 					>
-						<div class="flex items-center text-[11px] text-gray-500">
+						<div class="flex items-center justify-between text-[11px] text-gray-500">
+							<span>{{ translate("Progress") }}</span>
 							<span class="font-semibold text-gray-700">{{ progressPercent }}%</span>
 						</div>
-						<div class="w-40 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+						<div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
 							<div
 								class="h-full rounded-full transition-all duration-300"
 								:class="progressBarColorClass"

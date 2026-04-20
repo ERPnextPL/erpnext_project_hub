@@ -4,16 +4,8 @@
 {% block title %}Project Outliner{% endblock %}
 
 {% block head_include %}
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css?v={{ frappe.utils.get_build_version() }}">
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css?v={{ frappe.utils.get_build_version() }}">
-<!-- PWA: Web App Manifest -->
-<link rel="manifest" href="/assets/erpnext_projekt_hub/frontend/manifest.json">
-<meta name="theme-color" content="#3b82f6">
-<!-- iOS Safari -->
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Projekt HUB">
-<link rel="apple-touch-icon" href="/assets/erpnext_projekt_hub/frontend/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
 {% endblock %}
 
 {% block page_content %}
@@ -21,86 +13,6 @@
 {% endblock %}
 
 {% block script %}
-<!-- PWA: Service Worker Registration + update notification -->
-<script>
-	if ('serviceWorker' in navigator) {
-		var _swRegistration = null;
-
-		window.addEventListener('load', () => {
-			navigator.serviceWorker.register('/api/method/erpnext_projekt_hub.api.pwa.service_worker', { scope: '/project-hub/' })
-				.then(registration => {
-					console.log('Service Worker registered:', registration);
-					_swRegistration = registration;
-
-					// New SW found while page is open → show update banner
-					registration.addEventListener('updatefound', () => {
-						var newWorker = registration.installing;
-						if (!newWorker) return;
-						newWorker.addEventListener('statechange', () => {
-							// New SW installed and waiting, old SW still controls the page
-							if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-								_showUpdateBanner();
-							}
-						});
-					});
-				})
-				.catch(error => {
-					console.warn('Service Worker registration failed:', error);
-				});
-		});
-
-		// After SW takes control (following SKIP_WAITING), reload the page
-		var _reloadOnController = false;
-		navigator.serviceWorker.addEventListener('controllerchange', () => {
-			if (_reloadOnController) window.location.reload();
-		});
-	}
-
-	function _applyUpdate() {
-		var reg = typeof _swRegistration !== 'undefined' ? _swRegistration : null;
-		if (reg && reg.waiting) {
-			_reloadOnController = true;
-			reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-		} else {
-			window.location.reload();
-		}
-	}
-
-	function _showUpdateBanner() {
-		if (document.getElementById('ph-update-banner')) return;
-		var banner = document.createElement('div');
-		banner.id = 'ph-update-banner';
-		banner.style.cssText = [
-			'position:fixed',
-			'bottom:16px',
-			'left:50%',
-			'transform:translateX(-50%)',
-			'z-index:99999',
-			'background:#1e40af',
-			'color:#fff',
-			'padding:10px 20px',
-			'border-radius:8px',
-			'box-shadow:0 4px 16px rgba(0,0,0,0.25)',
-			'font-size:14px',
-			'display:flex',
-			'align-items:center',
-			'gap:12px',
-			'white-space:nowrap',
-		].join(';');
-		banner.innerHTML =
-			'<span>Dostępna nowa wersja aplikacji.</span>' +
-			'<button onclick="_applyUpdate()" style="' +
-				'background:#fff;color:#1e40af;border:none;' +
-				'padding:5px 14px;border-radius:6px;cursor:pointer;' +
-				'font-weight:600;font-size:13px;' +
-			'">Odśwież</button>' +
-			'<button onclick="this.parentNode.remove()" style="' +
-				'background:transparent;color:#93c5fd;border:none;' +
-				'cursor:pointer;font-size:18px;line-height:1;padding:0 2px;' +
-			'">×</button>';
-		document.body.appendChild(banner);
-	}
-</script>
 {{ super() }}
 <script>
 	window.csrf_token = '{{ csrf_token }}';

@@ -18,18 +18,6 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
-	showHeader: {
-		type: Boolean,
-		default: true,
-	},
-	showQuickAdd: {
-		type: Boolean,
-		default: true,
-	},
-	enableReorder: {
-		type: Boolean,
-		default: true,
-	},
 });
 
 const store = useTaskStore();
@@ -108,11 +96,7 @@ const gridCols = computed(() => {
 
 // Get visible column config
 const visibleColumnConfigs = computed(() => {
-	// Keep header order identical to row cell order (visibleColumns).
-	const byId = new Map(availableColumns.map((col) => [col.id, col]));
-	return visibleColumns.value
-		.map((id) => byId.get(id))
-		.filter(Boolean);
+	return availableColumns.filter(col => visibleColumns.value.includes(col.id));
 });
 
 // Shared grid template so header and rows stay aligned
@@ -130,12 +114,10 @@ function focusBottomQuickAdd() {
 }
 
 function handleDragStart(evt) {
-	if (!props.enableReorder) return;
 	draggedTask.value = evt.item.__vue__?.task || null;
 }
 
 function handleDragEnd(evt) {
-	if (!props.enableReorder) return;
 	if (!draggedTask.value) return;
 
 	const newIndex = evt.newIndex;
@@ -159,7 +141,7 @@ async function handleTaskUpdate(taskName, updates) {
 		await store.updateTask(taskName, updates);
 	} catch (error) {
 		// Check if this is an incomplete subtasks error
-		const errorMsg = error.message || translate("Failed to update task");
+		const errorMsg = error.message || "Failed to update task";
 		const isSubtaskError = errorMsg.includes("subtask") || errorMsg.includes("not completed");
 
 		if (window.frappe) {
@@ -265,11 +247,11 @@ async function handleTimeLogSave(timelogData) {
 		showTimeLogModal.value = false;
 		selectedTaskForTimeLog.value = null;
 		if (window.frappe) {
-			frappe.show_alert({ message: translate("Time log saved successfully"), indicator: "green" });
+			frappe.show_alert({ message: "Time log saved successfully", indicator: "green" });
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: translate("Failed to save time log"), indicator: "red" });
+			frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
 		}
 	}
 }
@@ -335,10 +317,7 @@ const sortedTasks = computed(() => {
 <template>
 	<div class="task-tree">
 		<!-- Table header -->
-		<div
-			v-if="showHeader"
-			class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
-		>
+		<div class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10">
 			<div
 				class="grid gap-2 px-4 py-2 items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
 				:style="{ gridTemplateColumns: gridTemplateColumns }"
@@ -367,7 +346,6 @@ const sortedTasks = computed(() => {
 		<!-- Task rows -->
 		<div class="divide-y divide-gray-100 dark:divide-gray-800">
 			<draggable
-				v-if="enableReorder"
 				:list="sortedTasks"
 				item-key="name"
 				handle=".drag-handle"
@@ -406,43 +384,11 @@ const sortedTasks = computed(() => {
 						</div>
 					</div>
 				</template>
-				</draggable>
-			<div v-else>
-				<div v-for="task in sortedTasks" :key="task.name">
-					<TaskRow
-						:task="task"
-						:level="task.level || 0"
-						:highlighted="highlightedTasks.has(task.name)"
-						:visible-columns="visibleColumns"
-						:grid-template="gridTemplateColumns"
-						@update="handleTaskUpdate"
-						@click="handleTaskClick"
-						@add-subtask="handleAddSubtask"
-						@log-time="handleLogTime"
-						@add-task="handleAddTask"
-					/>
-					<div
-						v-if="addingSubtaskTo === task.name"
-						class="bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-400 dark:border-blue-500/60"
-					>
-						<QuickAddTask
-							:project-id="projectId"
-							:parent-task="task.name"
-							:placeholder="'Add subtask to ' + task.subject + '...'"
-							:auto-focus="true"
-							@created="handleTaskCreated"
-							@cancel="cancelAddSubtask"
-						/>
-					</div>
-				</div>
-			</div>
+			</draggable>
 		</div>
 
 		<!-- Quick add at bottom -->
-		<div
-			v-if="showQuickAdd"
-			class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
-		>
+		<div class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
 			<QuickAddTask
 				:project-id="projectId"
 				:parent-task="null"
