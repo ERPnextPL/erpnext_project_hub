@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, computed, watch } from "vue";
+import { ref, nextTick, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import TaskRow from "./TaskRow.vue";
 import QuickAddTask from "./QuickAddTask.vue";
@@ -25,19 +25,27 @@ const draggedTask = ref(null);
 const addingSubtaskTo = ref(null); // Track which task we're adding a subtask to
 const showTimeLogModal = ref(false);
 const selectedTaskForTimeLog = ref(null);
+const taskTreeRef = ref(null);
+const containerWidth = ref(0);
 
 // Column visibility settings
 const COLUMNS_STORAGE_KEY = 'project-hub-visible-columns';
 
 const COLUMN_WIDTHS = {
-	task: "minmax(16rem, 2fr)",
-	status: "minmax(8rem, 1fr)",
-	assignee: "minmax(10rem, 1fr)",
-	due_date: "minmax(9rem, 1fr)",
-	expected_time: "minmax(8rem, 1fr)",
-	priority: "minmax(6rem, 0.8fr)",
-	actions: "3.5rem",
+	task: "minmax(0, 2fr)",
+	status: "minmax(0, 1fr)",
+	assignee: "minmax(0, 1fr)",
+	due_date: "minmax(0, 1fr)",
+	expected_time: "minmax(0, 0.9fr)",
+	priority: "minmax(0, 0.7fr)",
+	actions: "2.75rem",
 };
+
+const RESPONSIVE_COLUMN_RULES = [
+	{ maxWidth: 700, hide: ["priority", "expected_time", "due_date", "assignee"] },
+	{ maxWidth: 920, hide: ["priority", "expected_time"] },
+	{ maxWidth: 1120, hide: ["priority"] },
+];
 
 const availableColumns = [
 	{ id: 'task', label: translate('Task'), sortable: true, required: true },
@@ -50,24 +58,69 @@ const availableColumns = [
 
 const visibleColumns = ref([]);
 
+function normalizeVisibleColumns(columns) {
+	const allowedOrder = availableColumns.map((column) => column.id);
+	const uniqueColumns = [];
+	const seen = new Set();
+
+	for (const columnId of columns || []) {
+		if (!allowedOrder.includes(columnId) || seen.has(columnId)) {
+			continue;
+		}
+		seen.add(columnId);
+		uniqueColumns.push(columnId);
+	}
+
+	for (const column of availableColumns) {
+		if (column.required && !seen.has(column.id)) {
+			uniqueColumns.unshift(column.id);
+			seen.add(column.id);
+		}
+	}
+
+	return allowedOrder.filter((columnId) => seen.has(columnId));
+}
+
+function getAutoHiddenColumns(width) {
+	for (const rule of RESPONSIVE_COLUMN_RULES) {
+		if (width > 0 && width <= rule.maxWidth) {
+			return new Set(rule.hide);
+		}
+	}
+	return new Set();
+}
+
+const effectiveVisibleColumns = computed(() => {
+	const autoHidden = getAutoHiddenColumns(containerWidth.value);
+	return visibleColumns.value.filter((columnId) => !autoHidden.has(columnId));
+});
+
 // Load visible columns from localStorage or use defaults
 function loadVisibleColumns() {
 	try {
 		const saved = localStorage.getItem(COLUMNS_STORAGE_KEY);
 		if (saved) {
 			const parsed = JSON.parse(saved);
-			// Ensure 'task' column is always visible
-			if (!parsed.includes('task')) {
-				parsed.unshift('task');
-			}
-			visibleColumns.value = parsed;
+			visibleColumns.value = normalizeVisibleColumns(parsed);
 		} else {
 			// Default visible columns
-			visibleColumns.value = ['task', 'status', 'assignee', 'due_date', 'priority'];
+			visibleColumns.value = normalizeVisibleColumns([
+				"task",
+				"status",
+				"assignee",
+				"due_date",
+				"priority",
+			]);
 		}
 	} catch (error) {
 		console.error('Failed to load visible columns:', error);
-		visibleColumns.value = ['task', 'status', 'assignee', 'due_date', 'priority'];
+		visibleColumns.value = normalizeVisibleColumns([
+			"task",
+			"status",
+			"assignee",
+			"due_date",
+			"priority",
+		]);
 	}
 }
 
@@ -96,14 +149,36 @@ const gridCols = computed(() => {
 
 // Get visible column config
 const visibleColumnConfigs = computed(() => {
-	return availableColumns.filter(col => visibleColumns.value.includes(col.id));
+	return availableColumns.filter((col) => effectiveVisibleColumns.value.includes(col.id));
 });
 
 // Shared grid template so header and rows stay aligned
 const gridTemplateColumns = computed(() => {
-	const cols = visibleColumns.value.map((id) => COLUMN_WIDTHS[id] || "1fr");
+	const cols = effectiveVisibleColumns.value.map((id) => COLUMN_WIDTHS[id] || "1fr");
 	cols.push(COLUMN_WIDTHS.actions);
 	return cols.join(" ");
+});
+
+let resizeObserver = null;
+
+onMounted(() => {
+	if (typeof ResizeObserver === "undefined" || !taskTreeRef.value) {
+		return;
+	}
+
+	resizeObserver = new ResizeObserver((entries) => {
+		const entry = entries[0];
+		containerWidth.value = Math.floor(entry?.contentRect?.width || 0);
+	});
+
+	resizeObserver.observe(taskTreeRef.value);
+});
+
+onBeforeUnmount(() => {
+	if (resizeObserver) {
+		resizeObserver.disconnect();
+		resizeObserver = null;
+	}
 });
 
 function focusBottomQuickAdd() {
@@ -315,7 +390,7 @@ const sortedTasks = computed(() => {
 </script>
 
 <template>
-	<div class="task-tree">
+	<div ref="taskTreeRef" class="task-tree">
 		<!-- Table header -->
 		<div class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10">
 			<div
@@ -336,7 +411,7 @@ const sortedTasks = computed(() => {
 				<div class="flex justify-end">
 					<ColumnSettings
 						:available-columns="availableColumns"
-						:visible-columns="visibleColumns"
+					:visible-columns="effectiveVisibleColumns"
 						@update:visibleColumns="saveVisibleColumns"
 					/>
 				</div>
@@ -360,7 +435,7 @@ const sortedTasks = computed(() => {
 							:task="task"
 							:level="task.level || 0"
 							:highlighted="highlightedTasks.has(task.name)"
-							:visible-columns="visibleColumns"
+							:visible-columns="effectiveVisibleColumns"
 							:grid-template="gridTemplateColumns"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"

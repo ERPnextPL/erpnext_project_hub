@@ -478,7 +478,7 @@ onUnmounted(() => {
 
 <template>
 	<div
-		class="task-row grid gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
+		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
 			level === 0
@@ -493,7 +493,7 @@ onUnmounted(() => {
 	>
 		<template v-for="columnId in visibleColumns" :key="columnId">
 			<!-- Task name with indent -->
-			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0">
+			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0 overflow-hidden">
 			<!-- Drag handle -->
 			<div
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
@@ -627,7 +627,7 @@ onUnmounted(() => {
 			</div>
 
 		<!-- Status -->
-		<div v-else-if="columnId === 'status'">
+		<div v-else-if="columnId === 'status'" class="min-w-0">
 			<button
 				@click.stop="cycleStatus"
 				:class="[
@@ -641,7 +641,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Assignee -->
-		<div v-else-if="columnId === 'assignee'">
+		<div v-else-if="columnId === 'assignee'" class="min-w-0">
 			<div
 				v-if="firstAssignee"
 				class="flex items-center gap-1 text-sm text-gray-600"
@@ -717,7 +717,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Due date -->
-		<div v-else-if="columnId === 'due_date'">
+		<div v-else-if="columnId === 'due_date'" class="min-w-0">
 			<div v-if="editingField === 'exp_end_date'" @click.stop>
 				<input
 					ref="inputRef"
@@ -746,13 +746,13 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Expected time -->
-		<div v-else-if="columnId === 'expected_time'" class="text-sm text-gray-700 flex items-center gap-1">
+		<div v-else-if="columnId === 'expected_time'" class="min-w-0 text-sm text-gray-700 flex items-center gap-1">
 			<Clock class="w-4 h-4 text-gray-400" />
 			<span>{{ task.expected_time ? task.expected_time + 'h' : '—' }}</span>
 		</div>
 
 		<!-- Priority -->
-		<div v-else-if="columnId === 'priority'" class="flex items-center">
+		<div v-else-if="columnId === 'priority'" class="min-w-0 flex items-center">
 			<span
 				v-if="task.priority"
 				:class="['text-sm font-bold', priorityConfig[task.priority]?.class]"
@@ -764,7 +764,7 @@ onUnmounted(() => {
 		</template>
 
 		<!-- Actions column -->
-		<div class="flex items-center justify-end">
+		<div class="min-w-0 flex items-center justify-end">
 			<button
 				@click.stop="showMenu"
 				class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200"
