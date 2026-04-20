@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import {
 	Diamond,
@@ -238,6 +238,10 @@ async function handleDrop(event, milestoneName) {
 
 onMounted(() => {
 	document.addEventListener("click", handleClickOutside);
+});
+
+onUnmounted(() => {
+	document.removeEventListener("click", handleClickOutside);
 });
 </script>
 

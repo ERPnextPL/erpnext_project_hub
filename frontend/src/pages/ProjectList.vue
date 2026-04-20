@@ -189,7 +189,7 @@ function getStatusClass(status) {
 											getStatusClass(project.status),
 										]"
 									>
-										{{ project.status }}
+										{{ translate(project.status) }}
 									</span>
 								</div>
 

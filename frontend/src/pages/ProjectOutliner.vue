@@ -289,7 +289,7 @@ const flattenedTasksWithFilters = computed(() => {
 									]"
 								>
 									<GanttChart class="w-4 h-4" />
-									Timeline
+									{{ translate("Timeline") }}
 								</button>
 							</div>
 						</div>

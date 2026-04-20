@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { translate } from "../utils/translation";
 
 function getCsrfToken() {
 	if (window.frappe && window.frappe.csrf_token && window.frappe.csrf_token !== "None") {
@@ -110,7 +111,7 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 			timelogs.value = data?.timelogs || [];
 			total.value = data?.total || timelogs.value.length;
 		} catch (err) {
-			error.value = err.message || "Failed to fetch time logs";
+			error.value = err.message || translate("Failed to fetch time logs");
 			console.error("Failed to fetch time logs:", err);
 		} finally {
 			loading.value = false;

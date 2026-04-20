@@ -45,6 +45,29 @@ class TabRegistry {
 			return;
 		}
 
+		if (!tabConfig.routeName) {
+			console.error('Tab registration failed: routeName is required', tabConfig);
+			return;
+		}
+
+		if (!tabConfig.path) {
+			console.error('Tab registration failed: path is required', tabConfig);
+			return;
+		}
+
+		const conflictingTab = Array.from(this.tabs.values()).find(
+			(tab) =>
+				tab.key !== tabConfig.key &&
+				(tab.routeName === tabConfig.routeName || tab.path === tabConfig.path)
+		);
+		if (conflictingTab) {
+			console.warn(
+				`Tab registration failed: routeName/path conflict with existing tab "${conflictingTab.key}"`,
+				{ tabConfig, conflictingTab }
+			);
+			return;
+		}
+
 		if (this.tabs.has(tabConfig.key)) {
 			console.warn(`Tab with key "${tabConfig.key}" is already registered. Overwriting.`);
 		}
@@ -83,14 +106,23 @@ class TabRegistry {
 	 * @returns {Array} Array of navigation items
 	 */
 	getNavItems() {
-		return this.getTabs().map(tab => ({
-			key: tab.key,
-			to: tab.path,
-			labelKey: tab.labelKey,
-			icon: tab.icon,
-			color: tab.color,
-			bg: tab.bg,
-		}));
+		const seenRouteNames = new Set();
+		return this.getTabs()
+			.filter((tab) => {
+				if (seenRouteNames.has(tab.routeName)) {
+					return false;
+				}
+				seenRouteNames.add(tab.routeName);
+				return true;
+			})
+			.map((tab) => ({
+				key: tab.key,
+				to: tab.path,
+				labelKey: tab.labelKey,
+				icon: tab.icon,
+				color: tab.color,
+				bg: tab.bg,
+			}));
 	}
 
 	/**
@@ -112,9 +144,11 @@ class TabRegistry {
 	getReservedSegments() {
 		const segments = {};
 		this.getTabs().forEach(tab => {
-			// Extract the last segment from the path (e.g., "my-tasks" from "/project-hub/my-tasks")
-			const segment = tab.path.split('/').pop();
-			if (segment && segment !== 'project-hub') {
+			// Reserve the full path and the terminal segment to avoid router collisions.
+			segments[tab.path] = tab.routeName;
+
+			const segment = tab.path.split('/').filter(Boolean).pop();
+			if (segment && segment !== "project-hub") {
 				segments[segment] = tab.routeName;
 			}
 		});

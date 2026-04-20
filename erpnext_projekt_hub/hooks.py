@@ -98,7 +98,7 @@ after_install = "erpnext_projekt_hub.install.after_install"
 # ------------
 
 # before_uninstall = "erpnext_projekt_hub.uninstall.before_uninstall"
-# after_uninstall = "erpnext_projekt_hub.uninstall.after_uninstall"
+after_uninstall = "erpnext_projekt_hub.uninstall.after_uninstall"
 
 # Integration Setup
 # ------------------

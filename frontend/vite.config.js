@@ -9,7 +9,20 @@ const proFrontendPath = path.resolve(
 	__dirname,
 	"../../projekt_hub_pro/projekt_hub_pro/public/frontend/src"
 );
-const proAppExists = fs.existsSync(proFrontendPath);
+const proEnabledMarkerPath = path.resolve(__dirname, ".pro-enabled");
+
+/**
+ * Determine whether projekt_hub_pro should be included in the build.
+ *
+ * The PRO source tree can exist on disk without being installed in the current
+ * site database. We only enable PRO tabs when the app has been installed and
+ * marked active by the install hook.
+ */
+function detectProApp() {
+	return fs.existsSync(proFrontendPath) && fs.existsSync(proEnabledMarkerPath);
+}
+
+const proAppExists = detectProApp();
 
 // Virtual module plugin: provides "virtual:pro-tabs" that either
 // re-exports from the real PRO app or exports a noop when PRO is absent.

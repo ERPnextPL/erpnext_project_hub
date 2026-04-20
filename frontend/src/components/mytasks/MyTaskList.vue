@@ -137,7 +137,7 @@ function handleSort(column) {
 					@click="handleSort('subject')"
 					class="col-span-4 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 				>
-					Zadanie
+					{{ translate("Task") }}
 					<component
 						v-if="getSortIcon('subject')"
 						:is="getSortIcon('subject')"
@@ -148,7 +148,7 @@ function handleSort(column) {
 					@click="handleSort('project')"
 					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 				>
-					Projekt
+					{{ translate("Project") }}
 					<component
 						v-if="getSortIcon('project')"
 						:is="getSortIcon('project')"
@@ -159,7 +159,7 @@ function handleSort(column) {
 					@click="handleSort('status')"
 					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 				>
-					Status
+					{{ translate("Status") }}
 					<component
 						v-if="getSortIcon('status')"
 						:is="getSortIcon('status')"
@@ -170,7 +170,7 @@ function handleSort(column) {
 					@click="handleSort('priority')"
 					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 				>
-					Priorytet
+					{{ translate("Priority") }}
 					<component
 						v-if="getSortIcon('priority')"
 						:is="getSortIcon('priority')"
@@ -181,7 +181,7 @@ function handleSort(column) {
 					@click="handleSort('due_date')"
 					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 				>
-					Termin
+					{{ translate("Due Date") }}
 					<component
 						v-if="getSortIcon('due_date')"
 						:is="getSortIcon('due_date')"

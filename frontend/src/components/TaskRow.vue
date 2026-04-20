@@ -748,7 +748,7 @@ onUnmounted(() => {
 		<!-- Expected time -->
 		<div v-else-if="columnId === 'expected_time'" class="min-w-0 text-sm text-gray-700 flex items-center gap-1">
 			<Clock class="w-4 h-4 text-gray-400" />
-			<span>{{ task.expected_time ? task.expected_time + 'h' : '—' }}</span>
+			<span>{{ task.expected_time === 0 || task.expected_time ? task.expected_time + 'h' : '—' }}</span>
 		</div>
 
 		<!-- Priority -->

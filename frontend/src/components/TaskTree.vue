@@ -411,7 +411,7 @@ const sortedTasks = computed(() => {
 				<div class="flex justify-end">
 					<ColumnSettings
 						:available-columns="availableColumns"
-					:visible-columns="effectiveVisibleColumns"
+					:visible-columns="visibleColumns"
 						@update:visibleColumns="saveVisibleColumns"
 					/>
 				</div>

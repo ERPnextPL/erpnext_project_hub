@@ -79,7 +79,7 @@ const statusLabels = {
 const columns = computed(() => {
 	const statuses = ["Open", "Working", "Pending Review", "Completed", "Cancelled"];
 	const selectedStatuses =
-		Array.isArray(props.visibleStatuses) && props.visibleStatuses.length > 0
+		Array.isArray(props.visibleStatuses)
 			? props.visibleStatuses
 			: statuses;
 

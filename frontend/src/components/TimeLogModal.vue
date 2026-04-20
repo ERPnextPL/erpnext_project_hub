@@ -27,6 +27,7 @@ const emit = defineEmits(["close", "save"]);
 
 const store = useTaskStore();
 const realWindow = getRealWindow();
+const isSaving = ref(false);
 
 const userLocale = computed(() => {
 	const localeFromBoot = realWindow?.frappe?.boot?.lang;
@@ -127,6 +128,7 @@ watch(
 	() => props.show,
 	(newVal) => {
 		if (newVal) {
+			isSaving.value = false;
 			resetForm();
 			// Set default date to today with current time minus 1 hour
 			const now = new Date();
@@ -150,6 +152,15 @@ watch(
 		}
 	},
 	{ immediate: true }
+);
+
+watch(
+	() => props.show,
+	(newVal) => {
+		if (!newVal) {
+			isSaving.value = false;
+		}
+	}
 );
 
 // Watch for activity types to set default activity_type when they load
@@ -193,6 +204,10 @@ function toFrappeDateTime(datetimeLocalStr) {
 }
 
 function handleSave() {
+	if (isSaving.value) {
+		return;
+	}
+
 	// Validate hours
 	if (!formData.value.hours || parseFloat(formData.value.hours) <= 0) {
 		showAlert("Please enter a valid number of hours");
@@ -226,6 +241,7 @@ function handleSave() {
 	// Calculate to_time before saving
 	calculateToTime();
 
+	isSaving.value = true;
 	emit("save", {
 		task: props.task.name,
 		hours: parseFloat(formData.value.hours),
@@ -412,9 +428,10 @@ function handleClose() {
 							</button>
 							<button
 								@click="handleSave"
+								:disabled="isSaving"
 								class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
 							>
-								Zapisz
+								{{ isSaving ? translate("Saving...") : translate("Save") }}
 							</button>
 						</div>
 					</div>
