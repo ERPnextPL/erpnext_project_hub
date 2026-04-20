@@ -73,6 +73,66 @@ describe('Tab Registry', () => {
 			);
 			consoleSpy.mockRestore();
 		});
+
+		it('should reject duplicate route name', () => {
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+			registerTab({
+				key: 'first',
+				routeName: 'DuplicateRoute',
+				path: '/first',
+				labelKey: 'First',
+				icon: Folder,
+				color: '',
+				bg: '',
+				component: () => {},
+			});
+
+			registerTab({
+				key: 'second',
+				routeName: 'DuplicateRoute',
+				path: '/second',
+				labelKey: 'Second',
+				icon: Folder,
+				color: '',
+				bg: '',
+				component: () => {},
+			});
+
+			expect(getTabs()).toHaveLength(1);
+			expect(warnSpy).toHaveBeenCalled();
+			warnSpy.mockRestore();
+		});
+
+		it('should reject duplicate path', () => {
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+			registerTab({
+				key: 'first',
+				routeName: 'FirstRoute',
+				path: '/duplicate',
+				labelKey: 'First',
+				icon: Folder,
+				color: '',
+				bg: '',
+				component: () => {},
+			});
+
+			registerTab({
+				key: 'second',
+				routeName: 'SecondRoute',
+				path: '/duplicate',
+				labelKey: 'Second',
+				icon: Folder,
+				color: '',
+				bg: '',
+				component: () => {},
+			});
+
+			expect(getTabs()).toHaveLength(1);
+			expect(warnSpy).toHaveBeenCalled();
+			warnSpy.mockRestore();
+		});
 	});
 
 	describe('Tab Ordering', () => {
@@ -155,6 +215,7 @@ describe('Tab Registry', () => {
 			});
 
 			const segments = tabRegistry.getReservedSegments();
+			expect(segments).toHaveProperty('/project-hub/my-tasks');
 			expect(segments).toHaveProperty('my-tasks');
 			expect(segments['my-tasks']).toBe('MyTasks');
 		});
@@ -225,43 +286,13 @@ describe('Tab Registry', () => {
 			expect(tabRegistry.isInitialized()).toBe(true);
 		});
 
-	it('should reset initialization state on reset', () => {
-		tabRegistry.markInitialized();
-		expect(tabRegistry.isInitialized()).toBe(true);
+		it('should reset initialization state on reset', () => {
+			tabRegistry.markInitialized();
+			expect(tabRegistry.isInitialized()).toBe(true);
 
-		tabRegistry.reset();
-		expect(tabRegistry.isInitialized()).toBe(false);
-	});
-
-	it('should reset registration counter on reset', () => {
-		registerTab({
-			key: 'first',
-			routeName: 'FirstRoute',
-			path: '/first',
-			labelKey: 'First',
-			icon: Folder,
-			color: '',
-			bg: '',
-			component: () => {},
+			tabRegistry.reset();
+			expect(tabRegistry.isInitialized()).toBe(false);
 		});
-
-		expect(tabRegistry.getTab('first').registrationIndex).toBe(0);
-
-		tabRegistry.reset();
-
-		registerTab({
-			key: 'second',
-			routeName: 'SecondRoute',
-			path: '/second',
-			labelKey: 'Second',
-			icon: Folder,
-			color: '',
-			bg: '',
-			component: () => {},
-		});
-
-		expect(tabRegistry.getTab('second').registrationIndex).toBe(0);
-	});
 	});
 
 	describe('Unregistration', () => {

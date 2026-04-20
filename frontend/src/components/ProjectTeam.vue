@@ -2,7 +2,6 @@
 import { ref, onMounted, computed, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { Users, Plus, X, User } from "lucide-vue-next";
-import { translate } from "../utils/translation";
 
 const props = defineProps({
 	projectId: {
@@ -56,7 +55,7 @@ async function addUser(user) {
 		isAddingUser.value = false;
 		searchQuery.value = "";
 	} catch (error) {
-		console.error(translate("Failed to add user:"), error);
+		console.error("Failed to add user:", error);
 	}
 }
 
@@ -67,7 +66,7 @@ async function removeUser(userEmail) {
 		await store.removeProjectUser(props.projectId, userEmail);
 		await loadProjectUsers();
 	} catch (error) {
-		console.error(translate("Failed to remove user:"), error);
+		console.error("Failed to remove user:", error);
 	}
 }
 
@@ -100,7 +99,7 @@ onMounted(() => {
 			class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
 		>
 			<Users class="w-4 h-4" />
-			<span>{{ translate("Team") }}</span>
+			<span>Team</span>
 			<span v-if="projectUsers.length > 0" class="text-xs text-gray-500">
 				({{ projectUsers.length }})
 			</span>
@@ -114,12 +113,12 @@ onMounted(() => {
 			<!-- Header -->
 			<div class="px-4 py-3 border-b border-gray-200">
 				<div class="flex items-center justify-between">
-					<h3 class="text-sm font-semibold text-gray-900">{{ translate("Project Team") }}</h3>
+					<h3 class="text-sm font-semibold text-gray-900">Project Team</h3>
 					<button
 						v-if="!isAddingUser"
 						@click.stop="openAddUser"
 						class="p-1 rounded hover:bg-gray-100 text-blue-600"
-						:title="translate('Add user')"
+						title="Add user"
 					>
 						<Plus class="w-4 h-4" />
 					</button>
@@ -132,7 +131,7 @@ onMounted(() => {
 					<input
 						v-model="searchQuery"
 						type="text"
-						:placeholder="translate('Search users...')"
+						placeholder="Search users..."
 						class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-400"
 						@click.stop
 					/>
@@ -166,7 +165,7 @@ onMounted(() => {
 						v-if="filteredAvailable.length === 0"
 						class="px-3 py-6 text-center text-sm text-gray-500"
 					>
-						{{ translate("No users available to add") }}
+						No users available to add
 					</div>
 				</div>
 				<div class="mt-3 pt-3 border-t border-gray-200">
@@ -177,7 +176,7 @@ onMounted(() => {
 						"
 						class="w-full px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
 					>
-						{{ translate("Cancel") }}
+						Cancel
 					</button>
 				</div>
 			</div>
@@ -188,7 +187,7 @@ onMounted(() => {
 					v-if="projectUsers.length === 0"
 					class="px-4 py-8 text-center text-sm text-gray-500"
 				>
-					{{ translate("No team members yet") }}
+					No team members yet
 				</div>
 				<div v-else class="divide-y divide-gray-100">
 					<div

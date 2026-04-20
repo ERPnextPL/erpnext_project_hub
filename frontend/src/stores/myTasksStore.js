@@ -419,6 +419,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 
 	const taskTimelogs = ref({});
 	const activityTypes = ref([]);
+	const pendingTimelogKeys = ref(new Set());
 
 	async function fetchActivityTypes() {
 		try {
@@ -448,6 +449,21 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	}
 
 	async function createTimelog(timelogData) {
+		const key = JSON.stringify([
+			timelogData.task || "",
+			timelogData.from_time || "",
+			timelogData.to_time || "",
+			timelogData.hours || "",
+			timelogData.activity_type || "",
+			timelogData.description || "",
+			timelogData.is_billable || 0,
+		]);
+
+		if (pendingTimelogKeys.value.has(key)) {
+			return null;
+		}
+
+		pendingTimelogKeys.value.add(key);
 		try {
 			const data = await apiCall(
 				"erpnext_projekt_hub.api.project_hub.create_timelog",
@@ -461,6 +477,8 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		} catch (error) {
 			console.error("Failed to create timelog:", error);
 			throw error;
+		} finally {
+			pendingTimelogKeys.value.delete(key);
 		}
 	}
 
@@ -496,6 +514,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		priorities,
 		taskTimelogs,
 		activityTypes,
+		pendingTimelogKeys,
 		// Computed
 		hasActiveFilters,
 		// Actions

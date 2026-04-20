@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, computed, watch } from "vue";
+import { ref, nextTick, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import TaskRow from "./TaskRow.vue";
 import QuickAddTask from "./QuickAddTask.vue";
@@ -18,18 +18,6 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
-	showHeader: {
-		type: Boolean,
-		default: true,
-	},
-	showQuickAdd: {
-		type: Boolean,
-		default: true,
-	},
-	enableReorder: {
-		type: Boolean,
-		default: true,
-	},
 });
 
 const store = useTaskStore();
@@ -37,19 +25,27 @@ const draggedTask = ref(null);
 const addingSubtaskTo = ref(null); // Track which task we're adding a subtask to
 const showTimeLogModal = ref(false);
 const selectedTaskForTimeLog = ref(null);
+const taskTreeRef = ref(null);
+const containerWidth = ref(0);
 
 // Column visibility settings
 const COLUMNS_STORAGE_KEY = 'project-hub-visible-columns';
 
 const COLUMN_WIDTHS = {
-	task: "minmax(16rem, 2fr)",
-	status: "minmax(8rem, 1fr)",
-	assignee: "minmax(10rem, 1fr)",
-	due_date: "minmax(9rem, 1fr)",
-	expected_time: "minmax(8rem, 1fr)",
-	priority: "minmax(6rem, 0.8fr)",
-	actions: "3.5rem",
+	task: "minmax(0, 2fr)",
+	status: "minmax(0, 1fr)",
+	assignee: "minmax(0, 1fr)",
+	due_date: "minmax(0, 1fr)",
+	expected_time: "minmax(0, 0.9fr)",
+	priority: "minmax(0, 0.7fr)",
+	actions: "2.75rem",
 };
+
+const RESPONSIVE_COLUMN_RULES = [
+	{ maxWidth: 700, hide: ["priority", "expected_time", "due_date", "assignee"] },
+	{ maxWidth: 920, hide: ["priority", "expected_time"] },
+	{ maxWidth: 1120, hide: ["priority"] },
+];
 
 const availableColumns = [
 	{ id: 'task', label: translate('Task'), sortable: true, required: true },
@@ -62,24 +58,69 @@ const availableColumns = [
 
 const visibleColumns = ref([]);
 
+function normalizeVisibleColumns(columns) {
+	const allowedOrder = availableColumns.map((column) => column.id);
+	const uniqueColumns = [];
+	const seen = new Set();
+
+	for (const columnId of columns || []) {
+		if (!allowedOrder.includes(columnId) || seen.has(columnId)) {
+			continue;
+		}
+		seen.add(columnId);
+		uniqueColumns.push(columnId);
+	}
+
+	for (const column of availableColumns) {
+		if (column.required && !seen.has(column.id)) {
+			uniqueColumns.unshift(column.id);
+			seen.add(column.id);
+		}
+	}
+
+	return allowedOrder.filter((columnId) => seen.has(columnId));
+}
+
+function getAutoHiddenColumns(width) {
+	for (const rule of RESPONSIVE_COLUMN_RULES) {
+		if (width > 0 && width <= rule.maxWidth) {
+			return new Set(rule.hide);
+		}
+	}
+	return new Set();
+}
+
+const effectiveVisibleColumns = computed(() => {
+	const autoHidden = getAutoHiddenColumns(containerWidth.value);
+	return visibleColumns.value.filter((columnId) => !autoHidden.has(columnId));
+});
+
 // Load visible columns from localStorage or use defaults
 function loadVisibleColumns() {
 	try {
 		const saved = localStorage.getItem(COLUMNS_STORAGE_KEY);
 		if (saved) {
 			const parsed = JSON.parse(saved);
-			// Ensure 'task' column is always visible
-			if (!parsed.includes('task')) {
-				parsed.unshift('task');
-			}
-			visibleColumns.value = parsed;
+			visibleColumns.value = normalizeVisibleColumns(parsed);
 		} else {
 			// Default visible columns
-			visibleColumns.value = ['task', 'status', 'assignee', 'due_date', 'priority'];
+			visibleColumns.value = normalizeVisibleColumns([
+				"task",
+				"status",
+				"assignee",
+				"due_date",
+				"priority",
+			]);
 		}
 	} catch (error) {
 		console.error('Failed to load visible columns:', error);
-		visibleColumns.value = ['task', 'status', 'assignee', 'due_date', 'priority'];
+		visibleColumns.value = normalizeVisibleColumns([
+			"task",
+			"status",
+			"assignee",
+			"due_date",
+			"priority",
+		]);
 	}
 }
 
@@ -108,18 +149,36 @@ const gridCols = computed(() => {
 
 // Get visible column config
 const visibleColumnConfigs = computed(() => {
-	// Keep header order identical to row cell order (visibleColumns).
-	const byId = new Map(availableColumns.map((col) => [col.id, col]));
-	return visibleColumns.value
-		.map((id) => byId.get(id))
-		.filter(Boolean);
+	return availableColumns.filter((col) => effectiveVisibleColumns.value.includes(col.id));
 });
 
 // Shared grid template so header and rows stay aligned
 const gridTemplateColumns = computed(() => {
-	const cols = visibleColumns.value.map((id) => COLUMN_WIDTHS[id] || "1fr");
+	const cols = effectiveVisibleColumns.value.map((id) => COLUMN_WIDTHS[id] || "1fr");
 	cols.push(COLUMN_WIDTHS.actions);
 	return cols.join(" ");
+});
+
+let resizeObserver = null;
+
+onMounted(() => {
+	if (typeof ResizeObserver === "undefined" || !taskTreeRef.value) {
+		return;
+	}
+
+	resizeObserver = new ResizeObserver((entries) => {
+		const entry = entries[0];
+		containerWidth.value = Math.floor(entry?.contentRect?.width || 0);
+	});
+
+	resizeObserver.observe(taskTreeRef.value);
+});
+
+onBeforeUnmount(() => {
+	if (resizeObserver) {
+		resizeObserver.disconnect();
+		resizeObserver = null;
+	}
 });
 
 function focusBottomQuickAdd() {
@@ -130,12 +189,10 @@ function focusBottomQuickAdd() {
 }
 
 function handleDragStart(evt) {
-	if (!props.enableReorder) return;
 	draggedTask.value = evt.item.__vue__?.task || null;
 }
 
 function handleDragEnd(evt) {
-	if (!props.enableReorder) return;
 	if (!draggedTask.value) return;
 
 	const newIndex = evt.newIndex;
@@ -159,7 +216,7 @@ async function handleTaskUpdate(taskName, updates) {
 		await store.updateTask(taskName, updates);
 	} catch (error) {
 		// Check if this is an incomplete subtasks error
-		const errorMsg = error.message || translate("Failed to update task");
+		const errorMsg = error.message || "Failed to update task";
 		const isSubtaskError = errorMsg.includes("subtask") || errorMsg.includes("not completed");
 
 		if (window.frappe) {
@@ -265,11 +322,11 @@ async function handleTimeLogSave(timelogData) {
 		showTimeLogModal.value = false;
 		selectedTaskForTimeLog.value = null;
 		if (window.frappe) {
-			frappe.show_alert({ message: translate("Time log saved successfully"), indicator: "green" });
+			frappe.show_alert({ message: "Time log saved successfully", indicator: "green" });
 		}
 	} catch (error) {
 		if (window.frappe) {
-			frappe.show_alert({ message: translate("Failed to save time log"), indicator: "red" });
+			frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
 		}
 	}
 }
@@ -333,12 +390,9 @@ const sortedTasks = computed(() => {
 </script>
 
 <template>
-	<div class="task-tree">
+	<div ref="taskTreeRef" class="task-tree">
 		<!-- Table header -->
-		<div
-			v-if="showHeader"
-			class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
-		>
+		<div class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10">
 			<div
 				class="grid gap-2 px-4 py-2 items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
 				:style="{ gridTemplateColumns: gridTemplateColumns }"
@@ -357,7 +411,7 @@ const sortedTasks = computed(() => {
 				<div class="flex justify-end">
 					<ColumnSettings
 						:available-columns="availableColumns"
-						:visible-columns="visibleColumns"
+					:visible-columns="visibleColumns"
 						@update:visibleColumns="saveVisibleColumns"
 					/>
 				</div>
@@ -367,7 +421,6 @@ const sortedTasks = computed(() => {
 		<!-- Task rows -->
 		<div class="divide-y divide-gray-100 dark:divide-gray-800">
 			<draggable
-				v-if="enableReorder"
 				:list="sortedTasks"
 				item-key="name"
 				handle=".drag-handle"
@@ -382,7 +435,7 @@ const sortedTasks = computed(() => {
 							:task="task"
 							:level="task.level || 0"
 							:highlighted="highlightedTasks.has(task.name)"
-							:visible-columns="visibleColumns"
+							:visible-columns="effectiveVisibleColumns"
 							:grid-template="gridTemplateColumns"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
@@ -406,43 +459,11 @@ const sortedTasks = computed(() => {
 						</div>
 					</div>
 				</template>
-				</draggable>
-			<div v-else>
-				<div v-for="task in sortedTasks" :key="task.name">
-					<TaskRow
-						:task="task"
-						:level="task.level || 0"
-						:highlighted="highlightedTasks.has(task.name)"
-						:visible-columns="visibleColumns"
-						:grid-template="gridTemplateColumns"
-						@update="handleTaskUpdate"
-						@click="handleTaskClick"
-						@add-subtask="handleAddSubtask"
-						@log-time="handleLogTime"
-						@add-task="handleAddTask"
-					/>
-					<div
-						v-if="addingSubtaskTo === task.name"
-						class="bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-400 dark:border-blue-500/60"
-					>
-						<QuickAddTask
-							:project-id="projectId"
-							:parent-task="task.name"
-							:placeholder="'Add subtask to ' + task.subject + '...'"
-							:auto-focus="true"
-							@created="handleTaskCreated"
-							@cancel="cancelAddSubtask"
-						/>
-					</div>
-				</div>
-			</div>
+			</draggable>
 		</div>
 
 		<!-- Quick add at bottom -->
-		<div
-			v-if="showQuickAdd"
-			class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
-		>
+		<div class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
 			<QuickAddTask
 				:project-id="projectId"
 				:parent-task="null"

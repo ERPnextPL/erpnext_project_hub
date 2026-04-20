@@ -1,11 +1,10 @@
 <script setup>
-import { ref, computed } from "vue";
+import { computed } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import MyTaskRowDesktop from "./MyTaskRowDesktop.vue";
 import MyTaskCardMobile from "./MyTaskCardMobile.vue";
-import ColumnSettings from "../ColumnSettings.vue";
+import { useWindowSize } from "@vueuse/core";
 import { ArrowUp, ArrowDown } from "lucide-vue-next";
-import { useWindowSize } from "../../utils/composables";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -17,81 +16,6 @@ const translate = (text) => {
 const store = useMyTasksStore();
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 768);
-
-// ── Column visibility ──────────────────────────────────────────────────────
-const COLUMNS_STORAGE_KEY = "my-tasks-visible-columns";
-
-const COLUMN_WIDTHS = {
-	subject: "2fr",
-	project: "1fr",
-	status: "0.45fr",
-	priority: "0.6fr",
-	due_date: "0.8fr",
-	assignee: "1fr",
-};
-
-const availableColumns = [
-	{ id: "subject", label: translate("Task"), required: true },
-	{ id: "project", label: translate("Project") },
-	{ id: "status", label: translate("Status") },
-	{ id: "priority", label: translate("Priority") },
-	{ id: "due_date", label: translate("Due Date") },
-];
-
-const ALL_COLUMN_IDS = availableColumns.map((c) => c.id);
-const DEFAULT_VISIBLE = ["subject", "project", "status", "priority", "due_date"];
-
-function loadVisibleColumns() {
-	try {
-		const saved = localStorage.getItem(COLUMNS_STORAGE_KEY);
-		if (saved) {
-			const parsed = JSON.parse(saved);
-			// Keep only known columns, always include subject
-			const filtered = parsed.filter((id) => ALL_COLUMN_IDS.includes(id));
-			if (!filtered.includes("subject")) filtered.unshift("subject");
-			return filtered;
-		}
-	} catch {
-		// ignore
-	}
-	return [...DEFAULT_VISIBLE];
-}
-
-const visibleColumns = ref(loadVisibleColumns());
-
-function saveVisibleColumns(columns) {
-	try {
-		localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(columns));
-	} catch {
-		// ignore
-	}
-	visibleColumns.value = columns;
-}
-
-const gridTemplateColumns = computed(() => {
-	const widths = visibleColumns.value.map((id) => {
-		if (!COLUMN_WIDTHS[id]) {
-			console.warn(`No width defined for column: ${id}, using default 1fr`);
-			return "1fr";
-		}
-		return COLUMN_WIDTHS[id];
-	});
-	return widths.join(" ");
-});
-
-const visibleColumnConfigs = computed(() => {
-	const byId = new Map(availableColumns.map((c) => [c.id, c]));
-	return visibleColumns.value.map((id) => byId.get(id)).filter(Boolean);
-});
-
-const SORT_KEYS = {
-	subject: "subject",
-	project: "project",
-	status: "status",
-	priority: "priority",
-	due_date: "due_date",
-};
-// ──────────────────────────────────────────────────────────────────────────
 
 const props = defineProps({
 	onOpenTimeLogModal: {
@@ -207,30 +131,63 @@ function handleSort(column) {
 			<!-- Table header (desktop only) -->
 			<div
 				v-if="!isMobile"
-				class="grid gap-4 px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider items-center"
-				:style="{ gridTemplateColumns: gridTemplateColumns + ' auto' }"
+				class="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider"
 			>
 				<button
-					v-for="col in visibleColumnConfigs"
-					:key="col.id"
-					@click="handleSort(SORT_KEYS[col.id])"
-					class="text-left hover:text-gray-700 transition-colors flex items-center gap-1 min-w-0"
+					@click="handleSort('subject')"
+					class="col-span-4 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 				>
-					<span class="truncate">{{ col.label }}</span>
+					{{ translate("Task") }}
 					<component
-						v-if="getSortIcon(SORT_KEYS[col.id])"
-						:is="getSortIcon(SORT_KEYS[col.id])"
-						class="w-3 h-3 flex-shrink-0"
+						v-if="getSortIcon('subject')"
+						:is="getSortIcon('subject')"
+						class="w-3 h-3"
 					/>
 				</button>
-				<!-- Column settings button -->
-				<div class="flex justify-end">
-					<ColumnSettings
-						:available-columns="availableColumns"
-						:visible-columns="visibleColumns"
-						@update:visibleColumns="saveVisibleColumns"
+				<button
+					@click="handleSort('project')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					{{ translate("Project") }}
+					<component
+						v-if="getSortIcon('project')"
+						:is="getSortIcon('project')"
+						class="w-3 h-3"
 					/>
-				</div>
+				</button>
+				<button
+					@click="handleSort('status')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					{{ translate("Status") }}
+					<component
+						v-if="getSortIcon('status')"
+						:is="getSortIcon('status')"
+						class="w-3 h-3"
+					/>
+				</button>
+				<button
+					@click="handleSort('priority')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					{{ translate("Priority") }}
+					<component
+						v-if="getSortIcon('priority')"
+						:is="getSortIcon('priority')"
+						class="w-3 h-3"
+					/>
+				</button>
+				<button
+					@click="handleSort('due_date')"
+					class="col-span-2 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
+				>
+					{{ translate("Due Date") }}
+					<component
+						v-if="getSortIcon('due_date')"
+						:is="getSortIcon('due_date')"
+						class="w-3 h-3"
+					/>
+				</button>
 			</div>
 
 			<!-- Task rows -->
@@ -258,10 +215,9 @@ function handleSort(column) {
 						>
 							<div
 								v-if="item.type === 'context'"
-								class="grid gap-4 px-4 py-2 bg-gray-50 text-xs text-gray-600"
-								:style="{ gridTemplateColumns }"
+								class="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 text-xs text-gray-600"
 							>
-								<div class="col-span-full truncate">↳ {{ item.subject }}</div>
+								<div class="col-span-12 truncate">↳ {{ item.subject }}</div>
 							</div>
 							<MyTaskRowDesktop
 								v-else
@@ -274,8 +230,6 @@ function handleSort(column) {
 								:is-expanded="
 									store.viewOptions?.showHierarchy && isExpanded(item.task.name)
 								"
-								:visible-columns="visibleColumns"
-								:grid-template="gridTemplateColumns"
 								@toggle-expand="store.toggleExpandParent"
 								@open-time-log-modal="props.onOpenTimeLogModal"
 							/>
@@ -283,13 +237,13 @@ function handleSort(column) {
 					</div>
 
 					<!-- Mobile: flat list -->
-					<div v-else class="flex flex-col gap-3 p-3">
+					<template v-else>
 						<MyTaskCardMobile
 							v-for="task in section.tasks"
 							:key="task.name"
 							:task="task"
 						/>
-					</div>
+					</template>
 				</template>
 			</div>
 		</div>

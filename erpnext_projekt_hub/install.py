@@ -1,5 +1,9 @@
+from pathlib import Path
+
 import frappe
 from frappe import _
+
+PRO_ENABLED_MARKER = Path(__file__).resolve().parents[1] / "frontend" / ".pro-enabled"
 
 
 def before_install():
@@ -12,5 +16,5 @@ def before_install():
 
 
 def after_install():
-	"""Placeholder hook for any post-install setup the app requires."""
-	pass
+	"""Mark the PRO frontend as enabled for the installed site."""
+	PRO_ENABLED_MARKER.write_text("enabled\n", encoding="utf-8")

@@ -23,7 +23,6 @@
 class TabRegistry {
 	constructor() {
 		this.tabs = new Map();
-		this.registrationCounter = 0;
 		this.initialized = false;
 	}
 
@@ -46,6 +45,29 @@ class TabRegistry {
 			return;
 		}
 
+		if (!tabConfig.routeName) {
+			console.error('Tab registration failed: routeName is required', tabConfig);
+			return;
+		}
+
+		if (!tabConfig.path) {
+			console.error('Tab registration failed: path is required', tabConfig);
+			return;
+		}
+
+		const conflictingTab = Array.from(this.tabs.values()).find(
+			(tab) =>
+				tab.key !== tabConfig.key &&
+				(tab.routeName === tabConfig.routeName || tab.path === tabConfig.path)
+		);
+		if (conflictingTab) {
+			console.warn(
+				`Tab registration failed: routeName/path conflict with existing tab "${conflictingTab.key}"`,
+				{ tabConfig, conflictingTab }
+			);
+			return;
+		}
+
 		if (this.tabs.has(tabConfig.key)) {
 			console.warn(`Tab with key "${tabConfig.key}" is already registered. Overwriting.`);
 		}
@@ -54,7 +76,6 @@ class TabRegistry {
 		const tab = {
 			...tabConfig,
 			order: tabConfig.order ?? 50,
-			registrationIndex: this.registrationCounter++,
 		};
 
 		this.tabs.set(tabConfig.key, tab);
@@ -81,52 +102,27 @@ class TabRegistry {
 	}
 
 	/**
-	 * Get all registered tabs sorted by registration time
-	 * @returns {Array} Array of tab configurations
-	 */
-	getTabsByRegistrationOrder() {
-		return Array.from(this.tabs.values()).sort(
-			(a, b) => a.registrationIndex - b.registrationIndex
-		);
-	}
-
-	/**
 	 * Get navigation items (subset of tab data for navigation component)
-	 * Filters out duplicate routeNames, keeping only the last registered version
 	 * @returns {Array} Array of navigation items
 	 */
 	getNavItems() {
-		// Track which routeNames we've already added (keep last/latest registered one)
 		const seenRouteNames = new Set();
-		const tabs = this.getTabsByRegistrationOrder();
-		const tabByKey = new Map(tabs.map((tab) => [tab.key, tab]));
-		const navItems = [];
-
-		// Iterate backwards so the newest registration wins for duplicate routeNames
-		for (let i = tabs.length - 1; i >= 0; i--) {
-			const tab = tabs[i];
-			if (!seenRouteNames.has(tab.routeName)) {
+		return this.getTabs()
+			.filter((tab) => {
+				if (seenRouteNames.has(tab.routeName)) {
+					return false;
+				}
 				seenRouteNames.add(tab.routeName);
-				navItems.unshift({
-					key: tab.key,
-					to: tab.path,
-					labelKey: tab.labelKey,
-					icon: tab.icon,
-					color: tab.color,
-					bg: tab.bg,
-					managerOnly: tab.managerOnly ?? false,
-				});
-			}
-		}
-
-		return navItems.sort((a, b) => {
-			const tabA = tabByKey.get(a.key);
-			const tabB = tabByKey.get(b.key);
-			if ((tabA?.order ?? 50) !== (tabB?.order ?? 50)) {
-				return (tabA?.order ?? 50) - (tabB?.order ?? 50);
-			}
-			return (tabA?.registrationIndex ?? 0) - (tabB?.registrationIndex ?? 0);
-		});
+				return true;
+			})
+			.map((tab) => ({
+				key: tab.key,
+				to: tab.path,
+				labelKey: tab.labelKey,
+				icon: tab.icon,
+				color: tab.color,
+				bg: tab.bg,
+			}));
 	}
 
 	/**
@@ -147,10 +143,12 @@ class TabRegistry {
 	 */
 	getReservedSegments() {
 		const segments = {};
-		this.getTabsByRegistrationOrder().forEach(tab => {
-			// Extract the last segment from the path (e.g., "my-tasks" from "/project-hub/my-tasks")
-			const segment = tab.path.split('/').pop();
-			if (segment && segment !== 'project-hub') {
+		this.getTabs().forEach(tab => {
+			// Reserve the full path and the terminal segment to avoid router collisions.
+			segments[tab.path] = tab.routeName;
+
+			const segment = tab.path.split('/').filter(Boolean).pop();
+			if (segment && segment !== "project-hub") {
 				segments[segment] = tab.routeName;
 			}
 		});
@@ -172,14 +170,7 @@ class TabRegistry {
 	 * @returns {Object|undefined} Tab configuration
 	 */
 	getTabByRouteName(routeName) {
-		// Return the LAST matching tab (pro version registered later will override core version)
-		const tabs = this.getTabsByRegistrationOrder();
-		for (let i = tabs.length - 1; i >= 0; i--) {
-			if (tabs[i].routeName === routeName) {
-				return tabs[i];
-			}
-		}
-		return undefined;
+		return this.getTabs().find(tab => tab.routeName === routeName);
 	}
 
 	/**
@@ -203,7 +194,6 @@ class TabRegistry {
 	 */
 	reset() {
 		this.tabs.clear();
-		this.registrationCounter = 0;
 		this.initialized = false;
 	}
 }

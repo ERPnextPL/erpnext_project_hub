@@ -85,7 +85,7 @@ function getStatusClass(status) {
 		<!-- Content -->
 		<main class="w-full px-4 sm:px-6 lg:px-8 py-8">
 			<!-- Header with info -->
-			<div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+			<div class="mb-6 flex items-center justify-between">
 				<div>
 					<h2 class="text-lg font-medium text-gray-900">
 						{{ isManager ? translate("All projects") : translate("My projects") }}
@@ -183,14 +183,14 @@ function getStatusClass(status) {
 
 							<div class="space-y-2">
 								<div class="flex items-center gap-2 text-sm text-gray-500">
-								<span
-									:class="[
-										'px-2 py-0.5 rounded-full text-xs font-medium',
-										getStatusClass(project.status),
-									]"
-								>
-									{{ translate(project.status) }}
-								</span>
+									<span
+										:class="[
+											'px-2 py-0.5 rounded-full text-xs font-medium',
+											getStatusClass(project.status),
+										]"
+									>
+										{{ translate(project.status) }}
+									</span>
 								</div>
 
 								<div

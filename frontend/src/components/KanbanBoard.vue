@@ -12,7 +12,6 @@ import {
 	Plus,
 	ListTodo,
 	Flag,
-	ChevronDown,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -24,18 +23,15 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
-	isMobile: {
-		type: Boolean,
-		default: false,
+	visibleStatuses: {
+		type: Array,
+		default: null,
 	},
 });
 
 const emit = defineEmits(["task-click", "task-update"]);
 
 const store = useTaskStore();
-const usersByEmail = computed(() => {
-	return new Map((store.availableUsers || []).map((u) => [u.name, u]));
-});
 
 // Status configuration
 const statusConfig = {
@@ -82,37 +78,26 @@ const statusLabels = {
 // Get columns based on available statuses
 const columns = computed(() => {
 	const statuses = ["Open", "Working", "Pending Review", "Completed", "Cancelled"];
-	return statuses.map((status) => ({
+	const selectedStatuses =
+		Array.isArray(props.visibleStatuses)
+			? props.visibleStatuses
+			: statuses;
+
+	return statuses
+		.filter((status) => selectedStatuses.includes(status))
+		.map((status) => ({
 		id: status,
 		title: statusLabels[status] || status,
 		...statusConfig[status],
 		tasks: props.tasks.filter((t) => t.status === status),
-	}));
+		}));
 });
-
-// Non-empty columns for mobile tab view
-const nonEmptyColumns = computed(() => columns.value.filter((c) => c.tasks.length > 0));
-
-// Mobile: active tab
-const mobileActiveTab = ref("Open");
-
-// Mobile: expanded sections for accordion view
-const mobileExpandedSections = ref(new Set(["Open", "Working"]));
-
-function toggleMobileSection(status) {
-	if (mobileExpandedSections.value.has(status)) {
-		mobileExpandedSections.value.delete(status);
-	} else {
-		mobileExpandedSections.value.add(status);
-	}
-}
 
 // Drag and drop state
 const draggedTask = ref(null);
 const dragOverColumn = ref(null);
 
 function onDragStart(e, task) {
-	if (props.isMobile) return; // Disable drag on mobile
 	draggedTask.value = task;
 	e.dataTransfer.effectAllowed = "move";
 	e.dataTransfer.setData("text/plain", task.name);
@@ -124,7 +109,6 @@ function onDragEnd() {
 }
 
 function onDragOver(e, columnId) {
-	if (props.isMobile) return;
 	e.preventDefault();
 	e.dataTransfer.dropEffect = "move";
 	dragOverColumn.value = columnId;
@@ -160,13 +144,11 @@ function getAssignee(task) {
 		const assigns = JSON.parse(task._assign);
 		if (Array.isArray(assigns) && assigns.length > 0) {
 			const email = assigns[0];
-			const user = usersByEmail.value.get(email);
-			const displayName = user?.full_name || user?.name || email;
-			const initials = displayName.trim().charAt(0).toUpperCase() || "?";
+			const name = email.split("@")[0];
 			return {
 				email,
-				displayName,
-				initials,
+				displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
+				initials: name.charAt(0).toUpperCase(),
 			};
 		}
 	} catch {
@@ -213,115 +195,7 @@ function getSubtaskCount(task) {
 </script>
 
 <template>
-	<!-- Mobile: Accordion layout -->
-	<div v-if="isMobile" class="p-3 space-y-2">
-		<div
-			v-for="column in columns"
-			:key="column.id"
-			class="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700"
-		>
-			<!-- Section header (tap to expand) -->
-			<button
-				@click="toggleMobileSection(column.id)"
-				:class="[
-					'flex items-center justify-between w-full px-3 py-2.5 text-left',
-					column.bgColor,
-				]"
-			>
-				<div class="flex items-center gap-2">
-					<div class="w-2 h-2 rounded-full" :class="column.color"></div>
-					<h3 class="text-sm font-semibold" :class="column.textColor">
-						{{ column.title }}
-					</h3>
-					<span
-						class="text-xs px-1.5 py-0.5 rounded-full bg-white/50"
-						:class="column.textColor"
-					>
-						{{ column.tasks.length }}
-					</span>
-				</div>
-				<ChevronDown
-					:class="[
-						'w-4 h-4 transition-transform',
-						column.textColor,
-						mobileExpandedSections.has(column.id) ? 'rotate-180' : '',
-					]"
-				/>
-			</button>
-
-			<!-- Section content -->
-			<div
-				v-if="mobileExpandedSections.has(column.id) && column.tasks.length > 0"
-				class="p-2 space-y-2 bg-gray-50 dark:bg-gray-800/50"
-			>
-				<div
-					v-for="task in column.tasks"
-					:key="task.name"
-					@click="handleTaskClick(task)"
-					class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 cursor-pointer active:bg-gray-50 transition-colors border-l-4"
-					:class="priorityColors[task.priority] || 'border-l-gray-200'"
-				>
-					<p class="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">
-						{{ task.subject }}
-					</p>
-
-					<div v-if="task.priority" class="mt-2">
-						<span
-							class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
-							:class="priorityBadgeColors[task.priority] || 'bg-gray-100 text-gray-600'"
-						>
-							<Flag class="w-3 h-3" />
-							{{ task.priority }}
-						</span>
-					</div>
-
-					<div class="flex items-center justify-between mt-2">
-						<div class="flex items-center gap-2 flex-wrap">
-							<div
-								v-if="task.exp_end_date && formatDate(task.exp_end_date)"
-								class="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
-								:class="formatDate(task.exp_end_date).class"
-							>
-								<Calendar class="w-3 h-3" />
-								{{ formatDate(task.exp_end_date).text }}
-							</div>
-							<div
-								v-if="getSubtaskCount(task) > 0"
-								class="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600"
-							>
-								<ListTodo class="w-3 h-3" />
-								{{ getSubtaskCount(task) }}
-							</div>
-						</div>
-						<div
-							v-if="getAssignee(task)"
-							class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700"
-							:title="getAssignee(task).email"
-						>
-							{{ getAssignee(task).initials }}
-						</div>
-						<div
-							v-else
-							class="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center"
-						>
-							<User class="w-3 h-3 text-gray-400" />
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<!-- Empty state for expanded section -->
-			<div
-				v-if="mobileExpandedSections.has(column.id) && column.tasks.length === 0"
-				class="p-4 text-center text-sm text-gray-400 bg-gray-50 dark:bg-gray-800/50"
-			>
-				No tasks
-			</div>
-		</div>
-	</div>
-
-	<!-- Desktop: Horizontal kanban columns -->
-	<div v-else class="h-full overflow-x-auto p-4">
+	<div class="h-full overflow-x-auto p-4">
 		<div class="flex gap-4 h-full min-w-max">
 			<!-- Kanban columns -->
 			<div
