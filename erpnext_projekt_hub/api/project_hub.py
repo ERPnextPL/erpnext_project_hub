@@ -1466,11 +1466,12 @@ def get_project_milestones(project: str):
 			"status",
 			"priority",
 			"color",
+			"sort_order",
 			"progress",
 			"total_tasks",
 			"completed_tasks",
 		],
-		order_by="milestone_date asc, creation asc",
+		order_by="sort_order asc, milestone_date asc, creation asc",
 	)
 
 	for milestone in milestones:
@@ -1548,6 +1549,7 @@ def create_milestone(
 			"priority": priority,
 			"color": color,
 			"status": "Open",
+			"sort_order": frappe.db.count("Project Milestone", {"project": project}),
 		}
 	)
 
@@ -1562,6 +1564,7 @@ def create_milestone(
 		"status": milestone.status,
 		"priority": milestone.priority,
 		"color": milestone.color,
+		"sort_order": milestone.sort_order,
 		"progress": milestone.progress,
 		"total_tasks": milestone.total_tasks,
 		"completed_tasks": milestone.completed_tasks,
@@ -1618,11 +1621,47 @@ def update_milestone(
 		"status": milestone.status,
 		"priority": milestone.priority,
 		"color": milestone.color,
+		"sort_order": milestone.sort_order,
 		"progress": milestone.progress,
 		"total_tasks": milestone.total_tasks,
 		"completed_tasks": milestone.completed_tasks,
 		"health": _calculate_milestone_health(milestone.as_dict()),
 	}
+
+
+@frappe.whitelist()
+def reorder_project_milestones(project: str, milestone_names: str):
+	"""Persist manual milestone order for a single project."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	if not milestone_names:
+		frappe.throw(_("Milestone order is required"))
+
+	if isinstance(milestone_names, str):
+		milestone_names = frappe.parse_json(milestone_names)
+
+	if not isinstance(milestone_names, list):
+		frappe.throw(_("Milestone order must be a list"))
+
+	project_milestones = set(
+		frappe.get_all(
+			"Project Milestone",
+			filters={"project": project},
+			pluck="name",
+		)
+	)
+
+	for milestone_name in milestone_names:
+		if milestone_name not in project_milestones:
+			frappe.throw(_("Milestone {0} does not belong to project {1}").format(milestone_name, project))
+
+	for sort_order, milestone_name in enumerate(milestone_names):
+		frappe.db.set_value(
+			"Project Milestone", milestone_name, "sort_order", sort_order, update_modified=False
+		)
+
+	return {"success": True}
 
 
 @frappe.whitelist()
