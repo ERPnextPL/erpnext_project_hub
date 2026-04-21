@@ -53,20 +53,37 @@ const isExpanded = ref(false);
 const loading = ref(false);
 const financials = ref(null);
 const error = ref(null);
+const financialsRequestId = ref(0);
 
 async function loadFinancials() {
 	if (financials.value) return;
 	loading.value = true;
 	error.value = null;
+	
+	// Increment request ID to guard against race conditions
+	// An older request completing after a newer one should not overwrite newer data
+	const currentRequestId = ++financialsRequestId.value;
+	
 	try {
-		financials.value = await apiCall(
+		const result = await apiCall(
 			"erpnext_projekt_hub.api.project_hub.get_project_financials",
 			{ project: props.project.name }
 		);
+		
+		// Only update if this is still the latest request
+		if (currentRequestId === financialsRequestId.value) {
+			financials.value = result;
+		}
 	} catch (e) {
-		error.value = translate("Could not load financial data.");
+		// Only set error if this is still the latest request
+		if (currentRequestId === financialsRequestId.value) {
+			error.value = translate("Could not load financial data.");
+		}
 	} finally {
-		loading.value = false;
+		// Only clear loading if this is still the latest request
+		if (currentRequestId === financialsRequestId.value) {
+			loading.value = false;
+		}
 	}
 }
 

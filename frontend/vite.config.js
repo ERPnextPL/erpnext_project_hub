@@ -19,10 +19,16 @@ const sitesPath = path.resolve(__dirname, "../../../sites");
 function detectProApp() {
 	try {
 		const explicitSite = process.env.FRAPPE_SITE || process.env.SITE_NAME;
-		const commonSiteConfig = JSON.parse(
-			fs.readFileSync(path.resolve(sitesPath, "common_site_config.json"), "utf8")
-		);
-		const siteName = explicitSite || commonSiteConfig.default_site;
+		
+		// Only load common_site_config.json when no explicit site is set
+		let siteName = explicitSite;
+		if (!siteName) {
+			const commonSiteConfig = JSON.parse(
+				fs.readFileSync(path.resolve(sitesPath, "common_site_config.json"), "utf8")
+			);
+			siteName = commonSiteConfig.default_site;
+		}
+		
 		if (!siteName || !fs.existsSync(proFrontendPath)) return false;
 
 		const benchRoot = path.resolve(__dirname, "../../..");

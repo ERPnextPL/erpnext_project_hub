@@ -1156,15 +1156,21 @@ function uploadTaskFile(file, options = {}) {
 			}
 
 			const serverMessages = response?._server_messages
-				? JSON.parse(response._server_messages)
-						.map((message) => {
-							try {
-								return JSON.parse(message).message;
-							} catch (error) {
-								return message;
-							}
-						})
-						.filter(Boolean)
+				? (() => {
+						try {
+							return JSON.parse(response._server_messages)
+								.map((message) => {
+									try {
+										return JSON.parse(message).message;
+									} catch (error) {
+										return message;
+									}
+								})
+								.filter(Boolean);
+						} catch (error) {
+							return [];
+						}
+				  })()
 				: [];
 
 			const message =

@@ -279,7 +279,7 @@ onMounted(() => {
 					v-for="file in filteredAttachments"
 					:key="file.name"
 					class="group rounded-xl border border-gray-200 dark:border-gray-700 p-3 hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer"
-					@click="realWindow?.open(file.file_url, '_blank')"
+					@click="realWindow?.open(file.file_url, '_blank', 'noopener,noreferrer')"
 				>
 					<div class="flex items-start gap-3">
 						<div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">

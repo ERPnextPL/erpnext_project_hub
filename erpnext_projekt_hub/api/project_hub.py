@@ -527,7 +527,11 @@ def update_project(
 		expected_start_date = None
 	if expected_end_date == "":
 		expected_end_date = None
-	if notes == "":
+
+	# Track if user explicitly passed empty string to clear the notes field
+	# (separate "not provided" from "clear")
+	notes_cleared = notes == ""
+	if notes_cleared:
 		notes = None
 
 	# Update fields directly in database to avoid triggering notifications
@@ -535,7 +539,8 @@ def update_project(
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
-	if notes is not None:
+	if notes is not None or notes_cleared:
+		# Write even if notes is None - this handles explicit clear requests
 		frappe.db.set_value("Project", project, "notes", notes)
 
 	# Get updated project data
