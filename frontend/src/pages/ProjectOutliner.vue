@@ -204,9 +204,25 @@ async function handleGroupDrop(event, index) {
 	groups.splice(index, 0, movedGroup);
 
 	try {
-		await store.reorderMilestones(
-			groups.filter((group) => !group.isUnassigned).map((group) => group.key)
-		);
+		// Use store.milestones to include ALL milestones (including empty/hidden ones)
+		// groupedTasksByMilestone only contains milestones with tasks, so empty milestones would be omitted
+		const allMilestoneKeys = store.milestones.map((m) => m.name);
+		const reorderedKeys = groups
+			.filter((group) => !group.isUnassigned)
+			.map((group) => group.key);
+
+		// Build final order: start with all milestones in original order,
+		// then apply the new order for milestones that have tasks
+		const finalKeys = [...allMilestoneKeys];
+		let reorderedIdx = 0;
+		for (let i = 0; i < finalKeys.length; i++) {
+			const key = finalKeys[i];
+			if (reorderedKeys.includes(key)) {
+				finalKeys[i] = reorderedKeys[reorderedIdx++];
+			}
+		}
+
+		await store.reorderMilestones(finalKeys);
 	} catch (error) {
 		window.frappe?.show_alert({
 			message: translate("Failed to reorder milestones"),

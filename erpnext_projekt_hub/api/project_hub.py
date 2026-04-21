@@ -1549,7 +1549,14 @@ def create_milestone(
 			"priority": priority,
 			"color": color,
 			"status": "Open",
-			"sort_order": frappe.db.count("Project Milestone", {"project": project}),
+			"sort_order": (
+				frappe.db.sql(
+					"SELECT COALESCE(MAX(sort_order), 0) FROM `tabProject Milestone` WHERE project = %s",
+					(project,),
+				)[0][0]
+				or 0
+			)
+			+ 1,
 		}
 	)
 
@@ -1637,6 +1644,10 @@ def reorder_project_milestones(project: str, milestone_names: str):
 
 	if not milestone_names:
 		frappe.throw(_("Milestone order is required"))
+
+	# Permission check: user must have write access to the project
+	if not frappe.has_permission("Project", "write", doc=project):
+		frappe.throw(_("You do not have permission to reorder milestones for this project"))
 
 	if isinstance(milestone_names, str):
 		milestone_names = frappe.parse_json(milestone_names)
