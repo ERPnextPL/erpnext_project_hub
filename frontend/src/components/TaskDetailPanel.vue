@@ -30,7 +30,7 @@ import {
 	Image,
 	Upload,
 } from "lucide-vue-next";
-import { TextEditor, useFileUpload } from "frappe-ui";
+import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
@@ -1077,12 +1077,11 @@ async function uploadFiles(files) {
 	uploadProgress.value = 0;
 	const total = files.length;
 	let completed = 0;
-	const uploader = useFileUpload();
 
 	try {
 		for (const file of files) {
 			const isImage = file?.type?.startsWith("image/");
-			await uploader.upload(file, {
+			await uploadTaskFile(file, {
 				doctype: "Task",
 				docname: props.task.name,
 				optimize: isImage,
@@ -1112,6 +1111,81 @@ async function uploadFiles(files) {
 		isUploading.value = false;
 		uploadProgress.value = 0;
 	}
+}
+
+function uploadTaskFile(file, options = {}) {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		const formData = new FormData();
+
+		formData.append("file", file, file.name);
+		formData.append("doctype", options.doctype || "Task");
+		formData.append("docname", options.docname || props.task.name);
+		formData.append("is_private", options.is_private ? "1" : "0");
+		formData.append("folder", options.folder || "Home");
+
+		if (options.optimize) {
+			formData.append("optimize", "1");
+			if (options.max_width) {
+				formData.append("max_width", String(options.max_width));
+			}
+			if (options.max_height) {
+				formData.append("max_height", String(options.max_height));
+			}
+		}
+
+		xhr.upload.addEventListener("progress", (event) => {
+			if (!event.lengthComputable) return;
+			const fileProgress = Math.round((event.loaded / event.total) * 100);
+			uploadProgress.value = Math.max(uploadProgress.value, fileProgress);
+		});
+
+		xhr.onreadystatechange = () => {
+			if (xhr.readyState !== XMLHttpRequest.DONE) return;
+
+			let response = null;
+			try {
+				response = JSON.parse(xhr.responseText);
+			} catch (error) {
+				response = null;
+			}
+
+			if (xhr.status >= 200 && xhr.status < 300) {
+				resolve(response?.message || response);
+				return;
+			}
+
+			const serverMessages = response?._server_messages
+				? JSON.parse(response._server_messages)
+						.map((message) => {
+							try {
+								return JSON.parse(message).message;
+							} catch (error) {
+								return message;
+							}
+						})
+						.filter(Boolean)
+				: [];
+
+			const message =
+				serverMessages.join("\n") ||
+				response?._error_message ||
+				response?.message ||
+				translate("Failed to upload file");
+
+			reject(new Error(message));
+		};
+
+		xhr.open("POST", "/api/method/upload_file", true);
+		xhr.setRequestHeader("Accept", "application/json");
+
+		const csrfToken = getCsrfToken();
+		if (csrfToken) {
+			xhr.setRequestHeader("X-Frappe-CSRF-Token", csrfToken);
+		}
+
+		xhr.send(formData);
+	});
 }
 
 async function submitComment() {
@@ -1406,7 +1480,7 @@ async function deleteAttachment(fileName) {
 										:editable="true"
 										:mentions="commentMentions"
 										:placeholder="() => translate('Type your comment...')"
-										editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+										editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
 									/>
 									<div class="flex justify-end">
 										<button

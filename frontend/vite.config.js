@@ -2,24 +2,46 @@ import vue from "@vitejs/plugin-vue";
 import frappeui from "frappe-ui/vite";
 import path from "path";
 import fs from "fs";
+import { execFileSync } from "child_process";
 import { defineConfig } from "vite";
 
 // Resolve projekt_hub_pro frontend path (if the PRO app is installed)
-const proFrontendPath = path.resolve(
-	__dirname,
-	"../../projekt_hub_pro/projekt_hub_pro/public/frontend/src"
-);
-const proEnabledMarkerPath = path.resolve(__dirname, ".pro-enabled");
+const proFrontendPath = path.resolve(__dirname, "../../projekt_hub_pro/projekt_hub_pro/public/frontend/src");
+const sitesPath = path.resolve(__dirname, "../../../sites");
 
 /**
  * Determine whether projekt_hub_pro should be included in the build.
  *
- * The PRO source tree can exist on disk without being installed in the current
- * site database. We only enable PRO tabs when the app has been installed and
- * marked active by the install hook.
+ * The PRO source tree can exist on disk without being installed for a given
+ * site. We only enable PRO tabs when the active site's site_config.json
+ * explicitly marks the app as enabled.
  */
 function detectProApp() {
-	return fs.existsSync(proFrontendPath) && fs.existsSync(proEnabledMarkerPath);
+	try {
+		const explicitSite = process.env.FRAPPE_SITE || process.env.SITE_NAME;
+		const commonSiteConfig = JSON.parse(
+			fs.readFileSync(path.resolve(sitesPath, "common_site_config.json"), "utf8")
+		);
+		const siteName = explicitSite || commonSiteConfig.default_site;
+		if (!siteName || !fs.existsSync(proFrontendPath)) return false;
+
+		const benchRoot = path.resolve(__dirname, "../../..");
+		const benchBin = path.resolve(benchRoot, "env/bin/bench");
+		const benchExe = fs.existsSync(benchBin) ? benchBin : "bench";
+		const appsOutput = execFileSync(
+			benchExe,
+			["--site", siteName, "list-apps"],
+			{ encoding: "utf8", cwd: benchRoot }
+		);
+		if (appsOutput.includes("projekt_hub_pro")) return true;
+
+		const siteConfig = JSON.parse(
+			fs.readFileSync(path.resolve(sitesPath, siteName, "site_config.json"), "utf8")
+		);
+		return siteConfig.projekt_hub_pro_enabled === 1 || siteConfig.projekt_hub_pro_enabled === true;
+	} catch {
+		return false;
+	}
 }
 
 const proAppExists = detectProApp();

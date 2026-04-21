@@ -9,9 +9,21 @@ import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
 import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
+import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
+import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
-import { ArrowLeft, Filter, Search, X, RefreshCw, LayoutList, Columns, GanttChart } from "lucide-vue-next";
+import {
+	ArrowLeft,
+	Filter,
+	Search,
+	X,
+	RefreshCw,
+	LayoutList,
+	Columns,
+	GanttChart,
+	Paperclip,
+} from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
@@ -28,6 +40,8 @@ const store = useTaskStore();
 
 const activeView = ref("list");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
+const attachmentsSidebarOpen = ref(false);
+const attachmentCount = ref(0);
 const searchInput = ref("");
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
 const activeFilters = ref({
@@ -77,6 +91,14 @@ function handleFilterChange(filters) {
 
 function handleTaskClick(task) {
 	store.selectTask(task);
+}
+
+function closeAttachmentsSidebar() {
+	attachmentsSidebarOpen.value = false;
+}
+
+function handleAttachmentsUpdated(count) {
+	attachmentCount.value = count;
 }
 
 // Helper to get today's date in YYYY-MM-DD format
@@ -169,18 +191,51 @@ const flattenedTasksWithFilters = computed(() => {
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Team + Nav -->
-					<div class="flex items-center gap-3 flex-wrap justify-end">
-						<ProjectTeam :project-id="projectId" />
+						<!-- Right: Team + Nav -->
+						<div class="flex items-center gap-3 flex-wrap justify-end">
+							<ProjectTeam :project-id="projectId" />
+						<button
+							@click="attachmentsSidebarOpen = !attachmentsSidebarOpen"
+								:class="[
+									'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
+									attachmentsSidebarOpen
+										? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+										: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+								]"
+								:title="translate('Attachments')"
+						>
+							<Paperclip class="w-4 h-4" />
+							<span class="hidden sm:inline">{{ translate("Attachments") }}</span>
+							<span
+								v-if="attachmentCount > 0"
+								class="ml-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+							>
+								{{ attachmentCount }}
+							</span>
+						</button>
 						<OutlinerNav />
 					</div>
-				</div>
+					</div>
 			</div>
 		</header>
 
-		<!-- Main content -->
-		<div class="flex-1 flex overflow-hidden relative">
-			<!-- Left sidebar: Milestones + Filters (collapsible) -->
+			<!-- Main content -->
+			<div class="flex-1 flex overflow-hidden relative">
+				<Transition name="slide-sidebar-right">
+					<div
+						v-if="attachmentsSidebarOpen"
+						class="order-last flex-shrink-0 overflow-y-auto relative"
+					>
+						<ProjectAttachmentsSidebar
+							:project-id="projectId"
+							:project="store.project"
+							@close="closeAttachmentsSidebar"
+							@updated="handleAttachmentsUpdated"
+						/>
+					</div>
+				</Transition>
+
+				<!-- Left sidebar: Milestones + Filters (collapsible) -->
 			<aside
 				v-if="!sidebarCollapsed"
 				class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-y-auto w-64 relative"
@@ -199,6 +254,10 @@ const flattenedTasksWithFilters = computed(() => {
 				<!-- Project Information Panel -->
 				<ProjectInfoPanel
 					v-if="store.project && !store.loading"
+					:project="store.project"
+				/>
+				<ProjectManagerPanel
+					v-if="store.project && !store.loading && store.project.is_manager"
 					:project="store.project"
 				/>
 

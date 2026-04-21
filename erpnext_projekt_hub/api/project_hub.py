@@ -248,6 +248,22 @@ def get_projects():
 	return {"active": active_projects, "completed": completed_projects, "is_manager": is_manager}
 
 
+def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
+	"""Return True when current user can access manager-only project views."""
+	current_user = user or frappe.session.user
+	user_roles = frappe.get_roles(current_user)
+	if (
+		"Projects Manager" in user_roles
+		or "System Manager" in user_roles
+		or "Administrator" in user_roles
+		or "Project Manager" in user_roles
+	):
+		return True
+
+	project_manager_field = getattr(project_doc, "project_manager", None)
+	return bool(project_manager_field and project_manager_field == current_user)
+
+
 @frappe.whitelist()
 def get_project_tasks(
 	project: str,
@@ -399,8 +415,96 @@ def get_project_tasks(
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
+			"is_manager": _is_project_manager_user(project_doc),
 		},
 		"tasks": tasks,
+	}
+
+
+@frappe.whitelist()
+def get_project_financials(project: str):
+	"""Return financial KPIs and reported hours breakdown for a project."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not _is_project_manager_user(project_doc):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	hours_by_user = frappe.db.sql(
+		"""
+		SELECT
+			ts.employee_name,
+			ts.owner AS user_email,
+			COALESCE(SUM(tsd.hours), 0) AS hours,
+			ts.docstatus
+		FROM `tabTimesheet Detail` tsd
+		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
+		WHERE tsd.project = %s AND ts.docstatus < 2
+		GROUP BY ts.owner, ts.employee_name, ts.docstatus
+		ORDER BY hours DESC
+		""",
+		project,
+		as_dict=True,
+	)
+
+	submitted_hours = 0.0
+	draft_hours = 0.0
+	hours_map = {}
+	for row in hours_by_user:
+		key = row["user_email"] or row["employee_name"] or "Unknown"
+		label = row["employee_name"] or row["user_email"] or "Unknown"
+		if key not in hours_map:
+			hours_map[key] = {"label": label, "submitted": 0.0, "draft": 0.0}
+		if row["docstatus"] == 1:
+			hours_map[key]["submitted"] += float(row["hours"])
+			submitted_hours += float(row["hours"])
+		else:
+			hours_map[key]["draft"] += float(row["hours"])
+			draft_hours += float(row["hours"])
+
+	hours_per_user = sorted(
+		[
+			{
+				"user": user_key,
+				"label": values["label"],
+				"submitted": round(values["submitted"], 2),
+				"draft": round(values["draft"], 2),
+				"total": round(values["submitted"] + values["draft"], 2),
+			}
+			for user_key, values in hours_map.items()
+		],
+		key=lambda row: row["total"],
+		reverse=True,
+	)
+
+	estimated_hours_result = frappe.db.sql(
+		"""
+		SELECT COALESCE(SUM(expected_time), 0) AS estimated_hours
+		FROM `tabTask`
+		WHERE project = %s
+		""",
+		project,
+		as_dict=True,
+	)
+	estimated_hours = float(
+		(estimated_hours_result[0]["estimated_hours"] if estimated_hours_result else 0) or 0
+	)
+
+	total_reported_hours = round(submitted_hours + draft_hours, 2)
+
+	return {
+		"estimated_costing": float(getattr(project_doc, "estimated_costing", 0) or 0),
+		"total_costing_amount": float(getattr(project_doc, "total_costing_amount", 0) or 0),
+		"total_purchase_cost": float(getattr(project_doc, "total_purchase_cost", 0) or 0),
+		"gross_margin": float(getattr(project_doc, "gross_margin", 0) or 0),
+		"per_gross_margin": float(getattr(project_doc, "per_gross_margin", 0) or 0),
+		"total_sales_amount": float(getattr(project_doc, "total_sales_amount", 0) or 0),
+		"estimated_hours": estimated_hours,
+		"total_hours": total_reported_hours,
+		"submitted_hours": round(submitted_hours, 2),
+		"draft_hours": round(draft_hours, 2),
+		"hours_per_user": hours_per_user,
 	}
 
 
@@ -409,6 +513,7 @@ def update_project(
 	project: str,
 	expected_start_date: str | None = None,
 	expected_end_date: str | None = None,
+	notes: str | None = None,
 ):
 	if not project:
 		frappe.throw(_("Project is required"))
@@ -422,12 +527,16 @@ def update_project(
 		expected_start_date = None
 	if expected_end_date == "":
 		expected_end_date = None
+	if notes == "":
+		notes = None
 
 	# Update fields directly in database to avoid triggering notifications
 	if expected_start_date is not None:
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
+	if notes is not None:
+		frappe.db.set_value("Project", project, "notes", notes)
 
 	# Get updated project data
 	project_doc.reload()
@@ -471,6 +580,7 @@ def update_project(
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
+		"is_manager": _is_project_manager_user(project_doc),
 	}
 
 
@@ -486,6 +596,9 @@ def create_task(
 	"""Create a new task."""
 	if not subject or not project:
 		frappe.throw(_("Subject and Project are required"))
+
+	if parent_task:
+		status = "Open"
 
 	# If parent_task is provided, ensure it's a group task
 	if parent_task:
@@ -2005,6 +2118,123 @@ def get_task_detail(task_name: str):
 	task = frappe.get_doc("Task", task_name)
 
 	return _get_task_response(task)
+
+
+@frappe.whitelist()
+def get_task_attachments(task_name: str):
+	"""Get task attachments from File doctype."""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+
+	task = frappe.get_doc("Task", task_name)
+	if not frappe.has_permission("Task", "read", doc=task):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	return frappe.get_all(
+		"File",
+		filters={"attached_to_doctype": "Task", "attached_to_name": task_name},
+		fields=["name", "file_name", "file_url", "file_size", "file_type", "is_private", "owner", "creation"],
+		order_by="creation desc",
+	)
+
+
+@frappe.whitelist()
+def get_project_attachments(project_name: str):
+	"""Get project attachments from File doctype."""
+	if not project_name:
+		frappe.throw(_("Project name is required"))
+
+	project = frappe.get_doc("Project", project_name)
+	if not frappe.has_permission("Project", "read", doc=project):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	return frappe.get_all(
+		"File",
+		filters={"attached_to_doctype": "Project", "attached_to_name": project_name},
+		fields=["name", "file_name", "file_url", "file_size", "file_type", "is_private", "owner", "creation"],
+		order_by="creation desc",
+	)
+
+
+@frappe.whitelist()
+def get_task_comments(task_name: str):
+	"""Get task comments from Comment doctype."""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+
+	task = frappe.get_doc("Task", task_name)
+	if not frappe.has_permission("Task", "read", doc=task):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	return frappe.get_all(
+		"Comment",
+		filters={
+			"reference_doctype": "Task",
+			"reference_name": task_name,
+			"comment_type": "Comment",
+		},
+		fields=["name", "comment_by", "comment_email", "content", "owner", "creation"],
+		order_by="creation desc",
+	)
+
+
+@frappe.whitelist()
+def add_task_comment(task_name: str, content: str):
+	"""Add a comment to task using standard Frappe comment API."""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+	if not content or not content.strip():
+		frappe.throw(_("Comment content is required"))
+
+	task = frappe.get_doc("Task", task_name)
+	if not frappe.has_permission("Task", "read", doc=task):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	comment = task.add_comment("Comment", text=content.strip())
+	return {
+		"name": comment.name,
+		"comment_by": comment.comment_by,
+		"comment_email": comment.comment_email,
+		"content": comment.content,
+		"owner": comment.owner,
+		"creation": comment.creation,
+	}
+
+
+@frappe.whitelist()
+def delete_task_attachment(file_name: str):
+	"""Delete file attachment from task."""
+	if not file_name:
+		frappe.throw(_("File name is required"))
+
+	file_doc = frappe.get_doc("File", file_name)
+	if file_doc.attached_to_doctype != "Task" or not file_doc.attached_to_name:
+		frappe.throw(_("Attachment is not linked to a task"))
+
+	task = frappe.get_doc("Task", file_doc.attached_to_name)
+	if not frappe.has_permission("Task", "write", doc=task):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	frappe.delete_doc("File", file_name)
+	return {"ok": True}
+
+
+@frappe.whitelist()
+def delete_project_attachment(file_name: str):
+	"""Delete file attachment from project."""
+	if not file_name:
+		frappe.throw(_("File name is required"))
+
+	file_doc = frappe.get_doc("File", file_name)
+	if file_doc.attached_to_doctype != "Project" or not file_doc.attached_to_name:
+		frappe.throw(_("Attachment is not linked to a project"))
+
+	project = frappe.get_doc("Project", file_doc.attached_to_name)
+	if not frappe.has_permission("Project", "write", doc=project):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	frappe.delete_doc("File", file_name)
+	return {"ok": True}
 
 
 @frappe.whitelist()

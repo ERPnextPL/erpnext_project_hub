@@ -27,6 +27,7 @@ const showTimeLogModal = ref(false);
 const selectedTaskForTimeLog = ref(null);
 const taskTreeRef = ref(null);
 const containerWidth = ref(0);
+const activeContextMenuTaskName = ref(null);
 
 // Column visibility settings
 const COLUMNS_STORAGE_KEY = 'project-hub-visible-columns';
@@ -316,6 +317,14 @@ function handleLogTime(task) {
 	showTimeLogModal.value = true;
 }
 
+function handleContextMenuOpen(taskName) {
+	activeContextMenuTaskName.value = taskName;
+}
+
+function handleContextMenuClose() {
+	activeContextMenuTaskName.value = null;
+}
+
 async function handleTimeLogSave(timelogData) {
 	try {
 		await store.createTimelog(timelogData);
@@ -437,11 +446,14 @@ const sortedTasks = computed(() => {
 							:highlighted="highlightedTasks.has(task.name)"
 							:visible-columns="effectiveVisibleColumns"
 							:grid-template="gridTemplateColumns"
+							:active-context-menu-task-name="activeContextMenuTaskName"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"
 							@log-time="handleLogTime"
 							@add-task="handleAddTask"
+							@contextmenu-open="handleContextMenuOpen"
+							@contextmenu-close="handleContextMenuClose"
 						/>
 						<!-- Inline subtask input -->
 						<div
