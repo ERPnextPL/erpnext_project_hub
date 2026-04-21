@@ -1,9 +1,6 @@
-from pathlib import Path
-
 import frappe
 from frappe import _
-
-PRO_ENABLED_MARKER = Path(__file__).resolve().parents[1] / "frontend" / ".pro-enabled"
+from frappe.installer import update_site_config
 
 
 def before_install():
@@ -17,4 +14,4 @@ def before_install():
 
 def after_install():
 	"""Mark the PRO frontend as enabled for the installed site."""
-	PRO_ENABLED_MARKER.write_text("enabled\n", encoding="utf-8")
+	update_site_config("projekt_hub_pro_enabled", 1)

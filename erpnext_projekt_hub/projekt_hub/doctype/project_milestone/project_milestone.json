@@ -9,6 +9,7 @@
 		"milestone_name",
 		"project",
 		"column_break_1",
+		"sort_order",
 		"status",
 		"priority",
 		"section_break_dates",
@@ -44,6 +45,14 @@
 		{
 			"fieldname": "column_break_1",
 			"fieldtype": "Column Break"
+		},
+		{
+			"default": "0",
+			"fieldname": "sort_order",
+			"fieldtype": "Int",
+			"hidden": 1,
+			"label": "Sort Order",
+			"read_only": 1
 		},
 		{
 			"default": "Open",

@@ -43,9 +43,21 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
+	activeContextMenuTaskName: {
+		type: String,
+		default: null,
+	},
 });
 
-const emit = defineEmits(["update", "click", "add-subtask", "log-time", "add-task"]);
+const emit = defineEmits([
+	"update",
+	"click",
+	"add-subtask",
+	"log-time",
+	"add-task",
+	"contextmenu-open",
+	"contextmenu-close",
+]);
 
 const store = useTaskStore();
 const realWindow = getRealWindow();
@@ -82,8 +94,8 @@ const isTouchDevice = () => {
 };
 
 // Context menu
-const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
+const showContextMenu = computed(() => props.activeContextMenuTaskName === props.task.name);
 
 // User assignment dropdown
 const showUserDropdown = ref(false);
@@ -206,8 +218,19 @@ function startEditing(field, currentValue) {
 	editingField.value = field;
 	editValue.value = currentValue || "";
 	nextTick(() => {
-		inputRef.value?.focus();
-		inputRef.value?.select();
+		const el = inputRef.value?.$el || inputRef.value;
+		el?.focus?.();
+		el?.select?.();
+	});
+}
+
+function openDatePicker(currentValue) {
+	editingField.value = "exp_end_date";
+	editValue.value = currentValue || "";
+	nextTick(() => {
+		const el = inputRef.value?.$el || inputRef.value;
+		el?.focus?.();
+		el?.showPicker?.();
 	});
 }
 
@@ -364,14 +387,7 @@ function showMenu(e) {
 	}
 	e.preventDefault();
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
-	showContextMenu.value = true;
-
-	// Close on click outside
-	const closeMenu = () => {
-		showContextMenu.value = false;
-		document.removeEventListener("click", closeMenu);
-	};
-	setTimeout(() => document.addEventListener("click", closeMenu), 0);
+	emit("contextmenu-open", props.task.name);
 }
 
 async function deleteTask() {
@@ -381,7 +397,7 @@ async function deleteTask() {
 		}
 	}
 	await store.deleteTask(props.task.name);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 function openInDesk() {
@@ -391,17 +407,17 @@ function openInDesk() {
 function addSubtask() {
 	if (!canAddSubtask.value) return;
 	emit("add-subtask", props.task.name);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 function addTask() {
 	emit("add-task", props.task.project);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 function logTime() {
 	emit("log-time", props.task);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 // Drag handlers for milestone assignment
@@ -460,7 +476,7 @@ function closeDescriptionModal() {
 // Close context menu when clicking outside
 function handleGlobalClick(event) {
 	if (showContextMenu.value && !event.target.closest(".context-menu-wrapper")) {
-		showContextMenu.value = false;
+		emit("contextmenu-close");
 	}
 	if (showDescriptionPreview.value && !event.target.closest(".description-preview-trigger")) {
 		showDescriptionPreview.value = false;
@@ -718,31 +734,36 @@ onUnmounted(() => {
 
 		<!-- Due date -->
 		<div v-else-if="columnId === 'due_date'" class="min-w-0">
-			<div v-if="editingField === 'exp_end_date'" @click.stop>
+			<div class="relative inline-flex items-center">
+				<button
+					v-if="task.exp_end_date"
+					type="button"
+					@click.stop="openDatePicker(task.exp_end_date)"
+					class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+				>
+					<Calendar class="w-4 h-4 text-gray-400" />
+					<span>{{ task.exp_end_date }}</span>
+				</button>
+				<button
+					v-else
+					type="button"
+					@click.stop="openDatePicker('')"
+					class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+				>
+					<Calendar class="w-4 h-4" />
+				</button>
 				<input
 					ref="inputRef"
 					v-model="editValue"
 					type="date"
-					class="inline-edit-input text-sm"
-					@blur="finishEditing"
+					class="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
+					tabindex="-1"
+					@change="finishEditing"
 					@keydown="handleKeydown"
+					@blur="cancelEditing"
+					aria-label="Edit due date"
 				/>
 			</div>
-			<div
-				v-else-if="task.exp_end_date"
-				@dblclick.stop="startEditing('exp_end_date', task.exp_end_date)"
-				class="flex items-center gap-1 text-sm text-gray-600"
-			>
-				<Calendar class="w-4 h-4 text-gray-400" />
-				<span>{{ task.exp_end_date }}</span>
-			</div>
-			<button
-				v-else
-				@click.stop="startEditing('exp_end_date', '')"
-				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-			>
-				<Calendar class="w-4 h-4" />
-			</button>
 		</div>
 
 		<!-- Expected time -->

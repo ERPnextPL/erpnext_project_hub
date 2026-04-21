@@ -72,6 +72,7 @@ const isSaving = ref(false);
 const editableExpectedStart = ref("");
 const editableExpectedEnd = ref("");
 const editableDocumentationUrl = ref("");
+const editableNotes = ref("");
 
 watch(
 	() => props.project,
@@ -79,6 +80,7 @@ watch(
 		editableExpectedStart.value = p?.expected_start_date || "";
 		editableExpectedEnd.value = p?.expected_end_date || "";
 		editableDocumentationUrl.value = p?.documentation_url || "";
+		editableNotes.value = p?.notes || "";
 	},
 	{ immediate: true }
 );
@@ -131,6 +133,18 @@ async function saveDocumentationUrl() {
 		translate("Could not save documentation link"),
 		() => {
 			editableDocumentationUrl.value = props.project.documentation_url || "";
+		}
+	);
+}
+
+async function saveNotes() {
+	await saveProjectField(
+		"notes",
+		editableNotes.value,
+		translate("Project notes saved"),
+		translate("Could not save project notes"),
+		() => {
+			editableNotes.value = props.project.notes || "";
 		}
 	);
 }
@@ -307,14 +321,22 @@ async function saveDocumentationUrl() {
 					</div>
 				</div>
 
-				<!-- Notes Section (full width if present) -->
-				<div v-if="project.notes" class="mt-4 pt-4 border-t border-gray-100">
+				<!-- Notes Section -->
+				<div class="mt-4 pt-4 border-t border-gray-100">
 					<div class="flex items-start gap-2">
 						<FileText class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
 								<div class="text-xs text-gray-500 mb-1">{{ translate("Notes") }}</div>
-							<div class="text-sm text-gray-700 whitespace-pre-wrap">
-								{{ project.notes }}
+							<textarea
+								v-model="editableNotes"
+								rows="4"
+								class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+								:placeholder="translate('Add project notes...')"
+								@blur="saveNotes"
+								:disabled="isSaving"
+							></textarea>
+							<div class="text-xs text-gray-400 mt-1">
+								{{ translate("Leave empty to clear notes") }}
 							</div>
 						</div>
 					</div>

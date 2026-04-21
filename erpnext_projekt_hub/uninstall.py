@@ -1,9 +1,6 @@
-from pathlib import Path
-
-PRO_ENABLED_MARKER = Path(__file__).resolve().parents[1] / "frontend" / ".pro-enabled"
+from frappe.installer import update_site_config
 
 
 def after_uninstall():
-	"""Remove the PRO frontend marker when the app is uninstalled."""
-	if PRO_ENABLED_MARKER.exists():
-		PRO_ENABLED_MARKER.unlink()
+	"""Disable the PRO frontend for the uninstalled site."""
+	update_site_config("projekt_hub_pro_enabled", 0)

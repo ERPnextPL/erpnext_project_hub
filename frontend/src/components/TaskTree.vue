@@ -18,6 +18,22 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
+	showHeader: {
+		type: Boolean,
+		default: true,
+	},
+	showQuickAdd: {
+		type: Boolean,
+		default: true,
+	},
+	enableReorder: {
+		type: Boolean,
+		default: true,
+	},
+	showBody: {
+		type: Boolean,
+		default: true,
+	},
 });
 
 const store = useTaskStore();
@@ -27,6 +43,7 @@ const showTimeLogModal = ref(false);
 const selectedTaskForTimeLog = ref(null);
 const taskTreeRef = ref(null);
 const containerWidth = ref(0);
+const activeContextMenuTaskName = ref(null);
 
 // Column visibility settings
 const COLUMNS_STORAGE_KEY = 'project-hub-visible-columns';
@@ -316,6 +333,14 @@ function handleLogTime(task) {
 	showTimeLogModal.value = true;
 }
 
+function handleContextMenuOpen(taskName) {
+	activeContextMenuTaskName.value = taskName;
+}
+
+function handleContextMenuClose() {
+	activeContextMenuTaskName.value = null;
+}
+
 async function handleTimeLogSave(timelogData) {
 	try {
 		await store.createTimelog(timelogData);
@@ -392,7 +417,10 @@ const sortedTasks = computed(() => {
 <template>
 	<div ref="taskTreeRef" class="task-tree">
 		<!-- Table header -->
-		<div class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10">
+		<div
+			v-if="showHeader"
+			class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
+		>
 			<div
 				class="grid gap-2 px-4 py-2 items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
 				:style="{ gridTemplateColumns: gridTemplateColumns }"
@@ -419,13 +447,13 @@ const sortedTasks = computed(() => {
 		</div>
 
 		<!-- Task rows -->
-		<div class="divide-y divide-gray-100 dark:divide-gray-800">
+		<div v-if="showBody" class="divide-y divide-gray-100 dark:divide-gray-800">
 			<draggable
 				:list="sortedTasks"
 				item-key="name"
 				handle=".drag-handle"
 				ghost-class="opacity-50"
-				:disabled="!!store.sortBy"
+				:disabled="!!store.sortBy || !enableReorder"
 				@start="handleDragStart"
 				@end="handleDragEnd"
 			>
@@ -437,11 +465,14 @@ const sortedTasks = computed(() => {
 							:highlighted="highlightedTasks.has(task.name)"
 							:visible-columns="effectiveVisibleColumns"
 							:grid-template="gridTemplateColumns"
+							:active-context-menu-task-name="activeContextMenuTaskName"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"
 							@log-time="handleLogTime"
 							@add-task="handleAddTask"
+							@contextmenu-open="handleContextMenuOpen"
+							@contextmenu-close="handleContextMenuClose"
 						/>
 						<!-- Inline subtask input -->
 						<div
@@ -463,7 +494,10 @@ const sortedTasks = computed(() => {
 		</div>
 
 		<!-- Quick add at bottom -->
-		<div class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+		<div
+			v-if="showQuickAdd && showBody"
+			class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+		>
 			<QuickAddTask
 				:project-id="projectId"
 				:parent-task="null"
