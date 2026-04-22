@@ -230,7 +230,11 @@ function openDatePicker(currentValue) {
 	nextTick(() => {
 		const el = inputRef.value?.$el || inputRef.value;
 		el?.focus?.();
-		el?.showPicker?.();
+		if (typeof el?.showPicker === "function") {
+			el.showPicker();
+		} else {
+			el?.click?.();
+		}
 	});
 }
 

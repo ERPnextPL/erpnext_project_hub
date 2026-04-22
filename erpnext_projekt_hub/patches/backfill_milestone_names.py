@@ -6,7 +6,7 @@ import frappe
 def execute():
 	milestones = frappe.get_all(
 		"Project Milestone",
-		filters={"milestone_name": ["in", ["", None]]},
+		filters={"milestone_name": ["is", "not set"]},
 		fields=["name", "milestone_name"],
 		limit_page_length=0,
 	)

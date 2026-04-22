@@ -159,6 +159,9 @@ function formatMilestoneDate(dateStr) {
 }
 
 function handleGroupDragStart(event, groupKey) {
+	if (!event.target.closest(".milestone-group-header")) {
+		return;
+	}
 	draggingGroupKey.value = groupKey;
 	event.dataTransfer.setData("application/x-milestone-reorder", groupKey);
 	event.dataTransfer.setData("text/plain", "");
@@ -171,7 +174,10 @@ function handleGroupDragEnd() {
 }
 
 function handleGroupDragOver(event, index) {
-	if (!draggingGroupKey.value && !event.dataTransfer.types.includes("application/x-milestone-reorder")) {
+	if (
+		!draggingGroupKey.value &&
+		!event.dataTransfer.types.includes("application/x-milestone-reorder")
+	) {
 		return;
 	}
 	event.preventDefault();
@@ -204,17 +210,11 @@ async function handleGroupDrop(event, index) {
 	groups.splice(index, 0, movedGroup);
 
 	try {
-		// Use store.milestones to include ALL milestones (including empty/hidden ones)
-		// groupedTasksByMilestone only contains milestones with tasks, so empty milestones would be omitted
 		const allMilestoneKeys = store.milestones.map((m) => m.name);
-		const reorderedKeys = groups
-			.filter((group) => !group.isUnassigned)
-			.map((group) => group.key);
-
-		// Build final order: start with all milestones in original order,
-		// then apply the new order for milestones that have tasks
+		const reorderedKeys = groups.filter((group) => !group.isUnassigned).map((group) => group.key);
 		const finalKeys = [...allMilestoneKeys];
 		let reorderedIdx = 0;
+
 		for (let i = 0; i < finalKeys.length; i++) {
 			const key = finalKeys[i];
 			if (reorderedKeys.includes(key)) {
@@ -234,7 +234,7 @@ async function handleGroupDrop(event, index) {
 // Flattened tasks with levels for proper indentation
 const flattenedTasksWithFilters = computed(() => {
 	// Start with milestone-filtered tasks if active
-	let baseTasks = store.activeMilestoneFilter ? store.tasksFilteredByMilestone : store.tasks;
+	let baseTasks = store.activeMilestoneFilter.length ? store.tasksFilteredByMilestone : store.tasks;
 
 	// Build flattened tree from filtered tasks
 	const buildFlattenedTree = (tasks) => {
@@ -331,33 +331,6 @@ const groupedTasksByMilestone = computed(() => {
 			isUnassigned: true,
 		});
 	}
-
-	const mode = store.milestoneSortBy || "manual";
-
-	groups.sort((a, b) => {
-		if (a.isUnassigned) return 1;
-		if (b.isUnassigned) return -1;
-
-		if (mode === "name") {
-			return (a.label || "").localeCompare(b.label || "");
-		}
-
-		if (mode === "progress") {
-			return (b.meta?.progress || 0) - (a.meta?.progress || 0);
-		}
-
-		if (mode === "deadline") {
-			const aDate = a.meta?.milestone_date
-				? new Date(a.meta.milestone_date).getTime()
-				: Number.POSITIVE_INFINITY;
-			const bDate = b.meta?.milestone_date
-				? new Date(b.meta.milestone_date).getTime()
-				: Number.POSITIVE_INFINITY;
-			return aDate - bDate;
-		}
-
-		return (a.meta?.sort_order || 0) - (b.meta?.sort_order || 0);
-	});
 
 	return groups;
 });
@@ -615,59 +588,13 @@ const groupedTasksByMilestone = computed(() => {
 										? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
 										: 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
 								]"
-							>
-								<Diamond class="h-3.5 w-3.5" />
-								{{ translate("Group by milestones") }}
-							</button>
+								>
+									<Diamond class="h-3.5 w-3.5" />
+									{{ translate("Group by milestones") }}
+								</button>
 							</div>
-							<div
-								v-if="listMode === 'milestone'"
-								class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 text-xs dark:border-gray-700"
-							>
-								<button
-									@click="store.milestoneSortBy = 'manual'"
-									:class="[
-										'rounded-md px-2.5 py-1.5',
-										store.milestoneSortBy === 'manual'
-											? 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-											: 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
-									]"
-								>
-									{{ translate("Manual") }}
-								</button>
-								<button
-									@click="store.milestoneSortBy = 'deadline'"
-									:class="[
-										'rounded-md px-2.5 py-1.5',
-										store.milestoneSortBy === 'deadline'
-											? 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-											: 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
-									]"
-								>
-									{{ translate("Deadline") }}
-								</button>
-								<button
-									@click="store.milestoneSortBy = 'name'"
-									:class="[
-										'rounded-md px-2.5 py-1.5',
-										store.milestoneSortBy === 'name'
-											? 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-											: 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
-									]"
-								>
-									{{ translate("Name") }}
-								</button>
-								<button
-									@click="store.milestoneSortBy = 'progress'"
-									:class="[
-										'rounded-md px-2.5 py-1.5',
-										store.milestoneSortBy === 'progress'
-											? 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-											: 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
-									]"
-								>
-									{{ translate("Progress") }}
-								</button>
+							<div v-if="listMode === 'milestone'" class="text-[11px] text-gray-500 dark:text-gray-400">
+								{{ translate("Drag milestones by the handle to reorder them.") }}
 							</div>
 						</div>
 					</div>
@@ -692,9 +619,6 @@ const groupedTasksByMilestone = computed(() => {
 						<section
 							v-for="(group, index) in groupedTasksByMilestone"
 							:key="group.key"
-							:draggable="store.milestoneSortBy === 'manual' && !group.isUnassigned"
-							@dragstart="store.milestoneSortBy === 'manual' && !group.isUnassigned && handleGroupDragStart($event, group.key)"
-							@dragend="handleGroupDragEnd"
 							@dragover="handleGroupDragOver($event, index)"
 							@dragleave="handleGroupDragLeave"
 							@drop="handleGroupDrop($event, index)"
@@ -705,15 +629,22 @@ const groupedTasksByMilestone = computed(() => {
 									: groupReorderDropIndex === index && draggingGroupKey !== group.key
 										? 'border-purple-400 shadow-md dark:border-purple-500'
 										: 'border-gray-200 dark:border-gray-700',
-							]"
-						>
-							<div class="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/80">
+								]"
+							>
+							<div
+								class="milestone-group-header border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/80"
+								:draggable="!group.isUnassigned"
+								@dragstart="!group.isUnassigned && handleGroupDragStart($event, group.key)"
+								@dragend="handleGroupDragEnd"
+							>
 								<div class="flex items-center justify-between gap-2">
 									<div class="flex min-w-0 items-center gap-1.5">
-										<GripVertical
-											v-if="store.milestoneSortBy === 'manual' && !group.isUnassigned"
-											class="h-3.5 w-3.5 flex-shrink-0 cursor-grab text-gray-300 active:cursor-grabbing dark:text-gray-600"
-										/>
+										<div
+											v-if="!group.isUnassigned"
+											class="milestone-drag-handle flex-shrink-0 cursor-grab p-0.5 text-gray-300 active:cursor-grabbing dark:text-gray-600"
+										>
+											<GripVertical class="h-3.5 w-3.5" />
+										</div>
 										<div class="min-w-0">
 										<div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
 											{{ group.label }}

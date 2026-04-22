@@ -501,9 +501,9 @@ async function reorderTask(taskName, newParent, newIdx) {
 	const taskPriorities = ref([]);
 
 	// Milestone state
+	const NO_MILESTONE_FILTER = "__none__";
 	const milestones = ref([]);
-	const activeMilestoneFilter = ref(null);
-	const milestoneSortBy = ref("manual");
+	const activeMilestoneFilter = ref([]);
 
 	async function fetchActivityTypes() {
 		try {
@@ -710,10 +710,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 				await fetchMilestones(project.value.name);
 				await fetchTasks(project.value.name);
 			}
-			// Clear filter if deleted milestone was active
-			if (activeMilestoneFilter.value === milestoneName) {
-				activeMilestoneFilter.value = null;
-			}
+			activeMilestoneFilter.value = activeMilestoneFilter.value.filter((name) => name !== milestoneName);
 			return true;
 		} catch (error) {
 			console.error("Failed to delete milestone:", error);
@@ -763,15 +760,21 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// Computed: tasks filtered by active milestone
 	const tasksFilteredByMilestone = computed(() => {
-		if (!activeMilestoneFilter.value) {
+		if (!activeMilestoneFilter.value.length) {
 			return tasks.value;
 		}
-		return tasks.value.filter((task) => task.milestone === activeMilestoneFilter.value);
+		return tasks.value.filter((task) => {
+			const hasMilestone = !!task.milestone;
+			if (!hasMilestone) {
+				return activeMilestoneFilter.value.includes(NO_MILESTONE_FILTER);
+			}
+			return activeMilestoneFilter.value.includes(task.milestone);
+		});
 	});
 
 	// Computed: task tree filtered by milestone
 	const taskTreeFilteredByMilestone = computed(() => {
-		if (!activeMilestoneFilter.value) {
+		if (!activeMilestoneFilter.value.length) {
 			return taskTree.value;
 		}
 
@@ -780,7 +783,10 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 		// First, find all tasks that directly match
 		tasks.value.forEach((task) => {
-			if (task.milestone === activeMilestoneFilter.value) {
+			const matchesNoMilestone =
+				!task.milestone && activeMilestoneFilter.value.includes(NO_MILESTONE_FILTER);
+			const matchesNamedMilestone = task.milestone && activeMilestoneFilter.value.includes(task.milestone);
+			if (matchesNoMilestone || matchesNamedMilestone) {
 				matchingTaskNames.add(task.name);
 				// Also add all parent tasks
 				let parentName = task.parent_task;
@@ -806,11 +812,15 @@ async function reorderTask(taskName, newParent, newIdx) {
 	});
 
 	function setMilestoneFilter(milestoneName) {
-		activeMilestoneFilter.value = milestoneName;
+		if (activeMilestoneFilter.value.includes(milestoneName)) {
+			activeMilestoneFilter.value = activeMilestoneFilter.value.filter((name) => name !== milestoneName);
+			return;
+		}
+		activeMilestoneFilter.value = [...activeMilestoneFilter.value, milestoneName];
 	}
 
 	function clearMilestoneFilter() {
-		activeMilestoneFilter.value = null;
+		activeMilestoneFilter.value = [];
 	}
 
 	function setSorting(column) {
@@ -838,8 +848,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 		taskStatuses,
 		taskPriorities,
 		milestones,
-		milestoneSortBy,
 		activeMilestoneFilter,
+		NO_MILESTONE_FILTER,
 		projectTeamRefreshTrigger,
 		projectsSettings,
 		sortBy,
