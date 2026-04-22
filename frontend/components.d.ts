@@ -11,7 +11,6 @@ declare module 'vue' {
     BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
-    MilestoneFilterModal: typeof import('./src/components/MilestoneFilterModal.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']
     MilestonePanel: typeof import('./src/components/MilestonePanel.vue')['default']
     MilestoneSidebar: typeof import('./src/components/MilestoneSidebar.vue')['default']
@@ -19,7 +18,6 @@ declare module 'vue' {
     MyTaskFilters: typeof import('./src/components/mytasks/MyTaskFilters.vue')['default']
     MyTaskList: typeof import('./src/components/mytasks/MyTaskList.vue')['default']
     MyTaskRowDesktop: typeof import('./src/components/mytasks/MyTaskRowDesktop.vue')['default']
-    OfflineBanner: typeof import('./src/components/OfflineBanner.vue')['default']
     OutlinerNav: typeof import('./src/components/OutlinerNav.vue')['default']
     PriorityBadge: typeof import('./src/components/shared/PriorityBadge.vue')['default']
     ProjectAttachmentsSidebar: typeof import('./src/components/ProjectAttachmentsSidebar.vue')['default']
@@ -38,7 +36,6 @@ declare module 'vue' {
     ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
     TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
-    UpdateBanner: typeof import('./src/components/UpdateBanner.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']
   }
 }

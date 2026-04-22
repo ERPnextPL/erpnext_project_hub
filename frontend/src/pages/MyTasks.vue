@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useMyTasksStore } from "../stores/myTasksStore";
+import { useDebounceFn } from "@vueuse/core";
 import {
 	CheckSquare,
 	Search,
@@ -18,7 +19,6 @@ import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
 import MyTaskList from "../components/mytasks/MyTaskList.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import TimeLogModal from "../components/TimeLogModal.vue";
-import { useDebounceFn } from "../utils/composables";
 
 const router = useRouter();
 const store = useMyTasksStore();
@@ -248,7 +248,7 @@ const detailPanelOpen = computed(() => !!store.selectedTask);
 			>
 				<AlertCircle class="w-12 h-12 text-red-400 mx-auto mb-4" />
 				<h3 class="text-lg font-medium text-gray-900 mb-2">
-									{{ translate("Task list failed to load") }}
+					{{ translate("Task list failed to load") }}
 				</h3>
 				<p class="text-gray-500 mb-4">{{ store.error }}</p>
 				<button

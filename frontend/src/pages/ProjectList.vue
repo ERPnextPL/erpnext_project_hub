@@ -53,6 +53,11 @@ function openProject(projectId) {
 	router.push({ name: "ProjectOutliner", params: { projectId } });
 }
 
+function getProjectIconClass() {
+	const projectMeta = typeof window !== "undefined" ? window.frappe?.get_meta?.("Project") : null;
+	return projectMeta?.icon || "fa fa-folder";
+}
+
 function getStatusClass(status) {
 	const classes = {
 		Open: "bg-blue-100 text-blue-800",
@@ -85,7 +90,7 @@ function getStatusClass(status) {
 		<!-- Content -->
 		<main class="w-full px-4 sm:px-6 lg:px-8 py-8">
 			<!-- Header with info -->
-			<div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+			<div class="mb-6 flex items-center justify-between">
 				<div>
 					<h2 class="text-lg font-medium text-gray-900">
 						{{ isManager ? translate("All projects") : translate("My projects") }}
@@ -152,7 +157,7 @@ function getStatusClass(status) {
 						>
 							<div class="flex items-start justify-between mb-3">
 								<div class="flex items-center gap-2">
-									<Folder class="w-5 h-5 text-blue-600" />
+									<i :class="[getProjectIconClass(), 'text-blue-600 text-lg']" />
 									<h3
 										class="font-medium text-gray-900 group-hover:text-blue-600"
 									>
@@ -183,14 +188,14 @@ function getStatusClass(status) {
 
 							<div class="space-y-2">
 								<div class="flex items-center gap-2 text-sm text-gray-500">
-								<span
-									:class="[
-										'px-2 py-0.5 rounded-full text-xs font-medium',
-										getStatusClass(project.status),
-									]"
-								>
-									{{ translate(project.status) }}
-								</span>
+									<span
+										:class="[
+											'px-2 py-0.5 rounded-full text-xs font-medium',
+											getStatusClass(project.status),
+										]"
+									>
+										{{ translate(project.status) }}
+									</span>
 								</div>
 
 								<div
@@ -315,12 +320,12 @@ function getStatusClass(status) {
 								@click="openProject(project.name)"
 								class="bg-white rounded-lg border border-gray-200 p-5 hover:border-green-300 hover:shadow-md transition-all cursor-pointer group opacity-75 hover:opacity-100"
 							>
-								<div class="flex items-start justify-between mb-3">
-									<div class="flex items-center gap-2">
-										<CheckCircle2 class="w-5 h-5 text-green-600" />
-										<h3
-											class="font-medium text-gray-900 group-hover:text-green-600"
-										>
+							<div class="flex items-start justify-between mb-3">
+								<div class="flex items-center gap-2">
+									<i :class="[getProjectIconClass(), 'text-green-600 text-lg']" />
+									<h3
+										class="font-medium text-gray-900 group-hover:text-green-600"
+									>
 											{{ project.project_name }}
 										</h3>
 									</div>

@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { translate } from "../utils/translation";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -256,17 +255,10 @@ async function updateTask(taskName, updates) {
 							.join(", ");
 						const moreCount =
 							incompleteSubtasks.length > 3
-								? translate(" and {0} more", [incompleteSubtasks.length - 3])
+								? ` and ${incompleteSubtasks.length - 3} more`
 								: "";
 						frappe.show_alert({
-							message: translate(
-								"Cannot complete task. {count} subtask(s) are not completed: {names}{more}",
-								{
-									count: incompleteSubtasks.length,
-									names: subtaskNames,
-									more: moreCount,
-								}
-							),
+							message: `Cannot complete task. ${incompleteSubtasks.length} subtask(s) are not completed: ${subtaskNames}${moreCount}`,
 							indicator: "blue",
 						});
 					}
@@ -294,18 +286,6 @@ async function updateTask(taskName, updates) {
 			throw error;
 		}
 	}
-
-function handleRemoteTaskUpdate(data) {
-	if (!data?.task || data.project !== project.value?.name) return;
-	const updatedTask = data.task;
-	const index = tasks.value.findIndex((t) => t.name === updatedTask.name);
-	if (index !== -1) {
-		tasks.value[index] = { ...tasks.value[index], ...updatedTask };
-	}
-	if (selectedTask.value?.name === updatedTask.name) {
-		selectedTask.value = { ...selectedTask.value, ...updatedTask };
-	}
-}
 
 async function fetchTaskDetail(taskName) {
 	try {
@@ -515,15 +495,15 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// Time log functions
 	const taskTimelogs = ref({});
-	const taskSubtasks = ref({});
 	const activityTypes = ref([]);
+	const pendingTimelogKeys = ref(new Set());
 	const taskStatuses = ref([]);
 	const taskPriorities = ref([]);
 
 	// Milestone state
+	const NO_MILESTONE_FILTER = "__none__";
 	const milestones = ref([]);
 	const activeMilestoneFilter = ref([]);
-	const milestoneSortBy = ref("manual"); // 'manual' | 'deadline' | 'name' | 'progress'
 
 	async function fetchActivityTypes() {
 		try {
@@ -603,6 +583,21 @@ async function reorderTask(taskName, newParent, newIdx) {
 	}
 
 	async function createTimelog(timelogData) {
+		const key = JSON.stringify([
+			timelogData.task || "",
+			timelogData.from_time || "",
+			timelogData.to_time || "",
+			timelogData.hours || "",
+			timelogData.activity_type || "",
+			timelogData.description || "",
+			timelogData.is_billable || 0,
+		]);
+
+		if (pendingTimelogKeys.value.has(key)) {
+			return null;
+		}
+
+		pendingTimelogKeys.value.add(key);
 		try {
 			const data = await apiCall(
 				"erpnext_projekt_hub.api.project_hub.create_timelog",
@@ -616,20 +611,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 		} catch (error) {
 			console.error("Failed to create timelog:", error);
 			throw error;
-		}
-	}
-
-	async function fetchTaskSubtasks(taskName) {
-		try {
-			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_task_subtasks", {
-				task_name: taskName,
-			});
-			taskSubtasks.value[taskName] = data || [];
-			return taskSubtasks.value[taskName];
-		} catch (error) {
-			console.error("Failed to fetch task subtasks:", error);
-			taskSubtasks.value[taskName] = [];
-			throw error;
+		} finally {
+			pendingTimelogKeys.value.delete(key);
 		}
 	}
 
@@ -727,10 +710,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 				await fetchMilestones(project.value.name);
 				await fetchTasks(project.value.name);
 			}
-			// Clear deleted milestone from active filters
-			activeMilestoneFilter.value = activeMilestoneFilter.value.filter(
-				(name) => name !== milestoneName
-			);
+			activeMilestoneFilter.value = activeMilestoneFilter.value.filter((name) => name !== milestoneName);
 			return true;
 		} catch (error) {
 			console.error("Failed to delete milestone:", error);
@@ -760,20 +740,20 @@ async function reorderTask(taskName, newParent, newIdx) {
 	}
 
 	async function reorderMilestones(milestoneNames) {
-		// Optimistic update
-		const nameToOrder = Object.fromEntries(milestoneNames.map((name, idx) => [name, idx]));
-		milestones.value = milestones.value
-			.map((m) => ({ ...m, sort_order: nameToOrder[m.name] ?? m.sort_order }))
-			.sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
-
 		try {
-			await apiCall("erpnext_projekt_hub.api.project_hub.reorder_milestones", {
-				project: project.value.name,
-				milestone_names: JSON.stringify(milestoneNames),
-			});
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.reorder_project_milestones",
+				{
+					project: project.value?.name,
+					milestone_names: JSON.stringify(milestoneNames || []),
+				}
+			);
+			if (project.value?.name) {
+				await fetchMilestones(project.value.name);
+			}
+			return data;
 		} catch (error) {
 			console.error("Failed to reorder milestones:", error);
-			if (project.value?.name) await fetchMilestones(project.value.name);
 			throw error;
 		}
 	}
@@ -783,8 +763,13 @@ async function reorderTask(taskName, newParent, newIdx) {
 		if (!activeMilestoneFilter.value.length) {
 			return tasks.value;
 		}
-		const selectedMilestones = new Set(activeMilestoneFilter.value);
-		return tasks.value.filter((task) => selectedMilestones.has(task.milestone));
+		return tasks.value.filter((task) => {
+			const hasMilestone = !!task.milestone;
+			if (!hasMilestone) {
+				return activeMilestoneFilter.value.includes(NO_MILESTONE_FILTER);
+			}
+			return activeMilestoneFilter.value.includes(task.milestone);
+		});
 	});
 
 	// Computed: task tree filtered by milestone
@@ -792,14 +777,16 @@ async function reorderTask(taskName, newParent, newIdx) {
 		if (!activeMilestoneFilter.value.length) {
 			return taskTree.value;
 		}
-		const selectedMilestones = new Set(activeMilestoneFilter.value);
 
 		// Get all tasks that match the milestone or have children that match
 		const matchingTaskNames = new Set();
 
 		// First, find all tasks that directly match
 		tasks.value.forEach((task) => {
-			if (selectedMilestones.has(task.milestone)) {
+			const matchesNoMilestone =
+				!task.milestone && activeMilestoneFilter.value.includes(NO_MILESTONE_FILTER);
+			const matchesNamedMilestone = task.milestone && activeMilestoneFilter.value.includes(task.milestone);
+			if (matchesNoMilestone || matchesNamedMilestone) {
 				matchingTaskNames.add(task.name);
 				// Also add all parent tasks
 				let parentName = task.parent_task;
@@ -824,23 +811,12 @@ async function reorderTask(taskName, newParent, newIdx) {
 		return filterTree(taskTree.value);
 	});
 
-	function setMilestoneFilter(milestoneNameOrNames) {
-		if (Array.isArray(milestoneNameOrNames)) {
-			activeMilestoneFilter.value = milestoneNameOrNames.filter(Boolean);
+	function setMilestoneFilter(milestoneName) {
+		if (activeMilestoneFilter.value.includes(milestoneName)) {
+			activeMilestoneFilter.value = activeMilestoneFilter.value.filter((name) => name !== milestoneName);
 			return;
 		}
-		activeMilestoneFilter.value = milestoneNameOrNames ? [milestoneNameOrNames] : [];
-	}
-
-	function toggleMilestoneFilter(milestoneName) {
-		if (!milestoneName) return;
-		if (activeMilestoneFilter.value.includes(milestoneName)) {
-			activeMilestoneFilter.value = activeMilestoneFilter.value.filter(
-				(name) => name !== milestoneName
-			);
-		} else {
-			activeMilestoneFilter.value = [...activeMilestoneFilter.value, milestoneName];
-		}
+		activeMilestoneFilter.value = [...activeMilestoneFilter.value, milestoneName];
 	}
 
 	function clearMilestoneFilter() {
@@ -867,13 +843,13 @@ async function reorderTask(taskName, newParent, newIdx) {
 		availableUsers,
 		allProjects,
 		taskTimelogs,
-		taskSubtasks,
 		activityTypes,
+		pendingTimelogKeys,
 		taskStatuses,
 		taskPriorities,
 		milestones,
 		activeMilestoneFilter,
-		milestoneSortBy,
+		NO_MILESTONE_FILTER,
 		projectTeamRefreshTrigger,
 		projectsSettings,
 		sortBy,
@@ -887,7 +863,6 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchTasks,
 		createTask,
 		updateTask,
-		handleRemoteTaskUpdate,
 		fetchTaskDetail,
 		updateProject,
 		deleteTask,
@@ -913,7 +888,6 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchTaskPriorities,
 		// Time logs
 		fetchTaskTimelogs,
-		fetchTaskSubtasks,
 		createTimelog,
 		updateTimelog,
 		deleteTimelog,
@@ -925,7 +899,6 @@ async function reorderTask(taskName, newParent, newIdx) {
 		assignTaskToMilestone,
 		reorderMilestones,
 		setMilestoneFilter,
-		toggleMilestoneFilter,
 		clearMilestoneFilter,
 	};
 });

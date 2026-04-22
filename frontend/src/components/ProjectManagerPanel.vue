@@ -53,21 +53,37 @@ const isExpanded = ref(false);
 const loading = ref(false);
 const financials = ref(null);
 const error = ref(null);
-
+const financialsRequestId = ref(0);
 
 async function loadFinancials() {
-	if (financials.value) return; // already loaded
+	if (financials.value) return;
 	loading.value = true;
 	error.value = null;
+	
+	// Increment request ID to guard against race conditions
+	// An older request completing after a newer one should not overwrite newer data
+	const currentRequestId = ++financialsRequestId.value;
+	
 	try {
-		financials.value = await apiCall(
+		const result = await apiCall(
 			"erpnext_projekt_hub.api.project_hub.get_project_financials",
 			{ project: props.project.name }
 		);
+		
+		// Only update if this is still the latest request
+		if (currentRequestId === financialsRequestId.value) {
+			financials.value = result;
+		}
 	} catch (e) {
-		error.value = translate("Could not load financial data.");
+		// Only set error if this is still the latest request
+		if (currentRequestId === financialsRequestId.value) {
+			error.value = translate("Could not load financial data.");
+		}
 	} finally {
-		loading.value = false;
+		// Only clear loading if this is still the latest request
+		if (currentRequestId === financialsRequestId.value) {
+			loading.value = false;
+		}
 	}
 }
 
@@ -78,16 +94,16 @@ async function toggleExpand() {
 	}
 }
 
-// Reload when project changes
 watch(
 	() => props.project.name,
 	() => {
+		financialsRequestId.value += 1;
 		financials.value = null;
+		error.value = null;
+		loading.value = false;
 		if (isExpanded.value) loadFinancials();
 	}
 );
-
-// ── Computed helpers ──────────────────────────────────────────────────────────
 
 const currency = computed(() => realWindow?.frappe?.boot?.sysdefaults?.currency || "PLN");
 
@@ -101,9 +117,9 @@ function formatCurrency(value) {
 	}).format(value);
 }
 
-function formatHours(h) {
-	if (!h && h !== 0) return "—";
-	return `${Number(h).toFixed(1)} h`;
+function formatHours(hours) {
+	if (!hours && hours !== 0) return "—";
+	return `${Number(hours).toFixed(1)} h`;
 }
 
 const hasFinancialData = computed(() => {
@@ -117,7 +133,10 @@ const hasFinancialData = computed(() => {
 
 const hoursProgress = computed(() => {
 	if (!financials.value || !financials.value.estimated_hours) return 0;
-	return Math.min(100, Math.round((financials.value.total_hours / financials.value.estimated_hours) * 100));
+	return Math.min(
+		100,
+		Math.round((financials.value.total_hours / financials.value.estimated_hours) * 100)
+	);
 });
 
 const hoursOverBudget = computed(() => {
@@ -133,30 +152,6 @@ const marginStatus = computed(() => {
 	if (pct >= 0) return "warn";
 	return "bad";
 });
-
-const budgetMarginStatus = computed(() => {
-	if (!financials.value || !financials.value.estimated_costing) return null;
-	const pct = financials.value.per_budget_margin;
-	if (pct >= 30) return "good";
-	if (pct >= 0) return "warn";
-	return "bad";
-});
-
-const budgetUtilization = computed(() => {
-	if (!financials.value || !financials.value.estimated_costing) return 0;
-	return (financials.value.total_current_cost / financials.value.estimated_costing) * 100;
-});
-
-const budgetSegments = computed(() => {
-	if (!financials.value || !financials.value.estimated_costing) return { timesheets: 0, purchase: 0, materials: 0 };
-	const budget = financials.value.estimated_costing;
-	const timesheets = Math.min(100, (financials.value.total_costing_amount / budget) * 100);
-	const purchase = Math.min(100 - timesheets, (financials.value.total_purchase_cost / budget) * 100);
-	const materials = Math.min(100 - timesheets - purchase, (financials.value.total_consumed_material_cost / budget) * 100);
-	return { timesheets, purchase, materials };
-});
-
-const showBudgetTooltip = ref(false);
 </script>
 
 <template>
@@ -164,7 +159,6 @@ const showBudgetTooltip = ref(false);
 		v-if="project.is_manager"
 		class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
 	>
-		<!-- Header row -->
 		<div
 			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
 			@click="toggleExpand"
@@ -183,22 +177,17 @@ const showBudgetTooltip = ref(false);
 
 		<Transition name="expand">
 			<div v-if="isExpanded" class="px-4 sm:px-6 pb-5">
-				<!-- Loading -->
 				<div v-if="loading" class="py-6 flex justify-center">
 					<div class="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
 				</div>
 
-				<!-- Error -->
 				<div v-else-if="error" class="py-4 text-sm text-red-600 flex items-center gap-2">
 					<AlertTriangle class="w-4 h-4 flex-shrink-0" />
 					{{ error }}
 				</div>
 
 				<template v-else-if="financials">
-					<!-- ── Grid KPIs ──────────────────────────────────────────── -->
 					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-						<!-- Hours card -->
 						<div class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2">
 							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
 								<Clock class="w-3.5 h-3.5" />
@@ -213,7 +202,6 @@ const showBudgetTooltip = ref(false);
 								</span>
 							</div>
 
-							<!-- Hours bar -->
 							<div v-if="financials.estimated_hours > 0">
 								<div class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
 									<div
@@ -225,12 +213,11 @@ const showBudgetTooltip = ref(false);
 								<div class="flex justify-between text-xs mt-1">
 									<span :class="hoursOverBudget ? 'text-red-600 font-semibold' : 'text-gray-500'">
 										{{ hoursProgress }}%
-										<span v-if="hoursOverBudget"> — {{ translate("Over budget!") }}</span>
+										<span v-if="hoursOverBudget"> - {{ translate("Over budget!") }}</span>
 									</span>
 								</div>
 							</div>
 
-							<!-- Submitted vs draft -->
 							<div class="flex gap-3 text-xs text-gray-500 pt-1">
 								<span class="flex items-center gap-1">
 									<CheckCircle2 class="w-3 h-3 text-green-500" />
@@ -243,127 +230,53 @@ const showBudgetTooltip = ref(false);
 							</div>
 						</div>
 
-						<!-- Budget Margin card (only when budget is set) -->
 						<div
-							v-if="financials.estimated_costing > 0"
+							v-if="hasFinancialData"
 							class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2"
 						>
 							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-								<TrendingUp v-if="budgetMarginStatus !== 'bad'" class="w-3.5 h-3.5" />
+								<TrendingUp v-if="marginStatus !== 'bad'" class="w-3.5 h-3.5" />
 								<TrendingDown v-else class="w-3.5 h-3.5 text-red-500" />
-								{{ translate("Budget Margin") }}
+								{{ translate("Gross Margin") }}
 							</div>
 							<div class="flex items-end gap-2">
 								<span
 									class="text-2xl font-bold"
 									:class="{
-										'text-green-600': budgetMarginStatus === 'good',
-										'text-amber-500': budgetMarginStatus === 'warn',
-										'text-red-600': budgetMarginStatus === 'bad',
-										'text-gray-900 dark:text-gray-100': !budgetMarginStatus,
+										'text-green-600': marginStatus === 'good',
+										'text-amber-500': marginStatus === 'warn',
+										'text-red-600': marginStatus === 'bad',
+										'text-gray-900 dark:text-gray-100': !marginStatus,
 									}"
 								>
-									{{ financials.per_budget_margin.toFixed(1) + '%' }}
+									{{ financials.per_gross_margin > 0 || financials.gross_margin !== 0
+										? financials.per_gross_margin.toFixed(1) + '%'
+										: '—' }}
 								</span>
 								<span class="text-sm text-gray-500 pb-0.5">
-									{{ formatCurrency(financials.budget_margin) }}
+									{{ formatCurrency(financials.gross_margin) }}
 								</span>
 							</div>
-							<!-- Budget utilization stacked progress bar -->
-							<div class="mt-3">
-								<div
-									class="relative w-full h-2.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-visible flex"
-									@mouseenter="showBudgetTooltip = true"
-									@mouseleave="showBudgetTooltip = false"
-								>
-
-									<!-- Tooltip -->
-									<div v-show="showBudgetTooltip" class="absolute bottom-full left-1/2 mb-2 z-50 pointer-events-none" style="transform: translateX(-50%)">
-										<div class="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
-											<div class="flex items-center gap-2 mb-1">
-												<span class="w-2.5 h-2.5 rounded-sm bg-orange-600 inline-block flex-shrink-0"></span>
-												<span class="text-gray-300">{{ translate("Total Internal Cost") }}:</span>
-												<span class="font-semibold">{{ formatCurrency(financials.total_costing_amount) }} ({{ budgetSegments.timesheets.toFixed(1) }}%)</span>
-											</div>
-											<div v-if="financials.total_purchase_cost > 0" class="flex items-center gap-2 mb-1">
-												<span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block flex-shrink-0"></span>
-												<span class="text-gray-300">{{ translate("Purchase cost") }}:</span>
-												<span class="font-semibold">{{ formatCurrency(financials.total_purchase_cost) }} ({{ budgetSegments.purchase.toFixed(1) }}%)</span>
-											</div>
-											<div v-if="financials.total_consumed_material_cost > 0" class="flex items-center gap-2 mb-1">
-												<span class="w-2.5 h-2.5 rounded-sm bg-rose-400 inline-block flex-shrink-0"></span>
-												<span class="text-gray-300">{{ translate("Material cost") }}:</span>
-												<span class="font-semibold">{{ formatCurrency(financials.total_consumed_material_cost) }} ({{ budgetSegments.materials.toFixed(1) }}%)</span>
-											</div>
-											<div class="border-t border-gray-600 mt-1.5 pt-1.5 flex items-center gap-2">
-												<span class="w-2.5 h-2.5 rounded-sm bg-gray-500 inline-block flex-shrink-0"></span>
-												<span class="text-gray-300">{{ translate("Remaining") }}:</span>
-												<span class="font-semibold">{{ formatCurrency(financials.budget_margin) }} ({{ (100 - budgetUtilization).toFixed(1) }}%)</span>
-											</div>
-											<!-- Arrow -->
-											<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
-										</div>
-									</div>
-									<div
-										class="h-full bg-indigo-500 transition-all duration-500"
-										:style="{ width: budgetSegments.timesheets + '%' }"
-									></div>
-									<div
-										class="h-full bg-amber-400 transition-all duration-500"
-										:style="{ width: budgetSegments.purchase + '%' }"
-									></div>
-									<div
-										class="h-full bg-rose-400 transition-all duration-500"
-										:style="{ width: budgetSegments.materials + '%' }"
-									></div>
-								</div>
-								<div class="flex justify-between text-xs mt-1.5">
-									<div class="flex gap-3">
-										<span class="flex items-center gap-1 text-indigo-500">
-											<span class="w-2 h-2 rounded-full bg-indigo-500 inline-block"></span>
-											{{ budgetSegments.timesheets.toFixed(1) }}%
-										</span>
-										<span v-if="budgetSegments.purchase > 0" class="flex items-center gap-1 text-amber-500">
-											<span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
-											{{ budgetSegments.purchase.toFixed(1) }}%
-										</span>
-										<span v-if="budgetSegments.materials > 0" class="flex items-center gap-1 text-rose-400">
-											<span class="w-2 h-2 rounded-full bg-rose-400 inline-block"></span>
-											{{ budgetSegments.materials.toFixed(1) }}%
-										</span>
-									</div>
-									<span :class="budgetUtilization >= 100 ? 'text-red-600 font-semibold' : 'text-gray-500'">
-										{{ budgetUtilization.toFixed(1) }}%
-										<span v-if="budgetUtilization >= 100"> — {{ translate("Over budget!") }}</span>
-									</span>
-								</div>
-							</div>
-
 							<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 pt-1">
 								<div>
-									<span class="block text-gray-400">{{ translate("Budget") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.estimated_costing) }}</span>
-								</div>
-								<div>
-									<span class="block text-gray-400">{{ translate("Current cost") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_current_cost) }}</span>
+									<span class="block text-gray-400">{{ translate("Revenue") }}</span>
+									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_sales_amount) }}</span>
 								</div>
 								<div>
 									<span class="block text-gray-400">{{ translate("Cost (timesheets)") }}</span>
 									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_costing_amount) }}</span>
 								</div>
+								<div v-if="financials.estimated_costing > 0">
+									<span class="block text-gray-400">{{ translate("Budget") }}</span>
+									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.estimated_costing) }}</span>
+								</div>
 								<div v-if="financials.total_purchase_cost > 0">
 									<span class="block text-gray-400">{{ translate("Purchase cost") }}</span>
 									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_purchase_cost) }}</span>
 								</div>
-								<div v-if="financials.total_consumed_material_cost > 0">
-									<span class="block text-gray-400">{{ translate("Material cost") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_consumed_material_cost) }}</span>
-								</div>
 							</div>
 						</div>
 
-						<!-- Team hours card -->
 						<div
 							v-if="financials.hours_per_user && financials.hours_per_user.length > 0"
 							class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2"
@@ -379,13 +292,11 @@ const showBudgetTooltip = ref(false);
 									:key="row.user"
 									class="flex items-center gap-2 text-sm"
 								>
-									<!-- Avatar initials -->
 									<div class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
 										<span class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-300">
 											{{ (row.label || row.user).slice(0, 2).toUpperCase() }}
 										</span>
 									</div>
-									<!-- Name + bar -->
 									<div class="flex-1 min-w-0">
 										<div class="flex items-center justify-between mb-0.5">
 											<span class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[120px]" :title="row.label">
@@ -393,6 +304,14 @@ const showBudgetTooltip = ref(false);
 											</span>
 											<span class="text-xs font-semibold text-gray-700 dark:text-gray-300 ml-2 flex-shrink-0">
 												{{ formatHours(row.total) }}
+											</span>
+										</div>
+										<div class="flex items-center gap-3 text-[11px] text-gray-500">
+											<span>
+												{{ translate("Submitted") }}: {{ formatHours(row.submitted) }}
+											</span>
+											<span v-if="row.draft > 0">
+												{{ translate("Draft") }}: {{ formatHours(row.draft) }}
 											</span>
 										</div>
 										<div

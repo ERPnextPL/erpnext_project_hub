@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
-import { useTaskAssignees } from "../composables/useTaskAssignees";
 import { getRealWindow, translate } from "../utils/translation";
 import {
 	GripVertical,
@@ -44,17 +43,24 @@ const props = defineProps({
 		type: String,
 		required: true,
 	},
+	activeContextMenuTaskName: {
+		type: String,
+		default: null,
+	},
 });
 
-const emit = defineEmits(["update", "click", "add-subtask", "log-time", "add-task"]);
+const emit = defineEmits([
+	"update",
+	"click",
+	"add-subtask",
+	"log-time",
+	"add-task",
+	"contextmenu-open",
+	"contextmenu-close",
+]);
 
 const store = useTaskStore();
 const realWindow = getRealWindow();
-
-// Use the shared assignees composable
-const { assignedUsers, usersByEmail, firstAssignee } = useTaskAssignees(
-	computed(() => props.task)
-);
 
 // Inline editing state
 const editingField = ref(null);
@@ -67,9 +73,11 @@ const milestoneHintTimeout = ref(null);
 
 const taskDescription = computed(() => (props.task.description || "").trim());
 const descriptionPreviewLabel = computed(() => {
-	if (!taskDescription.value) return "";
-	const stripped = taskDescription.value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-	return stripped || "";
+	if (!taskDescription.value) {
+		return "";
+	}
+	const firstLine = taskDescription.value.split("\n")[0]?.trim();
+	return firstLine || "";
 });
 const descriptionPreviewText = computed(() => {
 	if (!taskDescription.value) return "";
@@ -86,14 +94,12 @@ const isTouchDevice = () => {
 };
 
 // Context menu
-const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
+const showContextMenu = computed(() => props.activeContextMenuTaskName === props.task.name);
 
 // User assignment dropdown
 const showUserDropdown = ref(false);
 const userDropdownPosition = ref({ x: 0, y: 0 });
-const showMilestoneDropdown = ref(false);
-const milestoneDropdownPosition = ref({ x: 0, y: 0 });
 
 const hasChildren = computed(() => {
 	// Check if any task has this task as parent
@@ -105,23 +111,31 @@ const canAddSubtask = computed(() => {
 	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
 });
 
+const assignedUsers = computed(() => {
+	if (!props.task._assign) return [];
+	try {
+		const assigns = JSON.parse(props.task._assign);
+		return Array.isArray(assigns) ? assigns : [];
+	} catch {
+		return [];
+	}
+});
+
+const firstAssignee = computed(() => {
+	if (assignedUsers.value.length === 0) return null;
+	const email = assignedUsers.value[0];
+	// Extract name from email (before @)
+	const name = email.split("@")[0];
+	return {
+		email,
+		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
+	};
+});
 
 const milestoneColor = computed(() => {
 	if (!props.task.milestone) return null;
 	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
 	return milestone?.color || "#3b82f6"; // Default blue if no color set
-});
-
-const milestoneLabel = computed(() => {
-	if (!props.task.milestone) return "";
-	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
-	return milestone?.milestone_name || props.task.milestone;
-});
-
-const milestoneOptions = computed(() => {
-	return [...store.milestones].sort((a, b) =>
-		(a.milestone_name || "").localeCompare(b.milestone_name || "")
-	);
 });
 
 // Load metadata on mount
@@ -191,21 +205,6 @@ const priorityConfig = computed(() => {
 	return config;
 });
 
-const formattedExpectedTime = computed(() => {
-	const raw = props.task?.expected_time;
-	if (raw === null || raw === undefined || raw === "") {
-		return "—";
-	}
-
-	const numeric = Number(raw);
-	if (!Number.isFinite(numeric)) {
-		return "—";
-	}
-
-	const normalized = Number.isInteger(numeric) ? String(numeric) : numeric.toString();
-	return `${normalized}h`;
-});
-
 function toggleExpand() {
 	store.toggleExpand(props.task.name);
 }
@@ -219,8 +218,23 @@ function startEditing(field, currentValue) {
 	editingField.value = field;
 	editValue.value = currentValue || "";
 	nextTick(() => {
-		inputRef.value?.focus();
-		inputRef.value?.select();
+		const el = inputRef.value?.$el || inputRef.value;
+		el?.focus?.();
+		el?.select?.();
+	});
+}
+
+function openDatePicker(currentValue) {
+	editingField.value = "exp_end_date";
+	editValue.value = currentValue || "";
+	nextTick(() => {
+		const el = inputRef.value?.$el || inputRef.value;
+		el?.focus?.();
+		if (typeof el?.showPicker === "function") {
+			el.showPicker();
+		} else {
+			el?.click?.();
+		}
 	});
 }
 
@@ -371,54 +385,13 @@ async function assignUser(user) {
 	}
 }
 
-function openMilestoneDropdown(e) {
-	e.preventDefault();
-	e.stopPropagation();
-	milestoneDropdownPosition.value = { x: e.clientX, y: e.clientY };
-	showMilestoneDropdown.value = true;
-
-	const closeDropdown = () => {
-		showMilestoneDropdown.value = false;
-		document.removeEventListener("click", closeDropdown);
-	};
-	setTimeout(() => document.addEventListener("click", closeDropdown), 0);
-}
-
-async function assignMilestone(milestoneName) {
-	await store.assignTaskToMilestone(props.task.name, milestoneName || "");
-	showMilestoneDropdown.value = false;
-	if (realWindow?.frappe) {
-		realWindow.frappe.show_alert({
-			message: milestoneName
-				? translate("Task assigned to milestone")
-				: translate("Milestone cleared"),
-			indicator: "green",
-		});
-	}
-}
-
-function closeContextMenu() {
-	showContextMenu.value = false;
-}
-
 function showMenu(e) {
 	if (realWindow?.matchMedia?.("(hover: none)").matches) {
 		return;
 	}
 	e.preventDefault();
-
-	// Close any other open context menus first
-	document.dispatchEvent(new CustomEvent("close-all-context-menus"));
-
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
-	showContextMenu.value = true;
-
-	// Close on click outside
-	const closeMenu = () => {
-		showContextMenu.value = false;
-		document.removeEventListener("click", closeMenu);
-	};
-	setTimeout(() => document.addEventListener("click", closeMenu), 0);
+	emit("contextmenu-open", props.task.name);
 }
 
 async function deleteTask() {
@@ -428,7 +401,7 @@ async function deleteTask() {
 		}
 	}
 	await store.deleteTask(props.task.name);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 function openInDesk() {
@@ -438,17 +411,17 @@ function openInDesk() {
 function addSubtask() {
 	if (!canAddSubtask.value) return;
 	emit("add-subtask", props.task.name);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 function addTask() {
 	emit("add-task", props.task.project);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 function logTime() {
 	emit("log-time", props.task);
-	showContextMenu.value = false;
+	emit("contextmenu-close");
 }
 
 // Drag handlers for milestone assignment
@@ -507,7 +480,7 @@ function closeDescriptionModal() {
 // Close context menu when clicking outside
 function handleGlobalClick(event) {
 	if (showContextMenu.value && !event.target.closest(".context-menu-wrapper")) {
-		showContextMenu.value = false;
+		emit("contextmenu-close");
 	}
 	if (showDescriptionPreview.value && !event.target.closest(".description-preview-trigger")) {
 		showDescriptionPreview.value = false;
@@ -516,18 +489,16 @@ function handleGlobalClick(event) {
 
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
-	document.addEventListener("close-all-context-menus", closeContextMenu);
 });
 
 onUnmounted(() => {
 	document.removeEventListener("click", handleGlobalClick);
-	document.removeEventListener("close-all-context-menus", closeContextMenu);
 });
 </script>
 
 <template>
 	<div
-		class="task-row grid gap-2 px-4 py-2 items-center cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
+		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
 			level === 0
@@ -542,7 +513,7 @@ onUnmounted(() => {
 	>
 		<template v-for="columnId in visibleColumns" :key="columnId">
 			<!-- Task name with indent -->
-			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0">
+			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0 overflow-hidden">
 			<!-- Drag handle -->
 			<div
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
@@ -618,20 +589,12 @@ onUnmounted(() => {
 				</div>
 
 				<!-- Milestone indicator (always visible if assigned) -->
-				<button
+				<Diamond
 					v-if="task.milestone"
-					type="button"
-					class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[11px] font-medium max-w-[180px] hover:bg-gray-50 dark:hover:bg-gray-700"
-					:style="{
-						color: milestoneColor || '#3b82f6',
-						borderColor: milestoneColor || '#93c5fd',
-					}"
-					:title="translate('Milestone: ') + milestoneLabel"
-					@click.stop="openMilestoneDropdown"
-				>
-					<Diamond class="w-3 h-3 flex-shrink-0" />
-					<span class="truncate">{{ milestoneLabel }}</span>
-				</button>
+					class="w-3 h-3 flex-shrink-0"
+					:style="{ color: milestoneColor }"
+					:title="translate('Milestone: ') + task.milestone"
+				/>
 
 				<div class="flex-1 min-w-0">
 					<input
@@ -666,7 +629,7 @@ onUnmounted(() => {
 								:title="translate('Click to view full description')"
 							>
 							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
-							<span v-if="descriptionPreviewLabel" class="line-clamp-3">{{
+							<span v-if="descriptionPreviewLabel">{{
 								descriptionPreviewLabel
 							}}</span>
 						</button>
@@ -684,7 +647,7 @@ onUnmounted(() => {
 			</div>
 
 		<!-- Status -->
-		<div v-else-if="columnId === 'status'">
+		<div v-else-if="columnId === 'status'" class="min-w-0">
 			<button
 				@click.stop="cycleStatus"
 				:class="[
@@ -698,41 +661,29 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Assignee -->
-		<div v-else-if="columnId === 'assignee'">
-			<div class="flex items-center gap-1">
-				<div
-					v-if="firstAssignee"
-					class="flex items-center gap-1 text-sm text-gray-600 flex-1"
-					:title="
-						firstAssignee.email +
-						(assignedUsers.length > 1 ? ' +' + (assignedUsers.length - 1) : '')
-					"
-				>
-					<User class="w-4 h-4 text-gray-400 flex-shrink-0" />
-					<span class="truncate">{{ firstAssignee.displayName }}</span>
-					<span v-if="assignedUsers.length > 1" class="text-xs text-gray-400 flex-shrink-0">
-						+{{ assignedUsers.length - 1 }}
-					</span>
-				</div>
-				<button
-					v-if="!firstAssignee"
-					@click.stop="showUserAssignDropdown"
-					class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-					:title="translate('Click to assign user')"
-				>
-					<User class="w-4 h-4" />
-				</button>
-				<button
-					v-else
-					@click.stop="showUserAssignDropdown"
-					class="text-gray-300 hover:text-gray-500 p-0.5 rounded hover:bg-gray-200 opacity-0 hover:opacity-100 transition-opacity flex-shrink-0"
-					:title="translate('Change assignee')"
-				>
-					<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-						<path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1 4.5 4.5 0 11-4.814 6.98z" />
-					</svg>
-				</button>
+		<div v-else-if="columnId === 'assignee'" class="min-w-0">
+			<div
+				v-if="firstAssignee"
+				class="flex items-center gap-1 text-sm text-gray-600"
+				:title="
+					firstAssignee.email +
+					(assignedUsers.length > 1 ? ' +' + (assignedUsers.length - 1) : '')
+				"
+			>
+				<User class="w-4 h-4 text-gray-400" />
+				<span class="truncate">{{ firstAssignee.displayName }}</span>
+				<span v-if="assignedUsers.length > 1" class="text-xs text-gray-400">
+					+{{ assignedUsers.length - 1 }}
+				</span>
 			</div>
+			<button
+				v-else
+				@click.stop="showUserAssignDropdown"
+				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+				:title="translate('Click to assign user')"
+			>
+				<User class="w-4 h-4" />
+			</button>
 
 			<!-- User assignment dropdown -->
 			<Teleport to="body">
@@ -767,7 +718,7 @@ onUnmounted(() => {
 							class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
 						>
 							<User class="w-4 h-4 text-gray-400" />
-							{{ user.full_name || user.name }}
+							{{ user.full_name || user.name.split("@")[0] }}
 						</button>
 					</div>
 					<div class="border-t border-gray-100 mt-1 pt-1">
@@ -786,45 +737,47 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Due date -->
-		<div v-else-if="columnId === 'due_date'">
-			<div v-if="editingField === 'exp_end_date'" @click.stop>
+		<div v-else-if="columnId === 'due_date'" class="min-w-0">
+			<div class="relative inline-flex items-center">
+				<button
+					v-if="task.exp_end_date"
+					type="button"
+					@click.stop="openDatePicker(task.exp_end_date)"
+					class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+				>
+					<Calendar class="w-4 h-4 text-gray-400" />
+					<span>{{ task.exp_end_date }}</span>
+				</button>
+				<button
+					v-else
+					type="button"
+					@click.stop="openDatePicker('')"
+					class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+				>
+					<Calendar class="w-4 h-4" />
+				</button>
 				<input
 					ref="inputRef"
 					v-model="editValue"
 					type="date"
-					class="inline-edit-input text-sm"
-					@blur="finishEditing"
+					class="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
+					tabindex="-1"
+					@change="finishEditing"
 					@keydown="handleKeydown"
+					@blur="cancelEditing"
+					aria-label="Edit due date"
 				/>
 			</div>
-			<div
-				v-else-if="task.exp_end_date"
-				@dblclick.stop="startEditing('exp_end_date', task.exp_end_date)"
-				class="flex items-center gap-1 text-sm text-gray-600"
-			>
-				<Calendar class="w-4 h-4 text-gray-400" />
-				<span>{{ task.exp_end_date }}</span>
-			</div>
-			<button
-				v-else
-				@click.stop="startEditing('exp_end_date', '')"
-				class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-			>
-				<Calendar class="w-4 h-4" />
-			</button>
 		</div>
 
 		<!-- Expected time -->
-		<div
-			v-else-if="columnId === 'expected_time'"
-			class="text-sm text-gray-700 dark:text-gray-200 flex items-center gap-1"
-		>
-			<Clock class="w-4 h-4 text-gray-400 dark:text-gray-500" />
-			<span>{{ formattedExpectedTime }}</span>
+		<div v-else-if="columnId === 'expected_time'" class="min-w-0 text-sm text-gray-700 flex items-center gap-1">
+			<Clock class="w-4 h-4 text-gray-400" />
+			<span>{{ task.expected_time === 0 || task.expected_time ? task.expected_time + 'h' : '—' }}</span>
 		</div>
 
 		<!-- Priority -->
-		<div v-else-if="columnId === 'priority'" class="flex items-center">
+		<div v-else-if="columnId === 'priority'" class="min-w-0 flex items-center">
 			<span
 				v-if="task.priority"
 				:class="['text-sm font-bold', priorityConfig[task.priority]?.class]"
@@ -835,48 +788,8 @@ onUnmounted(() => {
 		</div>
 		</template>
 
-		<Teleport to="body">
-			<div
-				v-if="showMilestoneDropdown"
-				class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-56"
-				:style="{
-					left: milestoneDropdownPosition.x + 'px',
-					top: milestoneDropdownPosition.y + 'px',
-				}"
-			>
-				<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
-					{{ translate("Change milestone") }}
-				</div>
-				<button
-					@click="assignMilestone('')"
-					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-				>
-					{{ translate("No milestone") }}
-				</button>
-				<div v-if="milestoneOptions.length" class="border-t border-gray-100 mt-1 pt-1">
-					<button
-						v-for="milestone in milestoneOptions"
-						:key="milestone.name"
-						@click="assignMilestone(milestone.name)"
-						class="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2"
-						:class="
-							task.milestone === milestone.name
-								? 'text-blue-700 bg-blue-50'
-								: 'text-gray-700'
-						"
-					>
-						<Diamond
-							class="w-3 h-3"
-							:style="{ color: milestone.color || '#3b82f6' }"
-						/>
-						<span class="truncate">{{ milestone.milestone_name }}</span>
-					</button>
-				</div>
-			</div>
-		</Teleport>
-
 		<!-- Actions column -->
-		<div class="flex items-center justify-end">
+		<div class="min-w-0 flex items-center justify-end">
 			<button
 				@click.stop="showMenu"
 				class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200"

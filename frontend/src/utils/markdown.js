@@ -1,4 +1,5 @@
 import MarkdownIt from "markdown-it";
+import DOMPurify from "dompurify";
 
 // Safe URL protocols whitelist
 const SAFE_PROTOCOLS = /^(https?|mailto|tel|ftp):/i;
@@ -27,7 +28,7 @@ function validateLinkUrl(url) {
 }
 
 const markdownParser = new MarkdownIt({
-	html: false, // Prevent raw HTML/JS injection
+	html: true,
 	linkify: true,
 	typographer: true,
 	breaks: true,
@@ -43,5 +44,7 @@ export function renderMarkdown(value) {
 	if (!value) {
 		return "";
 	}
-	return markdownParser.render(value);
+	return DOMPurify.sanitize(markdownParser.render(value), {
+		USE_PROFILES: { html: true },
+	});
 }

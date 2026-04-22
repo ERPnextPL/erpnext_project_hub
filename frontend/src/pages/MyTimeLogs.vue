@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 import {
 	Timer,
 	Search,
@@ -22,7 +23,6 @@ import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { useMyTimeLogsStore } from "../stores/myTimeLogsStore";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
-import { useDebounceFn } from "../utils/composables";
 
 const store = useMyTimeLogsStore();
 const taskStore = useTaskStore();
