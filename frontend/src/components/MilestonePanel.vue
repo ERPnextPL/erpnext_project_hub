@@ -27,6 +27,8 @@ const showEditModal = ref(false);
 const editingMilestone = ref(null);
 const openMenuId = ref(null);
 const isCollapsed = ref(false);
+const draggingMilestoneName = ref(null);
+const milestoneDropIndex = ref(null);
 
 // Load milestones when project changes
 watch(
@@ -40,11 +42,15 @@ watch(
 );
 
 function handleMilestoneClick(milestone) {
-	if (store.activeMilestoneFilter === milestone.name) {
-		store.clearMilestoneFilter();
-	} else {
-		store.setMilestoneFilter(milestone.name);
-	}
+	store.setMilestoneFilter(milestone.name);
+}
+
+function isMilestoneSelected(milestoneName) {
+	return store.activeMilestoneFilter.includes(milestoneName);
+}
+
+function isNoMilestoneSelected() {
+	return store.activeMilestoneFilter.includes(store.NO_MILESTONE_FILTER);
 }
 
 function toggleMenu(milestoneName, event) {
@@ -191,6 +197,81 @@ function handleClickOutside(event) {
 	}
 }
 
+function handleMilestoneDragStart(event, milestoneName) {
+	draggingMilestoneName.value = milestoneName;
+	event.dataTransfer.effectAllowed = "move";
+	event.dataTransfer.setData("application/x-milestone-panel-reorder", milestoneName);
+	event.dataTransfer.setData("text/plain", "");
+}
+
+function handleMilestoneDragEnd() {
+	draggingMilestoneName.value = null;
+	milestoneDropIndex.value = null;
+}
+
+function handleMilestoneDragOver(event, index) {
+	if (
+		!draggingMilestoneName.value &&
+		!event.dataTransfer.types.includes("application/x-milestone-panel-reorder")
+	) {
+		return;
+	}
+	event.preventDefault();
+	event.dataTransfer.dropEffect = "move";
+	milestoneDropIndex.value = index;
+}
+
+function handleMilestoneDragLeave(event) {
+	if (event.currentTarget.contains(event.relatedTarget)) return;
+	milestoneDropIndex.value = null;
+}
+
+async function handleMilestoneDrop(event, index) {
+	event.preventDefault();
+
+	const draggedName =
+		draggingMilestoneName.value ||
+		event.dataTransfer.getData("application/x-milestone-panel-reorder");
+
+	draggingMilestoneName.value = null;
+	milestoneDropIndex.value = null;
+
+	if (!draggedName) return;
+
+	const order = [...store.milestones.map((milestone) => milestone.name)];
+	const fromIndex = order.findIndex((name) => name === draggedName);
+
+	if (fromIndex === -1 || fromIndex === index) return;
+
+	const [moved] = order.splice(fromIndex, 1);
+	order.splice(index, 0, moved);
+
+	await store.reorderMilestones(order);
+}
+
+function handleMilestoneItemDragOver(event, milestoneName, index) {
+	if (event.dataTransfer.types.includes("application/x-milestone-panel-reorder")) {
+		handleMilestoneDragOver(event, index);
+		return;
+	}
+	handleDragOver(event, milestoneName);
+}
+
+function handleMilestoneItemDragLeave(event, milestoneName) {
+	if (event.dataTransfer?.types?.includes("application/x-milestone-panel-reorder")) {
+		handleMilestoneDragLeave(event);
+		return;
+	}
+	handleDragLeave(event, milestoneName);
+}
+
+function handleMilestoneItemDrop(event, milestoneName, index) {
+	if (event.dataTransfer.types.includes("application/x-milestone-panel-reorder")) {
+		return handleMilestoneDrop(event, index);
+	}
+	return handleDrop(event, milestoneName);
+}
+
 // Drag & Drop handlers
 const dragOverMilestone = ref(null);
 
@@ -246,7 +327,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div class="milestone-panel bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+	<div class="milestone-panel flex h-full min-h-0 flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 		<!-- Header -->
 		<div
 			class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -278,11 +359,11 @@ onUnmounted(() => {
 
 		<!-- Active Filter Indicator -->
 		<div
-			v-if="store.activeMilestoneFilter && !isCollapsed"
+			v-if="store.activeMilestoneFilter.length && !isCollapsed"
 			class="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between"
 		>
 			<span class="text-xs text-blue-700 dark:text-blue-400">
-				{{ translate("Filtering by milestone") }}
+				{{ translate("Filtering by selected milestones") }}
 			</span>
 			<button
 				@click="store.clearMilestoneFilter()"
@@ -294,20 +375,50 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Milestone List -->
-		<div v-if="!isCollapsed" class="p-2 space-y-2 max-h-64 overflow-y-auto">
+		<div v-if="!isCollapsed" class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
 			<div
-				v-for="milestone in store.milestones"
-				:key="milestone.name"
-				@click="handleMilestoneClick(milestone)"
-				@dragover="handleDragOver($event, milestone.name)"
-				@dragleave="handleDragLeave($event, milestone.name)"
-				@drop="handleDrop($event, milestone.name)"
+				@click="store.setMilestoneFilter(store.NO_MILESTONE_FILTER)"
 				:class="[
 					'p-3 rounded-lg border-2 cursor-pointer transition-all relative',
-					store.activeMilestoneFilter === milestone.name
+					isNoMilestoneSelected()
+						? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 shadow-sm'
+						: 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700',
+				]"
+			>
+				<div class="flex items-start justify-between mb-2">
+					<div class="flex items-center gap-2 flex-1 min-w-0">
+						<input
+							type="checkbox"
+							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							:checked="isNoMilestoneSelected()"
+							@click.stop="store.setMilestoneFilter(store.NO_MILESTONE_FILTER)"
+						/>
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+							{{ translate("No milestone") }}
+						</span>
+					</div>
+				</div>
+			</div>
+			<div
+				v-for="(milestone, index) in store.milestones"
+				:key="milestone.name"
+				@click="handleMilestoneClick(milestone)"
+				:draggable="true"
+				@dragstart="handleMilestoneDragStart($event, milestone.name)"
+				@dragend="handleMilestoneDragEnd"
+				@dragover="handleMilestoneItemDragOver($event, milestone.name, index)"
+				@dragleave="handleMilestoneItemDragLeave($event, milestone.name)"
+				@drop="handleMilestoneItemDrop($event, milestone.name, index)"
+				:class="[
+					'p-3 rounded-lg border-2 cursor-pointer transition-all relative',
+					isMilestoneSelected(milestone.name)
 						? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 shadow-sm'
 						: dragOverMilestone === milestone.name
 						? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 shadow-md scale-102'
+						: draggingMilestoneName === milestone.name
+						? 'opacity-40 border-transparent'
+						: milestoneDropIndex === index && draggingMilestoneName !== milestone.name
+						? 'border-purple-400 shadow-md dark:border-purple-500'
 						: 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700',
 				]"
 				:style="{ borderLeftColor: getBorderColor(milestone), borderLeftWidth: '4px' }"
@@ -315,6 +426,12 @@ onUnmounted(() => {
 				<!-- Header Row -->
 				<div class="flex items-start justify-between mb-2">
 					<div class="flex items-center gap-2 flex-1 min-w-0">
+						<input
+							type="checkbox"
+							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							:checked="isMilestoneSelected(milestone.name)"
+							@click.stop="store.setMilestoneFilter(milestone.name)"
+						/>
 						<span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
 							{{ getMilestoneLabel(milestone) }}
 						</span>
