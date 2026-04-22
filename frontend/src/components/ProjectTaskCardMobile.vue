@@ -20,26 +20,32 @@ const statusConfig = {
 	Open: {
 		icon: Circle,
 		class: "bg-blue-100 text-blue-700 border-blue-200",
+		label: translate("Open"),
 	},
 	Working: {
 		icon: Clock,
 		class: "bg-amber-100 text-amber-700 border-amber-200",
+		label: translate("Working"),
 	},
 	"Pending Review": {
 		icon: AlertCircle,
 		class: "bg-purple-100 text-purple-700 border-purple-200",
+		label: translate("Pending Review"),
 	},
 	Completed: {
 		icon: CheckCircle2,
 		class: "bg-green-100 text-green-700 border-green-200",
+		label: translate("Completed"),
 	},
 	Overdue: {
 		icon: AlertCircle,
 		class: "bg-red-100 text-red-700 border-red-200",
+		label: translate("Overdue"),
 	},
 	Cancelled: {
 		icon: Circle,
 		class: "bg-gray-100 text-gray-600 border-gray-200",
+		label: translate("Cancelled"),
 	},
 };
 
@@ -48,6 +54,13 @@ const priorityClassMap = {
 	High: "text-orange-500",
 	Medium: "text-yellow-500",
 	Low: "text-gray-400",
+};
+
+const priorityLabelMap = {
+	Urgent: translate("Urgent"),
+	High: translate("High"),
+	Medium: translate("Medium"),
+	Low: translate("Low"),
 };
 
 const statusInfo = computed(() => {
@@ -105,7 +118,7 @@ const formattedDate = computed(() => {
 				]"
 			>
 				<component :is="statusInfo.icon" class="h-3 w-3" />
-				{{ task.status }}
+				{{ statusInfo.label || translate(task.status) }}
 			</span>
 		</div>
 
@@ -123,7 +136,7 @@ const formattedDate = computed(() => {
 				:class="['inline-flex items-center gap-1 font-medium', priorityClassMap[task.priority] || 'text-gray-400']"
 			>
 				<Flag class="h-3.5 w-3.5" />
-				{{ task.priority }}
+				{{ priorityLabelMap[task.priority] || translate(task.priority) }}
 			</span>
 		</div>
 	</button>

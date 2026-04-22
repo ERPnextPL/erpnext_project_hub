@@ -97,7 +97,10 @@ async function toggleExpand() {
 watch(
 	() => props.project.name,
 	() => {
+		financialsRequestId.value += 1;
 		financials.value = null;
+		error.value = null;
+		loading.value = false;
 		if (isExpanded.value) loadFinancials();
 	}
 );

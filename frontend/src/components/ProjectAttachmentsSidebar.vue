@@ -168,17 +168,22 @@ function uploadSingleFile(file) {
 				return;
 			}
 
-			const serverMessages = response?._server_messages
-				? JSON.parse(response._server_messages)
-						.map((message) => {
-							try {
-								return JSON.parse(message).message;
-							} catch (error) {
-								return message;
-							}
-						})
-						.filter(Boolean)
-				: [];
+			let serverMessages = [];
+			try {
+				serverMessages = response?._server_messages
+					? JSON.parse(response._server_messages)
+							.map((message) => {
+								try {
+									return JSON.parse(message).message;
+								} catch (error) {
+									return message;
+								}
+							})
+							.filter(Boolean)
+					: [];
+			} catch (error) {
+				serverMessages = [];
+			}
 
 			const message =
 				serverMessages.join("\n") ||

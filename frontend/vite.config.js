@@ -2,7 +2,6 @@ import vue from "@vitejs/plugin-vue";
 import frappeui from "frappe-ui/vite";
 import path from "path";
 import fs from "fs";
-import { execFileSync } from "child_process";
 import { defineConfig } from "vite";
 
 // Resolve projekt_hub_pro frontend path (if the PRO app is installed)
@@ -30,16 +29,6 @@ function detectProApp() {
 		}
 		
 		if (!siteName || !fs.existsSync(proFrontendPath)) return false;
-
-		const benchRoot = path.resolve(__dirname, "../../..");
-		const benchBin = path.resolve(benchRoot, "env/bin/bench");
-		const benchExe = fs.existsSync(benchBin) ? benchBin : "bench";
-		const appsOutput = execFileSync(
-			benchExe,
-			["--site", siteName, "list-apps"],
-			{ encoding: "utf8", cwd: benchRoot }
-		);
-		if (appsOutput.includes("projekt_hub_pro")) return true;
 
 		const siteConfig = JSON.parse(
 			fs.readFileSync(path.resolve(sitesPath, siteName, "site_config.json"), "utf8")
