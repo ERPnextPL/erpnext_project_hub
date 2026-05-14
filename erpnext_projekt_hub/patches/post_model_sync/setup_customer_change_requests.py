@@ -4,7 +4,6 @@ import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.utils import generate_hash
 
-
 WORKSPACE_NAME = "Projects"
 REQUEST_SHORTCUTS = (
 	("Customer Request", "Customer Request", "Blue"),
@@ -234,9 +233,7 @@ def ensure_shortcuts_in_content(raw_content):
 
 	changed = False
 	existing = {
-		(entry.get("data") or {}).get("shortcut_name")
-		for entry in content
-		if entry.get("type") == "shortcut"
+		(entry.get("data") or {}).get("shortcut_name") for entry in content if entry.get("type") == "shortcut"
 	}
 
 	for label, _doctype, _color in REQUEST_SHORTCUTS:

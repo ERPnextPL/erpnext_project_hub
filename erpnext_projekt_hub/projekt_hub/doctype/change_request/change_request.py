@@ -18,9 +18,7 @@ class ChangeRequest(Document):
 
 		project_customer = frappe.db.get_value("Project", self.project, "customer")
 		if project_customer and project_customer != self.customer:
-			frappe.throw(
-				_("Customer must match the customer assigned to project {0}.").format(self.project)
-			)
+			frappe.throw(_("Customer must match the customer assigned to project {0}.").format(self.project))
 
 	def validate_customer_request(self):
 		if not self.customer_request:

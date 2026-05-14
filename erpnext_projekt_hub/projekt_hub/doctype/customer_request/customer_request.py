@@ -13,17 +13,13 @@ class CustomerRequest(Document):
 
 		project_customer = frappe.db.get_value("Project", self.project, "customer")
 		if project_customer and project_customer != self.customer:
-			frappe.throw(
-				_("Customer must match the customer assigned to project {0}.").format(self.project)
-			)
+			frappe.throw(_("Customer must match the customer assigned to project {0}.").format(self.project))
 
 	@frappe.whitelist()
 	def create_change_request(self):
 		if self.change_request:
 			frappe.throw(
-				_("Change Request {0} already exists for this Customer Request.").format(
-					self.change_request
-				)
+				_("Change Request {0} already exists for this Customer Request.").format(self.change_request)
 			)
 
 		if self.workflow_state not in ("Accepted", "Converted"):
