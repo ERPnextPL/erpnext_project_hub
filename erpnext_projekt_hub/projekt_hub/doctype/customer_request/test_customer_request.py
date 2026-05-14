@@ -9,6 +9,14 @@ def get_or_create_test_company():
 	if frappe.db.exists("Company", company_name):
 		return company_name
 
+	if not frappe.db.exists("Warehouse Type", "Transit"):
+		frappe.get_doc(
+			{
+				"doctype": "Warehouse Type",
+				"name": "Transit",
+			}
+		).insert(ignore_permissions=True)
+
 	frappe.get_doc(
 		{
 			"doctype": "Company",
