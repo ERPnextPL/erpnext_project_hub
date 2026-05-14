@@ -128,6 +128,44 @@ class TestCustomerRequest(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			customer_request.create_change_request()
 
+	def test_create_change_request_reloads_latest_customer_request_state(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		customer_request = frappe.get_doc(
+			{
+				"doctype": "Customer Request",
+				"customer": customer,
+				"project": project,
+				"subject": "_Test Concurrent change request",
+				"analysis": "_Test analysis",
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value(
+			"Customer Request", customer_request.name, "workflow_state", "Accepted", update_modified=False
+		)
+		stale_customer_request = frappe.get_doc("Customer Request", customer_request.name)
+
+		existing_change_request = frappe.get_doc(
+			{
+				"doctype": "Change Request",
+				"subject": "_Test Existing change request",
+				"customer_request": customer_request.name,
+				"customer": customer,
+				"project": project,
+				"approved_scope": "_Test approved scope",
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value(
+			"Customer Request",
+			customer_request.name,
+			"change_request",
+			existing_change_request.name,
+			update_modified=False,
+		)
+
+		with self.assertRaises(frappe.ValidationError):
+			stale_customer_request.create_change_request()
+
 	def test_project_requests_api_returns_project_documents(self):
 		customer = get_or_create_customer()
 		project = create_project(customer)

@@ -45,6 +45,7 @@ export function useTaskDeepLink({
 	loadTaskDetail,
 }) {
 	const syncingFromRoute = ref(false);
+	let routeRequestId = 0;
 	const taskNameFromRoute = computed(() => normalizeTaskQuery(route.query?.task));
 
 	async function syncRoute(taskName, replace = false) {
@@ -64,6 +65,7 @@ export function useTaskDeepLink({
 	}
 
 	async function openTaskFromRoute(taskName) {
+		const requestId = ++routeRequestId;
 		syncingFromRoute.value = true;
 
 		try {
@@ -75,7 +77,7 @@ export function useTaskDeepLink({
 			}
 
 			const existingTask = resolveTask?.(taskName) || null;
-			if (existingTask) {
+			if (existingTask && requestId === routeRequestId && taskName === taskNameFromRoute.value) {
 				selectTask(existingTask);
 				return;
 			}
@@ -83,6 +85,10 @@ export function useTaskDeepLink({
 			if (loadTaskDetail) {
 				try {
 					const taskDetail = await loadTaskDetail(taskName);
+					if (requestId !== routeRequestId || taskName !== taskNameFromRoute.value) {
+						return;
+					}
+
 					if (taskDetail) {
 						selectTask(taskDetail);
 						return;
@@ -92,12 +98,18 @@ export function useTaskDeepLink({
 				}
 			}
 
+			if (requestId !== routeRequestId || taskName !== taskNameFromRoute.value) {
+				return;
+			}
+
 			if (selectedTask.value) {
 				clearSelection();
 			}
 			await syncRoute("", true);
 		} finally {
-			syncingFromRoute.value = false;
+			if (requestId === routeRequestId) {
+				syncingFromRoute.value = false;
+			}
 		}
 	}
 

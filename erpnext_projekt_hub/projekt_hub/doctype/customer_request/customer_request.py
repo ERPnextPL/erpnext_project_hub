@@ -17,6 +17,12 @@ class CustomerRequest(Document):
 
 	@frappe.whitelist()
 	def create_change_request(self):
+		frappe.db.sql(
+			"select name from `tabCustomer Request` where name = %s for update",
+			self.name,
+		)
+		self.reload()
+
 		if self.change_request:
 			frappe.throw(
 				_("Change Request {0} already exists for this Customer Request.").format(self.change_request)

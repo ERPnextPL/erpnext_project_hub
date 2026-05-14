@@ -10,5 +10,9 @@ export function stripHtmlToText(value) {
 		return (wrapper.innerText || wrapper.textContent || "").trim();
 	}
 
-	return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+	const withoutBlocks = html
+		.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+		.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+
+	return withoutBlocks.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
