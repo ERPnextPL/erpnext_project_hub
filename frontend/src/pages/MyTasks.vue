@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useMyTasksStore } from "../stores/myTasksStore";
+import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useDebounceFn } from "@vueuse/core";
 import {
 	CheckSquare,
@@ -21,6 +22,7 @@ import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import TimeLogModal from "../components/TimeLogModal.vue";
 
 const router = useRouter();
+const route = useRoute();
 const store = useMyTasksStore();
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -93,6 +95,16 @@ const isMobile = computed(() => {
 });
 
 const detailPanelOpen = computed(() => !!store.selectedTask);
+
+useTaskDeepLink({
+	route,
+	router,
+	selectedTask: store.selectedTask,
+	selectTask: store.selectTask,
+	clearSelection: store.clearSelection,
+	resolveTask: (taskName) => store.tasks.find((task) => task.name === taskName),
+	loadTaskDetail: (taskName) => store.getTaskDetail(taskName),
+});
 </script>
 
 <template>

@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
+import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import TaskTree from "../components/TaskTree.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
@@ -39,6 +40,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const route = useRoute();
 const store = useTaskStore();
 
 const activeView = ref("list");
@@ -70,6 +72,16 @@ const hasActiveFilters = computed(() => {
 		activeFilters.value.overdue ||
 		activeFilters.value.search
 	);
+});
+
+useTaskDeepLink({
+	route,
+	router,
+	selectedTask: store.selectedTask,
+	selectTask: store.selectTask,
+	clearSelection: store.clearSelection,
+	resolveTask: (taskName) => store.tasks.find((task) => task.name === taskName),
+	loadTaskDetail: (taskName) => store.fetchTaskDetail(taskName),
 });
 
 const debouncedSearch = useDebounceFn((value) => {

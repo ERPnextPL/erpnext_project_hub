@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
+import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import {
 	Circle,
@@ -159,8 +160,7 @@ const descriptionPreviewLabel = computed(() => {
 	if (!taskDescription.value) {
 		return "";
 	}
-	const firstLine = taskDescription.value.split("\n")[0]?.trim();
-	return firstLine || "";
+	return stripHtmlToText(taskDescription.value);
 });
 
 const formattedDate = computed(() => {
@@ -258,7 +258,7 @@ onUnmounted(() => {
 		<!-- Task subject -->
 		<div
 			class="col-span-4 flex items-start gap-3 min-w-0"
-			:title="taskDescription || undefined"
+			:title="descriptionPreviewLabel || undefined"
 		>
 			<button
 				v-if="props.hierarchyEnabled && props.hasChildren"
@@ -292,9 +292,9 @@ onUnmounted(() => {
 				/>
 			</button>
 			<div class="min-w-0">
-				<div v-if="taskDescription" class="flex items-center gap-1 text-xs text-gray-400">
+				<div v-if="taskDescription" class="flex items-start gap-1 text-xs text-gray-400">
 					<FileText class="w-3 h-3 flex-shrink-0" />
-					<span v-if="descriptionPreviewLabel" class="truncate">{{
+					<span v-if="descriptionPreviewLabel" class="line-clamp-3 whitespace-pre-line break-words">{{
 						descriptionPreviewLabel
 					}}</span>
 				</div>
