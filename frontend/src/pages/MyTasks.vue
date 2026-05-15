@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
+import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useMyTasksStore } from "../stores/myTasksStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
@@ -24,6 +25,7 @@ import TimeLogModal from "../components/TimeLogModal.vue";
 const router = useRouter();
 const route = useRoute();
 const store = useMyTasksStore();
+const { selectedTask } = storeToRefs(store);
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
 	return typeof realWindow !== "undefined" && typeof realWindow.__ === "function"
@@ -99,7 +101,7 @@ const detailPanelOpen = computed(() => !!store.selectedTask);
 useTaskDeepLink({
 	route,
 	router,
-	selectedTask: store.selectedTask,
+	selectedTask,
 	selectTask: store.selectTask,
 	clearSelection: store.clearSelection,
 	resolveTask: (taskName) => store.tasks.find((task) => task.name === taskName),

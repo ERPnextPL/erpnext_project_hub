@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
@@ -42,6 +43,7 @@ const props = defineProps({
 const router = useRouter();
 const route = useRoute();
 const store = useTaskStore();
+const { selectedTask } = storeToRefs(store);
 
 const activeView = ref("list");
 const listMode = ref("milestone");
@@ -77,11 +79,13 @@ const hasActiveFilters = computed(() => {
 useTaskDeepLink({
 	route,
 	router,
-	selectedTask: store.selectedTask,
+	selectedTask,
 	selectTask: store.selectTask,
 	clearSelection: store.clearSelection,
 	resolveTask: (taskName) => store.tasks.find((task) => task.name === taskName),
 	loadTaskDetail: (taskName) => store.fetchTaskDetail(taskName),
+	mode: "param",
+	paramName: "taskId",
 });
 
 const debouncedSearch = useDebounceFn((value) => {
@@ -144,6 +148,13 @@ function handleFilterChange(filters) {
 
 function handleTaskClick(task) {
 	store.selectTask(task);
+	router.push({
+		name: "ProjectOutliner",
+		params: {
+			projectId: props.projectId,
+			taskId: task.name,
+		},
+	});
 }
 
 function closeAttachmentsSidebar() {

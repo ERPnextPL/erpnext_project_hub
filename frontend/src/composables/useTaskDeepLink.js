@@ -8,24 +8,32 @@ function normalizeTaskQuery(value) {
 	return typeof value === "string" ? value.trim() : "";
 }
 
-function buildRouteLocation(route, taskName) {
+function buildRouteLocation(route, taskName, options) {
+	const { mode = "query", paramName = "taskId", queryName = "task" } = options || {};
 	const query = { ...(route.query || {}) };
-
-	if (taskName) {
-		query.task = taskName;
-	} else {
-		delete query.task;
-	}
-
 	const location = {
-		query,
 	};
 
 	if (route.name) {
 		location.name = route.name;
-		location.params = route.params;
+		location.params = { ...(route.params || {}) };
 	} else {
 		location.path = route.path;
+	}
+
+	if (mode === "param") {
+		if (taskName) {
+			location.params[paramName] = taskName;
+		} else {
+			delete location.params[paramName];
+		}
+	} else {
+		if (taskName) {
+			query[queryName] = taskName;
+		} else {
+			delete query[queryName];
+		}
+		location.query = query;
 	}
 
 	if (route.hash) {
@@ -43,14 +51,25 @@ export function useTaskDeepLink({
 	clearSelection,
 	resolveTask,
 	loadTaskDetail,
+	mode = "query",
+	paramName = "taskId",
+	queryName = "task",
 }) {
 	const syncingFromRoute = ref(false);
 	let routeRequestId = 0;
-	const taskNameFromRoute = computed(() => normalizeTaskQuery(route.query?.task));
+	const taskNameFromRoute = computed(() =>
+		mode === "param"
+			? normalizeTaskQuery(route.params?.[paramName])
+			: normalizeTaskQuery(route.query?.[queryName])
+	);
 
 	async function syncRoute(taskName, replace = false) {
 		const normalizedTaskName = normalizeTaskQuery(taskName);
-		const nextLocation = buildRouteLocation(route, normalizedTaskName);
+		const nextLocation = buildRouteLocation(route, normalizedTaskName, {
+			mode,
+			paramName,
+			queryName,
+		});
 
 		if (normalizedTaskName === taskNameFromRoute.value) {
 			return;

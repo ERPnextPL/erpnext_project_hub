@@ -181,7 +181,7 @@ doc_events = {
 # Testing
 # -------
 
-# before_tests = "erpnext_projekt_hub.install.before_tests"
+before_tests = "erpnext_projekt_hub.install.before_tests"
 
 # Overriding Methods
 # ------------------------------

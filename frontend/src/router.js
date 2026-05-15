@@ -27,7 +27,7 @@ const routes = [
 	...tabRoutes,
 	// Project Outliner route (must come last to avoid conflicts)
 	{
-		path: "/project-hub/:projectId",
+		path: "/project-hub/:projectId/:taskId?",
 		name: "ProjectOutliner",
 		component: () => import("./pages/ProjectOutliner.vue"),
 		props: true,
