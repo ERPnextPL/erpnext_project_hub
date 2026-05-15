@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
+import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import {
 	Circle,
@@ -107,9 +108,9 @@ const descriptionPreviewLabel = computed(() => {
 	if (!taskDescription.value) {
 		return "";
 	}
-	const firstLine = taskDescription.value.split("\n")[0]?.trim();
-	return firstLine || "";
+	return stripHtmlToText(taskDescription.value);
 });
+const descriptionPreviewText = computed(() => stripHtmlToText(taskDescription.value));
 const showDescriptionPreview = ref(false);
 
 const formattedDate = computed(() => {
@@ -254,9 +255,9 @@ onUnmounted(() => {
 					<Transition name="fade">
 						<div
 							v-if="showDescriptionPreview"
-							class="absolute left-0 top-full z-40 mt-2 w-full rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg whitespace-pre-line break-words"
+							class="absolute left-0 top-full z-40 mt-2 w-full rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg whitespace-pre-line break-words line-clamp-3"
 						>
-							{{ taskDescription }}
+							{{ descriptionPreviewText }}
 						</div>
 					</Transition>
 				</div>

@@ -265,6 +265,65 @@ def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
 
 
 @frappe.whitelist()
+def get_project_requests(project: str):
+	"""Return customer/change requests linked to a project."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	customer_requests = frappe.get_list(
+		"Customer Request",
+		filters={"project": project},
+		fields=[
+			"name",
+			"subject",
+			"customer",
+			"request_date",
+			"source",
+			"workflow_state",
+			"estimated_hours",
+			"estimated_amount",
+			"currency",
+			"quotation",
+			"change_request",
+			"modified",
+		],
+		order_by="modified desc",
+	)
+	change_requests = frappe.get_list(
+		"Change Request",
+		filters={"project": project},
+		fields=[
+			"name",
+			"subject",
+			"customer",
+			"customer_request",
+			"workflow_state",
+			"approved_hours",
+			"approved_amount",
+			"currency",
+			"quotation",
+			"task",
+			"modified",
+		],
+		order_by="modified desc",
+	)
+
+	return {
+		"project": {
+			"name": project_doc.name,
+			"project_name": project_doc.project_name,
+			"customer": project_doc.customer,
+		},
+		"customer_requests": customer_requests,
+		"change_requests": change_requests,
+	}
+
+
+@frappe.whitelist()
 def get_project_tasks(
 	project: str,
 	status: str | None = None,

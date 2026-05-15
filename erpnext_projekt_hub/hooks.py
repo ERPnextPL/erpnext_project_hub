@@ -48,7 +48,11 @@ web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Project": "public/js/project.js", "Timesheet": "public/js/timesheet_timer_override.js"}
+doctype_js = {
+	"Project": "public/js/project.js",
+	"Timesheet": "public/js/timesheet_timer_override.js",
+	"Customer Request": "public/js/customer_request.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -177,7 +181,7 @@ doc_events = {
 # Testing
 # -------
 
-# before_tests = "erpnext_projekt_hub.install.before_tests"
+before_tests = "erpnext_projekt_hub.install.before_tests"
 
 # Overriding Methods
 # ------------------------------
