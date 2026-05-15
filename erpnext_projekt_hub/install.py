@@ -14,4 +14,12 @@ def before_install():
 
 def after_install():
 	"""Mark the PRO frontend as enabled for the installed site."""
+	if not frappe.db.exists("Warehouse Type", "Transit"):
+		frappe.get_doc(
+			{
+				"doctype": "Warehouse Type",
+				"name": "Transit",
+			}
+		).insert(ignore_permissions=True)
+
 	update_site_config("projekt_hub_pro_enabled", 1)
