@@ -56,12 +56,7 @@ class ChangeRequest(Document):
 			}
 		)
 		task.insert()
-		self.task = task.name
-		self.workflow_state = "Task Created"
-
-		frappe.db.set_value(
-			self.doctype,
-			self.name,
+		self.db_set(
 			{
 				"task": task.name,
 				"workflow_state": "Task Created",
