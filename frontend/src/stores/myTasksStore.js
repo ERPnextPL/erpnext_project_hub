@@ -367,6 +367,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			sortBy: "default",
 			sortOrder: "asc",
 		};
+		fetchTasks();
 	}
 
 	function setSorting(column) {

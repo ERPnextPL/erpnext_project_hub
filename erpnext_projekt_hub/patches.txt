@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 erpnext_projekt_hub.patches.post_model_sync.add_milestones_shortcut
 erpnext_projekt_hub.patches.backfill_milestone_names
+erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests

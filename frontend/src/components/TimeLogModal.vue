@@ -123,6 +123,13 @@ function resolveDefaultHours() {
 	return !Number.isNaN(candidate) && candidate > 0 ? candidate : 1;
 }
 
+function formatLocalDateTimeValue(date) {
+	const pad = (n) => String(n).padStart(2, "0");
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+		date.getHours()
+	)}:${pad(date.getMinutes())}`;
+}
+
 // Reset form when modal opens
 watch(
 	() => props.show,
@@ -133,10 +140,7 @@ watch(
 			// Set default date to today with current time minus 1 hour
 			const now = new Date();
 			const endTime = new Date(now.getTime() - 60 * 60 * 1000); // Subtract 1 hour
-			const today = endTime.toISOString().split("T")[0];
-			const hours = String(endTime.getHours()).padStart(2, "0");
-			const minutes = String(endTime.getMinutes()).padStart(2, "0");
-			formData.value.from_time = `${today}T${hours}:${minutes}`;
+			formData.value.from_time = formatLocalDateTimeValue(endTime);
 			formData.value.hours = String(resolveDefaultHours());
 			// Set default activity type from global settings
 			applyDefaultActivityType(activityTypes.value);

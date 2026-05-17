@@ -13,15 +13,14 @@ export_python_type_annotations = True
 required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "erpnext_projekt_hub",
-# 		"logo": "/assets/erpnext_projekt_hub/logo.png",
-# 		"title": "Projekt HUB",
-# 		"route": "/erpnext_projekt_hub",
-# 		"has_permission": "erpnext_projekt_hub.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "erpnext_projekt_hub",
+		"logo": "/assets/erpnext_projekt_hub/frontend/favicon.svg",
+		"title": "Projekt HUB",
+		"route": "/project-hub",
+	}
+]
 
 # Includes in <head>
 # ------------------
@@ -48,7 +47,11 @@ web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {"Project": "public/js/project.js", "Timesheet": "public/js/timesheet_timer_override.js"}
+doctype_js = {
+	"Project": "public/js/project.js",
+	"Timesheet": "public/js/timesheet_timer_override.js",
+	"Customer Request": "public/js/customer_request.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -177,7 +180,7 @@ doc_events = {
 # Testing
 # -------
 
-# before_tests = "erpnext_projekt_hub.install.before_tests"
+before_tests = "erpnext_projekt_hub.install.before_tests"
 
 # Overriding Methods
 # ------------------------------

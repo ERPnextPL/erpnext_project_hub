@@ -931,6 +931,11 @@ function formatDate(dateStr) {
 	});
 }
 
+function formatDateTime(dateStr) {
+	if (!dateStr) return "";
+	return dayjs(dateStr).format("YYYY-MM-DD HH:mm:ss");
+}
+
 async function handleSubtaskCreated() {
 	// Refresh tasks and re-select current task to update children
 	await store.fetchTasks(props.task.project);
@@ -1471,7 +1476,7 @@ async function deleteAttachment(fileName) {
 									</div>
 								</div>
 								<span class="text-xs text-gray-500">
-									{{ task.creation ? `${translate('Created')} ${task.creation}` : '' }}
+									{{ task.modified ? `${translate('Last change')} ${formatDateTime(task.modified)}` : '' }}
 								</span>
 							</div>
 							<div class="p-4 space-y-4">
@@ -2017,7 +2022,7 @@ async function deleteAttachment(fileName) {
 		<div class="border-t border-gray-200 bg-white px-4 py-3">
 			<div class="flex items-center justify-between text-xs text-gray-500">
 				<div class="flex items-center gap-3">
-					<span v-if="task.creation">{{ translate('Created') }} {{ task.creation }}</span>
+					<span v-if="task.modified">{{ translate('Last change') }} {{ formatDateTime(task.modified) }}</span>
 					<span
 						v-if="autosaveIndicatorVisible"
 						class="flex items-center gap-1 font-semibold text-emerald-600"

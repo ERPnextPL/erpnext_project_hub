@@ -2,6 +2,8 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
+import { stripHtmlToText } from "../utils/plainText";
+import { renderMarkdown } from "../utils/markdown";
 import {
 	GripVertical,
 	ChevronRight,
@@ -20,7 +22,6 @@ import {
 	Diamond,
 	FileText,
 } from "lucide-vue-next";
-import { renderMarkdown } from "../utils/markdown";
 
 const props = defineProps({
 	task: {
@@ -72,19 +73,8 @@ const showMilestoneHint = ref(false);
 const milestoneHintTimeout = ref(null);
 
 const taskDescription = computed(() => (props.task.description || "").trim());
-const descriptionPreviewLabel = computed(() => {
-	if (!taskDescription.value) {
-		return "";
-	}
-	const firstLine = taskDescription.value.split("\n")[0]?.trim();
-	return firstLine || "";
-});
-const descriptionPreviewText = computed(() => {
-	if (!taskDescription.value) return "";
-	const lines = taskDescription.value.split(/\r?\n/);
-	return lines.slice(0, 5).join("\n");
-});
-const taskDescriptionMarkdownPreview = computed(() => renderMarkdown(descriptionPreviewText.value));
+const descriptionPreviewLabel = computed(() => stripHtmlToText(taskDescription.value));
+const descriptionPreviewText = descriptionPreviewLabel;
 const taskDescriptionMarkdownFull = computed(() => renderMarkdown(taskDescription.value));
 const showDescriptionPreview = ref(false);
 const showDescriptionModal = ref(false);
@@ -618,18 +608,18 @@ onUnmounted(() => {
 
 					<div
 						v-if="taskDescription"
-						class="mt-0.5 flex items-center gap-1 text-xs text-gray-400 description-preview-trigger relative"
+						class="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-gray-400 description-preview-trigger relative"
 						@mouseenter="handleDescriptionMouseEnter"
 						@mouseleave="handleDescriptionMouseLeave"
 					>
 							<button
 								type="button"
-								class="flex items-center gap-1 hover:text-gray-600 focus:outline-none"
+								class="flex flex-1 min-w-0 max-w-full items-center gap-1 overflow-hidden hover:text-gray-600 focus:outline-none"
 								@click.stop="openDescriptionModal"
 								:title="translate('Click to view full description')"
 							>
 							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
-							<span v-if="descriptionPreviewLabel">{{
+							<span v-if="descriptionPreviewLabel" class="block min-w-0 truncate">{{
 								descriptionPreviewLabel
 							}}</span>
 						</button>
@@ -637,8 +627,8 @@ onUnmounted(() => {
 						<Transition name="fade">
 						<div
 							v-if="showDescriptionPreview"
-							class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg break-words leading-relaxed markdown-body"
-							v-html="taskDescriptionMarkdownPreview"
+							class="absolute left-0 top-full z-50 mt-2 max-w-[260px] w-screen min-w-[200px] rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg break-words leading-relaxed whitespace-pre-line line-clamp-3"
+							v-text="descriptionPreviewText"
 						></div>
 						</Transition>
 						</div>
