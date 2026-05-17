@@ -229,7 +229,7 @@ def ensure_shortcuts_in_content(raw_content):
 		try:
 			content = json.loads(raw_content)
 		except json.JSONDecodeError:
-			content = []
+			return raw_content, False
 
 	changed = False
 	existing = {

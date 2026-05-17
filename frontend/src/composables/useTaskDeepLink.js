@@ -11,17 +11,16 @@ function normalizeTaskQuery(value) {
 function buildRouteLocation(route, taskName, options) {
 	const { mode = "query", paramName = "taskId", queryName = "task" } = options || {};
 	const query = { ...(route.query || {}) };
-	const location = {
-	};
+	const location = {};
 
 	if (route.name) {
 		location.name = route.name;
-		location.params = { ...(route.params || {}) };
 	} else {
 		location.path = route.path;
 	}
 
 	if (mode === "param") {
+		location.params = { ...(route.params || {}) };
 		if (taskName) {
 			location.params[paramName] = taskName;
 		} else {
