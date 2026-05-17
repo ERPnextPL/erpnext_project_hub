@@ -608,18 +608,18 @@ onUnmounted(() => {
 
 					<div
 						v-if="taskDescription"
-						class="mt-0.5 flex items-center gap-1 text-xs text-gray-400 description-preview-trigger relative"
+						class="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-gray-400 description-preview-trigger relative"
 						@mouseenter="handleDescriptionMouseEnter"
 						@mouseleave="handleDescriptionMouseLeave"
 					>
 							<button
 								type="button"
-								class="flex items-center gap-1 hover:text-gray-600 focus:outline-none"
+								class="flex flex-1 min-w-0 max-w-full items-center gap-1 overflow-hidden hover:text-gray-600 focus:outline-none"
 								@click.stop="openDescriptionModal"
 								:title="translate('Click to view full description')"
 							>
 							<FileText class="w-3.5 h-3.5 flex-shrink-0" />
-							<span v-if="descriptionPreviewLabel">{{
+							<span v-if="descriptionPreviewLabel" class="block min-w-0 truncate">{{
 								descriptionPreviewLabel
 							}}</span>
 						</button>

@@ -148,13 +148,6 @@ function handleFilterChange(filters) {
 
 function handleTaskClick(task) {
 	store.selectTask(task);
-	router.push({
-		name: "ProjectOutliner",
-		params: {
-			projectId: props.projectId,
-			taskId: task.name,
-		},
-	});
 }
 
 function closeAttachmentsSidebar() {
