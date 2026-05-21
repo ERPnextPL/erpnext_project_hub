@@ -61,9 +61,9 @@ const statusConfig = {
 	},
 	Cancelled: {
 		icon: Circle,
-		color: "bg-gray-400",
-		bgColor: "bg-gray-50",
-		textColor: "text-gray-500",
+		color: "bg-red-500",
+		bgColor: "bg-red-50",
+		textColor: "text-red-700",
 	},
 };
 

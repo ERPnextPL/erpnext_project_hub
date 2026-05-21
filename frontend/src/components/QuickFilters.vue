@@ -73,7 +73,7 @@ const statusIconMap = {
 	"Pending Review": { icon: AlertCircle, class: "text-purple-600" },
 	Completed: { icon: CheckCircle2, class: "text-green-600" },
 	Overdue: { icon: AlertCircle, class: "text-red-600" },
-	Cancelled: { icon: Circle, class: "text-gray-400" },
+	Cancelled: { icon: Circle, class: "text-red-600" },
 };
 
 const priorityColorMap = {

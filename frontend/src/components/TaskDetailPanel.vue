@@ -213,8 +213,8 @@ const statusPalette = {
 	Cancelled: {
 		icon: Circle,
 		label: translate("Cancelled"),
-		bg: "bg-gray-100 border border-gray-200",
-		text: "text-slate-500",
+		bg: "bg-red-100 border border-red-200",
+		text: "text-red-700",
 	},
 };
 

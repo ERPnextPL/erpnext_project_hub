@@ -27,7 +27,7 @@ const statusConfig = {
 	"Pending Review": { icon: AlertCircle, class: "text-purple-600", bg: "bg-purple-50" },
 	Completed: { icon: CheckCircle2, class: "text-green-600", bg: "bg-green-50" },
 	Overdue: { icon: AlertCircle, class: "text-red-600", bg: "bg-red-50" },
-	Cancelled: { icon: Circle, class: "text-gray-400", bg: "bg-gray-50" },
+	Cancelled: { icon: Circle, class: "text-red-600", bg: "bg-red-50" },
 };
 
 const priorityConfig = {

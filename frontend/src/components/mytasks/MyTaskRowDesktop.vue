@@ -108,8 +108,8 @@ const statusConfig = {
 	},
 	Cancelled: {
 		icon: Circle,
-		class: "text-slate-500",
-		bg: "bg-gray-100 border border-gray-200",
+		class: "text-white",
+		bg: "bg-red-600 border border-red-600",
 		label: translate("Cancelled"),
 	},
 };
