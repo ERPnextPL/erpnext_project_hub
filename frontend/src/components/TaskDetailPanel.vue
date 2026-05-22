@@ -1449,10 +1449,14 @@ async function deleteAttachment(fileName) {
 										class="w-full rounded-xl border border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
 										:placeholder="translate('Add description...')"
 									/>
-									<div v-if="showMarkdownPreview" class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap break-words" v-html="descriptionMarkdownPreview"></div>
+									<div
+										v-if="showMarkdownPreview"
+										class="markdown-body rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700"
+										v-html="descriptionMarkdownPreview"
+									></div>
 								</div>
 								<div v-else-if="hasDescription" class="space-y-3 text-sm leading-6 text-gray-700">
-									<div class="whitespace-pre-wrap break-words" v-html="descriptionMarkdownPreview"></div>
+									<div class="markdown-body" v-html="descriptionMarkdownPreview"></div>
 								</div>
 								<button
 									v-else
