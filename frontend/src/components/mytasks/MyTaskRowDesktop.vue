@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
@@ -48,6 +48,8 @@ const store = useMyTasksStore();
 const realWindow = getRealWindow();
 
 const isUpdating = ref(false);
+const dueDateInputRef = ref(null);
+const editableDueDate = ref("");
 
 const isStatusDropdownOpen = computed(() => {
 	return (
@@ -108,7 +110,7 @@ const statusConfig = {
 	},
 	Cancelled: {
 		icon: Circle,
-		class: "text-white",
+		class: "text-slate-700",
 		bg: "bg-red-600 border border-red-600",
 		label: translate("Cancelled"),
 	},
@@ -180,6 +182,30 @@ const dateClass = computed(() => {
 	if (diff <= 3) return "text-amber-500";
 	return "text-gray-600";
 });
+
+function openDueDatePicker(currentValue) {
+	editableDueDate.value = currentValue || "";
+	nextTick(() => {
+		const el = dueDateInputRef.value?.$el || dueDateInputRef.value;
+		el?.focus?.();
+		if (typeof el?.showPicker === "function") {
+			el.showPicker();
+		} else {
+			el?.click?.();
+		}
+	});
+}
+
+async function updateDueDate() {
+	if (editableDueDate.value === props.task.exp_end_date) return;
+
+	isUpdating.value = true;
+	try {
+		await store.quickUpdateTask(props.task.name, { exp_end_date: editableDueDate.value });
+	} finally {
+		isUpdating.value = false;
+	}
+}
 
 async function updateStatus(newStatus) {
 	store.closeInlineDropdown();
@@ -426,16 +452,31 @@ onUnmounted(() => {
 
 		<!-- Due date -->
 		<div class="col-span-2 flex items-center" @click.stop>
-			<div :class="['flex items-center gap-1.5 text-sm', dateClass]">
-				<Calendar class="w-3.5 h-3.5" />
-				<span v-if="formattedDate">{{ formattedDate }}</span>
-				<span v-else class="text-gray-300">{{ translate("No deadline") }}</span>
+			<div :class="['relative flex items-center gap-1.5 text-sm', dateClass]">
+				<button
+					type="button"
+					class="flex items-center gap-1.5 hover:text-gray-900 transition-colors"
+					@click.stop="openDueDatePicker(task.exp_end_date)"
+				>
+					<Calendar class="w-3.5 h-3.5" />
+					<span v-if="formattedDate">{{ formattedDate }}</span>
+					<span v-else class="text-gray-300">{{ translate("No deadline") }}</span>
+				</button>
 				<span
 					v-if="task.is_overdue"
 					class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded"
 				>
 					!
 				</span>
+				<input
+					ref="dueDateInputRef"
+					v-model="editableDueDate"
+					type="date"
+					class="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
+					tabindex="-1"
+					@change="updateDueDate"
+					aria-label="Edit due date"
+				/>
 			</div>
 		</div>
 

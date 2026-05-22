@@ -7,6 +7,7 @@ import {
 	User,
 	FileText,
 	Link,
+	ExternalLink,
 	TrendingUp,
 	AlertCircle,
 	ChevronDown,
@@ -89,6 +90,10 @@ const toggleExpand = () => {
 	isExpanded.value = !isExpanded.value;
 };
 
+function openProjectInDesk() {
+	realWindow?.open(`/app/project/${props.project.name}`, "_blank");
+}
+
 async function saveDateField(field, value) {
 	await saveProjectField(
 		field,
@@ -156,10 +161,24 @@ async function saveNotes() {
 			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
 			@click="toggleExpand"
 		>
-			<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-				{{ translate("Project Information") }}
-			</h3>
-			<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+			<div class="flex items-center gap-2 min-w-0">
+				<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+					{{ translate("Project Information") }}
+				</h3>
+				<button
+					type="button"
+					class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-600 bg-white hover:bg-gray-100 transition-colors"
+					@click.stop="openProjectInDesk"
+				>
+					<ExternalLink class="w-3.5 h-3.5" />
+					{{ translate("Open in Desk") }}
+				</button>
+			</div>
+			<button
+				type="button"
+				class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+				@click.stop="toggleExpand"
+			>
 				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
 				<ChevronDown v-else class="w-4 h-4 text-gray-500 dark:text-gray-400" />
 			</button>
