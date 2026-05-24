@@ -25,6 +25,7 @@ def after_install():
 def _ensure_test_roots():
 	for doctype, name, fieldname in [
 		("Gender", "Female", "gender"),
+		("Gender", "Male", "gender"),
 		("Item Group", "All Item Groups", "item_group_name"),
 		("Warehouse Type", "Transit", None),
 		("Territory", "All Territories", "territory_name"),
