@@ -9,6 +9,8 @@ REQUEST_SHORTCUTS = (
 	("Customer Request", "Customer Request", "Blue"),
 	("Change Request", "Change Request", "Green"),
 )
+PROJECT_HUB_SHORTCUT = ("Project Hub", "/project-hub", "Blue")
+CONTENT_SHORTCUT_LABELS = [label for label, _, _ in REQUEST_SHORTCUTS] + [PROJECT_HUB_SHORTCUT[0]]
 
 
 def execute():
@@ -181,7 +183,19 @@ def ensure_workspace_shortcuts():
 		if ensure_workspace_shortcut(workspace, label, doctype, color):
 			changed = True
 
-	content, content_changed = ensure_shortcuts_in_content(workspace.content)
+	if ensure_workspace_url_shortcut(workspace, *PROJECT_HUB_SHORTCUT):
+		changed = True
+
+	if ensure_workspace_link_cleanup(workspace, PROJECT_HUB_SHORTCUT[0], PROJECT_HUB_SHORTCUT[1]):
+		changed = True
+
+	content = workspace.content
+	content_changed = False
+	for label in CONTENT_SHORTCUT_LABELS:
+		content, shortcut_changed = ensure_shortcut_in_content(content, label)
+		if shortcut_changed:
+			content_changed = True
+
 	if content_changed:
 		workspace.content = content
 		changed = True
@@ -222,7 +236,53 @@ def ensure_workspace_shortcut(workspace, label, doctype, color):
 	return True
 
 
-def ensure_shortcuts_in_content(raw_content):
+def ensure_workspace_url_shortcut(workspace, label, url, color):
+	for row in workspace.shortcuts:
+		if row.label == label or row.url == url or row.link_to == url:
+			changed = False
+			if row.label != label:
+				row.label = label
+				changed = True
+			if row.type != "URL":
+				row.type = "URL"
+				changed = True
+			if row.url != url:
+				row.url = url
+				changed = True
+			if row.link_to:
+				row.link_to = None
+				changed = True
+			if row.doc_view != "List":
+				row.doc_view = "List"
+				changed = True
+			if row.color != color:
+				row.color = color
+				changed = True
+			return changed
+
+	workspace.append(
+		"shortcuts",
+		{
+			"type": "URL",
+			"label": label,
+			"url": url,
+			"color": color,
+			"doc_view": "List",
+		},
+	)
+	return True
+
+
+def ensure_workspace_link_cleanup(workspace, label, url):
+	changed = False
+	for row in list(workspace.links):
+		if row.label == label or row.link_to in (url, "project-hub"):
+			workspace.remove(row)
+			changed = True
+	return changed
+
+
+def ensure_shortcut_in_content(raw_content, shortcut_label):
 	if not raw_content:
 		content = []
 	else:
@@ -236,20 +296,33 @@ def ensure_shortcuts_in_content(raw_content):
 		(entry.get("data") or {}).get("shortcut_name") for entry in content if entry.get("type") == "shortcut"
 	}
 
-	for label, _doctype, _color in REQUEST_SHORTCUTS:
-		if label in existing:
+	if shortcut_label in existing:
+		return json.dumps(content), False
+
+	block = {
+		"id": generate_hash(length=10),
+		"type": "shortcut",
+		"data": {
+			"shortcut_name": shortcut_label,
+			"col": 3,
+		},
+	}
+
+	insert_at = len(content)
+	visible_shortcut_area = False
+
+	for idx, entry in enumerate(content):
+		if entry.get("type") == "header":
+			text = (entry.get("data") or {}).get("text", "")
+			if "Your Shortcuts" in text:
+				visible_shortcut_area = True
 			continue
 
-		content.append(
-			{
-				"id": generate_hash(length=10),
-				"type": "shortcut",
-				"data": {
-					"shortcut_name": label,
-					"col": 3,
-				},
-			}
-		)
-		changed = True
+		if visible_shortcut_area and entry.get("type") != "shortcut":
+			insert_at = idx
+			break
+
+	content.insert(insert_at, block)
+	changed = True
 
 	return json.dumps(content), changed

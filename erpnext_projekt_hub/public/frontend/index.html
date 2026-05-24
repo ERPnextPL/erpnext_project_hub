@@ -32,6 +32,7 @@
 				}
 			}
 		</script>
+
           <script>
               {% for key in boot %}
               window["{{ key }}"] = {{ boot[key] | tojson }};

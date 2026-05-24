@@ -324,6 +324,155 @@ def get_project_requests(project: str):
 
 
 @frappe.whitelist()
+def create_customer_request(
+	project: str,
+	subject: str,
+	request_date: str | None = None,
+	source: str | None = None,
+	requested_by: str | None = None,
+	notes: str | None = None,
+	business_value: str | None = None,
+	analysis: str | None = None,
+	estimated_hours: str | None = None,
+	currency: str | None = None,
+	estimated_amount: str | None = None,
+	quotation: str | None = None,
+):
+	"""Create a Customer Request from the Projekt HUB UI."""
+	if not project:
+		frappe.throw(_("Project is required"))
+	if not subject:
+		frappe.throw(_("Subject is required"))
+	if not frappe.has_permission("Customer Request", "create"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if not project_doc.customer:
+		frappe.throw(_("Project must have a customer"))
+
+	request = frappe.get_doc(
+		{
+			"doctype": "Customer Request",
+			"project": project_doc.name,
+			"customer": project_doc.customer,
+			"subject": subject,
+		}
+	)
+	for fieldname, value in {
+		"request_date": request_date,
+		"source": source,
+		"requested_by": requested_by,
+		"notes": notes,
+		"business_value": business_value,
+		"analysis": analysis,
+		"estimated_hours": estimated_hours,
+		"currency": currency,
+		"estimated_amount": estimated_amount,
+		"quotation": quotation,
+	}.items():
+		if value not in (None, ""):
+			request.set(fieldname, value)
+
+	request.insert()
+
+	return {
+		"name": request.name,
+		"project": request.project,
+		"customer": request.customer,
+		"subject": request.subject,
+	}
+
+
+@frappe.whitelist()
+def search_requested_by(project: str, txt: str | None = None):
+	"""Search employees that can be used in the Requested By field."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	filters = {"status": "Active"}
+	if project_doc.company:
+		filters["company"] = project_doc.company
+
+	or_filters = []
+	if txt:
+		term = f"%{txt}%"
+		or_filters = [
+			["name", "like", term],
+			["employee_name", "like", term],
+			["user_id", "like", term],
+		]
+
+	employees = frappe.get_all(
+		"Employee",
+		filters=filters,
+		or_filters=or_filters,
+		fields=["name", "employee_name", "user_id"],
+		order_by="employee_name asc, name asc",
+		limit_page_length=50,
+		ignore_permissions=True,
+	)
+
+	return [
+		{
+			"value": employee.name,
+			"label": employee.employee_name or employee.name,
+			"description": employee.user_id or "",
+		}
+		for employee in employees
+	]
+
+
+@frappe.whitelist()
+def get_customer_request_dropdown_options(project: str):
+	"""Return dropdown options used by the Customer Request modal."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	currencies = frappe.get_all(
+		"Currency",
+		fields=["name"],
+		order_by="name asc",
+		limit_page_length=200,
+		ignore_permissions=True,
+	)
+
+	quotation_filters = {"docstatus": ["<", 2]}
+	if project_doc.customer:
+		quotation_filters.update({"quotation_to": "Customer", "party_name": project_doc.customer})
+
+	quotations = frappe.get_all(
+		"Quotation",
+		filters=quotation_filters,
+		fields=["name", "title", "transaction_date", "grand_total", "currency"],
+		order_by="modified desc",
+		limit_page_length=50,
+		ignore_permissions=True,
+	)
+
+	return {
+		"currencies": [{"value": currency.name, "label": currency.name} for currency in currencies],
+		"quotations": [
+			{
+				"value": quotation.name,
+				"label": quotation.title or quotation.name,
+				"description": quotation.name,
+			}
+			for quotation in quotations
+		],
+	}
+
+
+@frappe.whitelist()
 def get_project_tasks(
 	project: str,
 	status: str | None = None,
