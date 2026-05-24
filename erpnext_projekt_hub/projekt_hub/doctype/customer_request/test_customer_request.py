@@ -3,6 +3,8 @@ from frappe.tests.utils import FrappeTestCase
 
 from erpnext_projekt_hub.api.project_hub import get_project_requests
 
+test_ignore = ["Customer", "Project", "Quotation", "Task"]
+
 
 def get_or_create_test_company():
 	company_name = "_Test Project Hub Company"
