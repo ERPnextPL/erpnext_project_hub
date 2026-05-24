@@ -13,6 +13,9 @@ def before_install():
 
 
 def before_tests():
+	from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import execute
+
+	execute()
 	_ensure_test_roots()
 
 
