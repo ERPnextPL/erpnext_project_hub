@@ -456,7 +456,6 @@ def get_customer_request_dropdown_options(project: str):
 		fields=["name", "title", "transaction_date", "grand_total", "currency"],
 		order_by="modified desc",
 		limit_page_length=50,
-		ignore_permissions=True,
 	)
 
 	return {

@@ -1,3 +1,5 @@
+from unittest.mock import Mock, patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
@@ -111,6 +113,26 @@ def create_project(customer):
 class TestCustomerRequest(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
+
+	def test_customer_request_dropdown_options_respect_quotation_permissions(self):
+		project_doc = Mock()
+		project_doc.has_permission.return_value = True
+		project_doc.customer = "_Test Project Hub Customer"
+
+		with (
+			patch("erpnext_projekt_hub.api.project_hub.frappe.get_doc", return_value=project_doc),
+			patch(
+				"erpnext_projekt_hub.api.project_hub.frappe.get_all",
+				side_effect=[
+					[frappe._dict(name="PLN")],
+					[],
+				],
+			) as get_all,
+		):
+			get_customer_request_dropdown_options("PROJ-0001")
+
+		self.assertEqual(get_all.call_args_list[1].args[0], "Quotation")
+		self.assertNotIn("ignore_permissions", get_all.call_args_list[1].kwargs)
 
 	def test_create_change_request_from_accepted_customer_request(self):
 		customer = get_or_create_customer()
