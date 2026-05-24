@@ -1629,7 +1629,7 @@ async function deleteAttachment(fileName) {
 												:key="opt.value"
 												type="button"
 												class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-												:class="editableTask.status === opt.value ? opt.palette.text : 'text-gray-600'"
+												:class="editableTask.status === opt.value ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-600'"
 												@click="handleStatusSelection(opt)"
 											>
 												<component :is="opt.palette.icon" class="h-4 w-4" />
