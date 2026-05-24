@@ -264,11 +264,14 @@ fixtures = [
 	{"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
 	{
 		"dt": "Workspace Link",
-		"filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]],
+		"filters": [["parent", "=", "Projects"], ["label", "=", "Project Milestone"]],
 	},
 	{
 		"dt": "Workspace Shortcut",
 		"filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]],
 	},
-	{"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
+	{
+		"dt": "Workspace Shortcut",
+		"filters": [["parent", "=", "Projects"], ["type", "=", "URL"], ["url", "=", "/project-hub"]],
+	},
 ]

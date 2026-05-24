@@ -1,7 +1,14 @@
+from unittest.mock import Mock, patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from erpnext_projekt_hub.api.project_hub import get_project_requests
+from erpnext_projekt_hub.api.project_hub import (
+	create_customer_request,
+	get_customer_request_dropdown_options,
+	get_project_requests,
+	search_requested_by,
+)
 
 test_ignore = ["Customer", "Project", "Quotation", "Task"]
 
@@ -66,6 +73,29 @@ def get_or_create_customer():
 	return customer_name
 
 
+def get_or_create_employee():
+	existing_employee = frappe.db.exists(
+		"Employee",
+		{"first_name": "_Test", "last_name": "Employee", "company": get_or_create_test_company()},
+	)
+	if existing_employee:
+		return existing_employee
+
+	employee = frappe.get_doc(
+		{
+			"doctype": "Employee",
+			"first_name": "_Test",
+			"last_name": "Employee",
+			"company": get_or_create_test_company(),
+			"status": "Active",
+			"gender": "Male",
+			"date_of_birth": "1990-01-01",
+			"date_of_joining": "2026-01-01",
+		}
+	).insert(ignore_permissions=True)
+	return employee.name
+
+
 def create_project(customer):
 	project = frappe.get_doc(
 		{
@@ -83,6 +113,26 @@ def create_project(customer):
 class TestCustomerRequest(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
+
+	def test_customer_request_dropdown_options_respect_quotation_permissions(self):
+		project_doc = Mock()
+		project_doc.has_permission.return_value = True
+		project_doc.customer = "_Test Project Hub Customer"
+
+		with (
+			patch("erpnext_projekt_hub.api.project_hub.frappe.get_doc", return_value=project_doc),
+			patch(
+				"erpnext_projekt_hub.api.project_hub.frappe.get_all",
+				side_effect=[
+					[frappe._dict(name="PLN")],
+					[],
+				],
+			) as get_all,
+		):
+			get_customer_request_dropdown_options("PROJ-0001")
+
+		self.assertEqual(get_all.call_args_list[1].args[0], "Quotation")
+		self.assertNotIn("ignore_permissions", get_all.call_args_list[1].kwargs)
 
 	def test_create_change_request_from_accepted_customer_request(self):
 		customer = get_or_create_customer()
@@ -205,3 +255,56 @@ class TestCustomerRequest(FrappeTestCase):
 			change_request_name,
 			[row.name for row in result["change_requests"]],
 		)
+
+	def test_create_customer_request_api_uses_project_customer(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+
+		result = create_customer_request(
+			project=project,
+			subject="_Test UI request",
+			source="Email",
+			notes="_Test request notes",
+			business_value="_Test business value",
+		)
+
+		customer_request = frappe.get_doc("Customer Request", result["name"])
+		self.assertEqual(customer_request.project, project)
+		self.assertEqual(customer_request.customer, customer)
+		self.assertEqual(customer_request.subject, "_Test UI request")
+		self.assertEqual(customer_request.source, "Email")
+		self.assertEqual(customer_request.notes, "_Test request notes")
+		self.assertEqual(customer_request.business_value, "_Test business value")
+
+	def test_create_customer_request_api_saves_requested_by(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		employee = get_or_create_employee()
+
+		result = create_customer_request(
+			project=project,
+			subject="_Test request with requested by",
+			requested_by=employee,
+		)
+
+		customer_request = frappe.get_doc("Customer Request", result["name"])
+		self.assertEqual(customer_request.requested_by, employee)
+
+	def test_requested_by_search_returns_employees_in_project_company(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		employee = get_or_create_employee()
+
+		results = search_requested_by(project=project, txt="_Test")
+
+		self.assertIn(employee, [row["value"] for row in results])
+
+	def test_customer_request_dropdown_options_returns_currencies(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+
+		result = get_customer_request_dropdown_options(project)
+
+		self.assertIn("currencies", result)
+		self.assertIn("quotations", result)
+		self.assertTrue(result["currencies"])
