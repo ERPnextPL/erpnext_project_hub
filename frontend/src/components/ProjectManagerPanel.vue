@@ -140,7 +140,7 @@ const hasBudgetHoursData = computed(() => {
 
 const estimatedHoursProgress = computed(() => {
 	if (!financials.value?.budget_total_hours) return 0;
-	return Math.round((financials.value.estimated_hours / financials.value.budget_total_hours) * 100);
+	return financials.value.budget_hours_progress || 0;
 });
 
 const estimatedHoursProgressWidth = computed(() => {
