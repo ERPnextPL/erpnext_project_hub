@@ -2,7 +2,6 @@
 import { ref, computed, watch } from "vue";
 import {
 	TrendingUp,
-	TrendingDown,
 	Clock,
 	Users,
 	ChevronDown,
@@ -105,52 +104,52 @@ watch(
 	}
 );
 
-const currency = computed(() => realWindow?.frappe?.boot?.sysdefaults?.currency || "PLN");
-
-function formatCurrency(value) {
-	if (!value && value !== 0) return "—";
-	return new Intl.NumberFormat("pl-PL", {
-		style: "currency",
-		currency: currency.value,
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 2,
-	}).format(value);
-}
-
 function formatHours(hours) {
 	if (!hours && hours !== 0) return "—";
 	return `${Number(hours).toFixed(1)} h`;
+}
+
+function getProgressBarClass(percent) {
+	if (percent > 99) return "bg-red-500";
+	if (percent > 80) return "bg-orange-500";
+	if (percent > 50) return "bg-yellow-500";
+	return "bg-green-500";
 }
 
 const hasFinancialData = computed(() => {
 	if (!financials.value) return false;
 	return (
 		financials.value.estimated_costing > 0 ||
-		financials.value.total_sales_amount > 0 ||
-		financials.value.gross_margin !== 0
+		financials.value.total_costing_amount > 0 ||
+		financials.value.total_purchase_cost > 0
 	);
 });
 
-const hoursProgress = computed(() => {
-	if (!financials.value || !financials.value.estimated_hours) return 0;
-	return Math.min(
-		100,
-		Math.round((financials.value.total_hours / financials.value.estimated_hours) * 100)
-	);
+const budgetRemainingPct = computed(() => {
+	if (!financials.value || !financials.value.estimated_costing) return null;
+	const remaining =
+		((financials.value.estimated_costing - financials.value.total_costing_amount) /
+			financials.value.estimated_costing) *
+		100;
+	return Math.max(0, Math.round(remaining));
 });
 
-const hoursOverBudget = computed(() => {
-	if (!financials.value || !financials.value.estimated_hours) return false;
-	return financials.value.total_hours > financials.value.estimated_hours;
+const hasBudgetHoursData = computed(() => {
+	return Boolean(financials.value?.hourly_cost_rate && financials.value?.budget_total_hours);
 });
 
-const marginStatus = computed(() => {
-	if (!financials.value) return null;
-	const pct = financials.value.per_gross_margin;
-	if (pct === 0 && financials.value.gross_margin === 0) return null;
-	if (pct >= 20) return "good";
-	if (pct >= 0) return "warn";
-	return "bad";
+const estimatedHoursProgress = computed(() => {
+	if (!financials.value?.budget_total_hours) return 0;
+	return financials.value.budget_hours_progress || 0;
+});
+
+const estimatedHoursProgressWidth = computed(() => {
+	return Math.min(100, estimatedHoursProgress.value);
+});
+
+const topUserHours = computed(() => {
+	if (!financials.value?.hours_per_user?.length) return 0;
+	return Math.max(...financials.value.hours_per_user.map((row) => row.total || 0));
 });
 </script>
 
@@ -191,29 +190,34 @@ const marginStatus = computed(() => {
 						<div class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2">
 							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
 								<Clock class="w-3.5 h-3.5" />
-								{{ translate("Reported Hours") }}
+								{{ translate("Hours") }}
 							</div>
 							<div class="flex items-end gap-2">
 								<span class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-									{{ formatHours(financials.total_hours) }}
+									{{ formatHours(financials.estimated_hours) }}
 								</span>
-								<span v-if="financials.estimated_hours > 0" class="text-sm text-gray-500 pb-0.5">
-									/ {{ formatHours(financials.estimated_hours) }} {{ translate("est.") }}
+								<span class="text-sm text-gray-500 pb-0.5">
+									{{ translate("estimated") }}
+								</span>
+								<span v-if="hasBudgetHoursData" class="text-sm text-gray-500 pb-0.5">
+									/ {{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
 								</span>
 							</div>
 
-							<div v-if="financials.estimated_hours > 0">
+							<div v-if="hasBudgetHoursData">
 								<div class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
 									<div
 										class="h-full rounded-full transition-all duration-500"
-										:class="hoursOverBudget ? 'bg-red-500' : 'bg-indigo-500'"
-										:style="{ width: hoursProgress + '%' }"
+										:class="getProgressBarClass(estimatedHoursProgress)"
+										:style="{ width: estimatedHoursProgressWidth + '%' }"
 									></div>
 								</div>
 								<div class="flex justify-between text-xs mt-1">
-									<span :class="hoursOverBudget ? 'text-red-600 font-semibold' : 'text-gray-500'">
-										{{ hoursProgress }}%
-										<span v-if="hoursOverBudget"> - {{ translate("Over budget!") }}</span>
+									<span class="text-gray-500">
+										{{ estimatedHoursProgress }}%
+									</span>
+									<span class="text-gray-500">
+										{{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
 									</span>
 								</div>
 							</div>
@@ -235,45 +239,47 @@ const marginStatus = computed(() => {
 							class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2"
 						>
 							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-								<TrendingUp v-if="marginStatus !== 'bad'" class="w-3.5 h-3.5" />
-								<TrendingDown v-else class="w-3.5 h-3.5 text-red-500" />
-								{{ translate("Gross Margin") }}
+								<TrendingUp class="w-3.5 h-3.5" />
+								{{ translate("Budget Usage") }}
 							</div>
 							<div class="flex items-end gap-2">
-								<span
-									class="text-2xl font-bold"
-									:class="{
-										'text-green-600': marginStatus === 'good',
-										'text-amber-500': marginStatus === 'warn',
-										'text-red-600': marginStatus === 'bad',
-										'text-gray-900 dark:text-gray-100': !marginStatus,
-									}"
-								>
-									{{ financials.per_gross_margin > 0 || financials.gross_margin !== 0
-										? financials.per_gross_margin.toFixed(1) + '%'
-										: '—' }}
+								<span class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+									{{ budgetRemainingPct ?? 0 }}%
 								</span>
 								<span class="text-sm text-gray-500 pb-0.5">
-									{{ formatCurrency(financials.gross_margin) }}
+									{{ translate("remaining") }}
+								</span>
+								<span v-if="hasBudgetHoursData" class="text-sm text-gray-500 pb-0.5">
+									/ {{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
 								</span>
 							</div>
-							<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500 pt-1">
-								<div>
-									<span class="block text-gray-400">{{ translate("Revenue") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_sales_amount) }}</span>
+
+							<div v-if="hasBudgetHoursData">
+								<div class="flex justify-between text-xs mb-1">
+									<span class="text-gray-400">{{ translate("Budget hours") }}</span>
+									<span class="text-gray-500">
+										{{ formatHours(financials.budget_remaining_hours) }} {{ translate("remaining") }}
+									</span>
 								</div>
-								<div>
-									<span class="block text-gray-400">{{ translate("Cost (timesheets)") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_costing_amount) }}</span>
+								<div class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+									<div
+										class="h-full rounded-full transition-all duration-500"
+										:class="getProgressBarClass(financials.budget_hours_progress)"
+										:style="{ width: financials.budget_hours_progress + '%' }"
+									></div>
 								</div>
-								<div v-if="financials.estimated_costing > 0">
-									<span class="block text-gray-400">{{ translate("Budget") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.estimated_costing) }}</span>
+								<div class="flex justify-between text-xs mt-1">
+									<span class="text-gray-500">
+										{{ financials.budget_hours_progress }}%
+									</span>
+									<span class="text-gray-500">
+										{{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
+									</span>
 								</div>
-								<div v-if="financials.total_purchase_cost > 0">
-									<span class="block text-gray-400">{{ translate("Purchase cost") }}</span>
-									<span class="font-medium text-gray-700 dark:text-gray-300">{{ formatCurrency(financials.total_purchase_cost) }}</span>
-								</div>
+							</div>
+
+							<div v-else class="text-xs text-gray-500">
+								{{ translate("No budget") }}
 							</div>
 						</div>
 
@@ -319,7 +325,12 @@ const marginStatus = computed(() => {
 											class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden"
 										>
 											<div
-												class="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full transition-all duration-500"
+												class="h-full rounded-full transition-all duration-500"
+												:class="
+													row.total === topUserHours
+														? 'bg-yellow-500'
+														: 'bg-orange-500'
+												"
 												:style="{ width: Math.round((row.total / financials.total_hours) * 100) + '%' }"
 											></div>
 										</div>
