@@ -393,6 +393,82 @@ async function saveDescription() {
 	isEditingDescription.value = false;
 }
 
+function getPastedImageFiles(event) {
+	return Array.from(event.clipboardData?.items || [])
+		.filter((item) => item.kind === "file" && item.type?.startsWith("image/"))
+		.map((item) => item.getAsFile())
+		.filter(Boolean);
+}
+
+function insertDescriptionMarkdown(markdown, target) {
+	const currentDescription = editableTask.value.description || "";
+	const start = typeof target?.selectionStart === "number" ? target.selectionStart : currentDescription.length;
+	const end = typeof target?.selectionEnd === "number" ? target.selectionEnd : start;
+	const prefix = currentDescription.slice(0, start);
+	const suffix = currentDescription.slice(end);
+	const before = prefix && !prefix.endsWith("\n") ? "\n" : "";
+	const after = suffix && !suffix.startsWith("\n") ? "\n" : "";
+
+	editableTask.value.description = `${prefix}${before}${markdown}${after}${suffix}`;
+	nextTick(() => {
+		const cursor = start + before.length + markdown.length;
+		target?.setSelectionRange?.(cursor, cursor);
+		target?.focus?.();
+	});
+}
+
+async function handleDescriptionPaste(event) {
+	const imageFiles = getPastedImageFiles(event);
+	if (!imageFiles.length) return;
+
+	event.preventDefault();
+	isUploading.value = true;
+	uploadProgress.value = 0;
+
+	try {
+		const markdownItems = [];
+		let completed = 0;
+		for (const file of imageFiles) {
+			const uploadedFile = await uploadTaskFile(file, {
+				doctype: "Task",
+				docname: props.task.name,
+				optimize: true,
+				max_width: 1920,
+				max_height: 1920,
+			});
+			if (uploadedFile?.file_url) {
+				markdownItems.push(`![${uploadedFile.file_name || file.name}](${uploadedFile.file_url})`);
+			}
+			completed++;
+			uploadProgress.value = Math.round((completed / imageFiles.length) * 100);
+		}
+
+		if (markdownItems.length) {
+			insertDescriptionMarkdown(markdownItems.join("\n"), event.target);
+			await saveField("description", editableTask.value.description);
+			await fetchAttachments();
+		}
+
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Image added to description"),
+				indicator: "green",
+			});
+		}
+	} catch (error) {
+		console.error("Pasted image upload failed:", error);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: error?.message || translate("Failed to upload file"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		isUploading.value = false;
+		uploadProgress.value = 0;
+	}
+}
+
 function validateDates() {
 	const start = editableTask.value.exp_start_date;
 	const due = editableTask.value.exp_end_date;
@@ -1448,6 +1524,7 @@ async function deleteAttachment(fileName) {
 										rows="8"
 										class="w-full rounded-xl border border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
 										:placeholder="translate('Add description...')"
+										@paste="handleDescriptionPaste"
 									/>
 									<div
 										v-if="showMarkdownPreview"

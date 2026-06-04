@@ -190,7 +190,7 @@ const topUserHours = computed(() => {
 						<div class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2">
 							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
 								<Clock class="w-3.5 h-3.5" />
-								{{ translate("Reported Hours") }}
+								{{ translate("Hours") }}
 							</div>
 							<div class="flex items-end gap-2">
 								<span class="text-2xl font-bold text-gray-900 dark:text-gray-100">

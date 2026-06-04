@@ -1341,9 +1341,14 @@ def get_my_timelogs(
 ):
 	"""Get time logs for the current user with optional filters."""
 	user = frappe.session.user
+	employee = get_employee_for_user(user)
 
-	conditions = ["ts.owner = %s", "ts.docstatus < 2"]
-	values: list[str] = [user]
+	if employee:
+		conditions = ["ts.employee = %s", "ts.docstatus < 2"]
+		values: list[str] = [employee]
+	else:
+		conditions = ["ts.owner = %s", "ts.docstatus < 2"]
+		values: list[str] = [user]
 
 	if status:
 		conditions.append("ts.status = %s")
@@ -1376,6 +1381,8 @@ def get_my_timelogs(
 			ts.status,
 			ts.docstatus,
 			ts.owner,
+			ts.employee,
+			ts.employee_name,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -1523,8 +1530,7 @@ def update_timelog(
 	timelog = frappe.get_doc("Timesheet Detail", timelog_name)
 	timesheet = frappe.get_doc("Timesheet", timelog.parent)
 
-	# Check if user owns this timesheet
-	if timesheet.owner != frappe.session.user:
+	if not _is_own_timesheet(timesheet):
 		frappe.throw(_("You can only edit your own time logs"))
 
 	# Validate timesheet state before update
@@ -1579,7 +1585,7 @@ def delete_timelog(timelog_name: str):
 
 	# Check if user owns this timesheet or has admin privileges
 	is_admin_deletion = False
-	if timesheet.owner != frappe.session.user:
+	if not _is_own_timesheet(timesheet):
 		# Allow System Manager and Administrator roles to delete any time logs
 		user_roles = frappe.get_roles(frappe.session.user)
 		if "System Manager" not in user_roles and "Administrator" not in user_roles:
@@ -1641,6 +1647,16 @@ def get_employee_for_user(user: str):
 	"""Get employee linked to user, or None if not found."""
 	employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
 	return employee
+
+
+def _is_own_timesheet(timesheet) -> bool:
+	user = frappe.session.user
+	employee = get_employee_for_user(user)
+	if employee and timesheet.employee == employee:
+		return True
+	if not timesheet.employee and timesheet.owner == user:
+		return True
+	return False
 
 
 @frappe.whitelist()
