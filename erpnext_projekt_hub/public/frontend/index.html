@@ -14,13 +14,11 @@
 		<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
 		<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
 	</head>
-	<body class="antialiased">
-		<div id="app"></div>
-
-
-		<script id="frappe-boot" type="application/json">
-			{{ boot | tojson }}
-		</script>
+		<body class="antialiased">
+			<div id="app"></div>
+			<script id="frappe-boot" type="application/json">
+				{{ boot | tojson }}
+			</script>
 		<script>
 			const bootDataEl = document.getElementById("frappe-boot");
 			if (bootDataEl?.textContent) {
@@ -30,14 +28,14 @@
 				} catch (error) {
 					console.warn("Failed to parse boot data", error);
 				}
-			}
-		</script>
+				}
+			</script>
 
-          <script>
-              {% for key in boot %}
-              window["{{ key }}"] = {{ boot[key] | tojson }};
-              {% endfor %}
-          </script>
-          </body>
+			<script>
+				{% for key in boot %}
+				window["{{ key }}"] = {{ boot[key] | tojson }};
+				{% endfor %}
+			</script>
+		</body>
 
 </html>

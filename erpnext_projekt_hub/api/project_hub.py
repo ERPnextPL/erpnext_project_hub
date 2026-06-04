@@ -641,6 +641,7 @@ def get_project_financials(project: str):
 	hours_by_user = frappe.db.sql(
 		"""
 		SELECT
+			ts.employee,
 			ts.employee_name,
 			ts.owner AS user_email,
 			COALESCE(SUM(tsd.hours), 0) AS hours,
@@ -648,7 +649,7 @@ def get_project_financials(project: str):
 		FROM `tabTimesheet Detail` tsd
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		WHERE tsd.project = %s AND ts.docstatus < 2
-		GROUP BY ts.owner, ts.employee_name, ts.docstatus
+		GROUP BY ts.employee, ts.employee_name, ts.owner, ts.docstatus
 		ORDER BY hours DESC
 		""",
 		project,
@@ -659,8 +660,8 @@ def get_project_financials(project: str):
 	draft_hours = 0.0
 	hours_map = {}
 	for row in hours_by_user:
-		key = row["user_email"] or row["employee_name"] or "Unknown"
-		label = row["employee_name"] or row["user_email"] or "Unknown"
+		key = row["employee"] or row["user_email"] or row["employee_name"] or "Unknown"
+		label = row["employee_name"] or row["user_email"] or row["employee"] or "Unknown"
 		if key not in hours_map:
 			hours_map[key] = {"label": label, "submitted": 0.0, "draft": 0.0}
 		if row["docstatus"] == 1:
@@ -699,10 +700,21 @@ def get_project_financials(project: str):
 	)
 
 	total_reported_hours = round(submitted_hours + draft_hours, 2)
+	hourly_cost_rate = _get_execution_hourly_cost_rate()
+	estimated_costing = float(getattr(project_doc, "estimated_costing", 0) or 0)
+	total_costing_amount = float(getattr(project_doc, "total_costing_amount", 0) or 0)
+	budget_total_hours = estimated_costing / hourly_cost_rate if hourly_cost_rate else 0
+	budget_used_hours = total_costing_amount / hourly_cost_rate if hourly_cost_rate else 0
+	budget_remaining_hours = (
+		max(estimated_costing - total_costing_amount, 0) / hourly_cost_rate if hourly_cost_rate else 0
+	)
+	budget_hours_progress = (
+		min(100, round((budget_used_hours / budget_total_hours) * 100)) if budget_total_hours else 0
+	)
 
 	return {
-		"estimated_costing": float(getattr(project_doc, "estimated_costing", 0) or 0),
-		"total_costing_amount": float(getattr(project_doc, "total_costing_amount", 0) or 0),
+		"estimated_costing": estimated_costing,
+		"total_costing_amount": total_costing_amount,
 		"total_purchase_cost": float(getattr(project_doc, "total_purchase_cost", 0) or 0),
 		"gross_margin": float(getattr(project_doc, "gross_margin", 0) or 0),
 		"per_gross_margin": float(getattr(project_doc, "per_gross_margin", 0) or 0),
@@ -711,8 +723,31 @@ def get_project_financials(project: str):
 		"total_hours": total_reported_hours,
 		"submitted_hours": round(submitted_hours, 2),
 		"draft_hours": round(draft_hours, 2),
+		"hourly_cost_rate": round(hourly_cost_rate, 2),
+		"budget_total_hours": round(budget_total_hours, 2),
+		"budget_used_hours": round(budget_used_hours, 2),
+		"budget_remaining_hours": round(budget_remaining_hours, 2),
+		"budget_hours_progress": budget_hours_progress,
 		"hours_per_user": hours_per_user,
 	}
+
+
+def _get_execution_hourly_cost_rate() -> float:
+	for activity_type in ("Wykonanie", "Execution"):
+		rates = frappe.get_all(
+			"Activity Cost",
+			filters={"activity_type": activity_type, "costing_rate": [">", 0]},
+			fields=["costing_rate"],
+		)
+		if rates:
+			return sum(float(row.costing_rate or 0) for row in rates) / len(rates)
+
+	for activity_type in ("Wykonanie", "Execution"):
+		rate = frappe.db.get_value("Activity Type", {"activity_type": activity_type}, "costing_rate")
+		if rate:
+			return float(rate)
+
+	return 0.0
 
 
 @frappe.whitelist()

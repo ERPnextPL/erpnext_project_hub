@@ -76,6 +76,44 @@ const hasActiveFilters = computed(() => {
 	);
 });
 
+function parseProjectDate(value) {
+	if (!value) return null;
+	const [year, month, day] = String(value).split("-").map(Number);
+	if (!year || !month || !day) return null;
+	return new Date(year, month - 1, day);
+}
+
+function daysBetween(start, end) {
+	const millisecondsPerDay = 24 * 60 * 60 * 1000;
+	return Math.round((end - start) / millisecondsPerDay);
+}
+
+function getProgressBarClass(percent) {
+	if (percent > 99) return "bg-red-500";
+	if (percent > 80) return "bg-orange-500";
+	if (percent > 50) return "bg-yellow-500";
+	return "bg-green-500";
+}
+
+const projectTimeline = computed(() => {
+	const startDate = parseProjectDate(store.project?.expected_start_date);
+	const endDate = parseProjectDate(store.project?.expected_end_date);
+	if (!startDate || !endDate || endDate < startDate) return null;
+
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+
+	const totalDays = Math.max(daysBetween(startDate, endDate), 1);
+	const elapsedDays =
+		today >= endDate ? totalDays : Math.min(Math.max(daysBetween(startDate, today), 0), totalDays);
+	const remainingDays = Math.max(daysBetween(today, endDate), 0);
+
+	return {
+		remainingDays,
+		progress: Math.round((elapsedDays / totalDays) * 100),
+	};
+});
+
 useTaskDeepLink({
 	route,
 	router,
@@ -460,6 +498,26 @@ const groupedTasksByMilestone = computed(() => {
 					v-if="store.project && !store.loading && store.project.is_manager"
 					:project="store.project"
 				/>
+
+				<div
+					v-if="projectTimeline"
+					class="border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800 sm:px-6 lg:px-8"
+				>
+					<div class="flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
+						<span class="font-medium">{{ translate("Project timeline") }}</span>
+						<span>{{ projectTimeline.remainingDays }} {{ translate("days remaining") }}</span>
+					</div>
+					<div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
+						<div
+							class="h-full rounded-full transition-all duration-500"
+							:class="getProgressBarClass(projectTimeline.progress)"
+							:style="{ width: projectTimeline.progress + '%' }"
+						></div>
+					</div>
+					<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+						{{ projectTimeline.progress }}%
+					</div>
+				</div>
 
 				<!-- Toolbar: View tabs + Search + Filter + Refresh -->
 				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[57px] z-10">
