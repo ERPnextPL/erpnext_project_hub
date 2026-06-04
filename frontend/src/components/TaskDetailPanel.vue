@@ -425,13 +425,15 @@ async function handleDescriptionPaste(event) {
 	isUploading.value = true;
 	uploadProgress.value = 0;
 
+	const taskName = props.task.name;
+
 	try {
 		const markdownItems = [];
 		let completed = 0;
 		for (const file of imageFiles) {
 			const uploadedFile = await uploadTaskFile(file, {
 				doctype: "Task",
-				docname: props.task.name,
+				docname: taskName,
 				optimize: true,
 				max_width: 1920,
 				max_height: 1920,

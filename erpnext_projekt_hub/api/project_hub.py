@@ -1344,8 +1344,8 @@ def get_my_timelogs(
 	employee = get_employee_for_user(user)
 
 	if employee:
-		conditions = ["ts.employee = %s", "ts.docstatus < 2"]
-		values: list[str] = [employee]
+		conditions = ["(ts.owner = %s OR ts.employee = %s)", "ts.docstatus < 2"]
+		values: list[str] = [user, employee]
 	else:
 		conditions = ["ts.owner = %s", "ts.docstatus < 2"]
 		values: list[str] = [user]
