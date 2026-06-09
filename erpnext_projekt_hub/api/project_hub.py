@@ -2108,6 +2108,8 @@ def get_my_tasks(
 			filters.append(f"t.status IN ({status_placeholders})")
 			for i, s in enumerate(status_list):
 				values[f"status_{i}"] = s
+	else:
+		filters.append("t.status NOT IN ('Completed', 'Cancelled')")
 
 	# Priority filter
 	if priority:

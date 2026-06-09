@@ -110,7 +110,7 @@ const statusConfig = {
 	},
 	Cancelled: {
 		icon: Circle,
-		class: "text-slate-700",
+		class: "text-white",
 		bg: "bg-red-600 border border-red-600",
 		label: translate("Cancelled"),
 	},
