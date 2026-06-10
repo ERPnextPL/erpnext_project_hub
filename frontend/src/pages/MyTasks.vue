@@ -171,6 +171,7 @@ useTaskDeepLink({
 						<select
 							:value="store.filters.project || ''"
 							@change="(e) => { store.setFilter('project', e.target.value || null); store.fetchTasks(); }"
+							:aria-label="translate('Filter by project')"
 							:class="[
 								'w-full pl-9 pr-4 py-2 text-sm border rounded-lg appearance-none cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white',
 								store.filters.project ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700'
