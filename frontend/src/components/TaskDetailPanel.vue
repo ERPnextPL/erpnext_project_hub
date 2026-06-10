@@ -992,7 +992,7 @@ async function navigateToParent() {
 	if (found) {
 		store.selectTask(found);
 	} else {
-		const detail = await store.getTaskDetail(props.task.parent_task);
+		const detail = await store.fetchTaskDetail(props.task.parent_task);
 		if (detail) store.selectTask(detail);
 	}
 }

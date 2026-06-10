@@ -12,10 +12,6 @@ const props = defineProps({
 		type: String,
 		default: null,
 	},
-	milestone: {
-		type: String,
-		default: null,
-	},
 	placeholder: {
 		type: String,
 		default: "Add a task...",

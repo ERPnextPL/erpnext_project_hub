@@ -186,7 +186,7 @@ def get_projects():
 				"""
 				SELECT COUNT(*) as count
 				FROM `tabTask`
-				WHERE project = %s AND _assign LIKE %s
+				WHERE project = %s AND _assign LIKE %s AND status != 'Cancelled'
 			""",
 				(project["name"], f"%{user}%"),
 				as_dict=True,
@@ -864,6 +864,11 @@ def create_task(
 	if parent_task:
 		status = "Open"
 
+	if milestone:
+		milestone_doc = frappe.get_doc("Project Milestone", milestone)
+		if milestone_doc.project != project:
+			frappe.throw(_("Milestone does not belong to the selected project"))
+
 	# If parent_task is provided, ensure it's a group task
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
@@ -1023,9 +1028,10 @@ def delete_task(task_name: str):
 		for child in children:
 			delete_task(child["name"])
 
-	# Clear parent_task link so Frappe's link validator doesn't block deletion
+	# Clear outgoing parent link and incoming timelog references before deletion
 	frappe.db.set_value("Task", task_name, "parent_task", None, update_modified=False)
-	frappe.delete_doc("Task", task_name, force=True)
+	frappe.db.sql("UPDATE `tabTimesheet Detail` SET task = NULL WHERE task = %s", task_name)
+	frappe.delete_doc("Task", task_name)
 
 	return {"success": True}
 
