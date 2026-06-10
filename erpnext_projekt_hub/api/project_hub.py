@@ -2658,7 +2658,8 @@ def get_projects_settings():
 @frappe.whitelist()
 def get_project_summary(project: str) -> dict:
 	"""Return KPI summary for the Project form dashboard (time remaining, task %, milestone statuses)."""
-	from frappe.utils import date_diff, getdate, today as frappe_today
+	from frappe.utils import date_diff, getdate
+	from frappe.utils import today as frappe_today
 
 	project_doc = frappe.get_doc("Project", project)
 
@@ -2680,9 +2681,7 @@ def get_project_summary(project: str) -> dict:
 		as_dict=True,
 	)[0]
 
-	milestones = frappe.get_all(
-		"Project Milestone", filters={"project": project}, fields=["status"]
-	)
+	milestones = frappe.get_all("Project Milestone", filters={"project": project}, fields=["status"])
 	by_status = {"Open": 0, "In Progress": 0, "Completed": 0, "Cancelled": 0}
 	for m in milestones:
 		s = m.status or "Open"
