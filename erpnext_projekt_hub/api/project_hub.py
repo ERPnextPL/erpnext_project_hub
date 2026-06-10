@@ -176,7 +176,9 @@ def get_projects():
 
 	# Add task count, user's task count, assigned users count, and next milestone for each project
 	for project in projects:
-		project["task_count"] = frappe.db.count("Task", {"project": project["name"], "status": ["!=", "Cancelled"]})
+		project["task_count"] = frappe.db.count(
+			"Task", {"project": project["name"], "status": ["!=", "Cancelled"]}
+		)
 
 		# Count user's assigned tasks in this project
 		if not is_manager:
