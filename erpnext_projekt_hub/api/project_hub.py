@@ -5,7 +5,7 @@ Provides CRUD operations for tasks in a hierarchical tree view.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, today
+from frappe.utils import cint, flt, today
 
 
 def _get_incomplete_subtasks(task_name: str) -> list:
@@ -607,6 +607,18 @@ def get_project_tasks(
 	if project_doc.customer:
 		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
 
+	task_counts = frappe.db.sql(
+		"""
+		SELECT
+			COUNT(*) AS total_tasks,
+			SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed_tasks
+		FROM `tabTask`
+		WHERE project = %s AND COALESCE(is_group, 0) = 0
+		""",
+		project,
+		as_dict=True,
+	)[0]
+
 	return {
 		"project": {
 			"name": project_doc.name,
@@ -623,6 +635,8 @@ def get_project_tasks(
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
 			"is_manager": _is_project_manager_user(project_doc),
+			"total_tasks": cint(task_counts.total_tasks),
+			"completed_tasks": cint(task_counts.completed_tasks),
 		},
 		"tasks": tasks,
 	}
@@ -2639,3 +2653,54 @@ def get_projects_settings():
 			"ignore_employee_time_overlap": False,
 			"fetch_timesheet_in_sales_invoice": False,
 		}
+
+
+@frappe.whitelist()
+def get_project_summary(project: str) -> dict:
+	"""Return KPI summary for the Project form dashboard (time remaining, task %, milestone statuses)."""
+	from frappe.utils import date_diff, getdate
+	from frappe.utils import today as frappe_today
+
+	project_doc = frappe.get_doc("Project", project)
+
+	days = None
+	is_overdue = False
+	if project_doc.expected_end_date:
+		days = date_diff(getdate(project_doc.expected_end_date), getdate(frappe_today()))
+		is_overdue = days < 0
+
+	row = frappe.db.sql(
+		"""
+		SELECT
+			COUNT(*) AS total,
+			SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed
+		FROM `tabTask`
+		WHERE project = %s AND COALESCE(is_group, 0) = 0
+		""",
+		project,
+		as_dict=True,
+	)[0]
+
+	milestones = frappe.get_all("Project Milestone", filters={"project": project}, fields=["status"])
+	by_status = {"Open": 0, "In Progress": 0, "Completed": 0, "Cancelled": 0}
+	for m in milestones:
+		s = m.status or "Open"
+		by_status[s] = by_status.get(s, 0) + 1
+
+	return {
+		"time_remaining": {
+			"days": days,
+			"is_overdue": is_overdue,
+			"has_end_date": bool(project_doc.expected_end_date),
+		},
+		"tasks": {
+			"total": cint(row.total),
+			"completed": cint(row.completed),
+			"percent_complete": flt(project_doc.percent_complete or 0),
+		},
+		"milestones": {
+			"total": len(milestones),
+			"has_milestones": len(milestones) > 0,
+			"by_status": by_status,
+		},
+	}

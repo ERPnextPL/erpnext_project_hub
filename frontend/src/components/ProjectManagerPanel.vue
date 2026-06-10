@@ -147,6 +147,11 @@ const estimatedHoursProgressWidth = computed(() => {
 	return Math.min(100, estimatedHoursProgress.value);
 });
 
+const estimatedVsAvailablePct = computed(() => {
+	if (!financials.value?.budget_total_hours || !financials.value?.estimated_hours) return 0;
+	return Math.min(100, Math.round((financials.value.estimated_hours / financials.value.budget_total_hours) * 100));
+});
+
 const topUserHours = computed(() => {
 	if (!financials.value?.hours_per_user?.length) return 0;
 	return Math.max(...financials.value.hours_per_user.map((row) => row.total || 0));
@@ -196,11 +201,11 @@ const topUserHours = computed(() => {
 								<span class="text-2xl font-bold text-gray-900 dark:text-gray-100">
 									{{ formatHours(financials.estimated_hours) }}
 								</span>
-								<span class="text-sm text-gray-500 pb-0.5">
-									{{ translate("estimated") }}
-								</span>
 								<span v-if="hasBudgetHoursData" class="text-sm text-gray-500 pb-0.5">
 									/ {{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
+								</span>
+								<span v-else class="text-sm text-gray-500 pb-0.5">
+									{{ translate("estimated") }}
 								</span>
 							</div>
 
@@ -208,16 +213,16 @@ const topUserHours = computed(() => {
 								<div class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
 									<div
 										class="h-full rounded-full transition-all duration-500"
-										:class="getProgressBarClass(estimatedHoursProgress)"
-										:style="{ width: estimatedHoursProgressWidth + '%' }"
+										:class="getProgressBarClass(estimatedVsAvailablePct)"
+										:style="{ width: estimatedVsAvailablePct + '%' }"
 									></div>
 								</div>
 								<div class="flex justify-between text-xs mt-1">
 									<span class="text-gray-500">
-										{{ estimatedHoursProgress }}%
+										{{ estimatedVsAvailablePct }}%
 									</span>
 									<span class="text-gray-500">
-										{{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
+										{{ formatHours(financials.estimated_hours) }} / {{ formatHours(financials.budget_total_hours) }}
 									</span>
 								</div>
 							</div>

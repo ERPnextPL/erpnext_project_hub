@@ -10,10 +10,11 @@ import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
-import MilestoneSidebar from "../components/MilestoneSidebar.vue";
+import MilestoneDropdown from "../components/MilestoneDropdown.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
+import MilestoneTrack from "../components/MilestoneTrack.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
 import {
@@ -76,43 +77,6 @@ const hasActiveFilters = computed(() => {
 	);
 });
 
-function parseProjectDate(value) {
-	if (!value) return null;
-	const [year, month, day] = String(value).split("-").map(Number);
-	if (!year || !month || !day) return null;
-	return new Date(year, month - 1, day);
-}
-
-function daysBetween(start, end) {
-	const millisecondsPerDay = 24 * 60 * 60 * 1000;
-	return Math.round((end - start) / millisecondsPerDay);
-}
-
-function getProgressBarClass(percent) {
-	if (percent > 99) return "bg-red-500";
-	if (percent > 80) return "bg-orange-500";
-	if (percent > 50) return "bg-yellow-500";
-	return "bg-green-500";
-}
-
-const projectTimeline = computed(() => {
-	const startDate = parseProjectDate(store.project?.expected_start_date);
-	const endDate = parseProjectDate(store.project?.expected_end_date);
-	if (!startDate || !endDate || endDate < startDate) return null;
-
-	const today = new Date();
-	today.setHours(0, 0, 0, 0);
-
-	const totalDays = Math.max(daysBetween(startDate, endDate), 1);
-	const elapsedDays =
-		today >= endDate ? totalDays : Math.min(Math.max(daysBetween(startDate, today), 0), totalDays);
-	const remainingDays = Math.max(daysBetween(today, endDate), 0);
-
-	return {
-		remainingDays,
-		progress: Math.round((elapsedDays / totalDays) * 100),
-	};
-});
 
 useTaskDeepLink({
 	route,
@@ -442,26 +406,6 @@ const groupedTasksByMilestone = computed(() => {
 
 			<!-- Main content -->
 			<div class="flex-1 flex overflow-hidden relative">
-				<Transition name="fade">
-					<div
-						v-if="milestoneSidebarOpen && isMobile"
-						class="absolute inset-0 z-20 bg-black/20"
-						@click="closeMilestoneSidebar"
-					></div>
-				</Transition>
-
-				<Transition name="slide-sidebar-left">
-					<div
-						v-if="milestoneSidebarOpen"
-						:class="[
-							'z-30 flex-shrink-0 overflow-y-auto',
-							isMobile ? 'absolute inset-y-0 left-0' : 'relative',
-						]"
-					>
-						<MilestoneSidebar @close="closeMilestoneSidebar" />
-					</div>
-				</Transition>
-
 				<Transition name="slide-sidebar-right">
 					<div
 						v-if="attachmentsSidebarOpen"
@@ -499,25 +443,10 @@ const groupedTasksByMilestone = computed(() => {
 					:project="store.project"
 				/>
 
-				<div
-					v-if="projectTimeline"
-					class="border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800 sm:px-6 lg:px-8"
-				>
-					<div class="flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-						<span class="font-medium">{{ translate("Project timeline") }}</span>
-						<span>{{ projectTimeline.remainingDays }} {{ translate("days remaining") }}</span>
-					</div>
-					<div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
-						<div
-							class="h-full rounded-full transition-all duration-500"
-							:class="getProgressBarClass(projectTimeline.progress)"
-							:style="{ width: projectTimeline.progress + '%' }"
-						></div>
-					</div>
-					<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-						{{ projectTimeline.progress }}%
-					</div>
-				</div>
+				<ProjectStatusStrip
+					v-if="store.project && !store.loading"
+					:project="store.project"
+				/>
 
 				<!-- Toolbar: View tabs + Search + Filter + Refresh -->
 				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[57px] z-10">
@@ -544,6 +473,23 @@ const groupedTasksByMilestone = computed(() => {
 							<!-- Filter toggle + Refresh -->
 							<div class="flex items-center gap-2">
 								<button
+									@click="sidebarCollapsed = !sidebarCollapsed"
+									:class="[
+										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
+										!sidebarCollapsed || hasActiveFilters
+											? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+											: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+									]"
+								>
+									<Filter class="w-4 h-4" />
+									<span class="hidden sm:inline">{{ translate("Filters") }}</span>
+									<span
+										v-if="hasActiveFilters"
+										class="w-2 h-2 rounded-full bg-blue-600"
+									></span>
+								</button>
+
+								<button
 									@click="milestoneSidebarOpen = !milestoneSidebarOpen"
 									:class="[
 										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
@@ -563,23 +509,6 @@ const groupedTasksByMilestone = computed(() => {
 								</button>
 
 								<button
-									@click="sidebarCollapsed = !sidebarCollapsed"
-									:class="[
-										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
-										!sidebarCollapsed || hasActiveFilters
-											? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-											: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
-									]"
-								>
-									<Filter class="w-4 h-4" />
-									<span class="hidden sm:inline">{{ translate("Filters") }}</span>
-									<span
-										v-if="hasActiveFilters"
-										class="w-2 h-2 rounded-full bg-blue-600"
-									></span>
-								</button>
-
-								<button
 									@click="handleRefresh"
 									:disabled="store.loading"
 									class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
@@ -588,6 +517,11 @@ const groupedTasksByMilestone = computed(() => {
 									<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
 								</button>
 							</div>
+
+							<MilestoneTrack
+								v-if="store.milestones.length && !store.loading"
+								:milestones="store.milestones"
+							/>
 
 							<!-- View tabs (right-aligned) -->
 							<div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 sm:ml-auto">
@@ -631,6 +565,14 @@ const groupedTasksByMilestone = computed(() => {
 						</div>
 					</div>
 				</div>
+
+				<!-- Milestone dropdown panel (slides below toolbar) -->
+				<Transition name="milestone-drop">
+					<MilestoneDropdown
+						v-if="milestoneSidebarOpen"
+						@close="closeMilestoneSidebar"
+					/>
+				</Transition>
 
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
 					<div
@@ -825,3 +767,21 @@ const groupedTasksByMilestone = computed(() => {
 		<BackToDeskButton />
 	</div>
 </template>
+
+<style scoped>
+.milestone-drop-enter-active,
+.milestone-drop-leave-active {
+	transition: max-height 0.25s ease, opacity 0.2s ease;
+	overflow: hidden;
+}
+.milestone-drop-enter-from,
+.milestone-drop-leave-to {
+	max-height: 0;
+	opacity: 0;
+}
+.milestone-drop-enter-to,
+.milestone-drop-leave-from {
+	max-height: 520px;
+	opacity: 1;
+}
+</style>
