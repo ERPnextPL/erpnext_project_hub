@@ -10,7 +10,7 @@ import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
-import MilestoneSidebar from "../components/MilestoneSidebar.vue";
+import MilestoneDropdown from "../components/MilestoneDropdown.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
@@ -406,26 +406,6 @@ const groupedTasksByMilestone = computed(() => {
 
 			<!-- Main content -->
 			<div class="flex-1 flex overflow-hidden relative">
-				<Transition name="fade">
-					<div
-						v-if="milestoneSidebarOpen && isMobile"
-						class="absolute inset-0 z-20 bg-black/20"
-						@click="closeMilestoneSidebar"
-					></div>
-				</Transition>
-
-				<Transition name="slide-sidebar-left">
-					<div
-						v-if="milestoneSidebarOpen"
-						:class="[
-							'z-30 flex-shrink-0 overflow-y-auto',
-							isMobile ? 'absolute inset-y-0 left-0' : 'relative',
-						]"
-					>
-						<MilestoneSidebar @close="closeMilestoneSidebar" />
-					</div>
-				</Transition>
-
 				<Transition name="slide-sidebar-right">
 					<div
 						v-if="attachmentsSidebarOpen"
@@ -585,6 +565,14 @@ const groupedTasksByMilestone = computed(() => {
 						</div>
 					</div>
 				</div>
+
+				<!-- Milestone dropdown panel (slides below toolbar) -->
+				<Transition name="milestone-drop">
+					<MilestoneDropdown
+						v-if="milestoneSidebarOpen"
+						@close="closeMilestoneSidebar"
+					/>
+				</Transition>
 
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
 					<div
@@ -779,3 +767,21 @@ const groupedTasksByMilestone = computed(() => {
 		<BackToDeskButton />
 	</div>
 </template>
+
+<style scoped>
+.milestone-drop-enter-active,
+.milestone-drop-leave-active {
+	transition: max-height 0.25s ease, opacity 0.2s ease;
+	overflow: hidden;
+}
+.milestone-drop-enter-from,
+.milestone-drop-leave-to {
+	max-height: 0;
+	opacity: 0;
+}
+.milestone-drop-enter-to,
+.milestone-drop-leave-from {
+	max-height: 520px;
+	opacity: 1;
+}
+</style>
