@@ -22,6 +22,7 @@ import {
 	MessageSquare,
 	Paperclip,
 	ChevronDown,
+	ChevronRight,
 	Plus,
 	Trash2,
 	Diamond,
@@ -985,6 +986,17 @@ watch(
 	}
 );
 
+async function navigateToParent() {
+	if (!props.task.parent_task) return;
+	const found = store.tasks.find((t) => t.name === props.task.parent_task);
+	if (found) {
+		store.selectTask(found);
+	} else {
+		const detail = await store.getTaskDetail(props.task.parent_task);
+		if (detail) store.selectTask(detail);
+	}
+}
+
 function openInDesk() {
 	realWindow?.open(`/app/task/${props.task.name}`, "_blank");
 }
@@ -1056,6 +1068,20 @@ async function handleTimeLogSave(timelogData) {
 	} catch (error) {
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
+		}
+	}
+}
+
+async function deleteSubtask(childName) {
+	if (!confirm(translate("Are you sure you want to delete this subtask?"))) return;
+	try {
+		await store.deleteTask(childName);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Subtask deleted"), indicator: "green" });
+		}
+	} catch (error) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Failed to delete subtask"), indicator: "red" });
 		}
 	}
 }
@@ -1429,6 +1455,17 @@ async function deleteAttachment(fileName) {
 				<div class="flex items-start justify-between gap-4">
 					<div class="min-w-0 flex-1">
 						<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+							<template v-if="task.parent_task">
+								<button
+									type="button"
+									class="inline-flex items-center gap-1 rounded px-1 py-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+									@click="navigateToParent"
+									:title="task.parent_task"
+								>
+									{{ task.parent_subject || task.parent_task }}
+								</button>
+								<ChevronRight class="w-3 h-3 text-gray-400 shrink-0" />
+							</template>
 							<span class="font-semibold text-gray-700">{{ task.name }}</span>
 							<span v-if="task.project">{{ task.project }}</span>
 							<div class="relative" ref="headerDueDateRef">
@@ -1852,7 +1889,16 @@ async function deleteAttachment(fileName) {
 												{{ child.status }}
 											</div>
 										</div>
-										<ExternalLink class="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+										<div class="flex items-center gap-1 flex-shrink-0">
+											<ExternalLink class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+											<button
+												@click.stop="deleteSubtask(child.name)"
+												class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+												:title="translate('Delete subtask')"
+											>
+												<Trash2 class="h-3.5 w-3.5" />
+											</button>
+										</div>
 									</div>
 								</div>
 							</div>
