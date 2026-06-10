@@ -176,7 +176,9 @@ def get_projects():
 
 	# Add task count, user's task count, assigned users count, and next milestone for each project
 	for project in projects:
-		project["task_count"] = frappe.db.count("Task", {"project": project["name"]})
+		project["task_count"] = frappe.db.count(
+			"Task", {"project": project["name"], "status": ["!=", "Cancelled"]}
+		)
 
 		# Count user's assigned tasks in this project
 		if not is_manager:
@@ -184,7 +186,7 @@ def get_projects():
 				"""
 				SELECT COUNT(*) as count
 				FROM `tabTask`
-				WHERE project = %s AND _assign LIKE %s
+				WHERE project = %s AND _assign LIKE %s AND status != 'Cancelled'
 			""",
 				(project["name"], f"%{user}%"),
 				as_dict=True,
@@ -613,7 +615,7 @@ def get_project_tasks(
 			COUNT(*) AS total_tasks,
 			SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed_tasks
 		FROM `tabTask`
-		WHERE project = %s AND COALESCE(is_group, 0) = 0
+		WHERE project = %s AND COALESCE(is_group, 0) = 0 AND status != 'Cancelled'
 		""",
 		project,
 		as_dict=True,
@@ -853,6 +855,7 @@ def create_task(
 	priority: str = "Medium",
 	status: str = "Open",
 	exp_end_date: str | None = None,
+	milestone: str | None = None,
 ):
 	"""Create a new task."""
 	if not subject or not project:
@@ -860,6 +863,11 @@ def create_task(
 
 	if parent_task:
 		status = "Open"
+
+	if milestone:
+		milestone_doc = frappe.get_doc("Project Milestone", milestone)
+		if milestone_doc.project != project:
+			frappe.throw(_("Milestone does not belong to the selected project"))
 
 	# If parent_task is provided, ensure it's a group task
 	if parent_task:
@@ -888,6 +896,7 @@ def create_task(
 			"priority": priority,
 			"status": status,
 			"exp_end_date": exp_end_date,
+			"milestone": milestone,
 			"idx": new_idx,
 		}
 	)
@@ -903,6 +912,7 @@ def create_task(
 		"exp_start_date": task.exp_start_date,
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
+		"milestone": task.get("milestone"),
 		"idx": task.idx,
 	}
 
@@ -1018,6 +1028,9 @@ def delete_task(task_name: str):
 		for child in children:
 			delete_task(child["name"])
 
+	# Clear outgoing parent link and incoming timelog references before deletion
+	frappe.db.set_value("Task", task_name, "parent_task", None, update_modified=False)
+	frappe.db.sql("UPDATE `tabTimesheet Detail` SET task = NULL WHERE task = %s", task_name)
 	frappe.delete_doc("Task", task_name)
 
 	return {"success": True}
@@ -2292,6 +2305,7 @@ def get_my_tasks_projects():
 		FROM `tabTask` t
 		INNER JOIN `tabProject` p ON t.project = p.name
 		WHERE t._assign LIKE %s
+		AND t.status != 'Cancelled'
 		AND p.status != 'Cancelled'
 		GROUP BY p.name, p.project_name, p.status
 		ORDER BY p.project_name
