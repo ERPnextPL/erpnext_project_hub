@@ -264,6 +264,9 @@ async function updateTask(taskName, updates) {
 					}
 				}
 
+				// Capture milestone before local state update (data response doesn't include it)
+				const taskMilestoneBefore = index !== -1 ? tasks.value[index]?.milestone : null;
+
 				if (index !== -1) {
 					tasks.value[index] = { ...tasks.value[index], ...data };
 				}
@@ -273,9 +276,9 @@ async function updateTask(taskName, updates) {
 				// Refresh project data if status changed (affects percent_complete)
 				if (updates.status && data.status === updates.status && project.value) {
 					await refreshProject();
-					// Also refresh milestones if task has milestone assigned
-					const task = tasks.value[index];
-					if (task && task.milestone) {
+					// Refresh milestones when task has a milestone or when project has milestones —
+					// cancelled/completed tasks affect milestone progress stored in DB
+					if (taskMilestoneBefore || milestones.value.length > 0) {
 						await fetchMilestones(project.value.name);
 					}
 				}
