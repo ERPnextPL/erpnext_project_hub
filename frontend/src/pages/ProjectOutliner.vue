@@ -335,6 +335,7 @@ const groupedTasksByMilestone = computed(() => {
 				label: milestone.milestone_name || milestone.name,
 				meta: milestone,
 				tasks,
+				activeTaskCount: tasks.filter((t) => t.status !== "Cancelled").length,
 				isUnassigned: false,
 			});
 		}
@@ -666,7 +667,7 @@ const groupedTasksByMilestone = computed(() => {
 											{{ group.label }}
 										</div>
 										<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-											<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
+											<span>{{ group.isUnassigned ? group.tasks.length : group.activeTaskCount }} {{ translate("tasks") }}</span>
 											<span v-if="group.meta" class="ml-2">
 												{{ formatMilestoneDate(group.meta.milestone_date) }}
 											</span>
@@ -704,7 +705,7 @@ const groupedTasksByMilestone = computed(() => {
 											{{ group.label }}
 										</div>
 										<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-											<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
+											<span>{{ group.isUnassigned ? group.tasks.length : group.activeTaskCount }} {{ translate("tasks") }}</span>
 											<span v-if="group.meta" class="ml-2">
 												{{ formatMilestoneDate(group.meta.milestone_date) }}
 											</span>
