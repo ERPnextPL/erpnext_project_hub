@@ -266,7 +266,10 @@ const topUserHours = computed(() => {
 										{{ formatHours(financials.budget_remaining_hours) }} {{ translate("remaining") }}
 									</span>
 								</div>
-								<div class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+								<div
+									class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden cursor-help"
+									:title="financials.budget_hours_progress + '% ' + translate('of the project budget has been used')"
+								>
 									<div
 										class="h-full rounded-full transition-all duration-500"
 										:class="getProgressBarClass(financials.budget_hours_progress)"
