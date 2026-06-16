@@ -29,6 +29,7 @@ import {
 	Paperclip,
 	Diamond,
 	GripVertical,
+	Plus,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -57,6 +58,52 @@ const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
 const draggingGroupKey = ref(null);
 const groupReorderDropIndex = ref(null);
+
+// FAB – quick task creation
+const fabOpen = ref(false);
+const fabSubject = ref("");
+const fabPriority = ref("Medium");
+const fabMilestone = ref("");
+const fabExpEndDate = ref("");
+const fabCreating = ref(false);
+const fabError = ref("");
+
+function openFab() {
+	fabSubject.value = "";
+	fabPriority.value = "Medium";
+	fabMilestone.value = "";
+	fabExpEndDate.value = "";
+	fabError.value = "";
+	fabOpen.value = true;
+}
+
+function closeFab() {
+	fabOpen.value = false;
+}
+
+async function submitFab() {
+	const subject = fabSubject.value.trim();
+	if (!subject) {
+		fabError.value = translate("Task name is required");
+		return;
+	}
+	fabCreating.value = true;
+	fabError.value = "";
+	try {
+		await store.createTask({
+			subject,
+			project: props.projectId,
+			priority: fabPriority.value || "Medium",
+			milestone: fabMilestone.value || null,
+			exp_end_date: fabExpEndDate.value || null,
+		});
+		closeFab();
+	} catch {
+		fabError.value = translate("Failed to create task. Please try again.");
+	} finally {
+		fabCreating.value = false;
+	}
+}
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
 const activeFilters = ref({
 	status: ["Open", "Working", "Pending Review", "Overdue"], // Domyślne statusy
@@ -122,6 +169,10 @@ watch(isMobile, (mobile) => {
 
 function handleEscape(event) {
 	if (event.key === "Escape") {
+		if (fabOpen.value) {
+			closeFab();
+			return;
+		}
 		milestoneSidebarOpen.value = false;
 		attachmentsSidebarOpen.value = false;
 	}
@@ -766,10 +817,150 @@ const groupedTasksByMilestone = computed(() => {
 		</div>
 
 		<BackToDeskButton />
+
+		<!-- FAB: quick task creation -->
+		<button
+			@click="openFab"
+			class="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-blue-300"
+			:title="translate('Add task')"
+		>
+			<Plus class="h-6 w-6" />
+		</button>
+
+		<!-- FAB modal -->
+		<Transition name="fab-modal">
+			<div
+				v-if="fabOpen"
+				class="fixed inset-0 z-50 flex items-end justify-end p-6 sm:items-center sm:justify-center"
+				@click.self="closeFab"
+			>
+				<div class="absolute inset-0 bg-black/30" @click="closeFab" />
+				<div
+					class="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-2xl"
+					@keydown.esc="closeFab"
+				>
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+							{{ translate("New Task") }}
+						</h2>
+						<button
+							@click="closeFab"
+							class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600"
+						>
+							<X class="h-4 w-4" />
+						</button>
+					</div>
+
+					<div class="space-y-4">
+						<!-- Subject -->
+						<div>
+							<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+								{{ translate("Task name") }} *
+							</label>
+							<input
+								v-model="fabSubject"
+								type="text"
+								:placeholder="translate('Enter task name...')"
+								autofocus
+								@keydown.enter.prevent="submitFab"
+								@keydown.esc="closeFab"
+								class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+							/>
+						</div>
+
+						<!-- Priority + Milestone row -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Priority") }}
+								</label>
+								<select
+									v-model="fabPriority"
+									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+								>
+									<option value="Low">{{ translate("Low") }}</option>
+									<option value="Medium">{{ translate("Medium") }}</option>
+									<option value="High">{{ translate("High") }}</option>
+									<option value="Urgent">{{ translate("Urgent") }}</option>
+								</select>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Milestone") }}
+								</label>
+								<select
+									v-model="fabMilestone"
+									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+								>
+									<option value="">{{ translate("None") }}</option>
+									<option
+										v-for="m in store.milestones"
+										:key="m.name"
+										:value="m.name"
+									>
+										{{ m.milestone_name || m.name }}
+									</option>
+								</select>
+							</div>
+						</div>
+
+						<!-- Due date -->
+						<div>
+							<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+								{{ translate("Due date") }}
+							</label>
+							<input
+								v-model="fabExpEndDate"
+								type="date"
+								class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+							/>
+						</div>
+
+						<!-- Error -->
+						<p v-if="fabError" class="text-xs text-red-600 dark:text-red-400">{{ fabError }}</p>
+
+						<!-- Actions -->
+						<div class="flex gap-3 pt-1">
+							<button
+								@click="submitFab"
+								:disabled="fabCreating || !fabSubject.trim()"
+								class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+							>
+								{{ fabCreating ? translate("Creating...") : translate("Create task") }}
+							</button>
+							<button
+								@click="closeFab"
+								class="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+							>
+								{{ translate("Cancel") }}
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</Transition>
 	</div>
 </template>
 
 <style scoped>
+.fab-modal-enter-active,
+.fab-modal-leave-active {
+	transition: opacity 0.15s ease;
+}
+.fab-modal-enter-from,
+.fab-modal-leave-to {
+	opacity: 0;
+}
+.fab-modal-enter-active .relative.z-10,
+.fab-modal-leave-active .relative.z-10 {
+	transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.fab-modal-enter-from .relative.z-10,
+.fab-modal-leave-to .relative.z-10 {
+	transform: scale(0.96) translateY(8px);
+	opacity: 0;
+}
+
 .milestone-drop-enter-active,
 .milestone-drop-leave-active {
 	transition: max-height 0.25s ease, opacity 0.2s ease;
