@@ -660,7 +660,29 @@ async function handleStatusSelection(option) {
 		await saveField("progress", 100);
 	}
 	editableTask.value.status = newStatus;
-	await saveField("status", newStatus);
+
+	const updates = { status: newStatus };
+	if (newStatus === "Completed" && !editableTask.value.completed_on) {
+		const today = dayjs().format("YYYY-MM-DD");
+		editableTask.value.completed_on = today;
+		updates.completed_on = today;
+	}
+
+	try {
+		await store.updateTask(props.task.name, updates);
+		showAutosaveFeedback();
+	} catch (error) {
+		editableTask.value.status = props.task.status;
+		if (updates.completed_on) {
+			editableTask.value.completed_on = props.task.completed_on || "";
+		}
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update task"),
+				indicator: "red",
+			});
+		}
+	}
 	statusMenuOpen.value = false;
 }
 
@@ -912,6 +934,7 @@ async function persistAllFields() {
 		"progress",
 		"description",
 		"expected_time",
+		"completed_on",
 	];
 	const updates = {};
 	fieldsToCheck.forEach((field) => {
@@ -2119,6 +2142,17 @@ async function deleteAttachment(fileName) {
 											:placeholder="translate('e.g. 4')"
 										/>
 									</div>
+								</div>
+								<div v-if="editableTask.status === 'Completed'" class="flex flex-col gap-2">
+									<div class="text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Completed on") }}
+									</div>
+									<input
+										v-model="editableTask.completed_on"
+										type="date"
+										@blur="saveField('completed_on', editableTask.completed_on)"
+										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									/>
 								</div>
 								<div v-if="dateValidationError" class="text-xs text-red-600">
 									{{ dateValidationError }}

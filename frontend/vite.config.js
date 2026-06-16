@@ -115,6 +115,8 @@ export default defineConfig({
 				assetFileNames: "assets/[name].[ext]",
 				manualChunks: {
 					"frappe-ui": ["frappe-ui"],
+					"lucide-vue-next": ["lucide-vue-next"],
+					"dayjs": ["dayjs"],
 				},
 			},
 		},
