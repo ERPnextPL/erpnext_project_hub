@@ -82,6 +82,8 @@ function closeFab() {
 }
 
 async function submitFab() {
+	if (fabCreating.value) return;
+
 	const subject = fabSubject.value.trim();
 	if (!subject) {
 		fabError.value = translate("Task name is required");
