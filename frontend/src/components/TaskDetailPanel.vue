@@ -661,14 +661,28 @@ async function handleStatusSelection(option) {
 	}
 	editableTask.value.status = newStatus;
 
-	// Automatically set completed_on when marking as Completed
+	const updates = { status: newStatus };
 	if (newStatus === "Completed" && !editableTask.value.completed_on) {
 		const today = dayjs().format("YYYY-MM-DD");
 		editableTask.value.completed_on = today;
-		await saveField("completed_on", today);
+		updates.completed_on = today;
 	}
 
-	await saveField("status", newStatus);
+	try {
+		await store.updateTask(props.task.name, updates);
+		showAutosaveFeedback();
+	} catch (error) {
+		editableTask.value.status = props.task.status;
+		if (updates.completed_on) {
+			editableTask.value.completed_on = props.task.completed_on || "";
+		}
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update task"),
+				indicator: "red",
+			});
+		}
+	}
 	statusMenuOpen.value = false;
 }
 

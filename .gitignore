@@ -8,4 +8,4 @@ __pycache__
 .venv/
 *.timestamp-*.mjs
 .pro-enabled
-# erpnext_projekt_hub/public/frontend/ - commented out for Frappe Cloud deployment
+erpnext_projekt_hub/public/frontend/
