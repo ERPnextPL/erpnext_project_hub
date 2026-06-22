@@ -319,13 +319,18 @@ async function saveNotes() {
 							<User v-else class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
 								<div class="text-xs text-gray-500">{{ translate("Customer") }}</div>
-								<div
-									class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+								<a
+									v-if="project.customer"
+									:href="`/app/customer/${project.customer}`"
+									target="_blank"
+									class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
 									:title="project.customer_name || project.customer"
+									@click.stop
 								>
-									{{
-										project.customer_name || project.customer || translate("Not assigned")
-									}}
+									{{ project.customer_name || project.customer }}
+								</a>
+								<div v-else class="text-sm font-medium text-gray-400 dark:text-gray-500">
+									{{ translate("Not assigned") }}
 								</div>
 							</div>
 						</div>

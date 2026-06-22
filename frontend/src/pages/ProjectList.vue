@@ -116,11 +116,6 @@ function openProject(projectId) {
 	router.push({ name: "ProjectOutliner", params: { projectId } });
 }
 
-function getProjectIconClass() {
-	const projectMeta = typeof window !== "undefined" ? window.frappe?.get_meta?.("Project") : null;
-	return projectMeta?.icon || "fa fa-folder";
-}
-
 function getStatusClass(status) {
 	const classes = {
 		Open: "bg-blue-100 text-blue-800",

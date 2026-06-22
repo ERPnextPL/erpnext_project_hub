@@ -376,7 +376,13 @@ const groupedTasksByMilestone = computed(() => {
 						>
 							<ArrowLeft class="w-5 h-5" />
 						</button>
-						<div v-if="store.project">
+						<div v-if="store.project" class="flex items-center gap-2.5">
+							<img
+								v-if="store.project.customer_image"
+								:src="store.project.customer_image"
+								:alt="store.project.customer_name"
+								class="w-7 h-7 rounded object-contain border border-gray-200 dark:border-gray-600 bg-white flex-shrink-0"
+							/>
 							<h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
 								{{ store.project.project_name }}
 							</h1>
