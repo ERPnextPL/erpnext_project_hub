@@ -142,7 +142,9 @@ function formatDate(dateStr) {
 
 function isOverdue(project) {
 	if (!project.expected_end_date || project.status === "Completed") return false;
-	return new Date(project.expected_end_date) < new Date();
+	const due = new Date(project.expected_end_date);
+	due.setHours(23, 59, 59, 999);
+	return due < new Date();
 }
 
 function toggleSort(field) {
