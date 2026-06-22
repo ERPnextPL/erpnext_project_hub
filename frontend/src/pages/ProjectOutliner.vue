@@ -5,18 +5,21 @@ import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
+import { isMilestoneCompleted } from "../utils/milestone";
 import TaskTree from "../components/TaskTree.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
-import MilestoneDropdown from "../components/MilestoneDropdown.vue";
+import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import MilestoneTrack from "../components/MilestoneTrack.vue";
+import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
+import UserSelect from "../components/UserSelect.vue";
 import {
 	ArrowLeft,
 	Filter,
@@ -45,7 +48,7 @@ const props = defineProps({
 const router = useRouter();
 const route = useRoute();
 const store = useTaskStore();
-const { selectedTask } = storeToRefs(store);
+const { selectedTask, availableUsers } = storeToRefs(store);
 
 const activeView = ref("list");
 const listMode = ref("milestone");
@@ -65,6 +68,7 @@ const fabSubject = ref("");
 const fabPriority = ref("Medium");
 const fabMilestone = ref("");
 const fabExpEndDate = ref("");
+const fabAssign = ref([]);
 const fabCreating = ref(false);
 const fabError = ref("");
 
@@ -73,7 +77,9 @@ function openFab() {
 	fabPriority.value = "Medium";
 	fabMilestone.value = "";
 	fabExpEndDate.value = "";
+	fabAssign.value = [];
 	fabError.value = "";
+	if (store.availableUsers.length === 0) store.fetchUsers();
 	fabOpen.value = true;
 }
 
@@ -98,6 +104,7 @@ async function submitFab() {
 			priority: fabPriority.value || "Medium",
 			milestone: fabMilestone.value || null,
 			exp_end_date: fabExpEndDate.value || null,
+			assign: fabAssign.value[0] || null,
 		});
 		closeFab();
 	} catch {
@@ -380,19 +387,29 @@ const groupedTasksByMilestone = computed(() => {
 		}
 	}
 
+	const activeGroups = [];
+	const completedGroups = [];
+
 	for (const milestone of store.milestones) {
 		const tasks = tasksByMilestone.get(milestone.name) || [];
 		if (tasks.length > 0) {
-			groups.push({
+			const group = {
 				key: milestone.name,
 				label: milestone.milestone_name || milestone.name,
 				meta: milestone,
 				tasks,
 				activeTaskCount: tasks.filter((t) => t.status !== "Cancelled").length,
 				isUnassigned: false,
-			});
+			};
+			if (isMilestoneCompleted(milestone)) {
+				completedGroups.push(group);
+			} else {
+				activeGroups.push(group);
+			}
 		}
 	}
+
+	groups.push(...activeGroups, ...completedGroups);
 
 	if (unassignedTasks.length > 0) {
 		groups.push({
@@ -422,7 +439,13 @@ const groupedTasksByMilestone = computed(() => {
 						>
 							<ArrowLeft class="w-5 h-5" />
 						</button>
-						<div v-if="store.project">
+						<div v-if="store.project" class="flex items-center gap-2.5">
+							<img
+								v-if="store.project.customer_image"
+								:src="store.project.customer_image"
+								:alt="store.project.customer_name"
+								class="w-7 h-7 rounded object-contain border border-gray-200 dark:border-gray-600 bg-white flex-shrink-0"
+							/>
 							<h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
 								{{ store.project.project_name }}
 							</h1>
@@ -473,17 +496,6 @@ const groupedTasksByMilestone = computed(() => {
 						/>
 					</div>
 				</Transition>
-
-				<!-- Left sidebar: Milestones + Filters (collapsible) -->
-			<aside
-				v-if="!sidebarCollapsed"
-				class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-y-auto w-64 relative"
-			>
-				<div class="w-64">
-					<!-- Quick Filters -->
-					<QuickFilters :project="store.project" @filter-change="handleFilterChange" />
-				</div>
-			</aside>
 
 			<!-- Center: Task list -->
 			<main class="flex-1 overflow-y-auto">
@@ -620,12 +632,20 @@ const groupedTasksByMilestone = computed(() => {
 					</div>
 				</div>
 
-				<!-- Milestone dropdown panel (slides below toolbar) -->
-				<Transition name="milestone-drop">
-					<MilestoneDropdown
-						v-if="milestoneSidebarOpen"
-						@close="closeMilestoneSidebar"
-					/>
+				<!-- Filters panel (slides down under toolbar) -->
+				<Transition name="filter-panel">
+					<div v-if="!sidebarCollapsed"
+						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+						<QuickFilters :project="store.project" @filter-change="handleFilterChange" @close="sidebarCollapsed = true" />
+					</div>
+				</Transition>
+
+				<!-- Milestones panel (slides down under toolbar) -->
+				<Transition name="filter-panel">
+					<div v-if="milestoneSidebarOpen"
+						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-96 overflow-y-auto">
+						<MilestonePanel :hide-header="true" />
+					</div>
 				</Transition>
 
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
@@ -907,16 +927,30 @@ const groupedTasksByMilestone = computed(() => {
 							</div>
 						</div>
 
-						<!-- Due date -->
-						<div>
-							<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-								{{ translate("Due date") }}
-							</label>
-							<input
-								v-model="fabExpEndDate"
-								type="date"
-								class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-							/>
+						<!-- Assignee + Due date row -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Assignee") }}
+								</label>
+								<UserSelect
+									v-model="fabAssign"
+									:multiple="false"
+									:placeholder="translate('Assign user...')"
+									@add="(u) => (fabAssign = [u])"
+									@remove="() => (fabAssign = [])"
+								/>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Due date") }}
+								</label>
+								<input
+									v-model="fabExpEndDate"
+									type="date"
+									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+								/>
+							</div>
 						</div>
 
 						<!-- Error -->
@@ -946,6 +980,18 @@ const groupedTasksByMilestone = computed(() => {
 </template>
 
 <style scoped>
+.filter-panel-enter-active,
+.filter-panel-leave-active {
+	transition: max-height 0.25s ease, opacity 0.2s ease;
+	overflow: hidden;
+	max-height: 500px;
+}
+.filter-panel-enter-from,
+.filter-panel-leave-to {
+	max-height: 0;
+	opacity: 0;
+}
+
 .fab-modal-enter-active,
 .fab-modal-leave-active {
 	transition: opacity 0.15s ease;
@@ -962,21 +1008,5 @@ const groupedTasksByMilestone = computed(() => {
 .fab-modal-leave-to .relative.z-10 {
 	transform: scale(0.96) translateY(8px);
 	opacity: 0;
-}
-
-.milestone-drop-enter-active,
-.milestone-drop-leave-active {
-	transition: max-height 0.25s ease, opacity 0.2s ease;
-	overflow: hidden;
-}
-.milestone-drop-enter-from,
-.milestone-drop-leave-to {
-	max-height: 0;
-	opacity: 0;
-}
-.milestone-drop-enter-to,
-.milestone-drop-leave-from {
-	max-height: 520px;
-	opacity: 1;
 }
 </style>

@@ -67,6 +67,8 @@ const isOverdue = computed(() => {
 
 const isExpanded = ref(false);
 
+const canEdit = computed(() => !!props.project?.is_manager);
+
 const store = useTaskStore();
 const isSaving = ref(false);
 
@@ -91,7 +93,7 @@ const toggleExpand = () => {
 };
 
 function openProjectInDesk() {
-	realWindow?.open(`/app/project/${props.project.name}`, "_blank");
+	realWindow?.open(`/app/project/${encodeURIComponent(props.project.name)}`, "_blank", "noopener,noreferrer");
 }
 
 async function saveDateField(field, value) {
@@ -198,11 +200,11 @@ async function saveNotes() {
 								<input
 									v-model="editableExpectedStart"
 									type="date"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									@change="
 										saveDateField('expected_start_date', editableExpectedStart)
 									"
-									:disabled="isSaving"
+									:disabled="isSaving || !canEdit"
 								/>
 								<div class="text-xs text-gray-400 mt-0.5">
 									{{ formatDate(project.expected_start_date) }}
@@ -222,11 +224,11 @@ async function saveNotes() {
 									<input
 										v-model="editableExpectedEnd"
 										type="date"
-										class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+										class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 										@change="
 											saveDateField('expected_end_date', editableExpectedEnd)
 										"
-										:disabled="isSaving"
+										:disabled="isSaving || !canEdit"
 									/>
 									<div class="text-xs text-gray-400 mt-0.5">
 										{{ formatDate(project.expected_end_date) }}
@@ -308,16 +310,28 @@ async function saveNotes() {
 					<!-- Customer Section -->
 					<div class="space-y-2">
 						<div class="flex items-start gap-2">
-							<User class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+							<img
+								v-if="project.customer_image"
+								:src="project.customer_image"
+								:alt="project.customer_name"
+								class="w-8 h-8 rounded-md object-contain border border-gray-100 dark:border-gray-700 bg-white flex-shrink-0 mt-0.5"
+							/>
+							<User v-else class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
 								<div class="text-xs text-gray-500">{{ translate("Customer") }}</div>
-								<div
-									class="text-sm font-medium text-gray-900 truncate"
+								<a
+									v-if="project.customer"
+									:href="`/app/customer/${encodeURIComponent(project.customer)}`"
+									target="_blank"
+									rel="noopener noreferrer"
+									class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
 									:title="project.customer_name || project.customer"
+									@click.stop
 								>
-									{{
-										project.customer_name || project.customer || translate("Not assigned")
-									}}
+									{{ project.customer_name || project.customer }}
+								</a>
+								<div v-else class="text-sm font-medium text-gray-400 dark:text-gray-500">
+									{{ translate("Not assigned") }}
 								</div>
 							</div>
 						</div>
@@ -330,10 +344,10 @@ async function saveNotes() {
 								<input
 									v-model="editableDocumentationUrl"
 									type="url"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									:placeholder="translate('https://docs.example.com')"
 									@blur="saveDocumentationUrl"
-									:disabled="isSaving"
+									:disabled="isSaving || !canEdit"
 								/>
 							</div>
 						</div>
@@ -349,10 +363,10 @@ async function saveNotes() {
 							<textarea
 								v-model="editableNotes"
 								rows="4"
-								class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+								class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 								:placeholder="translate('Add project notes...')"
 								@blur="saveNotes"
-								:disabled="isSaving"
+								:disabled="isSaving || !canEdit"
 							></textarea>
 							<div class="text-xs text-gray-400 mt-1">
 								{{ translate("Leave empty to clear notes") }}

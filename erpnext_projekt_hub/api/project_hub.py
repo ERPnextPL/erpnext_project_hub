@@ -118,6 +118,8 @@ def get_projects():
 				"expected_start_date",
 				"expected_end_date",
 				"priority",
+				"project_manager",
+				"customer",
 			],
 			order_by="status asc, modified desc",
 		)
@@ -170,12 +172,42 @@ def get_projects():
 				"expected_start_date",
 				"expected_end_date",
 				"priority",
+				"project_manager",
+				"customer",
 			],
 			order_by="status asc, modified desc",
 		)
 
+	# Resolve project_manager emails to full names in one batch
+	manager_emails = list({p["project_manager"] for p in projects if p.get("project_manager")})
+	manager_names = {}
+	if manager_emails:
+		rows = frappe.get_all(
+			"User",
+			filters={"name": ["in", manager_emails]},
+			fields=["name", "full_name"],
+		)
+		manager_names = {r["name"]: r["full_name"] for r in rows}
+
+	# Resolve customer names and logos in one batch
+	customer_ids = list({p["customer"] for p in projects if p.get("customer")})
+	customer_data = {}
+	if customer_ids:
+		rows = frappe.get_all(
+			"Customer",
+			filters={"name": ["in", customer_ids]},
+			fields=["name", "customer_name", "image"],
+		)
+		customer_data = {r["name"]: {"customer_name": r["customer_name"], "image": r["image"]} for r in rows}
+
 	# Add task count, user's task count, assigned users count, and next milestone for each project
 	for project in projects:
+		project["project_manager_name"] = manager_names.get(
+			project.get("project_manager"), project.get("project_manager")
+		)
+		cdata = customer_data.get(project.get("customer"), {})
+		project["customer_name"] = cdata.get("customer_name")
+		project["customer_image"] = cdata.get("image")
 		project["task_count"] = frappe.db.count(
 			"Task", {"project": project["name"], "status": ["!=", "Cancelled"]}
 		)
@@ -604,10 +636,16 @@ def get_project_tasks(
 		as_dict=1,
 	)
 
-	# Get customer name if customer is set
+	# Get customer name and logo if customer is set
 	customer_name = None
+	customer_image = None
 	if project_doc.customer:
-		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
+		cdata = frappe.db.get_value(
+			"Customer", project_doc.customer, ["customer_name", "image"], as_dict=True
+		)
+		if cdata:
+			customer_name = cdata.get("customer_name")
+			customer_image = cdata.get("image")
 
 	task_counts = frappe.db.sql(
 		"""
@@ -633,6 +671,7 @@ def get_project_tasks(
 			"actual_end_date": getattr(project_doc, "actual_end_date", None),
 			"customer": project_doc.customer,
 			"customer_name": customer_name,
+			"customer_image": customer_image,
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -778,7 +817,10 @@ def update_project(
 
 	project_doc = frappe.get_doc("Project", project)
 
-	if not frappe.has_permission("Project", "write", doc=project_doc):
+	current_user = frappe.session.user
+	has_write = frappe.has_permission("Project", "write", doc=project_doc)
+	is_assigned_manager = bool(getattr(project_doc, "project_manager", None) == current_user)
+	if not has_write and not is_assigned_manager:
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 	if expected_start_date == "":
@@ -826,8 +868,14 @@ def update_project(
 	)
 
 	customer_name = None
+	customer_image = None
 	if project_doc.customer:
-		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
+		cdata = frappe.db.get_value(
+			"Customer", project_doc.customer, ["customer_name", "image"], as_dict=True
+		)
+		if cdata:
+			customer_name = cdata.get("customer_name")
+			customer_image = cdata.get("image")
 
 	return {
 		"name": project_doc.name,
@@ -840,6 +888,7 @@ def update_project(
 		"actual_end_date": getattr(project_doc, "actual_end_date", None),
 		"customer": project_doc.customer,
 		"customer_name": customer_name,
+		"customer_image": customer_image,
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -856,6 +905,7 @@ def create_task(
 	status: str = "Open",
 	exp_end_date: str | None = None,
 	milestone: str | None = None,
+	assign: str | None = None,
 ):
 	"""Create a new task."""
 	if not subject or not project:
@@ -902,9 +952,15 @@ def create_task(
 	)
 	task.insert()
 
+	if assign:
+		from frappe.desk.form.assign_to import add as add_assignment
+
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [assign]})
+
 	return {
 		"name": task.name,
 		"subject": task.subject,
+		"project": task.project,
 		"status": task.status,
 		"priority": task.priority,
 		"parent_task": task.parent_task,
@@ -913,6 +969,7 @@ def create_task(
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
 		"milestone": task.get("milestone"),
+		"_assign": frappe.as_json([assign]) if assign else task.get("_assign"),
 		"idx": task.idx,
 	}
 
