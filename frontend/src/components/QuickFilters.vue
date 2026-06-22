@@ -63,11 +63,11 @@ onMounted(async () => {
 });
 
 const statusIconMap = {
-	Open: { icon: Circle, class: "text-blue-500" },
-	Working: { icon: Clock, class: "text-amber-500" },
-	"Pending Review": { icon: AlertCircle, class: "text-purple-500" },
-	Completed: { icon: CheckCircle2, class: "text-green-500" },
-	Overdue: { icon: AlertCircle, class: "text-red-500" },
+	Open: { icon: Circle, class: "text-blue-600" },
+	Working: { icon: Clock, class: "text-amber-600" },
+	"Pending Review": { icon: AlertCircle, class: "text-purple-600" },
+	Completed: { icon: CheckCircle2, class: "text-green-600" },
+	Overdue: { icon: AlertCircle, class: "text-red-600" },
 	Cancelled: { icon: Circle, class: "text-gray-400" },
 };
 

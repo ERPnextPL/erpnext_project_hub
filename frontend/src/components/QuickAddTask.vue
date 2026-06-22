@@ -12,10 +12,6 @@ const props = defineProps({
 		type: String,
 		default: null,
 	},
-	milestone: {
-		type: String,
-		default: null,
-	},
 	placeholder: {
 		type: String,
 		default: "Add a task...",
@@ -53,7 +49,7 @@ async function createTask() {
 			status: parent?.status,
 			priority: parent?.priority,
 			exp_end_date: parent?.exp_end_date || null,
-			// milestone: props.milestone, // if you have milestone field
+			milestone: parent?.milestone || null,
 		});
 		inputValue.value = "";
 		emit("created");

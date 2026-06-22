@@ -14,6 +14,7 @@ import {
 	AlertCircle,
 	LayoutList,
 	LayoutGrid,
+	Folder,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -162,6 +163,27 @@ useTaskDeepLink({
 						>
 							<X class="w-4 h-4" />
 						</button>
+					</div>
+
+					<!-- Project filter -->
+					<div v-if="store.projects.length > 0" class="relative min-w-[160px] max-w-[220px]">
+						<Folder class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+						<select
+							:value="store.filters.project || ''"
+							@change="(e) => { store.setFilter('project', e.target.value || null); store.fetchTasks(); }"
+							:aria-label="translate('Filter by project')"
+							:class="[
+								'w-full pl-9 pr-4 py-2 text-sm border rounded-lg appearance-none cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white',
+								store.filters.project ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700'
+							]"
+						>
+							<option value="">{{ translate('All projects') }}</option>
+							<option
+								v-for="project in store.projects"
+								:key="project.name"
+								:value="project.name"
+							>{{ project.project_name }} ({{ project.task_count }})</option>
+						</select>
 					</div>
 
 						<div class="flex items-center gap-2">

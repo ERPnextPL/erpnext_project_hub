@@ -13,6 +13,9 @@ def before_install():
 
 
 def before_tests():
+	from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import execute
+
+	execute()
 	_ensure_test_roots()
 
 
@@ -24,6 +27,8 @@ def after_install():
 
 def _ensure_test_roots():
 	for doctype, name, fieldname in [
+		("Gender", "Female", "gender"),
+		("Gender", "Male", "gender"),
 		("Item Group", "All Item Groups", "item_group_name"),
 		("Warehouse Type", "Transit", None),
 		("Territory", "All Territories", "territory_name"),

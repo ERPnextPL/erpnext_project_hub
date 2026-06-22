@@ -23,7 +23,7 @@ class ProjectMilestone(Document):
 			# New document, skip calculation
 			return
 
-		total_tasks = frappe.db.count("Task", {"milestone": self.name})
+		total_tasks = frappe.db.count("Task", {"milestone": self.name, "status": ["!=", "Cancelled"]})
 		completed_tasks = frappe.db.count("Task", {"milestone": self.name, "status": "Completed"})
 
 		self.total_tasks = total_tasks

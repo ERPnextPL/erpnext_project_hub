@@ -21,6 +21,10 @@ const translate = (text) => {
 		: text;
 };
 
+const props = defineProps({
+	hideHeader: { type: Boolean, default: false },
+});
+
 const store = useTaskStore();
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
@@ -29,6 +33,8 @@ const openMenuId = ref(null);
 const isCollapsed = ref(false);
 const draggingMilestoneName = ref(null);
 const milestoneDropIndex = ref(null);
+
+const showContent = computed(() => props.hideHeader || !isCollapsed.value);
 
 const sortedMilestones = computed(() => {
 	const active = store.milestones.filter(
@@ -340,6 +346,7 @@ onUnmounted(() => {
 	<div class="milestone-panel flex h-full min-h-0 flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 		<!-- Header -->
 		<div
+			v-if="!hideHeader"
 			class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
 			@click="isCollapsed = !isCollapsed"
 		>
@@ -369,7 +376,7 @@ onUnmounted(() => {
 
 		<!-- Active Filter Indicator -->
 		<div
-			v-if="store.activeMilestoneFilter.length && !isCollapsed"
+			v-if="store.activeMilestoneFilter.length && showContent"
 			class="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between"
 		>
 			<span class="text-xs text-blue-700 dark:text-blue-400">
@@ -385,7 +392,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Milestone List -->
-		<div v-if="!isCollapsed" class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+		<div v-if="showContent" class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
 			<div
 				@click="store.setMilestoneFilter(store.NO_MILESTONE_FILTER)"
 				:class="[
@@ -527,6 +534,20 @@ onUnmounted(() => {
 					{{ translate("Create first milestone") }}
 				</button>
 			</div>
+		</div>
+
+		<!-- Footer add button (dropdown mode only) -->
+		<div
+			v-if="hideHeader && showContent"
+			class="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700"
+		>
+			<button
+				@click="showCreateModal = true"
+				class="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+			>
+				<Plus class="w-3.5 h-3.5" />
+				{{ translate("Add milestone") }}
+			</button>
 		</div>
 
 		<!-- Modals -->

@@ -214,20 +214,6 @@ function startEditing(field, currentValue) {
 	});
 }
 
-function openDatePicker(currentValue) {
-	editingField.value = "exp_end_date";
-	editValue.value = currentValue || "";
-	nextTick(() => {
-		const el = inputRef.value?.$el || inputRef.value;
-		el?.focus?.();
-		if (typeof el?.showPicker === "function") {
-			el.showPicker();
-		} else {
-			el?.click?.();
-		}
-	});
-}
-
 function finishEditing() {
 	if (editingField.value && editValue.value !== props.task[editingField.value]) {
 		emit("update", props.task.name, { [editingField.value]: editValue.value });
@@ -239,6 +225,13 @@ function finishEditing() {
 function cancelEditing() {
 	editingField.value = null;
 	editValue.value = "";
+}
+
+function handleDueDateChange(event) {
+	const value = event.target.value || "";
+	if (value !== (props.task.exp_end_date || "")) {
+		emit("update", props.task.name, { exp_end_date: value });
+	}
 }
 
 function handleKeydown(e) {
@@ -732,7 +725,6 @@ onUnmounted(() => {
 				<button
 					v-if="task.exp_end_date"
 					type="button"
-					@click.stop="openDatePicker(task.exp_end_date)"
 					class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
 				>
 					<Calendar class="w-4 h-4 text-gray-400" />
@@ -741,20 +733,16 @@ onUnmounted(() => {
 				<button
 					v-else
 					type="button"
-					@click.stop="openDatePicker('')"
 					class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
 				>
 					<Calendar class="w-4 h-4" />
 				</button>
 				<input
-					ref="inputRef"
-					v-model="editValue"
+					:value="task.exp_end_date || ''"
 					type="date"
-					class="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
-					tabindex="-1"
-					@change="finishEditing"
-					@keydown="handleKeydown"
-					@blur="cancelEditing"
+					class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+					@click.stop
+					@change.stop="handleDueDateChange"
 					aria-label="Edit due date"
 				/>
 			</div>

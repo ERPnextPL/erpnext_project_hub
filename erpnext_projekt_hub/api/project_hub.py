@@ -5,7 +5,7 @@ Provides CRUD operations for tasks in a hierarchical tree view.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, today
+from frappe.utils import cint, flt, today
 
 
 def _get_incomplete_subtasks(task_name: str) -> list:
@@ -208,7 +208,9 @@ def get_projects():
 		cdata = customer_data.get(project.get("customer"), {})
 		project["customer_name"] = cdata.get("customer_name")
 		project["customer_image"] = cdata.get("image")
-		project["task_count"] = frappe.db.count("Task", {"project": project["name"]})
+		project["task_count"] = frappe.db.count(
+			"Task", {"project": project["name"], "status": ["!=", "Cancelled"]}
+		)
 
 		# Count user's assigned tasks in this project
 		if not is_manager:
@@ -216,7 +218,7 @@ def get_projects():
 				"""
 				SELECT COUNT(*) as count
 				FROM `tabTask`
-				WHERE project = %s AND _assign LIKE %s
+				WHERE project = %s AND _assign LIKE %s AND status != 'Cancelled'
 			""",
 				(project["name"], f"%{user}%"),
 				as_dict=True,
@@ -352,6 +354,154 @@ def get_project_requests(project: str):
 		},
 		"customer_requests": customer_requests,
 		"change_requests": change_requests,
+	}
+
+
+@frappe.whitelist()
+def create_customer_request(
+	project: str,
+	subject: str,
+	request_date: str | None = None,
+	source: str | None = None,
+	requested_by: str | None = None,
+	notes: str | None = None,
+	business_value: str | None = None,
+	analysis: str | None = None,
+	estimated_hours: str | None = None,
+	currency: str | None = None,
+	estimated_amount: str | None = None,
+	quotation: str | None = None,
+):
+	"""Create a Customer Request from the Projekt HUB UI."""
+	if not project:
+		frappe.throw(_("Project is required"))
+	if not subject:
+		frappe.throw(_("Subject is required"))
+	if not frappe.has_permission("Customer Request", "create"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if not project_doc.customer:
+		frappe.throw(_("Project must have a customer"))
+
+	request = frappe.get_doc(
+		{
+			"doctype": "Customer Request",
+			"project": project_doc.name,
+			"customer": project_doc.customer,
+			"subject": subject,
+		}
+	)
+	for fieldname, value in {
+		"request_date": request_date,
+		"source": source,
+		"requested_by": requested_by,
+		"notes": notes,
+		"business_value": business_value,
+		"analysis": analysis,
+		"estimated_hours": estimated_hours,
+		"currency": currency,
+		"estimated_amount": estimated_amount,
+		"quotation": quotation,
+	}.items():
+		if value not in (None, ""):
+			request.set(fieldname, value)
+
+	request.insert()
+
+	return {
+		"name": request.name,
+		"project": request.project,
+		"customer": request.customer,
+		"subject": request.subject,
+	}
+
+
+@frappe.whitelist()
+def search_requested_by(project: str, txt: str | None = None):
+	"""Search employees that can be used in the Requested By field."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	filters = {"status": "Active"}
+	if project_doc.company:
+		filters["company"] = project_doc.company
+
+	or_filters = []
+	if txt:
+		term = f"%{txt}%"
+		or_filters = [
+			["name", "like", term],
+			["employee_name", "like", term],
+			["user_id", "like", term],
+		]
+
+	employees = frappe.get_all(
+		"Employee",
+		filters=filters,
+		or_filters=or_filters,
+		fields=["name", "employee_name", "user_id"],
+		order_by="employee_name asc, name asc",
+		limit_page_length=50,
+		ignore_permissions=True,
+	)
+
+	return [
+		{
+			"value": employee.name,
+			"label": employee.employee_name or employee.name,
+			"description": employee.user_id or "",
+		}
+		for employee in employees
+	]
+
+
+@frappe.whitelist()
+def get_customer_request_dropdown_options(project: str):
+	"""Return dropdown options used by the Customer Request modal."""
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	currencies = frappe.get_all(
+		"Currency",
+		fields=["name"],
+		order_by="name asc",
+		limit_page_length=200,
+		ignore_permissions=True,
+	)
+
+	quotation_filters = {"docstatus": ["<", 2]}
+	if project_doc.customer:
+		quotation_filters.update({"quotation_to": "Customer", "party_name": project_doc.customer})
+
+	quotations = frappe.get_all(
+		"Quotation",
+		filters=quotation_filters,
+		fields=["name", "title", "transaction_date", "grand_total", "currency"],
+		order_by="modified desc",
+		limit_page_length=50,
+	)
+
+	return {
+		"currencies": [{"value": currency.name, "label": currency.name} for currency in currencies],
+		"quotations": [
+			{
+				"value": quotation.name,
+				"label": quotation.title or quotation.name,
+				"description": quotation.name,
+			}
+			for quotation in quotations
+		],
 	}
 
 
@@ -497,6 +647,18 @@ def get_project_tasks(
 			customer_name = cdata.get("customer_name")
 			customer_image = cdata.get("image")
 
+	task_counts = frappe.db.sql(
+		"""
+		SELECT
+			COUNT(*) AS total_tasks,
+			SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed_tasks
+		FROM `tabTask`
+		WHERE project = %s AND COALESCE(is_group, 0) = 0 AND status != 'Cancelled'
+		""",
+		project,
+		as_dict=True,
+	)[0]
+
 	return {
 		"project": {
 			"name": project_doc.name,
@@ -514,6 +676,8 @@ def get_project_tasks(
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
 			"is_manager": _is_project_manager_user(project_doc),
+			"total_tasks": cint(task_counts.total_tasks),
+			"completed_tasks": cint(task_counts.completed_tasks),
 		},
 		"tasks": tasks,
 	}
@@ -532,6 +696,7 @@ def get_project_financials(project: str):
 	hours_by_user = frappe.db.sql(
 		"""
 		SELECT
+			ts.employee,
 			ts.employee_name,
 			ts.owner AS user_email,
 			COALESCE(SUM(tsd.hours), 0) AS hours,
@@ -539,7 +704,7 @@ def get_project_financials(project: str):
 		FROM `tabTimesheet Detail` tsd
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		WHERE tsd.project = %s AND ts.docstatus < 2
-		GROUP BY ts.owner, ts.employee_name, ts.docstatus
+		GROUP BY ts.employee, ts.employee_name, ts.owner, ts.docstatus
 		ORDER BY hours DESC
 		""",
 		project,
@@ -550,8 +715,8 @@ def get_project_financials(project: str):
 	draft_hours = 0.0
 	hours_map = {}
 	for row in hours_by_user:
-		key = row["user_email"] or row["employee_name"] or "Unknown"
-		label = row["employee_name"] or row["user_email"] or "Unknown"
+		key = row["employee"] or row["user_email"] or row["employee_name"] or "Unknown"
+		label = row["employee_name"] or row["user_email"] or row["employee"] or "Unknown"
 		if key not in hours_map:
 			hours_map[key] = {"label": label, "submitted": 0.0, "draft": 0.0}
 		if row["docstatus"] == 1:
@@ -590,10 +755,21 @@ def get_project_financials(project: str):
 	)
 
 	total_reported_hours = round(submitted_hours + draft_hours, 2)
+	hourly_cost_rate = _get_execution_hourly_cost_rate()
+	estimated_costing = float(getattr(project_doc, "estimated_costing", 0) or 0)
+	total_costing_amount = float(getattr(project_doc, "total_costing_amount", 0) or 0)
+	budget_total_hours = estimated_costing / hourly_cost_rate if hourly_cost_rate else 0
+	budget_used_hours = total_costing_amount / hourly_cost_rate if hourly_cost_rate else 0
+	budget_remaining_hours = (
+		max(estimated_costing - total_costing_amount, 0) / hourly_cost_rate if hourly_cost_rate else 0
+	)
+	budget_hours_progress = (
+		min(100, round((budget_used_hours / budget_total_hours) * 100)) if budget_total_hours else 0
+	)
 
 	return {
-		"estimated_costing": float(getattr(project_doc, "estimated_costing", 0) or 0),
-		"total_costing_amount": float(getattr(project_doc, "total_costing_amount", 0) or 0),
+		"estimated_costing": estimated_costing,
+		"total_costing_amount": total_costing_amount,
 		"total_purchase_cost": float(getattr(project_doc, "total_purchase_cost", 0) or 0),
 		"gross_margin": float(getattr(project_doc, "gross_margin", 0) or 0),
 		"per_gross_margin": float(getattr(project_doc, "per_gross_margin", 0) or 0),
@@ -602,8 +778,31 @@ def get_project_financials(project: str):
 		"total_hours": total_reported_hours,
 		"submitted_hours": round(submitted_hours, 2),
 		"draft_hours": round(draft_hours, 2),
+		"hourly_cost_rate": round(hourly_cost_rate, 2),
+		"budget_total_hours": round(budget_total_hours, 2),
+		"budget_used_hours": round(budget_used_hours, 2),
+		"budget_remaining_hours": round(budget_remaining_hours, 2),
+		"budget_hours_progress": budget_hours_progress,
 		"hours_per_user": hours_per_user,
 	}
+
+
+def _get_execution_hourly_cost_rate() -> float:
+	for activity_type in ("Wykonanie", "Execution"):
+		rates = frappe.get_all(
+			"Activity Cost",
+			filters={"activity_type": activity_type, "costing_rate": [">", 0]},
+			fields=["costing_rate"],
+		)
+		if rates:
+			return sum(float(row.costing_rate or 0) for row in rates) / len(rates)
+
+	for activity_type in ("Wykonanie", "Execution"):
+		rate = frappe.db.get_value("Activity Type", {"activity_type": activity_type}, "costing_rate")
+		if rate:
+			return float(rate)
+
+	return 0.0
 
 
 @frappe.whitelist()
@@ -704,6 +903,7 @@ def create_task(
 	priority: str = "Medium",
 	status: str = "Open",
 	exp_end_date: str | None = None,
+	milestone: str | None = None,
 ):
 	"""Create a new task."""
 	if not subject or not project:
@@ -711,6 +911,11 @@ def create_task(
 
 	if parent_task:
 		status = "Open"
+
+	if milestone:
+		milestone_doc = frappe.get_doc("Project Milestone", milestone)
+		if milestone_doc.project != project:
+			frappe.throw(_("Milestone does not belong to the selected project"))
 
 	# If parent_task is provided, ensure it's a group task
 	if parent_task:
@@ -739,6 +944,7 @@ def create_task(
 			"priority": priority,
 			"status": status,
 			"exp_end_date": exp_end_date,
+			"milestone": milestone,
 			"idx": new_idx,
 		}
 	)
@@ -754,6 +960,7 @@ def create_task(
 		"exp_start_date": task.exp_start_date,
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
+		"milestone": task.get("milestone"),
 		"idx": task.idx,
 	}
 
@@ -869,6 +1076,9 @@ def delete_task(task_name: str):
 		for child in children:
 			delete_task(child["name"])
 
+	# Clear outgoing parent link and incoming timelog references before deletion
+	frappe.db.set_value("Task", task_name, "parent_task", None, update_modified=False)
+	frappe.db.sql("UPDATE `tabTimesheet Detail` SET task = NULL WHERE task = %s", task_name)
 	frappe.delete_doc("Task", task_name)
 
 	return {"success": True}
@@ -1206,9 +1416,14 @@ def get_my_timelogs(
 ):
 	"""Get time logs for the current user with optional filters."""
 	user = frappe.session.user
+	employee = get_employee_for_user(user)
 
-	conditions = ["ts.owner = %s", "ts.docstatus < 2"]
-	values: list[str] = [user]
+	if employee:
+		conditions = ["(ts.owner = %s OR ts.employee = %s)", "ts.docstatus < 2"]
+		values: list[str] = [user, employee]
+	else:
+		conditions = ["ts.owner = %s", "ts.docstatus < 2"]
+		values: list[str] = [user]
 
 	if status:
 		conditions.append("ts.status = %s")
@@ -1241,6 +1456,8 @@ def get_my_timelogs(
 			ts.status,
 			ts.docstatus,
 			ts.owner,
+			ts.employee,
+			ts.employee_name,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -1388,8 +1605,7 @@ def update_timelog(
 	timelog = frappe.get_doc("Timesheet Detail", timelog_name)
 	timesheet = frappe.get_doc("Timesheet", timelog.parent)
 
-	# Check if user owns this timesheet
-	if timesheet.owner != frappe.session.user:
+	if not _is_own_timesheet(timesheet):
 		frappe.throw(_("You can only edit your own time logs"))
 
 	# Validate timesheet state before update
@@ -1444,7 +1660,7 @@ def delete_timelog(timelog_name: str):
 
 	# Check if user owns this timesheet or has admin privileges
 	is_admin_deletion = False
-	if timesheet.owner != frappe.session.user:
+	if not _is_own_timesheet(timesheet):
 		# Allow System Manager and Administrator roles to delete any time logs
 		user_roles = frappe.get_roles(frappe.session.user)
 		if "System Manager" not in user_roles and "Administrator" not in user_roles:
@@ -1506,6 +1722,16 @@ def get_employee_for_user(user: str):
 	"""Get employee linked to user, or None if not found."""
 	employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
 	return employee
+
+
+def _is_own_timesheet(timesheet) -> bool:
+	user = frappe.session.user
+	employee = get_employee_for_user(user)
+	if employee and timesheet.employee == employee:
+		return True
+	if not timesheet.employee and timesheet.owner == user:
+		return True
+	return False
 
 
 @frappe.whitelist()
@@ -1957,6 +2183,8 @@ def get_my_tasks(
 			filters.append(f"t.status IN ({status_placeholders})")
 			for i, s in enumerate(status_list):
 				values[f"status_{i}"] = s
+	else:
+		filters.append("t.status NOT IN ('Completed', 'Cancelled')")
 
 	# Priority filter
 	if priority:
@@ -2125,6 +2353,7 @@ def get_my_tasks_projects():
 		FROM `tabTask` t
 		INNER JOIN `tabProject` p ON t.project = p.name
 		WHERE t._assign LIKE %s
+		AND t.status != 'Cancelled'
 		AND p.status != 'Cancelled'
 		GROUP BY p.name, p.project_name, p.status
 		ORDER BY p.project_name
@@ -2486,3 +2715,54 @@ def get_projects_settings():
 			"ignore_employee_time_overlap": False,
 			"fetch_timesheet_in_sales_invoice": False,
 		}
+
+
+@frappe.whitelist()
+def get_project_summary(project: str) -> dict:
+	"""Return KPI summary for the Project form dashboard (time remaining, task %, milestone statuses)."""
+	from frappe.utils import date_diff, getdate
+	from frappe.utils import today as frappe_today
+
+	project_doc = frappe.get_doc("Project", project)
+
+	days = None
+	is_overdue = False
+	if project_doc.expected_end_date:
+		days = date_diff(getdate(project_doc.expected_end_date), getdate(frappe_today()))
+		is_overdue = days < 0
+
+	row = frappe.db.sql(
+		"""
+		SELECT
+			COUNT(*) AS total,
+			SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed
+		FROM `tabTask`
+		WHERE project = %s AND COALESCE(is_group, 0) = 0
+		""",
+		project,
+		as_dict=True,
+	)[0]
+
+	milestones = frappe.get_all("Project Milestone", filters={"project": project}, fields=["status"])
+	by_status = {"Open": 0, "In Progress": 0, "Completed": 0, "Cancelled": 0}
+	for m in milestones:
+		s = m.status or "Open"
+		by_status[s] = by_status.get(s, 0) + 1
+
+	return {
+		"time_remaining": {
+			"days": days,
+			"is_overdue": is_overdue,
+			"has_end_date": bool(project_doc.expected_end_date),
+		},
+		"tasks": {
+			"total": cint(row.total),
+			"completed": cint(row.completed),
+			"percent_complete": flt(project_doc.percent_complete or 0),
+		},
+		"milestones": {
+			"total": len(milestones),
+			"has_milestones": len(milestones) > 0,
+			"by_status": by_status,
+		},
+	}
