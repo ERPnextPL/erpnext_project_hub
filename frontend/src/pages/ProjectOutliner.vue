@@ -10,7 +10,7 @@ import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
-import MilestoneSidebar from "../components/MilestoneSidebar.vue";
+import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
@@ -325,18 +325,28 @@ const groupedTasksByMilestone = computed(() => {
 		}
 	}
 
+	const activeGroups = [];
+	const completedGroups = [];
+
 	for (const milestone of store.milestones) {
 		const tasks = tasksByMilestone.get(milestone.name) || [];
 		if (tasks.length > 0) {
-			groups.push({
+			const group = {
 				key: milestone.name,
 				label: milestone.milestone_name || milestone.name,
 				meta: milestone,
 				tasks,
 				isUnassigned: false,
-			});
+			};
+			if (milestone.status === "Completed" || milestone.health === "completed") {
+				completedGroups.push(group);
+			} else {
+				activeGroups.push(group);
+			}
 		}
 	}
+
+	groups.push(...activeGroups, ...completedGroups);
 
 	if (unassignedTasks.length > 0) {
 		groups.push({
@@ -404,26 +414,6 @@ const groupedTasksByMilestone = computed(() => {
 
 			<!-- Main content -->
 			<div class="flex-1 flex overflow-hidden relative">
-				<Transition name="fade">
-					<div
-						v-if="milestoneSidebarOpen && isMobile"
-						class="absolute inset-0 z-20 bg-black/20"
-						@click="closeMilestoneSidebar"
-					></div>
-				</Transition>
-
-				<Transition name="slide-sidebar-left">
-					<div
-						v-if="milestoneSidebarOpen"
-						:class="[
-							'z-30 flex-shrink-0 overflow-y-auto',
-							isMobile ? 'absolute inset-y-0 left-0' : 'relative',
-						]"
-					>
-						<MilestoneSidebar @close="closeMilestoneSidebar" />
-					</div>
-				</Transition>
-
 				<Transition name="slide-sidebar-right">
 					<div
 						v-if="attachmentsSidebarOpen"
@@ -437,17 +427,6 @@ const groupedTasksByMilestone = computed(() => {
 						/>
 					</div>
 				</Transition>
-
-				<!-- Left sidebar: Milestones + Filters (collapsible) -->
-			<aside
-				v-if="!sidebarCollapsed"
-				class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-y-auto w-64 relative"
-			>
-				<div class="w-64">
-					<!-- Quick Filters -->
-					<QuickFilters :project="store.project" @filter-change="handleFilterChange" />
-				</div>
-			</aside>
 
 			<!-- Center: Task list -->
 			<main class="flex-1 overflow-y-auto">
@@ -573,6 +552,30 @@ const groupedTasksByMilestone = computed(() => {
 						</div>
 					</div>
 				</div>
+
+				<!-- Filters panel (slides down under toolbar) -->
+				<Transition name="filter-panel">
+					<div
+						v-if="!sidebarCollapsed"
+						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+					>
+						<QuickFilters
+							:project="store.project"
+							@filter-change="handleFilterChange"
+							@close="sidebarCollapsed = true"
+						/>
+					</div>
+				</Transition>
+
+				<!-- Milestones panel (slides down under toolbar) -->
+				<Transition name="filter-panel">
+					<div
+						v-if="milestoneSidebarOpen"
+						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-96 overflow-y-auto"
+					>
+						<MilestonePanel />
+					</div>
+				</Transition>
 
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
 					<div
@@ -767,3 +770,17 @@ const groupedTasksByMilestone = computed(() => {
 		<BackToDeskButton />
 	</div>
 </template>
+
+<style scoped>
+.filter-panel-enter-active,
+.filter-panel-leave-active {
+	transition: max-height 0.25s ease, opacity 0.2s ease;
+	overflow: hidden;
+	max-height: 500px;
+}
+.filter-panel-enter-from,
+.filter-panel-leave-to {
+	max-height: 0;
+	opacity: 0;
+}
+</style>

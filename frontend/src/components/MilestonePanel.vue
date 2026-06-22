@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import {
 	Diamond,
@@ -29,6 +29,16 @@ const openMenuId = ref(null);
 const isCollapsed = ref(false);
 const draggingMilestoneName = ref(null);
 const milestoneDropIndex = ref(null);
+
+const sortedMilestones = computed(() => {
+	const active = store.milestones.filter(
+		(m) => m.status !== "Completed" && m.health !== "completed"
+	);
+	const completed = store.milestones.filter(
+		(m) => m.status === "Completed" || m.health === "completed"
+	);
+	return [...active, ...completed];
+});
 
 // Load milestones when project changes
 watch(
@@ -238,7 +248,7 @@ async function handleMilestoneDrop(event, index) {
 
 	if (!draggedName) return;
 
-	const order = [...store.milestones.map((milestone) => milestone.name)];
+	const order = [...sortedMilestones.value.map((milestone) => milestone.name)];
 	const fromIndex = order.findIndex((name) => name === draggedName);
 
 	if (fromIndex === -1 || fromIndex === index) return;
@@ -400,7 +410,7 @@ onUnmounted(() => {
 				</div>
 			</div>
 			<div
-				v-for="(milestone, index) in store.milestones"
+				v-for="(milestone, index) in sortedMilestones"
 				:key="milestone.name"
 				@click="handleMilestoneClick(milestone)"
 				:draggable="true"

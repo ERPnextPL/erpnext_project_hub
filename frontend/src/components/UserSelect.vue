@@ -103,7 +103,7 @@ defineExpose({
 <div ref="containerRef" class="user-select-container relative">
 		<!-- Selected users display -->
 		<div
-			@click="isOpen = !isOpen"
+			@click="isOpen ? (isOpen = false) : openDropdown()"
 			class="flex items-center gap-2 min-h-[36px] px-2 py-1 border border-gray-300 rounded-md cursor-pointer hover:border-gray-400 bg-white"
 		>
 			<div v-if="selectedUsers.length > 0" class="flex flex-wrap gap-1 flex-1">

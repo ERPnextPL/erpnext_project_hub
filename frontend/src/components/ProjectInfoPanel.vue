@@ -7,6 +7,7 @@ import {
 	User,
 	FileText,
 	Link,
+	ExternalLink,
 	TrendingUp,
 	AlertCircle,
 	ChevronDown,
@@ -66,6 +67,8 @@ const isOverdue = computed(() => {
 
 const isExpanded = ref(false);
 
+const canEdit = computed(() => !!props.project?.is_manager);
+
 const store = useTaskStore();
 const isSaving = ref(false);
 
@@ -88,6 +91,10 @@ watch(
 const toggleExpand = () => {
 	isExpanded.value = !isExpanded.value;
 };
+
+function openProjectInDesk() {
+	realWindow?.open(`/app/project/${props.project.name}`, "_blank");
+}
 
 async function saveDateField(field, value) {
 	await saveProjectField(
@@ -156,10 +163,24 @@ async function saveNotes() {
 			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
 			@click="toggleExpand"
 		>
-			<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-				{{ translate("Project Information") }}
-			</h3>
-			<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+			<div class="flex items-center gap-2 min-w-0">
+				<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+					{{ translate("Project Information") }}
+				</h3>
+				<button
+					type="button"
+					class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border border-gray-200 text-gray-600 bg-white hover:bg-gray-100 transition-colors"
+					@click.stop="openProjectInDesk"
+				>
+					<ExternalLink class="w-3.5 h-3.5" />
+					{{ translate("Open in Desk") }}
+				</button>
+			</div>
+			<button
+				type="button"
+				class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+				@click.stop="toggleExpand"
+			>
 				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
 				<ChevronDown v-else class="w-4 h-4 text-gray-500 dark:text-gray-400" />
 			</button>
@@ -179,11 +200,11 @@ async function saveNotes() {
 								<input
 									v-model="editableExpectedStart"
 									type="date"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									@change="
 										saveDateField('expected_start_date', editableExpectedStart)
 									"
-									:disabled="isSaving"
+									:disabled="isSaving || !canEdit"
 								/>
 								<div class="text-xs text-gray-400 mt-0.5">
 									{{ formatDate(project.expected_start_date) }}
@@ -203,11 +224,11 @@ async function saveNotes() {
 									<input
 										v-model="editableExpectedEnd"
 										type="date"
-										class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+										class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 										@change="
 											saveDateField('expected_end_date', editableExpectedEnd)
 										"
-										:disabled="isSaving"
+										:disabled="isSaving || !canEdit"
 									/>
 									<div class="text-xs text-gray-400 mt-0.5">
 										{{ formatDate(project.expected_end_date) }}
@@ -289,11 +310,17 @@ async function saveNotes() {
 					<!-- Customer Section -->
 					<div class="space-y-2">
 						<div class="flex items-start gap-2">
-							<User class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+							<img
+								v-if="project.customer_image"
+								:src="project.customer_image"
+								:alt="project.customer_name"
+								class="w-8 h-8 rounded-md object-contain border border-gray-100 dark:border-gray-700 bg-white flex-shrink-0 mt-0.5"
+							/>
+							<User v-else class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
 								<div class="text-xs text-gray-500">{{ translate("Customer") }}</div>
 								<div
-									class="text-sm font-medium text-gray-900 truncate"
+									class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
 									:title="project.customer_name || project.customer"
 								>
 									{{
@@ -311,10 +338,10 @@ async function saveNotes() {
 								<input
 									v-model="editableDocumentationUrl"
 									type="url"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									:placeholder="translate('https://docs.example.com')"
 									@blur="saveDocumentationUrl"
-									:disabled="isSaving"
+									:disabled="isSaving || !canEdit"
 								/>
 							</div>
 						</div>
@@ -330,10 +357,10 @@ async function saveNotes() {
 							<textarea
 								v-model="editableNotes"
 								rows="4"
-								class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+								class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 								:placeholder="translate('Add project notes...')"
 								@blur="saveNotes"
-								:disabled="isSaving"
+								:disabled="isSaving || !canEdit"
 							></textarea>
 							<div class="text-xs text-gray-400 mt-1">
 								{{ translate("Leave empty to clear notes") }}

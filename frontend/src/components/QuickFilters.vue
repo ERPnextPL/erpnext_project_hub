@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import {
-	Filter,
 	Circle,
 	Clock,
 	CheckCircle2,
@@ -20,7 +19,7 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["filter-change"]);
+const emit = defineEmits(["filter-change", "close"]);
 
 const store = useTaskStore();
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
@@ -29,21 +28,20 @@ const translate = (text) => {
 		? realWindow.__(text)
 		: text;
 };
-const activeStatus = ref([]); // Array for multiselect
-const activePriority = ref([]); // Array for multiselect
+
+const activeStatus = ref([]);
+const activePriority = ref([]);
 const activeAssignee = ref(null);
 const myTasksActive = ref(false);
 const dueTodayActive = ref(false);
-const overdueActive = ref(false); // Nowy filtr dla przeterminowanych zadań
+const overdueActive = ref(false);
 
 const disabledStatuses = ["Template"];
 
-// Get current user from Frappe session
 const currentUser = computed(() => {
 	return window.frappe?.session?.user || "";
 });
 
-// Load metadata on mount
 onMounted(async () => {
 	if (store.taskStatuses.length === 0) {
 		await store.fetchTaskStatuses();
@@ -52,7 +50,6 @@ onMounted(async () => {
 		await store.fetchTaskPriorities();
 	}
 
-	// Set default status filters - all except Cancelled, Closed, and Completed
 	if (activeStatus.value.length === 0 && store.taskStatuses.length > 0) {
 		activeStatus.value = store.taskStatuses.filter(
 			(status) =>
@@ -61,24 +58,22 @@ onMounted(async () => {
 				status !== "Completed" &&
 				!disabledStatuses.includes(status)
 		);
-		// Emit filters immediately after setting defaults
 		emitFilters();
 	}
 });
 
-// Icon and color mapping
 const statusIconMap = {
-	Open: { icon: Circle, class: "text-blue-600" },
-	Working: { icon: Clock, class: "text-amber-600" },
-	"Pending Review": { icon: AlertCircle, class: "text-purple-600" },
-	Completed: { icon: CheckCircle2, class: "text-green-600" },
-	Overdue: { icon: AlertCircle, class: "text-red-600" },
+	Open: { icon: Circle, class: "text-blue-500" },
+	Working: { icon: Clock, class: "text-amber-500" },
+	"Pending Review": { icon: AlertCircle, class: "text-purple-500" },
+	Completed: { icon: CheckCircle2, class: "text-green-500" },
+	Overdue: { icon: AlertCircle, class: "text-red-500" },
 	Cancelled: { icon: Circle, class: "text-gray-400" },
 };
 
 const priorityColorMap = {
-	Urgent: "text-red-600",
-	High: "text-orange-500",
+	Urgent: "text-red-500",
+	High: "text-orange-400",
 	Medium: "text-yellow-500",
 	Low: "text-gray-400",
 };
@@ -145,11 +140,7 @@ function togglePriority(priority) {
 
 function toggleMyTasks() {
 	myTasksActive.value = !myTasksActive.value;
-	if (myTasksActive.value) {
-		activeAssignee.value = currentUser.value;
-	} else {
-		activeAssignee.value = null;
-	}
+	activeAssignee.value = myTasksActive.value ? currentUser.value : null;
 	emitFilters();
 }
 
@@ -185,158 +176,119 @@ function emitFilters() {
 </script>
 
 <template>
-	<div class="p-4 space-y-6">
-		<!-- Header -->
-		<div class="flex items-center justify-between">
-			<div class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-				<Filter class="w-4 h-4" />
-				{{ translate("Filters") }}
-			</div>
+	<div class="px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-start gap-x-6 gap-y-3">
+
+		<!-- Quick -->
+		<div class="flex items-center gap-1.5 flex-shrink-0">
+			<span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">
+				{{ translate("Quick") }}
+			</span>
+			<button
+				@click="toggleOverdue"
+				:class="[
+					'flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors',
+					overdueActive
+						? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400'
+						: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+				]"
+			>
+				<AlertCircle class="w-3 h-3" />
+				{{ translate("Przeterminowane") }}
+			</button>
+			<button
+				@click="toggleMyTasks"
+				:class="[
+					'flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors',
+					myTasksActive
+						? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400'
+						: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+				]"
+			>
+				<User class="w-3 h-3" />
+				{{ translate("My Tasks") }}
+			</button>
+			<button
+				@click="toggleDueToday"
+				:class="[
+					'flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors',
+					dueTodayActive
+						? 'bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400'
+						: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+				]"
+			>
+				<Calendar class="w-3 h-3" />
+				{{ translate("Due Today") }}
+			</button>
+		</div>
+
+		<!-- Separator -->
+		<div class="hidden sm:block w-px self-stretch bg-gray-200 dark:bg-gray-700"></div>
+
+		<!-- Status -->
+		<div class="flex items-center gap-1.5 flex-wrap">
+			<span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">
+				Status
+			</span>
+			<button
+				v-for="status in statuses"
+				:key="status.value"
+				@click="toggleStatus(status.value)"
+				:disabled="status.disabled"
+				:class="[
+					'flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors',
+					status.disabled ? 'opacity-40 cursor-not-allowed' : '',
+					activeStatus.includes(status.value)
+						? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
+						: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+				]"
+			>
+				<component :is="status.icon" :class="['w-3 h-3', status.class]" />
+				{{ status.label }}
+			</button>
+		</div>
+
+		<!-- Separator -->
+		<div class="hidden sm:block w-px self-stretch bg-gray-200 dark:bg-gray-700"></div>
+
+		<!-- Priority -->
+		<div class="flex items-center gap-1.5 flex-wrap">
+			<span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">
+				{{ translate("Priority") }}
+			</span>
+			<button
+				v-for="priority in priorities"
+				:key="priority.value"
+				@click="togglePriority(priority.value)"
+				:class="[
+					'flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors',
+					activePriority.includes(priority.value)
+						? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
+						: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+				]"
+			>
+				<Flag :class="['w-3 h-3', priority.class]" />
+				{{ priority.label }}
+			</button>
+		</div>
+
+		<!-- Clear + Close -->
+		<div class="flex items-center gap-2 ml-auto flex-shrink-0">
 			<button
 				v-if="hasActiveFilters"
 				@click="clearFilters"
-				class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center gap-1"
+				class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
 			>
 				<X class="w-3 h-3" />
 				{{ translate("Clear") }}
 			</button>
+			<button
+				@click="$emit('close')"
+				class="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+				:title="translate('Close filters')"
+			>
+				<X class="w-3.5 h-3.5" />
+			</button>
 		</div>
 
-		<!-- Szybkie filtry -->
-		<div>
-			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-				{{ translate("Szybkie filtry") }}
-			</h3>
-			<div class="space-y-1">
-				<!-- Przeterminowane (według daty) -->
-				<button
-					@click="toggleOverdue"
-					:class="[
-						'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
-						overdueActive
-							? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
-					]"
-				>
-					<AlertCircle
-						:class="['w-4 h-4', overdueActive ? 'text-red-600 dark:text-red-400' : 'text-gray-400']"
-					/>
-					{{ translate("Przeterminowane") }}
-				</button>
-
-				<!-- My Tasks -->
-				<button
-					@click="toggleMyTasks"
-					:class="[
-						'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
-						myTasksActive ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
-					]"
-				>
-					<User :class="['w-4 h-4', myTasksActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400']" />
-					{{ translate("My Tasks") }}
-				</button>
-
-				<!-- Due Today -->
-				<button
-					@click="toggleDueToday"
-					:class="[
-						'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md text-left',
-						dueTodayActive
-							? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
-					]"
-				>
-					<Calendar
-						:class="['w-4 h-4', dueTodayActive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400']"
-					/>
-					{{ translate("Due Today") }}
-				</button>
-			</div>
-		</div>
-
-		<hr class="border-gray-200 dark:border-gray-700" />
-
-		<!-- Status filter -->
-		<div>
-			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Status</h3>
-			<div class="space-y-1">
-				<button
-					v-for="status in statuses"
-					:key="status.value"
-					@click="toggleStatus(status.value)"
-					:class="[
-						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left relative',
-						status.disabled ? 'opacity-50 cursor-not-allowed' : '',
-						activeStatus.includes(status.value)
-							? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
-					]"
-				>
-					<component :is="status.icon" :class="['w-4 h-4', status.class]" />
-					{{ status.label }}
-					<!-- Check indicator for multiselect -->
-					<span
-						v-if="activeStatus.includes(status.value) && !status.disabled"
-						class="ml-auto"
-					>
-						<svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-							<path
-								fill-rule="evenodd"
-								d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-					</span>
-				</button>
-			</div>
-		</div>
-
-		<hr class="border-gray-200 dark:border-gray-700" />
-
-		<!-- Priority filter -->
-		<div>
-			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-				Priorytet
-			</h3>
-			<div class="space-y-1">
-				<button
-					v-for="priority in priorities"
-					:key="priority.value"
-					@click="togglePriority(priority.value)"
-					:class="[
-						'w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md text-left relative',
-						activePriority.includes(priority.value)
-							? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
-					]"
-				>
-					<Flag :class="['w-4 h-4', priority.class]" />
-					{{ priority.label }}
-					<!-- Check indicator for multiselect -->
-					<span v-if="activePriority.includes(priority.value)" class="ml-auto">
-						<svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-							<path
-								fill-rule="evenodd"
-								d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-					</span>
-				</button>
-			</div>
-		</div>
-
-		<!-- Project info -->
-		<div v-if="project" class="pt-4 border-t border-gray-200 dark:border-gray-700">
-			<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-				{{ translate("Project") }}
-			</h3>
-			<div class="text-sm text-gray-700 dark:text-gray-300">
-				<p class="font-medium">{{ project.project_name }}</p>
-				<p v-if="project.percent_complete !== null" class="text-gray-500 dark:text-gray-400 mt-1">
-					{{ project.percent_complete }}% {{ translate("complete") }}
-				</p>
-			</div>
-		</div>
 	</div>
 </template>
