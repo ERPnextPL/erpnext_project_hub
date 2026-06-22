@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
+import { isMilestoneCompleted } from "../utils/milestone";
 import TaskTree from "../components/TaskTree.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
@@ -395,7 +396,7 @@ const groupedTasksByMilestone = computed(() => {
 				activeTaskCount: tasks.filter((t) => t.status !== "Cancelled").length,
 				isUnassigned: false,
 			};
-			if (milestone.status === "Completed" || milestone.health === "completed") {
+			if (isMilestoneCompleted(milestone)) {
 				completedGroups.push(group);
 			} else {
 				activeGroups.push(group);

@@ -227,7 +227,7 @@ function emitFilters() {
 		<!-- Status -->
 		<div class="flex items-center gap-1.5 flex-wrap">
 			<span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1">
-				Status
+				{{ translate("Status") }}
 			</span>
 			<button
 				v-for="status in statuses"

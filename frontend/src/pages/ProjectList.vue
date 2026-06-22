@@ -84,9 +84,9 @@ function applySearchAndSort(projects) {
 			if (sortField.value === "expected_end_date") {
 				av = av ? new Date(av).getTime() : Infinity;
 				bv = bv ? new Date(bv).getTime() : Infinity;
-			} else if (typeof av === "string") {
-				av = av?.toLowerCase() ?? "";
-				bv = bv?.toLowerCase() ?? "";
+			} else if (typeof av === "string" || typeof bv === "string" || av == null || bv == null) {
+				av = (av ?? "").toString().toLowerCase();
+				bv = (bv ?? "").toString().toLowerCase();
 			} else {
 				av = av ?? -Infinity;
 				bv = bv ?? -Infinity;

@@ -93,7 +93,7 @@ const toggleExpand = () => {
 };
 
 function openProjectInDesk() {
-	realWindow?.open(`/app/project/${props.project.name}`, "_blank");
+	realWindow?.open(`/app/project/${encodeURIComponent(props.project.name)}`, "_blank", "noopener,noreferrer");
 }
 
 async function saveDateField(field, value) {
@@ -321,8 +321,9 @@ async function saveNotes() {
 								<div class="text-xs text-gray-500">{{ translate("Customer") }}</div>
 								<a
 									v-if="project.customer"
-									:href="`/app/customer/${project.customer}`"
+									:href="`/app/customer/${encodeURIComponent(project.customer)}`"
 									target="_blank"
+									rel="noopener noreferrer"
 									class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
 									:title="project.customer_name || project.customer"
 									@click.stop

@@ -817,9 +817,10 @@ def update_project(
 
 	project_doc = frappe.get_doc("Project", project)
 
-	if not frappe.has_permission("Project", "write", doc=project_doc) and not _is_project_manager_user(
-		project_doc
-	):
+	current_user = frappe.session.user
+	has_write = frappe.has_permission("Project", "write", doc=project_doc)
+	is_assigned_manager = bool(getattr(project_doc, "project_manager", None) == current_user)
+	if not has_write and not is_assigned_manager:
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 	if expected_start_date == "":

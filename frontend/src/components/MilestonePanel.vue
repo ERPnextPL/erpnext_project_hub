@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { isMilestoneCompleted } from "../utils/milestone";
 import {
 	Diamond,
 	Plus,
@@ -37,12 +38,8 @@ const milestoneDropIndex = ref(null);
 const showContent = computed(() => props.hideHeader || !isCollapsed.value);
 
 const sortedMilestones = computed(() => {
-	const active = store.milestones.filter(
-		(m) => m.status !== "Completed" && m.health !== "completed"
-	);
-	const completed = store.milestones.filter(
-		(m) => m.status === "Completed" || m.health === "completed"
-	);
+	const active = store.milestones.filter((m) => !isMilestoneCompleted(m));
+	const completed = store.milestones.filter(isMilestoneCompleted);
 	return [...active, ...completed];
 });
 
