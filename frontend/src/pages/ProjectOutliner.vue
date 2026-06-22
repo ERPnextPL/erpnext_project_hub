@@ -19,6 +19,7 @@ import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
+import UserSelect from "../components/UserSelect.vue";
 import {
 	ArrowLeft,
 	Filter,
@@ -47,7 +48,7 @@ const props = defineProps({
 const router = useRouter();
 const route = useRoute();
 const store = useTaskStore();
-const { selectedTask } = storeToRefs(store);
+const { selectedTask, availableUsers } = storeToRefs(store);
 
 const activeView = ref("list");
 const listMode = ref("milestone");
@@ -67,6 +68,7 @@ const fabSubject = ref("");
 const fabPriority = ref("Medium");
 const fabMilestone = ref("");
 const fabExpEndDate = ref("");
+const fabAssign = ref([]);
 const fabCreating = ref(false);
 const fabError = ref("");
 
@@ -75,7 +77,9 @@ function openFab() {
 	fabPriority.value = "Medium";
 	fabMilestone.value = "";
 	fabExpEndDate.value = "";
+	fabAssign.value = [];
 	fabError.value = "";
+	if (store.availableUsers.length === 0) store.fetchUsers();
 	fabOpen.value = true;
 }
 
@@ -100,6 +104,7 @@ async function submitFab() {
 			priority: fabPriority.value || "Medium",
 			milestone: fabMilestone.value || null,
 			exp_end_date: fabExpEndDate.value || null,
+			assign: fabAssign.value[0] || null,
 		});
 		closeFab();
 	} catch {
@@ -922,16 +927,30 @@ const groupedTasksByMilestone = computed(() => {
 							</div>
 						</div>
 
-						<!-- Due date -->
-						<div>
-							<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-								{{ translate("Due date") }}
-							</label>
-							<input
-								v-model="fabExpEndDate"
-								type="date"
-								class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-							/>
+						<!-- Assignee + Due date row -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Assignee") }}
+								</label>
+								<UserSelect
+									v-model="fabAssign"
+									:multiple="false"
+									:placeholder="translate('Assign user...')"
+									@add="(u) => (fabAssign = [u])"
+									@remove="() => (fabAssign = [])"
+								/>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Due date") }}
+								</label>
+								<input
+									v-model="fabExpEndDate"
+									type="date"
+									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+								/>
+							</div>
 						</div>
 
 						<!-- Error -->

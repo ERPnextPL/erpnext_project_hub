@@ -905,6 +905,7 @@ def create_task(
 	status: str = "Open",
 	exp_end_date: str | None = None,
 	milestone: str | None = None,
+	assign: str | None = None,
 ):
 	"""Create a new task."""
 	if not subject or not project:
@@ -951,9 +952,15 @@ def create_task(
 	)
 	task.insert()
 
+	if assign:
+		from frappe.desk.form.assign_to import add as add_assignment
+
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [assign]})
+
 	return {
 		"name": task.name,
 		"subject": task.subject,
+		"project": task.project,
 		"status": task.status,
 		"priority": task.priority,
 		"parent_task": task.parent_task,
@@ -962,6 +969,7 @@ def create_task(
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
 		"milestone": task.get("milestone"),
+		"_assign": frappe.as_json([assign]) if assign else task.get("_assign"),
 		"idx": task.idx,
 	}
 
