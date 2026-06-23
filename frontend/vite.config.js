@@ -6,37 +6,18 @@ import { defineConfig } from "vite";
 
 // Resolve projekt_hub_pro frontend path (if the PRO app is installed)
 const proFrontendPath = path.resolve(__dirname, "../../projekt_hub_pro/projekt_hub_pro/public/frontend/src");
-const sitesPath = path.resolve(__dirname, "../../../sites");
 
 /**
  * Determine whether projekt_hub_pro should be included in the build.
  *
- * The PRO source tree can exist on disk without being installed for a given
- * site. We only enable PRO tabs when the active site's site_config.json
- * explicitly marks the app as enabled.
+ * Checks only if the PRO source tree is present on disk. This works correctly
+ * on both self-hosted benches and Frappe Press/Cloud: when projekt_hub_pro is
+ * added to a release and deployed, Press runs bench build after placing all app
+ * files on disk — at that point the PRO source is present and the build
+ * includes PRO tabs automatically, without needing a site_config flag.
  */
 function detectProApp() {
-	try {
-		const explicitSite = process.env.FRAPPE_SITE || process.env.SITE_NAME;
-		
-		// Only load common_site_config.json when no explicit site is set
-		let siteName = explicitSite;
-		if (!siteName) {
-			const commonSiteConfig = JSON.parse(
-				fs.readFileSync(path.resolve(sitesPath, "common_site_config.json"), "utf8")
-			);
-			siteName = commonSiteConfig.default_site;
-		}
-		
-		if (!siteName || !fs.existsSync(proFrontendPath)) return false;
-
-		const siteConfig = JSON.parse(
-			fs.readFileSync(path.resolve(sitesPath, siteName, "site_config.json"), "utf8")
-		);
-		return siteConfig.projekt_hub_pro_enabled === 1 || siteConfig.projekt_hub_pro_enabled === true;
-	} catch {
-		return false;
-	}
+	return fs.existsSync(proFrontendPath);
 }
 
 const proAppExists = detectProApp();

@@ -48,7 +48,7 @@ const props = defineProps({
 const router = useRouter();
 const route = useRoute();
 const store = useTaskStore();
-const { selectedTask, availableUsers } = storeToRefs(store);
+const { selectedTask } = storeToRefs(store);
 
 const activeView = ref("list");
 const listMode = ref("milestone");
@@ -79,7 +79,6 @@ function openFab() {
 	fabExpEndDate.value = "";
 	fabAssign.value = [];
 	fabError.value = "";
-	if (store.availableUsers.length === 0) store.fetchUsers();
 	fabOpen.value = true;
 }
 
