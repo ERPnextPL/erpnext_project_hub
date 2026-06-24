@@ -76,6 +76,11 @@ export default defineConfig({
 						"projekt-hub-pro": proFrontendPath,
 						// Allow PRO app to import from base app's tabRegistry
 						"@erpnext-projekt-hub": path.resolve(__dirname, "src"),
+						// PRO source lives outside this app's node_modules tree, so bare
+						// specifiers it imports must be pinned to our copies explicitly.
+						"lucide-vue-next": path.resolve(__dirname, "node_modules/lucide-vue-next"),
+						"vue-router": path.resolve(__dirname, "node_modules/vue-router"),
+						"pinia": path.resolve(__dirname, "node_modules/pinia"),
 					}
 				: {}),
 		},
