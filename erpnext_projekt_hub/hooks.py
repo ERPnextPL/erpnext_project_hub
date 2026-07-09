@@ -19,6 +19,7 @@ add_to_apps_screen = [
 		"logo": "/assets/erpnext_projekt_hub/frontend/favicon.svg",
 		"title": "Projekt HUB",
 		"route": "/project-hub",
+		"has_permission": "erpnext_projekt_hub.access.has_project_hub_access",
 	}
 ]
 
