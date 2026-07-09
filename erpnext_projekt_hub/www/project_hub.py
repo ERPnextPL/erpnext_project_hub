@@ -1,5 +1,5 @@
 """
-Project Outliner page controller.
+Project Hub page controller.
 """
 
 import frappe
@@ -12,9 +12,9 @@ no_cache = 1
 
 
 def get_context(context):
-	"""Set up context for the outliner page."""
+	"""Set up context for the project hub page."""
 	if frappe.session.user == "Guest":
-		frappe.throw(_("Please login to access Project Outliner"), frappe.PermissionError)
+		frappe.throw(_("Please login to access Projekt HUB"), frappe.PermissionError)
 
 	if not has_project_hub_access():
 		frappe.throw(_("You do not have permission to access Projekt HUB"), frappe.PermissionError)
