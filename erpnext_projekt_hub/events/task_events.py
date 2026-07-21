@@ -82,19 +82,19 @@ def update_milestone_progress(milestone_name):
 
 	progress = int(completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
 
-	# Determine new status
+	# Determine new status based on progress
 	milestone = frappe.get_doc("Project Milestone", milestone_name)
-	old_status = milestone.status
 
-	if milestone.status not in ["Completed", "Cancelled"]:
-		if progress == 100 and total_tasks > 0:
-			new_status = "Completed"
-		elif progress > 0:
-			new_status = "In Progress"
-		else:
-			new_status = "Open"
+	if progress == 100 and total_tasks > 0:
+		new_status = "Completed"
+	elif progress > 0:
+		new_status = "In Progress"
 	else:
-		new_status = old_status
+		new_status = "Open"
+
+	# Preserve Cancelled status
+	if milestone.status == "Cancelled":
+		new_status = "Cancelled"
 
 	# Update milestone
 	frappe.db.set_value(
