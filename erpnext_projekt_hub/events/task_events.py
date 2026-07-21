@@ -153,8 +153,8 @@ def _update_dependent_tasks(task_name):
 			dependent_task = frappe.get_doc("Task", row.parent)
 			sync_progress_from_dependencies(dependent_task, None)
 			dependent_task.save(ignore_permissions=True)
-		except (frappe.DoesNotExistError, Exception) as e:
+		except frappe.DoesNotExistError:
 			frappe.log_error(
-				f"Error updating dependent task {row.parent}: {e!s}",
+				f"Dependent task {row.parent} not found",
 				"Dependent Task Update",
 			)
