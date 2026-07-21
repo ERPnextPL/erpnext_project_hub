@@ -1224,13 +1224,14 @@ def bulk_update_tasks(tasks: list):
 
 @frappe.whitelist()
 def get_users():
-	"""Get list of users that can be assigned to tasks."""
+	"""Get list of users with the Projects User role that can be assigned to tasks."""
 	users = frappe.get_all(
 		"User",
-		filters={
-			"enabled": 1,
-			"user_type": "System User",
-		},
+		filters=[
+			["User", "enabled", "=", 1],
+			["User", "user_type", "=", "System User"],
+			["Has Role", "role", "=", "Projects User"],
+		],
 		fields=["name", "full_name", "user_image"],
 		order_by="full_name",
 	)
@@ -1251,6 +1252,9 @@ def assign_task(
 	from frappe.desk.form.assign_to import remove as remove_assignment
 
 	if action == "add" and user:
+		if not frappe.db.exists("Has Role", {"parent": user, "role": "Projects User"}):
+			frappe.throw(_("Only users with the Projects User role can be assigned to tasks"))
+
 		add_assignment(
 			{
 				"doctype": "Task",

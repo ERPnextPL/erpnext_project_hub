@@ -20,6 +20,43 @@ def on_task_update(doc, method):
 			update_milestone_progress(old_milestone.milestone)
 
 
+def sync_progress_from_dependencies(doc, method):
+	"""
+	Recalculate progress and auto-complete status from the 'Depends On' table.
+	"""
+	if not doc.depends_on:
+		return
+
+	total = len(doc.depends_on)
+	completed = 0
+	cancelled = 0
+
+	for row in doc.depends_on:
+		if row.task:
+			try:
+				task = frappe.get_doc("Task", row.task)
+				if task.status == "Completed":
+					completed += 1
+				elif task.status == "Cancelled":
+					cancelled += 1
+			except frappe.DoesNotExistError:
+				frappe.log_error(f"Task {row.task} not found", "Subtask Progress Update")
+
+	# Odliczamy anulowane od całkowitej liczby
+	effective_total = total - cancelled
+
+	if effective_total > 0:
+		percent = int((completed / effective_total) * 100)
+	else:
+		percent = 0  # jeśli wszystkie anulowane, postęp = 0
+
+	doc.progress = percent
+
+	# Automatyczna zmiana statusu głównego zadania
+	if percent == 100 and doc.status != "Completed":
+		doc.status = "Completed"
+
+
 def on_task_trash(doc, method):
 	"""
 	Update milestone progress when a task is deleted.
