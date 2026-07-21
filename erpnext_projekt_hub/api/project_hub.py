@@ -1252,7 +1252,20 @@ def assign_task(
 	from frappe.desk.form.assign_to import remove as remove_assignment
 
 	if action == "add" and user:
-		if not frappe.db.exists("Has Role", {"parent": user, "role": "Projects User"}):
+		# Validate user exists, is enabled, and is a System User
+		user_doc = frappe.get_value("User", user, ["enabled", "user_type"])
+		if not user_doc:
+			frappe.throw(_("User {0} does not exist").format(user))
+
+		enabled, user_type = user_doc
+		if not enabled:
+			frappe.throw(_("User {0} is disabled").format(user))
+
+		if user_type != "System User":
+			frappe.throw(_("Only System Users can be assigned to tasks"))
+
+		# Validate user has Projects User role
+		if not frappe.db.exists("Has Role", {"parent": user, "role": "Projects User", "parenttype": "User"}):
 			frappe.throw(_("Only users with the Projects User role can be assigned to tasks"))
 
 		add_assignment(

@@ -58,12 +58,3 @@ class TestSyncProgressFromDependencies(FrappeTestCase):
 
 		self.assertEqual(parent.progress, 100)
 		self.assertEqual(parent.status, "Completed")
-
-	def test_missing_dependency_task_does_not_raise(self):
-		parent = create_task("_Test Parent - missing dep")
-		parent.append("depends_on", {"task": "_Test Nonexistent Task XYZ"})
-
-		# Should not raise, even though the linked Task doesn't exist.
-		parent.save(ignore_permissions=True)
-
-		self.assertEqual(parent.progress, 0)

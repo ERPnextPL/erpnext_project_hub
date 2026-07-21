@@ -8,6 +8,7 @@ def on_task_update(doc, method):
 	"""
 	Update milestone progress when a task is updated.
 	Triggered when Task status, milestone assignment changes.
+	Propagates dependency status changes to dependent tasks.
 	"""
 	# Update current milestone if assigned
 	if doc.milestone:
@@ -18,6 +19,10 @@ def on_task_update(doc, method):
 		old_milestone = doc.get_doc_before_save()
 		if old_milestone and old_milestone.milestone:
 			update_milestone_progress(old_milestone.milestone)
+
+	# Propagate status change to tasks that depend on this task
+	if doc.has_value_changed("status"):
+		_update_dependent_tasks(doc.name)
 
 
 def sync_progress_from_dependencies(doc, method):
@@ -30,20 +35,32 @@ def sync_progress_from_dependencies(doc, method):
 	total = len(doc.depends_on)
 	completed = 0
 	cancelled = 0
+	unresolved = 0
 
+	# Collect all dependency task names
+	dependency_names = [row.task for row in doc.depends_on if row.task]
+	if not dependency_names:
+		return
+
+	# Fetch all dependencies in a single query
+	tasks = frappe.get_all("Task", filters={"name": ["in", dependency_names]}, fields=["name", "status"])
+	resolved_tasks = {task["name"]: task["status"] for task in tasks}
+
+	# Count statuses
 	for row in doc.depends_on:
 		if row.task:
-			try:
-				task = frappe.get_doc("Task", row.task)
-				if task.status == "Completed":
+			if row.task in resolved_tasks:
+				status = resolved_tasks[row.task]
+				if status == "Completed":
 					completed += 1
-				elif task.status == "Cancelled":
+				elif status == "Cancelled":
 					cancelled += 1
-			except frappe.DoesNotExistError:
+			else:
+				unresolved += 1
 				frappe.log_error(f"Task {row.task} not found", "Subtask Progress Update")
 
-	# Odliczamy anulowane od całkowitej liczby
-	effective_total = total - cancelled
+	# Exclude cancelled and unresolved (deleted) dependencies from total
+	effective_total = total - cancelled - unresolved
 
 	if effective_total > 0:
 		percent = int((completed / effective_total) * 100)
@@ -52,9 +69,18 @@ def sync_progress_from_dependencies(doc, method):
 
 	doc.progress = percent
 
-	# Automatyczna zmiana statusu głównego zadania
-	if percent == 100 and doc.status != "Completed":
-		doc.status = "Completed"
+	# Auto-update status based on progress, keeping progress and status consistent
+	if percent == 100:
+		if doc.status != "Completed":
+			doc.status = "Completed"
+	elif percent > 0:
+		# Progress started but not complete → In Progress (even if manually set to Completed)
+		if doc.status not in ["In Progress", "Cancelled"]:
+			doc.status = "In Progress"
+	else:
+		# No progress → Open (even if manually set to Completed)
+		if doc.status not in ["Open", "Cancelled"]:
+			doc.status = "Open"
 
 
 def on_task_trash(doc, method):
@@ -108,3 +134,27 @@ def update_milestone_progress(milestone_name):
 		},
 		update_modified=True,
 	)
+
+
+def _update_dependent_tasks(task_name):
+	"""
+	Find all tasks that depend on the given task and recalculate their progress.
+	This ensures that when a prerequisite task changes status, all dependent tasks
+	are automatically updated.
+	"""
+	dependent_tasks = frappe.get_all(
+		"Task Depends On",
+		filters={"task": task_name},
+		fields=["parent"],
+	)
+
+	for row in dependent_tasks:
+		try:
+			dependent_task = frappe.get_doc("Task", row.parent)
+			sync_progress_from_dependencies(dependent_task, None)
+			dependent_task.save(ignore_permissions=True)
+		except (frappe.DoesNotExistError, Exception) as e:
+			frappe.log_error(
+				f"Error updating dependent task {row.parent}: {e!s}",
+				"Dependent Task Update",
+			)
