@@ -74,9 +74,9 @@ def sync_progress_from_dependencies(doc, method):
 		if doc.status != "Completed":
 			doc.status = "Completed"
 	elif percent > 0:
-		# Progress started but not complete → In Progress (even if manually set to Completed)
-		if doc.status not in ["In Progress", "Cancelled"]:
-			doc.status = "In Progress"
+		# Progress started but not complete → Working (even if manually set to Completed)
+		if doc.status not in ["Working", "Cancelled"]:
+			doc.status = "Working"
 	else:
 		# No progress → Open (even if manually set to Completed)
 		if doc.status not in ["Open", "Cancelled"]:
