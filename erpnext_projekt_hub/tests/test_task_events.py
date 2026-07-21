@@ -58,3 +58,19 @@ class TestSyncProgressFromDependencies(FrappeTestCase):
 
 		self.assertEqual(parent.progress, 100)
 		self.assertEqual(parent.status, "Completed")
+
+	def test_completing_prerequisite_cascades_to_dependent_task(self):
+		prerequisite = create_task("_Test Prerequisite - cascade", status="Open")
+		dependent = create_task("_Test Dependent - cascade")
+		dependent.append("depends_on", {"task": prerequisite.name})
+		dependent.save(ignore_permissions=True)
+
+		self.assertEqual(dependent.progress, 0)
+		self.assertEqual(dependent.status, "Open")
+
+		prerequisite.status = "Completed"
+		prerequisite.save(ignore_permissions=True)
+
+		dependent.reload()
+		self.assertEqual(dependent.progress, 100)
+		self.assertEqual(dependent.status, "Completed")
