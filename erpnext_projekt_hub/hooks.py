@@ -264,6 +264,16 @@ before_tests = "erpnext_projekt_hub.install.before_tests"
 # --------
 fixtures = [
 	{
+		"dt": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				["Task-milestone"],
+			]
+		],
+	},
+	{
 		"dt": "Workspace Link",
 		"filters": [["parent", "=", "Projects"], ["label", "=", "Project Milestone"]],
 	},
