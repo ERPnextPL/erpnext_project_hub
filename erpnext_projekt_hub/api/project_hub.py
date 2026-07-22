@@ -1396,6 +1396,8 @@ def get_task_timelogs(task_name: str):
 		SELECT
 			ts.name as timesheet_name,
 			ts.owner,
+			ts.employee,
+			ts.employee_name,
 			ts.status,
 			tsd.name as timelog_name,
 			tsd.activity_type,
@@ -1416,11 +1418,15 @@ def get_task_timelogs(task_name: str):
 		as_dict=1,
 	)
 
-	# Get user details for each log
+	# Show the employee assigned on the timesheet, not whoever created it
 	for log in timelogs:
-		user = frappe.get_cached_doc("User", log.owner)
-		log["user_full_name"] = user.full_name
-		log["user_image"] = user.user_image
+		if log.employee:
+			log["user_full_name"] = log.employee_name
+			log["user_image"] = frappe.get_cached_value("Employee", log.employee, "image")
+		else:
+			user = frappe.get_cached_doc("User", log.owner)
+			log["user_full_name"] = user.full_name
+			log["user_image"] = user.user_image
 
 	# Calculate total hours
 	total_hours = sum(log.get("hours", 0) for log in timelogs)
