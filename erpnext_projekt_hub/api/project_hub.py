@@ -1821,14 +1821,18 @@ def get_activity_types():
 
 @frappe.whitelist()
 def get_quick_time_log_descriptions():
-	"""Get list of predefined quick descriptions for time logs."""
-	descriptions = frappe.get_all(
+	"""Get list of predefined quick descriptions for time logs.
+
+	Each entry carries its optional activity_type so the frontend can show a
+	different set of chips per selected Activity Type; entries with no
+	activity_type are shown regardless of the selected type.
+	"""
+	return frappe.get_all(
 		"Quick Time Log Description",
 		filters={"disabled": 0},
-		fields=["description"],
+		fields=["description", "activity_type"],
 		order_by="sort_order asc, description asc",
 	)
-	return [d.description for d in descriptions]
 
 
 @frappe.whitelist()

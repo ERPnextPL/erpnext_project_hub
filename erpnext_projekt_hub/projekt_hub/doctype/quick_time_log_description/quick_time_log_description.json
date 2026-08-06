@@ -2,13 +2,14 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "field:description",
+ "autoname": "QTD-.#####",
  "creation": "2026-08-06 00:00:00.000000",
  "doctype": "DocType",
  "document_type": "Setup",
  "engine": "InnoDB",
  "field_order": [
   "description",
+  "activity_type",
   "sort_order",
   "disabled"
  ],
@@ -20,6 +21,15 @@
    "label": "Description",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "description": "Leave empty to show this description for every activity type.",
+   "fieldname": "activity_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Activity Type",
+   "options": "Activity Type"
   },
   {
    "default": "0",

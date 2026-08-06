@@ -102,6 +102,9 @@ onMounted(() => {
 	if (store.quickDescriptions.length === 0) {
 		store.fetchQuickDescriptions();
 	}
+	if (!store.projectsSettings) {
+		store.fetchProjectsSettings();
+	}
 	// Add escape key listener
 	document.addEventListener("keydown", handleEscapeKey);
 });
@@ -120,7 +123,14 @@ function handleEscapeKey(event) {
 
 // Activity types from store
 const activityTypes = computed(() => store.activityTypes);
+// Each entry: { description, activity_type }. Entries with no activity_type
+// are shown regardless of the currently selected Activity Type.
 const quickDescriptions = computed(() => store.quickDescriptions);
+const filteredQuickDescriptions = computed(() =>
+	quickDescriptions.value
+		.filter((d) => !d.activity_type || d.activity_type === formData.value.activity_type)
+		.map((d) => d.description)
+);
 
 function applyQuickDescription(description) {
 	formData.value.description = description;
@@ -181,6 +191,16 @@ watch(activityTypes, (newTypes) => {
 		applyDefaultActivityType(newTypes);
 	}
 });
+
+// Watch for projects settings to re-apply default activity_type once loaded
+watch(
+	() => store.projectsSettings,
+	() => {
+		if (props.show && activityTypes.value.length > 0) {
+			applyDefaultActivityType(activityTypes.value);
+		}
+	}
+);
 
 function resetForm() {
 	formData.value = {
@@ -246,7 +266,9 @@ function handleSave() {
 	}
 
 	const trimmedDescription = formData.value.description.trim();
-	const isPredefinedDescription = quickDescriptions.value.includes(trimmedDescription);
+	const isPredefinedDescription = quickDescriptions.value.some(
+		(d) => d.description === trimmedDescription
+	);
 	if (!isPredefinedDescription && trimmedDescription.length < 5) {
 		showAlert("Description must have at least 5 characters");
 		return;
@@ -418,9 +440,9 @@ function handleClose() {
 									{{ translate("Description") }}
 									<span class="text-red-500">*</span>
 								</label>
-								<div v-if="quickDescriptions.length" class="flex flex-wrap gap-2 mb-2">
+								<div v-if="filteredQuickDescriptions.length" class="flex flex-wrap gap-2 mb-2">
 									<button
-										v-for="quickDescription in quickDescriptions"
+										v-for="quickDescription in filteredQuickDescriptions"
 										:key="quickDescription"
 										type="button"
 										@click="applyQuickDescription(quickDescription)"
