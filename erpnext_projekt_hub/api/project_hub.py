@@ -1820,6 +1820,18 @@ def get_activity_types():
 
 
 @frappe.whitelist()
+def get_quick_time_log_descriptions():
+	"""Get list of predefined quick descriptions for time logs."""
+	descriptions = frappe.get_all(
+		"Quick Time Log Description",
+		filters={"disabled": 0},
+		fields=["description"],
+		order_by="sort_order asc, description asc",
+	)
+	return [d.description for d in descriptions]
+
+
+@frappe.whitelist()
 def get_task_statuses():
 	"""Get list of task statuses from ERPNext."""
 	# Get status options from Task doctype meta

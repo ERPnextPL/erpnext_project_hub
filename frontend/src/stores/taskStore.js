@@ -499,6 +499,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	// Time log functions
 	const taskTimelogs = ref({});
 	const activityTypes = ref([]);
+	const quickDescriptions = ref([]);
 	const pendingTimelogKeys = ref(new Set());
 	const taskStatuses = ref([]);
 	const taskPriorities = ref([]);
@@ -530,6 +531,21 @@ async function reorderTask(taskName, newParent, newIdx) {
 				"Training",
 			];
 			return activityTypes.value;
+		}
+	}
+
+	async function fetchQuickDescriptions() {
+		try {
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.get_quick_time_log_descriptions",
+				{}
+			);
+			quickDescriptions.value = data || [];
+			return data;
+		} catch (error) {
+			console.error("Failed to fetch quick time log descriptions:", error);
+			quickDescriptions.value = [];
+			return quickDescriptions.value;
 		}
 	}
 
@@ -847,6 +863,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		allProjects,
 		taskTimelogs,
 		activityTypes,
+		quickDescriptions,
 		pendingTimelogKeys,
 		taskStatuses,
 		taskPriorities,
@@ -887,6 +904,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchProjectsSettings,
 		// Metadata
 		fetchActivityTypes,
+		fetchQuickDescriptions,
 		fetchTaskStatuses,
 		fetchTaskPriorities,
 		// Time logs

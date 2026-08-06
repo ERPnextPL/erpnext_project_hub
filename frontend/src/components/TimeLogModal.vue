@@ -99,6 +99,9 @@ onMounted(() => {
 	if (store.activityTypes.length === 0) {
 		store.fetchActivityTypes();
 	}
+	if (store.quickDescriptions.length === 0) {
+		store.fetchQuickDescriptions();
+	}
 	// Add escape key listener
 	document.addEventListener("keydown", handleEscapeKey);
 });
@@ -117,6 +120,11 @@ function handleEscapeKey(event) {
 
 // Activity types from store
 const activityTypes = computed(() => store.activityTypes);
+const quickDescriptions = computed(() => store.quickDescriptions);
+
+function applyQuickDescription(description) {
+	formData.value.description = description;
+}
 
 function resolveDefaultHours() {
 	const candidate = typeof props.defaultHours === "number" ? props.defaultHours : parseFloat(props.defaultHours);
@@ -237,8 +245,10 @@ function handleSave() {
 		return;
 	}
 
-	if (formData.value.description.trim().length < 10) {
-		showAlert("Description must have at least 10 characters");
+	const trimmedDescription = formData.value.description.trim();
+	const isPredefinedDescription = quickDescriptions.value.includes(trimmedDescription);
+	if (!isPredefinedDescription && trimmedDescription.length < 5) {
+		showAlert("Description must have at least 5 characters");
 		return;
 	}
 
@@ -408,12 +418,28 @@ function handleClose() {
 									{{ translate("Description") }}
 									<span class="text-red-500">*</span>
 								</label>
+								<div v-if="quickDescriptions.length" class="flex flex-wrap gap-2 mb-2">
+									<button
+										v-for="quickDescription in quickDescriptions"
+										:key="quickDescription"
+										type="button"
+										@click="applyQuickDescription(quickDescription)"
+										:class="[
+											'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+											formData.description === quickDescription
+												? 'bg-blue-600 text-white border-blue-600'
+												: 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100',
+										]"
+									>
+										{{ quickDescription }}
+									</button>
+								</div>
 								<textarea
 									v-model="formData.description"
 									required
 									rows="3"
 									:placeholder="
-										translate('Work description (minimum 10 characters)...')
+										translate('Work description (minimum 5 characters)...')
 									"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								></textarea>
