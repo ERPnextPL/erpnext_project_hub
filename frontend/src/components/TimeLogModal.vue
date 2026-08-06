@@ -87,11 +87,21 @@ const getPreferredActivityType = (availableTypes = []) => {
 	return availableTypes[0];
 };
 
+// Tracks the last value we set automatically, so a later re-apply (e.g. once
+// projectsSettings finishes loading) can tell an untouched auto-default apart
+// from a value the user picked manually, and avoid clobbering the latter.
+const lastAutoActivityType = ref("");
+
 const applyDefaultActivityType = (availableTypes) => {
 	const defaultType = getPreferredActivityType(availableTypes);
-	if (defaultType) {
+	if (!defaultType) {
+		return;
+	}
+	const current = formData.value.activity_type;
+	if (!current || current === lastAutoActivityType.value) {
 		formData.value.activity_type = defaultType;
 	}
+	lastAutoActivityType.value = defaultType;
 };
 
 // Load activity types on mount
@@ -211,6 +221,7 @@ function resetForm() {
 		to_time: "",
 		is_billable: false,
 	};
+	lastAutoActivityType.value = "";
 }
 
 function calculateToTime() {
