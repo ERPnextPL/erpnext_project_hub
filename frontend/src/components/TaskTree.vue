@@ -49,11 +49,11 @@ const activeContextMenuTaskName = ref(null);
 const COLUMNS_STORAGE_KEY = 'project-hub-visible-columns';
 
 const COLUMN_WIDTHS = {
-	task: "minmax(0, 300px)",
-	status: "minmax(0, 1fr)",
+	task: "minmax(0, 2.5fr)",
+	status: "minmax(0, 0.6fr)",
 	assignee: "minmax(0, 1fr)",
 	due_date: "minmax(0, 1fr)",
-	expected_time: "minmax(0, 0.9fr)",
+	expected_time: "minmax(0, 0.5fr)",
 	priority: "minmax(0, 0.7fr)",
 	actions: "2.75rem",
 };

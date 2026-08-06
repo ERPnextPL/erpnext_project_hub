@@ -92,7 +92,7 @@ def get_projects():
 	- Projects Manager / System Manager: sees all projects (except Cancelled)
 	- Projects User: sees only projects where they have tasks assigned or are project members
 
-	Returns projects grouped by status (active vs completed).
+	Returns projects grouped by status (active vs on hold vs completed).
 	"""
 	user = frappe.session.user
 	user_roles = frappe.get_roles(user)
@@ -158,7 +158,7 @@ def get_projects():
 		all_user_projects = list(set(project_names_from_tasks + project_names_from_membership))
 
 		if not all_user_projects:
-			return {"active": [], "completed": [], "is_manager": False}
+			return {"active": [], "on_hold": [], "completed": [], "is_manager": False}
 
 		# Get project details
 		projects = frappe.get_all(
@@ -275,11 +275,35 @@ def get_projects():
 			project["next_milestone_date"] = None
 			project["days_to_milestone"] = None
 
-	# Separate active and completed projects
-	active_projects = [p for p in projects if p["status"] != "Completed"]
+	# Separate active, on hold and completed projects
+	active_projects = [p for p in projects if p["status"] not in ("On hold", "Completed")]
+	on_hold_projects = [p for p in projects if p["status"] == "On hold"]
 	completed_projects = [p for p in projects if p["status"] == "Completed"]
 
-	return {"active": active_projects, "completed": completed_projects, "is_manager": is_manager}
+	return {
+		"active": active_projects,
+		"on_hold": on_hold_projects,
+		"completed": completed_projects,
+		"is_manager": is_manager,
+	}
+
+
+def _get_customer_contact(contact_name: str | None) -> dict:
+	"""Return contact details (name/email/phone) for the given Contact, if any."""
+	if not contact_name:
+		return {}
+
+	contact = frappe.db.get_value(
+		"Contact", contact_name, ["full_name", "email_id", "phone", "mobile_no"], as_dict=True
+	)
+	if not contact:
+		return {}
+
+	return {
+		"customer_contact_name": contact.get("full_name"),
+		"customer_contact_email": contact.get("email_id"),
+		"customer_contact_phone": contact.get("phone") or contact.get("mobile_no"),
+	}
 
 
 def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
@@ -636,16 +660,23 @@ def get_project_tasks(
 		as_dict=1,
 	)
 
-	# Get customer name and logo if customer is set
+	# Get customer name, logo and primary contact if customer is set
 	customer_name = None
 	customer_image = None
+	customer_primary_contact = None
 	if project_doc.customer:
 		cdata = frappe.db.get_value(
-			"Customer", project_doc.customer, ["customer_name", "image"], as_dict=True
+			"Customer",
+			project_doc.customer,
+			["customer_name", "image", "customer_primary_contact"],
+			as_dict=True,
 		)
 		if cdata:
 			customer_name = cdata.get("customer_name")
 			customer_image = cdata.get("image")
+			customer_primary_contact = cdata.get("customer_primary_contact")
+
+	customer_contact = _get_customer_contact(customer_primary_contact)
 
 	task_counts = frappe.db.sql(
 		"""
@@ -672,6 +703,7 @@ def get_project_tasks(
 			"customer": project_doc.customer,
 			"customer_name": customer_name,
 			"customer_image": customer_image,
+			**customer_contact,
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -869,13 +901,20 @@ def update_project(
 
 	customer_name = None
 	customer_image = None
+	customer_primary_contact = None
 	if project_doc.customer:
 		cdata = frappe.db.get_value(
-			"Customer", project_doc.customer, ["customer_name", "image"], as_dict=True
+			"Customer",
+			project_doc.customer,
+			["customer_name", "image", "customer_primary_contact"],
+			as_dict=True,
 		)
 		if cdata:
 			customer_name = cdata.get("customer_name")
 			customer_image = cdata.get("image")
+			customer_primary_contact = cdata.get("customer_primary_contact")
+
+	customer_contact = _get_customer_contact(customer_primary_contact)
 
 	return {
 		"name": project_doc.name,
@@ -889,6 +928,7 @@ def update_project(
 		"customer": project_doc.customer,
 		"customer_name": customer_name,
 		"customer_image": customer_image,
+		**customer_contact,
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,

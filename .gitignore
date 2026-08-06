@@ -9,3 +9,4 @@ __pycache__
 *.timestamp-*.mjs
 .pro-enabled
 erpnext_projekt_hub/public/frontend/
+frappe-semgrep-rules/
