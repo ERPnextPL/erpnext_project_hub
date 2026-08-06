@@ -336,11 +336,17 @@ async function saveNotes() {
 								</div>
 							</div>
 						</div>
-						<div v-if="project.customer_contact_name" class="flex items-start gap-2">
+						<div
+							v-if="project.customer_contact_name || project.customer_contact_email || project.customer_contact_phone"
+							class="flex items-start gap-2"
+						>
 							<Contact2 class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
 								<div class="text-xs text-gray-500">{{ translate("Client Contact") }}</div>
-								<div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+								<div
+									v-if="project.customer_contact_name"
+									class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+								>
 									{{ project.customer_contact_name }}
 								</div>
 								<a

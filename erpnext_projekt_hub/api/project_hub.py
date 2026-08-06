@@ -288,12 +288,8 @@ def get_projects():
 	}
 
 
-def _get_customer_contact(customer: str | None) -> dict:
-	"""Return the customer's primary contact (name/email/phone), if any."""
-	if not customer:
-		return {}
-
-	contact_name = frappe.db.get_value("Customer", customer, "customer_primary_contact")
+def _get_customer_contact(contact_name: str | None) -> dict:
+	"""Return contact details (name/email/phone) for the given Contact, if any."""
 	if not contact_name:
 		return {}
 
@@ -664,18 +660,23 @@ def get_project_tasks(
 		as_dict=1,
 	)
 
-	# Get customer name and logo if customer is set
+	# Get customer name, logo and primary contact if customer is set
 	customer_name = None
 	customer_image = None
+	customer_primary_contact = None
 	if project_doc.customer:
 		cdata = frappe.db.get_value(
-			"Customer", project_doc.customer, ["customer_name", "image"], as_dict=True
+			"Customer",
+			project_doc.customer,
+			["customer_name", "image", "customer_primary_contact"],
+			as_dict=True,
 		)
 		if cdata:
 			customer_name = cdata.get("customer_name")
 			customer_image = cdata.get("image")
+			customer_primary_contact = cdata.get("customer_primary_contact")
 
-	customer_contact = _get_customer_contact(project_doc.customer)
+	customer_contact = _get_customer_contact(customer_primary_contact)
 
 	task_counts = frappe.db.sql(
 		"""
@@ -900,15 +901,20 @@ def update_project(
 
 	customer_name = None
 	customer_image = None
+	customer_primary_contact = None
 	if project_doc.customer:
 		cdata = frappe.db.get_value(
-			"Customer", project_doc.customer, ["customer_name", "image"], as_dict=True
+			"Customer",
+			project_doc.customer,
+			["customer_name", "image", "customer_primary_contact"],
+			as_dict=True,
 		)
 		if cdata:
 			customer_name = cdata.get("customer_name")
 			customer_image = cdata.get("image")
+			customer_primary_contact = cdata.get("customer_primary_contact")
 
-	customer_contact = _get_customer_contact(project_doc.customer)
+	customer_contact = _get_customer_contact(customer_primary_contact)
 
 	return {
 		"name": project_doc.name,
