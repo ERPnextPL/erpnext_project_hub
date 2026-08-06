@@ -8,6 +8,7 @@ import {
 	Users,
 	CheckCircle2,
 	Archive,
+	PauseCircle,
 	ChevronDown,
 	Flag,
 	LayoutGrid,
@@ -26,10 +27,12 @@ import { getProgressColorClass } from "../utils/progressColors";
 
 const router = useRouter();
 const activeProjects = ref([]);
+const onHoldProjects = ref([]);
 const completedProjects = ref([]);
 const isManager = ref(false);
 const loading = ref(true);
 const showCompleted = ref(false);
+const showOnHold = ref(false);
 
 // View mode: 'grid' | 'list'
 const viewMode = ref("grid");
@@ -57,8 +60,9 @@ onMounted(async () => {
 			}
 		);
 		const data = await response.json();
-		const result = data.message || { active: [], completed: [], is_manager: false };
+		const result = data.message || { active: [], on_hold: [], completed: [], is_manager: false };
 		activeProjects.value = result.active || [];
+		onHoldProjects.value = result.on_hold || [];
 		completedProjects.value = result.completed || [];
 		isManager.value = result.is_manager || false;
 	} catch (error) {
@@ -102,14 +106,21 @@ function applySearchAndSort(projects) {
 }
 
 const filteredActiveProjects = computed(() => applySearchAndSort(activeProjects.value));
+const filteredOnHoldProjects = computed(() => applySearchAndSort(onHoldProjects.value));
 const filteredCompletedProjects = computed(() => applySearchAndSort(completedProjects.value));
 
 const hasProjects = computed(
-	() => activeProjects.value.length > 0 || completedProjects.value.length > 0
+	() =>
+		activeProjects.value.length > 0 ||
+		onHoldProjects.value.length > 0 ||
+		completedProjects.value.length > 0
 );
 
 const hasResults = computed(
-	() => filteredActiveProjects.value.length > 0 || filteredCompletedProjects.value.length > 0
+	() =>
+		filteredActiveProjects.value.length > 0 ||
+		filteredOnHoldProjects.value.length > 0 ||
+		filteredCompletedProjects.value.length > 0
 );
 
 function openProject(projectId) {
@@ -119,6 +130,7 @@ function openProject(projectId) {
 function getStatusClass(status) {
 	const classes = {
 		Open: "bg-blue-100 text-blue-800",
+		"On hold": "bg-amber-100 text-amber-800",
 		Completed: "bg-green-100 text-green-800",
 		Cancelled: "bg-gray-100 text-gray-600",
 	};
@@ -141,7 +153,8 @@ function formatDate(dateStr) {
 }
 
 function isOverdue(project) {
-	if (!project.expected_end_date || project.status === "Completed") return false;
+	if (!project.expected_end_date || project.status === "Completed" || project.status === "On hold")
+		return false;
 	const due = new Date(project.expected_end_date);
 	due.setHours(23, 59, 59, 999);
 	return due < new Date();
@@ -205,6 +218,12 @@ function sortIcon(field) {
 				<div class="flex items-center gap-2">
 					<span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm rounded-md">
 						{{ activeProjects.length }} {{ translate("active") }}
+					</span>
+					<span
+						v-if="onHoldProjects.length > 0"
+						class="px-2 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm rounded-md"
+					>
+						{{ onHoldProjects.length }} {{ translate("on hold") }}
 					</span>
 					<span
 						v-if="completedProjects.length > 0"
@@ -518,6 +537,153 @@ function sortIcon(field) {
 							</div>
 						</div>
 					</div>
+				</section>
+
+				<!-- ─── ON HOLD PROJECTS ────────────────────────────────── -->
+				<section v-if="onHoldProjects.length > 0" class="mb-8">
+					<button
+						@click="showOnHold = !showOnHold"
+						class="w-full flex items-center justify-between py-3 px-4 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-lg transition-colors mb-4"
+					>
+						<div class="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+							<PauseCircle class="w-4 h-4" />
+							<span>{{ translate("On hold projects") }} ({{ filteredOnHoldProjects.length }})</span>
+						</div>
+						<div class="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+							<span class="text-xs">{{ showOnHold ? translate("Hide") : translate("Show") }}</span>
+							<ChevronDown class="w-4 h-4 transition-transform duration-200" :class="showOnHold ? 'rotate-180' : ''" />
+						</div>
+					</button>
+
+					<Transition name="slide-fade">
+						<div v-if="showOnHold">
+							<!-- GRID VIEW (on hold) -->
+							<div
+								v-if="viewMode === 'grid'"
+								class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+							>
+								<div
+									v-for="project in filteredOnHoldProjects"
+									:key="project.name"
+									@click="openProject(project.name)"
+									class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 hover:border-amber-300 dark:hover:border-amber-600 hover:shadow-md transition-all cursor-pointer group opacity-90 hover:opacity-100"
+								>
+									<div class="flex items-start justify-between mb-3">
+										<div class="flex items-center gap-2.5 min-w-0">
+											<img
+												v-if="project.customer_image"
+												:src="project.customer_image"
+												:alt="project.customer_name"
+												class="w-8 h-8 rounded-md object-contain border border-gray-100 dark:border-gray-700 bg-white flex-shrink-0"
+											/>
+											<div
+												v-else-if="project.customer_name"
+												class="w-8 h-8 rounded-md flex items-center justify-center text-xs font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex-shrink-0 select-none"
+											>
+												{{ customerInitials(project.customer_name) }}
+											</div>
+											<Folder v-else class="w-5 h-5 text-amber-600 flex-shrink-0" />
+											<h3 class="font-medium text-gray-900 dark:text-gray-100 group-hover:text-amber-600 truncate">
+												{{ project.project_name }}
+											</h3>
+										</div>
+										<ChevronRight class="w-5 h-5 text-gray-400 group-hover:text-amber-600 transition-colors flex-shrink-0" />
+									</div>
+
+									<!-- Progress -->
+									<div class="mb-3">
+										<div class="flex items-center justify-between text-xs mb-1">
+											<span class="text-gray-500 dark:text-gray-400">{{ translate("Progress") }}</span>
+											<span class="font-medium text-gray-700 dark:text-gray-300">{{ project.percent_complete || 0 }}%</span>
+										</div>
+										<div class="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+											<div
+												class="h-full rounded-full bg-amber-400"
+												:style="{ width: (project.percent_complete || 0) + '%' }"
+											></div>
+										</div>
+									</div>
+
+									<div class="space-y-1.5">
+										<div class="flex items-center gap-2 text-sm">
+											<span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-full text-xs font-medium">
+												<PauseCircle class="w-3 h-3" />
+												{{ translate("On hold") }}
+											</span>
+										</div>
+
+										<div v-if="project.expected_end_date" class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+											<Calendar class="w-3.5 h-3.5" />
+											<span>{{ formatDate(project.expected_end_date) }}</span>
+										</div>
+										<div v-if="project.project_manager_name" class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+											<User class="w-3.5 h-3.5" />
+											<span class="truncate">{{ project.project_manager_name }}</span>
+										</div>
+										<div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+											<Users class="w-3.5 h-3.5" />
+											<span>{{ project.task_count || 0 }} {{ translate("tasks") }}</span>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- LIST VIEW (on hold) -->
+							<div v-else class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+								<div class="grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] gap-4 px-4 py-2.5 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+									<span>{{ translate("Project") }}</span>
+									<span>{{ translate("Progress") }}</span>
+									<span>{{ translate("Deadline") }}</span>
+									<span>{{ translate("Manager") }}</span>
+									<span>{{ translate("Tasks") }}</span>
+								</div>
+								<div
+									v-for="project in filteredOnHoldProjects"
+									:key="project.name"
+									@click="openProject(project.name)"
+									class="grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] gap-4 px-4 py-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer group transition-colors opacity-90 hover:opacity-100"
+								>
+									<div class="flex items-center gap-2 min-w-0">
+										<img
+											v-if="project.customer_image"
+											:src="project.customer_image"
+											:alt="project.customer_name"
+											class="w-6 h-6 rounded object-contain border border-gray-100 dark:border-gray-700 bg-white flex-shrink-0"
+										/>
+										<div
+											v-else-if="project.customer_name"
+											class="w-6 h-6 rounded flex items-center justify-center text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex-shrink-0 select-none"
+										>
+											{{ customerInitials(project.customer_name) }}
+										</div>
+										<Folder v-else class="w-4 h-4 text-amber-600 flex-shrink-0" />
+										<span class="font-medium text-gray-900 dark:text-gray-100 group-hover:text-amber-600 truncate text-sm">{{ project.project_name }}</span>
+									</div>
+									<div class="flex items-center gap-2 min-w-0">
+										<div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[40px]">
+											<div
+												class="h-full rounded-full bg-amber-400"
+												:style="{ width: (project.percent_complete || 0) + '%' }"
+											></div>
+										</div>
+										<span class="text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">{{ project.percent_complete || 0 }}%</span>
+									</div>
+									<div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+										<Calendar v-if="project.expected_end_date" class="w-3.5 h-3.5 flex-shrink-0" />
+										<span class="truncate">{{ project.expected_end_date ? formatDate(project.expected_end_date) : "—" }}</span>
+									</div>
+									<div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 min-w-0">
+										<User v-if="project.project_manager_name" class="w-3.5 h-3.5 flex-shrink-0" />
+										<span class="truncate">{{ project.project_manager_name || "—" }}</span>
+									</div>
+									<div class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+										<Users class="w-3.5 h-3.5 flex-shrink-0" />
+										<span>{{ project.task_count || 0 }}</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					</Transition>
 				</section>
 
 				<!-- ─── COMPLETED PROJECTS ─────────────────────────────── -->

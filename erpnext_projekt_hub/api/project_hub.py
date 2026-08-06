@@ -92,7 +92,7 @@ def get_projects():
 	- Projects Manager / System Manager: sees all projects (except Cancelled)
 	- Projects User: sees only projects where they have tasks assigned or are project members
 
-	Returns projects grouped by status (active vs completed).
+	Returns projects grouped by status (active vs on hold vs completed).
 	"""
 	user = frappe.session.user
 	user_roles = frappe.get_roles(user)
@@ -158,7 +158,7 @@ def get_projects():
 		all_user_projects = list(set(project_names_from_tasks + project_names_from_membership))
 
 		if not all_user_projects:
-			return {"active": [], "completed": [], "is_manager": False}
+			return {"active": [], "on_hold": [], "completed": [], "is_manager": False}
 
 		# Get project details
 		projects = frappe.get_all(
@@ -275,11 +275,17 @@ def get_projects():
 			project["next_milestone_date"] = None
 			project["days_to_milestone"] = None
 
-	# Separate active and completed projects
-	active_projects = [p for p in projects if p["status"] != "Completed"]
+	# Separate active, on hold and completed projects
+	active_projects = [p for p in projects if p["status"] not in ("On hold", "Completed")]
+	on_hold_projects = [p for p in projects if p["status"] == "On hold"]
 	completed_projects = [p for p in projects if p["status"] == "Completed"]
 
-	return {"active": active_projects, "completed": completed_projects, "is_manager": is_manager}
+	return {
+		"active": active_projects,
+		"on_hold": on_hold_projects,
+		"completed": completed_projects,
+		"is_manager": is_manager,
+	}
 
 
 def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
