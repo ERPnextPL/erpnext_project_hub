@@ -37,6 +37,7 @@ import {
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
+import { getStatusClass } from "../utils/projectDisplay";
 
 const props = defineProps({
 	projectId: {
@@ -448,6 +449,12 @@ const groupedTasksByMilestone = computed(() => {
 							<h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
 								{{ store.project.project_name }}
 							</h1>
+							<span
+								v-if="store.project.status && store.project.status !== 'Open'"
+								:class="['px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0', getStatusClass(store.project.status)]"
+							>
+								{{ translate(store.project.status) }}
+							</span>
 						</div>
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>

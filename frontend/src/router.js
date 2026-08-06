@@ -19,7 +19,7 @@ registerCoreTabs();
 // clears the boot info cache on install/uninstall-app, so this is accurate as
 // of the last full page load — a hard refresh after installing is enough, no
 // asset rebuild required).
-if (window.frappe?.boot?.versions?.projekt_hub_pro) {
+if (typeof window !== "undefined" && window.frappe?.boot?.versions?.projekt_hub_pro) {
 	registerProTabs();
 }
 
