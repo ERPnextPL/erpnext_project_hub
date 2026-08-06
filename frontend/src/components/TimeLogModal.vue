@@ -100,8 +100,8 @@ const applyDefaultActivityType = (availableTypes) => {
 	const current = formData.value.activity_type;
 	if (!current || current === lastAutoActivityType.value) {
 		formData.value.activity_type = defaultType;
+		lastAutoActivityType.value = defaultType;
 	}
-	lastAutoActivityType.value = defaultType;
 };
 
 // Load activity types on mount
