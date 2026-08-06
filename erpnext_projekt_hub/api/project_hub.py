@@ -288,6 +288,28 @@ def get_projects():
 	}
 
 
+def _get_customer_contact(customer: str | None) -> dict:
+	"""Return the customer's primary contact (name/email/phone), if any."""
+	if not customer:
+		return {}
+
+	contact_name = frappe.db.get_value("Customer", customer, "customer_primary_contact")
+	if not contact_name:
+		return {}
+
+	contact = frappe.db.get_value(
+		"Contact", contact_name, ["full_name", "email_id", "phone", "mobile_no"], as_dict=True
+	)
+	if not contact:
+		return {}
+
+	return {
+		"customer_contact_name": contact.get("full_name"),
+		"customer_contact_email": contact.get("email_id"),
+		"customer_contact_phone": contact.get("phone") or contact.get("mobile_no"),
+	}
+
+
 def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
 	"""Return True when current user can access manager-only project views."""
 	current_user = user or frappe.session.user
@@ -653,6 +675,8 @@ def get_project_tasks(
 			customer_name = cdata.get("customer_name")
 			customer_image = cdata.get("image")
 
+	customer_contact = _get_customer_contact(project_doc.customer)
+
 	task_counts = frappe.db.sql(
 		"""
 		SELECT
@@ -678,6 +702,7 @@ def get_project_tasks(
 			"customer": project_doc.customer,
 			"customer_name": customer_name,
 			"customer_image": customer_image,
+			**customer_contact,
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -883,6 +908,8 @@ def update_project(
 			customer_name = cdata.get("customer_name")
 			customer_image = cdata.get("image")
 
+	customer_contact = _get_customer_contact(project_doc.customer)
+
 	return {
 		"name": project_doc.name,
 		"project_name": project_doc.project_name,
@@ -895,6 +922,7 @@ def update_project(
 		"customer": project_doc.customer,
 		"customer_name": customer_name,
 		"customer_image": customer_image,
+		**customer_contact,
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,

@@ -332,7 +332,7 @@ function sortIcon(field) {
 						/>
 					</div>
 					<div v-else class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-						<ProjectListHeader sortable :sort-field="sortField" :sort-icon="sortIcon" :toggle-sort="toggleSort" />
+						<ProjectListHeader sortable :sort-icon="sortIcon" :toggle-sort="toggleSort" />
 						<ProjectListRow
 							v-for="project in filteredActiveProjects"
 							:key="project.name"

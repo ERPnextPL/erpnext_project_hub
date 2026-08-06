@@ -12,6 +12,7 @@ import {
 	AlertCircle,
 	ChevronDown,
 	ChevronUp,
+	Contact2,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -333,6 +334,31 @@ async function saveNotes() {
 								<div v-else class="text-sm font-medium text-gray-400 dark:text-gray-500">
 									{{ translate("Not assigned") }}
 								</div>
+							</div>
+						</div>
+						<div v-if="project.customer_contact_name" class="flex items-start gap-2">
+							<Contact2 class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+							<div class="flex-1 min-w-0">
+								<div class="text-xs text-gray-500">{{ translate("Client Contact") }}</div>
+								<div class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+									{{ project.customer_contact_name }}
+								</div>
+								<a
+									v-if="project.customer_contact_email"
+									:href="`mailto:${project.customer_contact_email}`"
+									class="text-xs text-blue-600 dark:text-blue-400 hover:underline block truncate"
+									@click.stop
+								>
+									{{ project.customer_contact_email }}
+								</a>
+								<a
+									v-if="project.customer_contact_phone"
+									:href="`tel:${project.customer_contact_phone}`"
+									class="text-xs text-gray-500 dark:text-gray-400 hover:underline block"
+									@click.stop
+								>
+									{{ project.customer_contact_phone }}
+								</a>
 							</div>
 						</div>
 						<div class="flex items-start gap-2">

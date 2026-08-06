@@ -3,7 +3,6 @@ import { translate } from "../utils/translation";
 
 defineProps({
 	sortable: { type: Boolean, default: false },
-	sortField: { type: String, default: null },
 	sortIcon: { type: Function, default: null },
 	toggleSort: { type: Function, default: null },
 });
@@ -26,7 +25,7 @@ const COLUMNS = [
 				@click="toggleSort(col.field)"
 			>
 				{{ col.label }}
-				<component :is="sortIcon(col.field)" class="w-3 h-3" />
+				<component v-if="sortIcon" :is="sortIcon(col.field)" class="w-3 h-3" />
 			</button>
 			<span v-else>{{ col.label }}</span>
 		</template>

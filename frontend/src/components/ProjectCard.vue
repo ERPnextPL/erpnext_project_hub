@@ -23,9 +23,13 @@ const v = computed(() => STATUS_VARIANTS[props.variant]);
 
 <template>
 	<div
+		role="button"
+		tabindex="0"
 		@click="emit('open', project.name)"
+		@keydown.enter="emit('open', project.name)"
+		@keydown.space.prevent="emit('open', project.name)"
 		:class="[
-			'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all cursor-pointer group',
+			'bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1',
 			v.hoverBorder,
 			v.opacity,
 		]"
