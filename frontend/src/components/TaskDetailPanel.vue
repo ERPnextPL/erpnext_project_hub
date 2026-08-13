@@ -132,7 +132,9 @@ const commentText = ref("");
 const commentMentions = ref([]);
 const commentEditorRef = ref(null);
 const commentSubmitting = ref(false);
-const commentHasContent = computed(() => stripHtml(commentText.value).length > 0);
+const commentHasContent = computed(
+	() => stripHtml(commentText.value).length > 0 || /<img[^>]*>/i.test(commentText.value)
+);
 const uploadProgress = ref(0);
 const isUploading = ref(false);
 const fileInputRef = ref(null);
@@ -286,6 +288,10 @@ const directSubtasks = computed(() => {
 	return store.tasks
 		.filter((item) => item.parent_task === props.task.name)
 		.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+});
+
+const canAddSubtask = computed(() => {
+	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
 });
 
 const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));
@@ -1382,14 +1388,16 @@ function hasPendingImageUpload(html) {
 	return /<img[^>]+src=["']data:/i.test(html);
 }
 
-function uploadCommentImage(file) {
-	return uploadTaskFile(file, {
+async function uploadCommentImage(file) {
+	const uploadedFile = await uploadTaskFile(file, {
 		doctype: "Task",
 		docname: props.task.name,
 		optimize: true,
 		max_width: 1920,
 		max_height: 1920,
 	});
+	await fetchAttachments();
+	return uploadedFile;
 }
 
 async function submitComment() {
@@ -1866,6 +1874,7 @@ async function deleteAttachment(fileName) {
 									</div>
 								</div>
 								<QuickAddTask
+									v-if="canAddSubtask"
 									:project-id="task.project"
 									:parent-task="task.name"
 									:placeholder="translate('Add subtask...')"

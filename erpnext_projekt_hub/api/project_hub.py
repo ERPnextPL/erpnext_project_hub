@@ -963,13 +963,13 @@ def create_task(
 
 	# If parent_task is provided, ensure it's a group task
 	parent = None
-	parent_status_before = None
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
-		parent_status_before = parent.status
-		if parent_status_before == "Cancelled":
+		if parent.status in ("Completed", "Cancelled"):
 			frappe.throw(
-				_("Cannot add a subtask to {0} because it is Cancelled").format(frappe.bold(parent.subject))
+				_("Cannot add a subtask to {0} because it is {1}").format(
+					frappe.bold(parent.subject), parent.status
+				)
 			)
 		if not parent.is_group:
 			# Automatically make it a group
@@ -1000,19 +1000,6 @@ def create_task(
 		}
 	)
 	task.insert()
-
-	# A Completed parent cannot hold unfinished work, so adding a subtask reopens
-	# it. That happens in the Task hierarchy hook - tell the user it happened.
-	if parent_status_before == "Completed":
-		parent_status_now = frappe.db.get_value("Task", parent_task, "status")
-		if parent_status_now != "Completed":
-			frappe.msgprint(
-				_("{0} is no longer Completed because it now contains an unfinished subtask.").format(
-					frappe.bold(parent.subject)
-				),
-				title=_("Parent Task Reopened"),
-				indicator="orange",
-			)
 
 	if assign:
 		from frappe.desk.form.assign_to import add as add_assignment
@@ -1182,6 +1169,12 @@ def reorder_task(
 		# If new parent exists, ensure it's a group
 		if parent_task:
 			new_parent = frappe.get_doc("Task", parent_task)
+			if new_parent.status in ("Completed", "Cancelled"):
+				frappe.throw(
+					_("Cannot move a subtask under {0} because it is {1}").format(
+						frappe.bold(new_parent.subject), new_parent.status
+					)
+				)
 			if not new_parent.is_group:
 				new_parent.is_group = 1
 				new_parent.save()
