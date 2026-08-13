@@ -131,7 +131,9 @@ const UNKNOWN_STATUS_CONFIG = {
 
 /** Colours, icon and CSS classes for a status. Unknown statuses get neutral styling, not another status's. */
 export function getStatusConfig(status) {
-	return STATUS_CONFIG[status] || UNKNOWN_STATUS_CONFIG;
++\treturn Object.prototype.hasOwnProperty.call(STATUS_CONFIG, status)
++\t\t? STATUS_CONFIG[status]
++\t\t: UNKNOWN_STATUS_CONFIG;
 }
 
 /** Localised label. The status value itself is the translation source string. */
