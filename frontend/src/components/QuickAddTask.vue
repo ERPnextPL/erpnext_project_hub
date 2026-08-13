@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { translate } from "../utils/translation";
 import { Plus } from "lucide-vue-next";
 
 const props = defineProps({
@@ -35,18 +36,17 @@ async function createTask() {
 
 	isCreating.value = true;
 	try {
+		// A Completed or Cancelled parent is rejected server-side (it throws) -
+		// callers should already hide this control in that case, this is the
+		// backstop. Anything else missing from the store is filled in there.
 		const parent = props.parentTask
 			? store.tasks.find((t) => t.name === props.parentTask)
 			: null;
-		if (parent && (parent.status === "Completed" || parent.status === "Cancelled")) {
-			return;
-		}
 
 		await store.createTask({
 			subject,
 			project: props.projectId,
 			parent_task: props.parentTask,
-			status: parent?.status,
 			priority: parent?.priority,
 			exp_end_date: parent?.exp_end_date || null,
 			milestone: parent?.milestone || null,
@@ -55,6 +55,13 @@ async function createTask() {
 		emit("created");
 	} catch (error) {
 		console.error("Failed to create task:", error);
+		// apiCall already alerts on a server error; only cover what it cannot.
+		if (!error?.alerted && window.frappe) {
+			frappe.show_alert({
+				message: error?.message || translate("Could not add the subtask"),
+				indicator: "red",
+			});
+		}
 	} finally {
 		isCreating.value = false;
 	}

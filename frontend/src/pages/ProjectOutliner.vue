@@ -6,6 +6,7 @@ import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { isMilestoneCompleted } from "../utils/milestone";
+import { ACTIVE_STATUSES } from "../utils/taskStatus";
 import TaskTree from "../components/TaskTree.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
@@ -115,7 +116,7 @@ async function submitFab() {
 }
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
 const activeFilters = ref({
-	status: ["Open", "Working", "Pending Review", "Overdue"], // Domyślne statusy
+	status: [...ACTIVE_STATUSES], // Domyślne statusy
 	priority: [], // Array for multiselect
 	assignee: null,
 	dueToday: false,

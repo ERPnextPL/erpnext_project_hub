@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import QuickAddTask from "./QuickAddTask.vue";
 import UserSelect from "./UserSelect.vue";
 import TimeLogModal from "./TimeLogModal.vue?v=20241220-2030";
@@ -17,7 +18,6 @@ import {
 	Clock,
 	CheckCircle2,
 	Circle,
-	AlertCircle,
 	FileText,
 	MessageSquare,
 	Paperclip,
@@ -132,7 +132,9 @@ const commentText = ref("");
 const commentMentions = ref([]);
 const commentEditorRef = ref(null);
 const commentSubmitting = ref(false);
-const commentHasContent = computed(() => stripHtml(commentText.value).length > 0);
+const commentHasContent = computed(
+	() => stripHtml(commentText.value).length > 0 || /<img[^>]*>/i.test(commentText.value)
+);
 const uploadProgress = ref(0);
 const isUploading = ref(false);
 const fileInputRef = ref(null);
@@ -189,44 +191,12 @@ onMounted(() => {
 	ensureTimeLogsLoaded();
 });
 
-const statusPalette = {
-	Open: {
-		icon: Circle,
-		label: translate("Open"),
-		bg: "bg-blue-50 border border-blue-200",
-		text: "text-blue-700",
-	},
-	Working: {
-		icon: Clock,
-		label: translate("Working"),
-		bg: "bg-blue-600 border border-blue-600",
-		text: "text-white",
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		label: translate("Pending Review"),
-		bg: "bg-purple-600 border border-purple-600",
-		text: "text-white",
-	},
-	Completed: {
-		icon: CheckCircle2,
-		label: translate("Completed"),
-		bg: "bg-green-600 border border-green-600",
-		text: "text-white",
-	},
-	Overdue: {
-		icon: AlertCircle,
-		label: translate("Overdue"),
-		bg: "bg-red-600 border border-red-600",
-		text: "text-white",
-	},
-	Cancelled: {
-		icon: Circle,
-		label: translate("Cancelled"),
-		bg: "bg-red-100 border border-red-200",
-		text: "text-red-700",
-	},
-};
+const statusPalette = Object.fromEntries(
+	TASK_STATUSES.map((status) => {
+		const solid = getStatusSolid(status);
+		return [status, { icon: solid.icon, label: solid.label, bg: solid.bg, text: solid.class }];
+	})
+);
 
 const priorityPalette = {
 	Low: {
@@ -318,6 +288,10 @@ const directSubtasks = computed(() => {
 	return store.tasks
 		.filter((item) => item.parent_task === props.task.name)
 		.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+});
+
+const canAddSubtask = computed(() => {
+	return isTaskActive(editableTask.value.status);
 });
 
 const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));
@@ -1407,10 +1381,41 @@ function uploadTaskFile(file, options = {}) {
 	});
 }
 
+// The editor shows a base64 preview of a pasted image until its upload resolves.
+// Frappe strips data: URIs when it sanitizes a comment, so sending that preview
+// would store an image tag with no source at all.
+function hasPendingImageUpload(html) {
+	return /<img[^>]+src=["']data:/i.test(html);
+}
+
+async function uploadCommentImage(file) {
+	const uploadedFile = await uploadTaskFile(file, {
+		doctype: "Task",
+		docname: props.task.name,
+		optimize: true,
+		max_width: 1920,
+		max_height: 1920,
+	});
+	await fetchAttachments();
+	return uploadedFile;
+}
+
 async function submitComment() {
 	const editor = commentEditorRef.value?.editor;
 	const content = editor?.getHTML?.().trim?.() || commentText.value.trim();
 	if (!content || commentSubmitting.value) return;
+
+	if (hasPendingImageUpload(content)) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate(
+					"The image is not uploaded yet. Wait for it to finish, or remove it from the comment."
+				),
+				indicator: "orange",
+			});
+		}
+		return;
+	}
 
 	commentSubmitting.value = true;
 	try {
@@ -1869,9 +1874,10 @@ async function deleteAttachment(fileName) {
 									</div>
 								</div>
 								<QuickAddTask
+									v-if="canAddSubtask"
 									:project-id="task.project"
 									:parent-task="task.name"
-									placeholder="Dodaj podzadanie..."
+									:placeholder="translate('Add subtask...')"
 									@created="handleSubtaskCreated"
 								/>
 							</div>
@@ -1952,6 +1958,7 @@ async function deleteAttachment(fileName) {
 											@change="handleCommentChange"
 											:editable="true"
 											:mentions="commentMentions"
+											:upload-function="uploadCommentImage"
 											:placeholder="() => translate('Type your comment...')"
 											editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
 										/>

@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
 
+from erpnext_projekt_hub.events.task_events import _walk_ancestors
+
 
 def _get_incomplete_subtasks(task_name: str) -> list:
 	"""
@@ -960,8 +962,15 @@ def create_task(
 			frappe.throw(_("Milestone does not belong to the selected project"))
 
 	# If parent_task is provided, ensure it's a group task
+	parent = None
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
+		if parent.status in ("Completed", "Cancelled"):
+			frappe.throw(
+				_("Cannot add a subtask to {0} because it is {1}").format(
+					frappe.bold(parent.subject), _(parent.status)
+				)
+			)
 		if not parent.is_group:
 			# Automatically make it a group
 			parent.is_group = 1
@@ -1125,10 +1134,18 @@ def delete_task(task_name: str):
 		for child in children:
 			delete_task(child["name"])
 
-	# Clear outgoing parent link and incoming timelog references before deletion
+	# Clear links that would otherwise prevent deletion, while retaining the old
+	# parent for the hierarchy roll-up below.
+	old_parent = frappe.db.get_value("Task", task_name, "parent_task")
 	frappe.db.set_value("Task", task_name, "parent_task", None, update_modified=False)
+	frappe.db.delete("Task Depends On", {"task": task_name})
 	frappe.db.sql("UPDATE `tabTimesheet Detail` SET task = NULL WHERE task = %s", task_name)
 	frappe.delete_doc("Task", task_name)
+
+	# The parent link was cleared before deletion so on_task_trash couldn't see it -
+	# roll up progress to the real old parent here instead.
+	if old_parent:
+		_walk_ancestors(old_parent, reopen=False)
 
 	return {"success": True}
 
@@ -1154,6 +1171,12 @@ def reorder_task(
 		# If new parent exists, ensure it's a group
 		if parent_task:
 			new_parent = frappe.get_doc("Task", parent_task)
+			if new_parent.status in ("Completed", "Cancelled"):
+				frappe.throw(
+					_("Cannot move a subtask under {0} because it is {1}").format(
+						frappe.bold(new_parent.subject), _(new_parent.status)
+					)
+				)
 			if not new_parent.is_group:
 				new_parent.is_group = 1
 				new_parent.save()
@@ -2216,7 +2239,17 @@ def get_milestone_tasks(milestone_name: str):
 
 @frappe.whitelist()
 def get_milestone_statuses():
-	"""Get available milestone statuses."""
+	"""Get list of milestone statuses from the Project Milestone doctype."""
+	milestone_meta = frappe.get_meta("Project Milestone")
+	status_field = milestone_meta.get_field("status")
+
+	if status_field and status_field.options:
+		# Options are stored as newline-separated string
+		statuses = [s.strip() for s in status_field.options.split("\n") if s.strip()]
+		if statuses:
+			return statuses
+
+	# Fallback to default statuses
 	return ["Open", "In Progress", "Completed", "Cancelled"]
 
 
@@ -2738,6 +2771,12 @@ def create_my_task(
 	# If parent_task is provided, ensure it's a group task
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
+		if parent.status in ("Completed", "Cancelled"):
+			frappe.throw(
+				_("Cannot add a subtask to {0} because it is {1}").format(
+					frappe.bold(parent.subject), _(parent.status)
+				)
+			)
 		if not parent.is_group:
 			parent.is_group = 1
 			parent.save()

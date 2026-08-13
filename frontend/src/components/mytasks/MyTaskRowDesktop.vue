@@ -5,11 +5,10 @@ import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
+import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
 import {
-	Circle,
 	Clock,
 	CheckCircle2,
-	AlertCircle,
 	Flag,
 	Calendar,
 	ChevronDown,
@@ -69,52 +68,16 @@ const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+	return isTaskActive(props.task.status);
 });
 
 function isTouchDevice() {
 	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
 }
 
-// Status config - shorter labels to fit in grid
-const statusConfig = {
-	Open: {
-		icon: Circle,
-		class: "text-slate-700",
-		bg: "bg-blue-100 border border-blue-200",
-		label: translate("Open"),
-	},
-	Working: {
-		icon: Clock,
-		class: "text-white",
-		bg: "bg-blue-600 border border-blue-600",
-		label: translate("Working"),
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-purple-600 border border-purple-600",
-		label: translate("Pending Review"),
-	},
-	Completed: {
-		icon: CheckCircle2,
-		class: "text-white",
-		bg: "bg-emerald-600 border border-emerald-600",
-		label: translate("Completed"),
-	},
-	Overdue: {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-red-600 border border-red-600",
-		label: translate("Overdue"),
-	},
-	Cancelled: {
-		icon: Circle,
-		class: "text-white",
-		bg: "bg-red-600 border border-red-600",
-		label: translate("Cancelled"),
-	},
-};
+const statusConfig = Object.fromEntries(
+	BOARD_STATUSES.map((status) => [status, getStatusSolid(status)])
+);
 
 const priorityConfig = {
 	Urgent: {
@@ -317,7 +280,7 @@ onUnmounted(() => {
 					]"
 				/>
 			</button>
-			<div class="min-w-0">
+			<div class="min-w-0 flex-1">
 				<div v-if="taskDescription" class="flex items-start gap-1 text-xs text-gray-400">
 					<FileText class="w-3 h-3 flex-shrink-0" />
 					<span v-if="descriptionPreviewLabel" class="line-clamp-3 whitespace-pre-line break-words">{{

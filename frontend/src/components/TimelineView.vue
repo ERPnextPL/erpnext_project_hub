@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { Calendar, ChevronLeft, ChevronRight, Diamond } from "lucide-vue-next";
 import { translate } from "../utils/translation";
+import { TASK_STATUSES, getStatusConfig } from "../utils/taskStatus";
 
 const t = translate;
 
@@ -22,15 +23,10 @@ const emit = defineEmits(["task-click"]);
 const viewStartDate = ref(new Date());
 const daysToShow = ref(30);
 
-// Status colors
-const statusColors = {
-	Open: "bg-blue-500",
-	Working: "bg-amber-500",
-	"Pending Review": "bg-purple-500",
-	Completed: "bg-green-500",
-	Overdue: "bg-red-500",
-	Cancelled: "bg-gray-400",
-};
+// Status colors - resolved from the shared status config
+const statusColors = Object.fromEntries(
+	TASK_STATUSES.map((status) => [status, getStatusConfig(status).dot])
+);
 
 // Priority colors for border
 const priorityColors = {

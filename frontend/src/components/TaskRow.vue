@@ -4,15 +4,14 @@ import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
 import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
+import { getStatusConfig, getStatusLabel, isTaskActive } from "../utils/taskStatus";
 import {
 	GripVertical,
 	ChevronRight,
 	ChevronDown,
 	X,
 	Circle,
-	CheckCircle2,
 	Clock,
-	AlertCircle,
 	User,
 	Calendar,
 	MoreHorizontal,
@@ -98,7 +97,7 @@ const hasChildren = computed(() => {
 const isExpanded = computed(() => store.expandedTasks.has(props.task.name));
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+	return isTaskActive(props.task.status);
 });
 
 const assignedUsers = computed(() => {
@@ -138,33 +137,14 @@ onMounted(() => {
 	}
 });
 
-// Status configuration with icons and classes
-const statusIconMap = {
-	Open: { icon: Circle, class: "status-open" },
-	Working: { icon: Clock, class: "status-working" },
-	"Pending Review": { icon: AlertCircle, class: "status-working" },
-	Completed: { icon: CheckCircle2, class: "status-completed" },
-	Overdue: { icon: AlertCircle, class: "status-overdue" },
-	Cancelled: { icon: Circle, class: "status-cancelled" },
-};
-
-const statusLabelMap = {
-	Open: "Open",
-	Working: "Working",
-	"Pending Review": "Review",
-	Completed: "Done",
-	Overdue: "Overdue",
-	Cancelled: "Cancelled",
-};
-
 const statusConfig = computed(() => {
 	const config = {};
 	store.taskStatuses.forEach((status) => {
-		const iconConfig = statusIconMap[status] || { icon: Circle, class: "status-open" };
+		const statusStyle = getStatusConfig(status);
 		config[status] = {
-			icon: iconConfig.icon,
-			class: iconConfig.class,
-			label: statusLabelMap[status] || status,
+			icon: statusStyle.icon,
+			class: statusStyle.rowClass,
+			label: getStatusLabel(status),
 		};
 	});
 	return config;

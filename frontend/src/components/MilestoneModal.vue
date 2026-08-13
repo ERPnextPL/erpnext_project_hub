@@ -1,16 +1,23 @@
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { Diamond, X } from "lucide-vue-next";
 import { getRealWindow, translate } from "../utils/translation";
+import { getMilestoneStatusLabel } from "../utils/milestone";
+import { useTaskStore } from "../stores/taskStore";
 
 const props = defineProps({
 	show: Boolean,
 	milestone: Object,
 	editMode: Boolean,
+	statuses: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 const emit = defineEmits(["save", "close"]);
 const realWindow = getRealWindow();
+const store = useTaskStore();
 
 const formData = ref({
 	milestone_name: "",
@@ -22,12 +29,13 @@ const formData = ref({
 });
 
 const priorities = ["Low", "Medium", "High", "Urgent"];
-const statuses = ["Open", "In Progress", "Completed", "Cancelled"];
+const statuses = computed(() => (props.statuses.length ? props.statuses : store.milestoneStatuses));
 
 watch(
 	() => props.show,
-	(newVal) => {
+	async (newVal) => {
 		if (newVal) {
+			await store.fetchMilestoneStatuses();
 			if (props.editMode && props.milestone) {
 				formData.value = {
 					milestone_name: props.milestone.milestone_name || "",
@@ -169,7 +177,7 @@ function handleSave() {
 										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 									>
 										<option v-for="s in statuses" :key="s" :value="s">
-											{{ s }}
+											{{ getMilestoneStatusLabel(s) }}
 										</option>
 									</select>
 								</div>

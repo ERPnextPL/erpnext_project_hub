@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from "vue";
-import { Calendar, Circle, Clock, AlertCircle, CheckCircle2, User, Flag } from "lucide-vue-next";
+import { Calendar, User, Flag } from "lucide-vue-next";
 import { translate } from "../utils/translation";
+import { TASK_STATUSES, getStatusBadge } from "../utils/taskStatus";
 
 const props = defineProps({
 	task: {
@@ -16,38 +17,9 @@ const props = defineProps({
 
 defineEmits(["click"]);
 
-const statusConfig = {
-	Open: {
-		icon: Circle,
-		class: "bg-blue-100 text-blue-700 border-blue-200",
-		label: translate("Open"),
-	},
-	Working: {
-		icon: Clock,
-		class: "bg-amber-100 text-amber-700 border-amber-200",
-		label: translate("Working"),
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		class: "bg-purple-100 text-purple-700 border-purple-200",
-		label: translate("Pending Review"),
-	},
-	Completed: {
-		icon: CheckCircle2,
-		class: "bg-green-100 text-green-700 border-green-200",
-		label: translate("Completed"),
-	},
-	Overdue: {
-		icon: AlertCircle,
-		class: "bg-red-100 text-red-700 border-red-200",
-		label: translate("Overdue"),
-	},
-	Cancelled: {
-		icon: Circle,
-		class: "bg-red-100 text-red-700 border-red-200",
-		label: translate("Cancelled"),
-	},
-};
+const statusConfig = Object.fromEntries(
+	TASK_STATUSES.map((status) => [status, getStatusBadge(status)])
+);
 
 const priorityClassMap = {
 	Urgent: "text-red-600",
@@ -63,14 +35,7 @@ const priorityLabelMap = {
 	Low: translate("Low"),
 };
 
-const statusInfo = computed(() => {
-	return (
-		statusConfig[props.task.status] || {
-			icon: Circle,
-			class: "bg-gray-100 text-gray-600 border-gray-200",
-		}
-	);
-});
+const statusInfo = computed(() => statusConfig[props.task.status] || getStatusBadge(props.task.status));
 
 const indentStyle = computed(() => {
 	return {
