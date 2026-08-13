@@ -960,8 +960,11 @@ def create_task(
 			frappe.throw(_("Milestone does not belong to the selected project"))
 
 	# If parent_task is provided, ensure it's a group task
+	parent = None
+	parent_status_before = None
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
+		parent_status_before = parent.status
 		if not parent.is_group:
 			# Automatically make it a group
 			parent.is_group = 1
@@ -991,6 +994,19 @@ def create_task(
 		}
 	)
 	task.insert()
+
+	# A Completed parent cannot hold unfinished work, so adding a subtask reopens
+	# it. That happens in the Task hierarchy hook - tell the user it happened.
+	if parent_status_before == "Completed":
+		parent_status_now = frappe.db.get_value("Task", parent_task, "status")
+		if parent_status_now != "Completed":
+			frappe.msgprint(
+				_("{0} is no longer Completed because it now contains an unfinished subtask.").format(
+					frappe.bold(parent.subject)
+				),
+				title=_("Parent Task Reopened"),
+				indicator="orange",
+			)
 
 	if assign:
 		from frappe.desk.form.assign_to import add as add_assignment

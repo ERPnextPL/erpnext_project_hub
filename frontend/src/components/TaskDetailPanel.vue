@@ -1839,7 +1839,7 @@ async function deleteAttachment(fileName) {
 								<QuickAddTask
 									:project-id="task.project"
 									:parent-task="task.name"
-									placeholder="Dodaj podzadanie..."
+									:placeholder="translate('Add subtask...')"
 									@created="handleSubtaskCreated"
 								/>
 							</div>

@@ -65,10 +65,13 @@ async function apiCall(method, params = {}) {
 
 	if (!response.ok) {
 		const errorMsg = data.exception || data._server_messages || "API Error";
+		const error = new Error(errorMsg);
 		if (window.frappe) {
 			frappe.show_alert({ message: errorMsg, indicator: "red" });
+			// Callers can tell an already-reported failure from a silent one.
+			error.alerted = true;
 		}
-		throw new Error(errorMsg);
+		throw error;
 	}
 	return data.message;
 }

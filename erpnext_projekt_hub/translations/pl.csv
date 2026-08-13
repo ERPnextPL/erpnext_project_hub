@@ -260,3 +260,7 @@
 "Template","Szablon"
 "In Progress","W realizacji"
 "Task moved to {0}","Zadanie przeniesione do {0}"
+"Add subtask...","Dodaj podzadanie..."
+"Could not add the subtask","Nie udało się dodać podzadania"
+"Parent Task Reopened","Zadanie nadrzędne wznowione"
+"{0} is no longer Completed because it now contains an unfinished subtask.","{0} nie jest już zakończone, ponieważ zawiera teraz niedokończone podzadanie."
