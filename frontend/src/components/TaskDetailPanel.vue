@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
-import { TASK_STATUSES, getStatusSolid } from "../utils/taskStatus";
+import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import QuickAddTask from "./QuickAddTask.vue";
 import UserSelect from "./UserSelect.vue";
 import TimeLogModal from "./TimeLogModal.vue?v=20241220-2030";
@@ -291,7 +291,7 @@ const directSubtasks = computed(() => {
 });
 
 const canAddSubtask = computed(() => {
-	return editableTask.value.status !== "Completed" && editableTask.value.status !== "Cancelled";
+	return isTaskActive(editableTask.value.status);
 });
 
 const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));

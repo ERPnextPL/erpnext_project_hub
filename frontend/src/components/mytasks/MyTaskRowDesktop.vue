@@ -5,7 +5,7 @@ import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
-import { BOARD_STATUSES, getStatusSolid } from "../../utils/taskStatus";
+import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
 import {
 	Clock,
 	CheckCircle2,
@@ -68,7 +68,7 @@ const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+	return isTaskActive(props.task.status);
 });
 
 function isTouchDevice() {

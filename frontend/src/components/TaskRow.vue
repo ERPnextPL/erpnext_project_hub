@@ -4,7 +4,7 @@ import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
 import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
-import { getStatusConfig, getStatusLabel } from "../utils/taskStatus";
+import { getStatusConfig, getStatusLabel, isTaskActive } from "../utils/taskStatus";
 import {
 	GripVertical,
 	ChevronRight,
@@ -97,7 +97,7 @@ const hasChildren = computed(() => {
 const isExpanded = computed(() => store.expandedTasks.has(props.task.name));
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+	return isTaskActive(props.task.status);
 });
 
 const assignedUsers = computed(() => {

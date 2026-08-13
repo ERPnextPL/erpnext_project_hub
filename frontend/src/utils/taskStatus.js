@@ -28,6 +28,11 @@ export const BOARD_STATUSES = TASK_STATUSES.filter((status) => status !== "Templ
 /** Statuses counted as still open - the default filter selection. */
 export const ACTIVE_STATUSES = ["Open", "Working", "Pending Review", "Overdue"];
 
+/** Whether a task can still receive changes such as adding a subtask. */
+export function isTaskActive(status) {
+	return status !== "Completed" && status !== "Cancelled";
+}
+
 const STATUS_CONFIG = {
 	Open: {
 		icon: Circle,
@@ -131,9 +136,9 @@ const UNKNOWN_STATUS_CONFIG = {
 
 /** Colours, icon and CSS classes for a status. Unknown statuses get neutral styling, not another status's. */
 export function getStatusConfig(status) {
-+\treturn Object.prototype.hasOwnProperty.call(STATUS_CONFIG, status)
-+\t\t? STATUS_CONFIG[status]
-+\t\t: UNKNOWN_STATUS_CONFIG;
+	return Object.prototype.hasOwnProperty.call(STATUS_CONFIG, status)
+		? STATUS_CONFIG[status]
+		: UNKNOWN_STATUS_CONFIG;
 }
 
 /** Localised label. The status value itself is the translation source string. */

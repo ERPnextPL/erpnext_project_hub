@@ -2,7 +2,8 @@
 import { computed, ref, watch } from "vue";
 import { Diamond, X } from "lucide-vue-next";
 import { getRealWindow, translate } from "../utils/translation";
-import { MILESTONE_STATUSES, getMilestoneStatusLabel } from "../utils/milestone";
+import { getMilestoneStatusLabel } from "../utils/milestone";
+import { useTaskStore } from "../stores/taskStore";
 
 const props = defineProps({
 	show: Boolean,
@@ -16,6 +17,7 @@ const props = defineProps({
 
 const emit = defineEmits(["save", "close"]);
 const realWindow = getRealWindow();
+const store = useTaskStore();
 
 const formData = ref({
 	milestone_name: "",
@@ -27,12 +29,13 @@ const formData = ref({
 });
 
 const priorities = ["Low", "Medium", "High", "Urgent"];
-const statuses = computed(() => (props.statuses.length ? props.statuses : MILESTONE_STATUSES));
+const statuses = computed(() => (props.statuses.length ? props.statuses : store.milestoneStatuses));
 
 watch(
 	() => props.show,
-	(newVal) => {
+	async (newVal) => {
 		if (newVal) {
+			await store.fetchMilestoneStatuses();
 			if (props.editMode && props.milestone) {
 				formData.value = {
 					milestone_name: props.milestone.milestone_name || "",

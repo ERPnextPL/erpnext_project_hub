@@ -15,7 +15,7 @@ import {
 	ChevronRight,
 	FileText,
 } from "lucide-vue-next";
-import { TASK_STATUSES, getStatusSolid } from "../../utils/taskStatus";
+import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
 
 const props = defineProps({
 	task: {
@@ -82,7 +82,7 @@ const formattedDate = computed(() => {
 });
 
 const canAddSubtask = computed(() => {
-	return !["Completed", "Cancelled"].includes(props.task.status);
+	return isTaskActive(props.task.status);
 });
 
 const dateClass = computed(() => {

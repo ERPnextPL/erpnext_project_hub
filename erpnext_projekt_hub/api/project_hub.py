@@ -968,7 +968,7 @@ def create_task(
 		if parent.status in ("Completed", "Cancelled"):
 			frappe.throw(
 				_("Cannot add a subtask to {0} because it is {1}").format(
-					frappe.bold(parent.subject), parent.status
+					frappe.bold(parent.subject), _(parent.status)
 				)
 			)
 		if not parent.is_group:
@@ -1174,7 +1174,7 @@ def reorder_task(
 			if new_parent.status in ("Completed", "Cancelled"):
 				frappe.throw(
 					_("Cannot move a subtask under {0} because it is {1}").format(
-						frappe.bold(new_parent.subject), new_parent.status
+						frappe.bold(new_parent.subject), _(new_parent.status)
 					)
 				)
 			if not new_parent.is_group:
@@ -2774,7 +2774,7 @@ def create_my_task(
 		if parent.status in ("Completed", "Cancelled"):
 			frappe.throw(
 				_("Cannot add a subtask to {0} because it is {1}").format(
-					frappe.bold(parent.subject), parent.status
+					frappe.bold(parent.subject), _(parent.status)
 				)
 			)
 		if not parent.is_group:
