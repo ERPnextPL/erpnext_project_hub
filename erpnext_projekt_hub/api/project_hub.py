@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
 
+from erpnext_projekt_hub.events.task_events import _walk_ancestors
+
 
 def _get_incomplete_subtasks(task_name: str) -> list:
 	"""
@@ -965,6 +967,10 @@ def create_task(
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
 		parent_status_before = parent.status
+		if parent_status_before == "Cancelled":
+			frappe.throw(
+				_("Cannot add a subtask to {0} because it is Cancelled").format(frappe.bold(parent.subject))
+			)
 		if not parent.is_group:
 			# Automatically make it a group
 			parent.is_group = 1
@@ -1142,9 +1148,15 @@ def delete_task(task_name: str):
 			delete_task(child["name"])
 
 	# Clear outgoing parent link and incoming timelog references before deletion
+	old_parent = frappe.db.get_value("Task", task_name, "parent_task")
 	frappe.db.set_value("Task", task_name, "parent_task", None, update_modified=False)
 	frappe.db.sql("UPDATE `tabTimesheet Detail` SET task = NULL WHERE task = %s", task_name)
 	frappe.delete_doc("Task", task_name)
+
+	# The parent link was cleared before deletion so on_task_trash couldn't see it -
+	# roll up progress to the real old parent here instead.
+	if old_parent:
+		_walk_ancestors(old_parent, reopen=False)
 
 	return {"success": True}
 

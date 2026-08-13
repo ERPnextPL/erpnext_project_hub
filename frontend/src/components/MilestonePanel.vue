@@ -332,6 +332,9 @@ async function handleDrop(event, milestoneName) {
 
 onMounted(() => {
 	document.addEventListener("click", handleClickOutside);
+	if (!store.milestoneStatuses.length) {
+		store.fetchMilestoneStatuses();
+	}
 });
 
 onUnmounted(() => {
@@ -550,6 +553,7 @@ onUnmounted(() => {
 		<!-- Modals -->
 		<MilestoneModal
 			:show="showCreateModal"
+			:statuses="store.milestoneStatuses"
 			@save="handleCreate"
 			@close="showCreateModal = false"
 		/>
@@ -557,6 +561,7 @@ onUnmounted(() => {
 		<MilestoneModal
 			:show="showEditModal"
 			:milestone="editingMilestone"
+			:statuses="store.milestoneStatuses"
 			edit-mode
 			@save="handleUpdate"
 			@close="

@@ -1375,10 +1375,39 @@ function uploadTaskFile(file, options = {}) {
 	});
 }
 
+// The editor shows a base64 preview of a pasted image until its upload resolves.
+// Frappe strips data: URIs when it sanitizes a comment, so sending that preview
+// would store an image tag with no source at all.
+function hasPendingImageUpload(html) {
+	return /<img[^>]+src=["']data:/i.test(html);
+}
+
+function uploadCommentImage(file) {
+	return uploadTaskFile(file, {
+		doctype: "Task",
+		docname: props.task.name,
+		optimize: true,
+		max_width: 1920,
+		max_height: 1920,
+	});
+}
+
 async function submitComment() {
 	const editor = commentEditorRef.value?.editor;
 	const content = editor?.getHTML?.().trim?.() || commentText.value.trim();
 	if (!content || commentSubmitting.value) return;
+
+	if (hasPendingImageUpload(content)) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate(
+					"The image is not uploaded yet. Wait for it to finish, or remove it from the comment."
+				),
+				indicator: "orange",
+			});
+		}
+		return;
+	}
 
 	commentSubmitting.value = true;
 	try {
@@ -1920,6 +1949,7 @@ async function deleteAttachment(fileName) {
 											@change="handleCommentChange"
 											:editable="true"
 											:mentions="commentMentions"
+											:upload-function="uploadCommentImage"
 											:placeholder="() => translate('Type your comment...')"
 											editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
 										/>

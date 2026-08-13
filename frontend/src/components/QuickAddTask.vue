@@ -37,7 +37,9 @@ async function createTask() {
 	isCreating.value = true;
 	try {
 		// A Completed parent is not a reason to refuse: the backend reopens it and
-		// says so. Anything the parent is missing from the store is filled in there.
+		// says so. A Cancelled parent IS rejected, but server-side (it throws),
+		// since a cancelled task shouldn't be silently un-cancelled just because
+		// work got added under it. Anything else missing from the store is filled in there.
 		const parent = props.parentTask
 			? store.tasks.find((t) => t.name === props.parentTask)
 			: null;

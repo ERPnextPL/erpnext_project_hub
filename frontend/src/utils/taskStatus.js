@@ -117,9 +117,14 @@ const STATUS_CONFIG = {
 
 const FALLBACK_STATUS = "Open";
 
+/** The status to key STATUS_CONFIG with - unknown or empty statuses fall back to Open. */
+function resolveStatus(status) {
+	return STATUS_CONFIG[status] ? status : FALLBACK_STATUS;
+}
+
 /** Colours, icon and CSS classes for a status. Unknown statuses fall back to Open. */
 export function getStatusConfig(status) {
-	return STATUS_CONFIG[status] || STATUS_CONFIG[FALLBACK_STATUS];
+	return STATUS_CONFIG[resolveStatus(status)];
 }
 
 /** Localised label. The status value itself is the translation source string. */
@@ -129,10 +134,11 @@ export function getStatusLabel(status) {
 
 /** Soft badge: light background, coloured text, matching border. */
 export function getStatusBadge(status) {
-	const config = getStatusConfig(status);
+	const resolvedStatus = resolveStatus(status);
+	const config = STATUS_CONFIG[resolvedStatus];
 	return {
 		icon: config.icon,
-		label: getStatusLabel(status),
+		label: getStatusLabel(resolvedStatus),
 		bg: config.badgeBg,
 		text: config.strongText,
 		border: config.border,
@@ -142,10 +148,11 @@ export function getStatusBadge(status) {
 
 /** Solid badge: saturated background, white text. Open stays muted on purpose. */
 export function getStatusSolid(status) {
-	const config = getStatusConfig(status);
+	const resolvedStatus = resolveStatus(status);
+	const config = STATUS_CONFIG[resolvedStatus];
 	return {
 		icon: config.icon,
-		label: getStatusLabel(status),
+		label: getStatusLabel(resolvedStatus),
 		bg: config.solidBg,
 		class: config.solidText,
 	};
@@ -153,10 +160,11 @@ export function getStatusSolid(status) {
 
 /** Option shape for dropdowns and filter chips. */
 export function getStatusOption(status) {
-	const config = getStatusConfig(status);
+	const resolvedStatus = resolveStatus(status);
+	const config = STATUS_CONFIG[resolvedStatus];
 	return {
 		value: status,
-		label: getStatusLabel(status),
+		label: getStatusLabel(resolvedStatus),
 		icon: config.icon,
 		class: config.text,
 		bg: config.softBg,

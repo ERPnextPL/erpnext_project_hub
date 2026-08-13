@@ -7,7 +7,7 @@ from frappe.utils import flt
 # A subtask in one of these statuses is no longer finished. A parent that is
 # already Completed cannot honestly stay Completed once one of its subtasks
 # moves back to any of them.
-REOPENED_STATUSES = ("Open", "Working", "Pending Review")
+REOPENED_STATUSES = ("Open", "Working", "Pending Review", "Overdue")
 
 # Status a Completed parent falls back to when that happens.
 REOPENED_PARENT_STATUS = "Working"

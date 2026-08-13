@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { Diamond, X } from "lucide-vue-next";
 import { getRealWindow, translate } from "../utils/translation";
 import { MILESTONE_STATUSES, getMilestoneStatusLabel } from "../utils/milestone";
@@ -8,6 +8,10 @@ const props = defineProps({
 	show: Boolean,
 	milestone: Object,
 	editMode: Boolean,
+	statuses: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 const emit = defineEmits(["save", "close"]);
@@ -23,7 +27,7 @@ const formData = ref({
 });
 
 const priorities = ["Low", "Medium", "High", "Urgent"];
-const statuses = MILESTONE_STATUSES;
+const statuses = computed(() => (props.statuses.length ? props.statuses : MILESTONE_STATUSES));
 
 watch(
 	() => props.show,

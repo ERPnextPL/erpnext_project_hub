@@ -5,7 +5,7 @@ import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
-import { TASK_STATUSES, getStatusSolid } from "../../utils/taskStatus";
+import { BOARD_STATUSES, getStatusSolid } from "../../utils/taskStatus";
 import {
 	Clock,
 	CheckCircle2,
@@ -76,7 +76,7 @@ function isTouchDevice() {
 }
 
 const statusConfig = Object.fromEntries(
-	TASK_STATUSES.map((status) => [status, getStatusSolid(status)])
+	BOARD_STATUSES.map((status) => [status, getStatusSolid(status)])
 );
 
 const priorityConfig = {

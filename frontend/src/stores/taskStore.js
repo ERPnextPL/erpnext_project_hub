@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { ACTIVE_STATUSES, TASK_STATUSES } from "../utils/taskStatus";
+import { ACTIVE_STATUSES, BOARD_STATUSES } from "../utils/taskStatus";
+import { MILESTONE_STATUSES } from "../utils/milestone";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -512,6 +513,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	const NO_MILESTONE_FILTER = "__none__";
 	const milestones = ref([]);
 	const activeMilestoneFilter = ref([]);
+	const milestoneStatuses = ref([]);
 
 	async function fetchActivityTypes() {
 		try {
@@ -564,7 +566,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		} catch (error) {
 			console.error("Failed to fetch task statuses:", error);
 			// Fallback to the canonical list if the API call fails
-			taskStatuses.value = [...TASK_STATUSES];
+			taskStatuses.value = [...BOARD_STATUSES];
 			return taskStatuses.value;
 		}
 	}
@@ -664,6 +666,22 @@ async function reorderTask(taskName, newParent, newIdx) {
 	// ==========================================================================
 	// MILESTONE FUNCTIONS
 	// ==========================================================================
+
+	async function fetchMilestoneStatuses() {
+		try {
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.get_milestone_statuses",
+				{}
+			);
+			milestoneStatuses.value = data || [];
+			return data;
+		} catch (error) {
+			console.error("Failed to fetch milestone statuses:", error);
+			// Fallback to the canonical list if the API call fails
+			milestoneStatuses.value = [...MILESTONE_STATUSES];
+			return milestoneStatuses.value;
+		}
+	}
 
 	async function fetchMilestones(projectName) {
 		try {
@@ -867,6 +885,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		milestones,
 		activeMilestoneFilter,
 		NO_MILESTONE_FILTER,
+		milestoneStatuses,
 		projectTeamRefreshTrigger,
 		projectsSettings,
 		sortBy,
@@ -910,6 +929,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateTimelog,
 		deleteTimelog,
 		// Milestones
+		fetchMilestoneStatuses,
 		fetchMilestones,
 		createMilestone,
 		updateMilestone,
