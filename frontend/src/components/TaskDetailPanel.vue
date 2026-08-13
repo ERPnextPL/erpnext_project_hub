@@ -291,7 +291,7 @@ const directSubtasks = computed(() => {
 });
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+	return editableTask.value.status !== "Completed" && editableTask.value.status !== "Cancelled";
 });
 
 const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));
