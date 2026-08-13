@@ -1,16 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
-import {
-	Circle,
-	Clock,
-	CheckCircle2,
-	AlertCircle,
-	User,
-	Flag,
-	Calendar,
-	X,
-} from "lucide-vue-next";
+import { AlertCircle, User, Flag, Calendar, X } from "lucide-vue-next";
+import { getStatusOption } from "../utils/taskStatus";
 
 const props = defineProps({
 	project: {
@@ -62,15 +54,6 @@ onMounted(async () => {
 	}
 });
 
-const statusIconMap = {
-	Open: { icon: Circle, class: "text-blue-600" },
-	Working: { icon: Clock, class: "text-amber-600" },
-	"Pending Review": { icon: AlertCircle, class: "text-purple-600" },
-	Completed: { icon: CheckCircle2, class: "text-green-600" },
-	Overdue: { icon: AlertCircle, class: "text-red-600" },
-	Cancelled: { icon: Circle, class: "text-gray-400" },
-};
-
 const priorityColorMap = {
 	Urgent: "text-red-500",
 	High: "text-orange-400",
@@ -79,23 +62,10 @@ const priorityColorMap = {
 };
 
 const statuses = computed(() => {
-	return store.taskStatuses.map((status) => {
-		const config = statusIconMap[status] || { icon: Circle, class: "text-gray-500" };
-		return {
-			value: status,
-			label:
-				status === "Working"
-					? translate("Working")
-					: status === "Pending Review"
-					? translate("Pending Review")
-					: status === "Template"
-					? translate("Template")
-					: status,
-			icon: config.icon,
-			class: config.class,
-			disabled: disabledStatuses.includes(status),
-		};
-	});
+	return store.taskStatuses.map((status) => ({
+		...getStatusOption(status),
+		disabled: disabledStatuses.includes(status),
+	}));
 });
 
 const priorities = computed(() => {

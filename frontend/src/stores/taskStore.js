@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { ACTIVE_STATUSES, TASK_STATUSES } from "../utils/taskStatus";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -74,7 +75,7 @@ async function apiCall(method, params = {}) {
 
 export const useTaskStore = defineStore("tasks", () => {
 	const defaultFilters = {
-		status: ["Open", "Working", "Pending Review", "Overdue"],
+		status: [...ACTIVE_STATUSES],
 		priority: [],
 		assignee: null,
 		dueToday: false,
@@ -559,15 +560,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 			return data;
 		} catch (error) {
 			console.error("Failed to fetch task statuses:", error);
-			// Fallback to default statuses if API fails
-			taskStatuses.value = [
-				"Open",
-				"Working",
-				"Pending Review",
-				"Completed",
-				"Overdue",
-				"Cancelled",
-			];
+			// Fallback to the canonical list if the API call fails
+			taskStatuses.value = [...TASK_STATUSES];
 			return taskStatuses.value;
 		}
 	}

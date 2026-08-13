@@ -2,33 +2,14 @@
 import { computed, ref } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import { translate } from "../../utils/translation";
-import {
-	Circle,
-	Clock,
-	CheckCircle2,
-	AlertCircle,
-	Flag,
-	Calendar,
-	CalendarDays,
-	X,
-	Folder,
-} from "lucide-vue-next";
+import { getStatusOption } from "../../utils/taskStatus";
+import { Clock, AlertCircle, Flag, Calendar, CalendarDays, X, Folder } from "lucide-vue-next";
 
 const store = useMyTasksStore();
 const focusRingClasses =
 	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2";
 const hasOverdueTasks = computed(() => store.tasks.some((task) => task.is_overdue));
 const isShiftingDueDates = ref(false);
-
-// Icon and color mapping for statuses
-const statusConfig = {
-	Open: { icon: Circle, class: "text-blue-600", bg: "bg-blue-50" },
-	Working: { icon: Clock, class: "text-amber-600", bg: "bg-amber-50" },
-	"Pending Review": { icon: AlertCircle, class: "text-purple-600", bg: "bg-purple-50" },
-	Completed: { icon: CheckCircle2, class: "text-green-600", bg: "bg-green-50" },
-	Overdue: { icon: AlertCircle, class: "text-red-600", bg: "bg-red-50" },
-	Cancelled: { icon: Circle, class: "text-red-600", bg: "bg-red-50" },
-};
 
 const priorityConfig = {
 	Urgent: { class: "text-red-600", bg: "bg-red-50" },
@@ -43,15 +24,6 @@ const dueFilterOptions = [
 	{ value: "overdue", label: translate("Overdue"), icon: AlertCircle },
 ];
 
-const statusLabelMap = {
-	Working: translate("Working"),
-	"Pending Review": translate("Pending Review"),
-	Completed: translate("Completed"),
-	Cancelled: translate("Cancelled"),
-	Overdue: translate("Overdue"),
-	Open: translate("Open"),
-};
-
 const priorityLabelMap = {
 	Urgent: translate("Urgent"),
 	High: translate("High"),
@@ -59,13 +31,7 @@ const priorityLabelMap = {
 	Low: translate("Low"),
 };
 
-const statuses = computed(() => {
-	return store.statuses.map((status) => ({
-		value: status,
-		label: statusLabelMap[status] || status,
-		...(statusConfig[status] || { icon: Circle, class: "text-gray-500", bg: "bg-gray-50" }),
-	}));
-});
+const statuses = computed(() => store.statuses.map((status) => getStatusOption(status)));
 
 const priorities = computed(() => {
 	return store.priorities.map((priority) => ({

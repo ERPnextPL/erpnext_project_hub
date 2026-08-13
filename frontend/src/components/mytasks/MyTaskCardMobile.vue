@@ -6,10 +6,7 @@ import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import {
-	Circle,
-	Clock,
 	CheckCircle2,
-	AlertCircle,
 	Flag,
 	Calendar,
 	Folder,
@@ -18,6 +15,7 @@ import {
 	ChevronRight,
 	FileText,
 } from "lucide-vue-next";
+import { TASK_STATUSES, getStatusSolid } from "../../utils/taskStatus";
 
 const props = defineProps({
 	task: {
@@ -33,44 +31,9 @@ const subtaskSubject = ref("");
 const realWindow = getRealWindow();
 
 // Status config
-const statusConfig = {
-	Open: {
-		icon: Circle,
-		class: "text-slate-700",
-		bg: "bg-blue-100 border border-blue-200",
-		label: translate("Open"),
-	},
-	Working: {
-		icon: Clock,
-		class: "text-white",
-		bg: "bg-blue-600 border border-blue-600",
-		label: translate("Working"),
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-purple-600 border border-purple-600",
-		label: translate("Pending Review"),
-	},
-	Completed: {
-		icon: CheckCircle2,
-		class: "text-white",
-		bg: "bg-emerald-600 border border-emerald-600",
-		label: translate("Completed"),
-	},
-	Overdue: {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-red-600 border border-red-600",
-		label: translate("Overdue"),
-	},
-	Cancelled: {
-		icon: Circle,
-		class: "text-white",
-		bg: "bg-red-600 border border-red-600",
-		label: translate("Cancelled"),
-	},
-};
+const statusConfig = Object.fromEntries(
+	TASK_STATUSES.map((status) => [status, getStatusSolid(status)])
+);
 
 const priorityConfig = {
 	Urgent: {

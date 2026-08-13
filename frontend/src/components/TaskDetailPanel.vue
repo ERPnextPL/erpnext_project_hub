@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { TASK_STATUSES, getStatusSolid } from "../utils/taskStatus";
 import QuickAddTask from "./QuickAddTask.vue";
 import UserSelect from "./UserSelect.vue";
 import TimeLogModal from "./TimeLogModal.vue?v=20241220-2030";
@@ -17,7 +18,6 @@ import {
 	Clock,
 	CheckCircle2,
 	Circle,
-	AlertCircle,
 	FileText,
 	MessageSquare,
 	Paperclip,
@@ -189,44 +189,12 @@ onMounted(() => {
 	ensureTimeLogsLoaded();
 });
 
-const statusPalette = {
-	Open: {
-		icon: Circle,
-		label: translate("Open"),
-		bg: "bg-blue-50 border border-blue-200",
-		text: "text-blue-700",
-	},
-	Working: {
-		icon: Clock,
-		label: translate("Working"),
-		bg: "bg-blue-600 border border-blue-600",
-		text: "text-white",
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		label: translate("Pending Review"),
-		bg: "bg-purple-600 border border-purple-600",
-		text: "text-white",
-	},
-	Completed: {
-		icon: CheckCircle2,
-		label: translate("Completed"),
-		bg: "bg-green-600 border border-green-600",
-		text: "text-white",
-	},
-	Overdue: {
-		icon: AlertCircle,
-		label: translate("Overdue"),
-		bg: "bg-red-600 border border-red-600",
-		text: "text-white",
-	},
-	Cancelled: {
-		icon: Circle,
-		label: translate("Cancelled"),
-		bg: "bg-red-100 border border-red-200",
-		text: "text-red-700",
-	},
-};
+const statusPalette = Object.fromEntries(
+	TASK_STATUSES.map((status) => {
+		const solid = getStatusSolid(status);
+		return [status, { icon: solid.icon, label: solid.label, bg: solid.bg, text: solid.class }];
+	})
+);
 
 const priorityPalette = {
 	Low: {

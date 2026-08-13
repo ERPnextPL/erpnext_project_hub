@@ -2216,7 +2216,17 @@ def get_milestone_tasks(milestone_name: str):
 
 @frappe.whitelist()
 def get_milestone_statuses():
-	"""Get available milestone statuses."""
+	"""Get list of milestone statuses from the Project Milestone doctype."""
+	milestone_meta = frappe.get_meta("Project Milestone")
+	status_field = milestone_meta.get_field("status")
+
+	if status_field and status_field.options:
+		# Options are stored as newline-separated string
+		statuses = [s.strip() for s in status_field.options.split("\n") if s.strip()]
+		if statuses:
+			return statuses
+
+	# Fallback to default statuses
 	return ["Open", "In Progress", "Completed", "Cancelled"]
 
 

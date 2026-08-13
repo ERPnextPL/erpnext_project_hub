@@ -2,6 +2,7 @@
 import { ref, watch } from "vue";
 import { Diamond, X } from "lucide-vue-next";
 import { getRealWindow, translate } from "../utils/translation";
+import { MILESTONE_STATUSES, getMilestoneStatusLabel } from "../utils/milestone";
 
 const props = defineProps({
 	show: Boolean,
@@ -22,7 +23,7 @@ const formData = ref({
 });
 
 const priorities = ["Low", "Medium", "High", "Urgent"];
-const statuses = ["Open", "In Progress", "Completed", "Cancelled"];
+const statuses = MILESTONE_STATUSES;
 
 watch(
 	() => props.show,
@@ -169,7 +170,7 @@ function handleSave() {
 										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 									>
 										<option v-for="s in statuses" :key="s" :value="s">
-											{{ s }}
+											{{ getMilestoneStatusLabel(s) }}
 										</option>
 									</select>
 								</div>

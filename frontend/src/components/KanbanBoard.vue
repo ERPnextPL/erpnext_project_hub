@@ -1,18 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
-import {
-	Circle,
-	CheckCircle2,
-	Clock,
-	AlertCircle,
-	User,
-	Calendar,
-	GripVertical,
-	Plus,
-	ListTodo,
-	Flag,
-} from "lucide-vue-next";
+import { BOARD_STATUSES, getStatusConfig, getStatusLabel } from "../utils/taskStatus";
+import { translate } from "../utils/translation";
+import { User, Calendar, GripVertical, Plus, ListTodo, Flag } from "lucide-vue-next";
 
 const props = defineProps({
 	tasks: {
@@ -33,64 +24,24 @@ const emit = defineEmits(["task-click", "task-update"]);
 
 const store = useTaskStore();
 
-// Status configuration
-const statusConfig = {
-	Open: {
-		icon: Circle,
-		color: "bg-blue-500",
-		bgColor: "bg-blue-50",
-		textColor: "text-blue-700",
-	},
-	Working: {
-		icon: Clock,
-		color: "bg-amber-500",
-		bgColor: "bg-amber-50",
-		textColor: "text-amber-700",
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		color: "bg-purple-500",
-		bgColor: "bg-purple-50",
-		textColor: "text-purple-700",
-	},
-	Completed: {
-		icon: CheckCircle2,
-		color: "bg-green-500",
-		bgColor: "bg-green-50",
-		textColor: "text-green-700",
-	},
-	Cancelled: {
-		icon: Circle,
-		color: "bg-red-500",
-		bgColor: "bg-red-50",
-		textColor: "text-red-700",
-	},
-};
-
-const statusLabels = {
-	Open: "Open",
-	Working: "In Progress",
-	"Pending Review": "Review",
-	Completed: "Completed",
-	Cancelled: "Cancelled",
-};
-
 // Get columns based on available statuses
 const columns = computed(() => {
-	const statuses = ["Open", "Working", "Pending Review", "Completed", "Cancelled"];
-	const selectedStatuses =
-		Array.isArray(props.visibleStatuses)
-			? props.visibleStatuses
-			: statuses;
+	const selectedStatuses = Array.isArray(props.visibleStatuses)
+		? props.visibleStatuses
+		: BOARD_STATUSES;
 
-	return statuses
-		.filter((status) => selectedStatuses.includes(status))
-		.map((status) => ({
-		id: status,
-		title: statusLabels[status] || status,
-		...statusConfig[status],
-		tasks: props.tasks.filter((t) => t.status === status),
-		}));
+	return BOARD_STATUSES.filter((status) => selectedStatuses.includes(status)).map((status) => {
+		const config = getStatusConfig(status);
+		return {
+			id: status,
+			title: getStatusLabel(status),
+			icon: config.icon,
+			color: config.dot,
+			bgColor: config.softBg,
+			textColor: config.strongText,
+			tasks: props.tasks.filter((t) => t.status === status),
+		};
+	});
 });
 
 // Drag and drop state
@@ -126,7 +77,7 @@ async function onDrop(e, columnId) {
 		await store.updateTask(draggedTask.value.name, { status: columnId });
 		if (window.frappe) {
 			frappe.show_alert({
-				message: `Task moved to ${statusLabels[columnId] || columnId}`,
+				message: translate("Task moved to {0}", [getStatusLabel(columnId)]),
 				indicator: "green",
 			});
 		}

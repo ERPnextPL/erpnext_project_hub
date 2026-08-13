@@ -152,7 +152,6 @@ after_uninstall = "erpnext_projekt_hub.uninstall.after_uninstall"
 
 doc_events = {
 	"Task": {
-		"before_save": "erpnext_projekt_hub.events.task_events.sync_progress_from_dependencies",
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
 	}

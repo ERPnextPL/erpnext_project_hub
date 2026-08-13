@@ -46,13 +46,17 @@ html.dark body {
 	@apply border-b-gray-300;
 }
 
-/* Status badge colors */
+/* Status badge colors - keep in sync with src/utils/taskStatus.js */
 .status-open {
 	@apply bg-blue-100 text-blue-800;
 }
 
 .status-working {
 	@apply bg-amber-100 text-amber-800;
+}
+
+.status-pending-review {
+	@apply bg-purple-100 text-purple-800;
 }
 
 .status-completed {
@@ -64,7 +68,11 @@ html.dark body {
 }
 
 .status-cancelled {
-	@apply bg-red-100 text-red-800;
+	@apply bg-gray-100 text-gray-800;
+}
+
+.status-template {
+	@apply bg-gray-100 text-gray-800;
 }
 
 /* Priority indicators */
