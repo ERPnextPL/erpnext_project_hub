@@ -73,8 +73,11 @@ def _walk_ancestors(task_name, reopen, exclude=None):
 	"""Roll progress up the parent chain, un-completing ancestors when asked.
 
 	`reopen` carries the right to take a Completed ancestor back to Working. It
-	survives one more level only when the ancestor actually left Completed,
-	because that is what makes its own parent contain unfinished work again.
+	stays in effect for the whole walk, not just the first ancestor: a parent
+	that is already Working (not Completed) still leaves the same unfinished
+	work sitting underneath a Completed grandparent further up, so the signal
+	must not be dropped just because the nearest ancestor did not itself need
+	reopening.
 	`exclude` leaves a task out of the roll-up, for the on_trash case where the
 	row is still present in the database.
 	"""
@@ -89,14 +92,12 @@ def _walk_ancestors(task_name, reopen, exclude=None):
 			return
 
 		progress = _subtask_progress(current, exclude=exclude)
-		reopened = reopen and ancestor.status == "Completed"
 
-		if reopened:
+		if reopen and ancestor.status == "Completed":
 			_reopen_task(current, progress)
 		elif progress is not None and int(flt(ancestor.progress)) != progress:
 			frappe.db.set_value("Task", current, "progress", progress, update_modified=False)
 
-		reopen = reopened
 		exclude = None
 		current = ancestor.parent_task
 
@@ -127,9 +128,11 @@ def _reopen_task(task_name, progress):
 	The save records the transition in the task's Version history, so the change
 	is visible in the timeline instead of appearing out of nowhere. The flag
 	stops the resulting on_update from walking the chain a second time - the
-	caller already does that. A parent that refuses to save must not block the
-	subtask the person is actually editing, so the status is written directly
-	as a fallback.
+	caller already does that. A parent that refuses the save for its own reasons
+	(a validate() hook, a missing mandatory field, a permission check) must not
+	block the subtask the person is actually editing, so the status is written
+	directly as a fallback. Anything else - a genuine bug - is left to propagate
+	instead of being silently papered over with a raw write.
 	"""
 	try:
 		task = frappe.get_doc("Task", task_name)
@@ -138,7 +141,7 @@ def _reopen_task(task_name, progress):
 			task.progress = progress
 		task.flags.ignore_hierarchy_sync = True
 		task.save(ignore_permissions=True)
-	except Exception:
+	except (frappe.ValidationError, frappe.PermissionError):
 		frappe.log_error(frappe.get_traceback(), f"Task Hierarchy Sync: {task_name}")
 
 		values = {"status": REOPENED_PARENT_STATUS}

@@ -1,6 +1,8 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+from erpnext_projekt_hub.api.project_hub import delete_task
+
 test_ignore = ["Task"]
 
 
@@ -104,6 +106,20 @@ class TestParentProgressRollup(FrappeTestCase):
 		leaf.reload()
 		self.assertEqual(leaf.progress, 42)
 
+	def test_deleting_subtask_recalculates_parent_progress(self):
+		parent = create_task("_Test Parent - deleted subtask", is_group=1)
+		completed = create_task("_Test Deleted Subtask", parent=parent.name)
+		create_task("_Test Remaining Subtask", parent=parent.name)
+
+		set_status(completed, "Completed")
+		parent.reload()
+		self.assertEqual(parent.progress, 50)
+
+		delete_task(completed.name)
+
+		parent.reload()
+		self.assertEqual(parent.progress, 0)
+
 
 class TestCompletedParentIsUncompleted(FrappeTestCase):
 	"""The one exception: a Completed parent cannot hold unfinished work."""
@@ -166,6 +182,28 @@ class TestCompletedParentIsUncompleted(FrappeTestCase):
 		set_status(sub, "Completed")
 		set_status(parent, "Completed")
 		set_status(grandparent, "Completed")
+
+		set_status(sub, "Working")
+
+		parent.reload()
+		grandparent.reload()
+		self.assertEqual(parent.status, "Working")
+		self.assertEqual(grandparent.status, "Working")
+
+	def test_reopen_propagates_past_an_already_working_parent(self):
+		"""A Completed ancestor further up the chain must still be reopened
+		even when the nearer ancestor in between is already off Completed."""
+		grandparent = create_task("_Test Grandparent - past working parent", is_group=1)
+		parent = create_task("_Test Middle - already working", parent=grandparent.name, is_group=1)
+		sub = create_task("_Test Deep Sub - reopened", parent=parent.name)
+
+		set_status(sub, "Completed")
+		set_status(parent, "Completed")
+		set_status(grandparent, "Completed")
+
+		# Parent already left Completed independently of this walk (e.g. a
+		# stale import), while grandparent is still Completed.
+		frappe.db.set_value("Task", parent.name, "status", "Working", update_modified=False)
 
 		set_status(sub, "Working")
 

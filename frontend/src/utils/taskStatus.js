@@ -115,16 +115,23 @@ const STATUS_CONFIG = {
 	},
 };
 
-const FALLBACK_STATUS = "Open";
+/** Neutral styling for statuses not in STATUS_CONFIG (e.g. a custom status added via Customize Form). */
+const UNKNOWN_STATUS_CONFIG = {
+	icon: Circle,
+	text: "text-gray-500",
+	strongText: "text-gray-700",
+	softBg: "bg-gray-50",
+	badgeBg: "bg-gray-100",
+	border: "border-gray-200",
+	dot: "bg-gray-400",
+	solidBg: "bg-gray-500 border border-gray-500",
+	solidText: "text-white",
+	rowClass: "status-unknown",
+};
 
-/** The status to key STATUS_CONFIG with - unknown or empty statuses fall back to Open. */
-function resolveStatus(status) {
-	return STATUS_CONFIG[status] ? status : FALLBACK_STATUS;
-}
-
-/** Colours, icon and CSS classes for a status. Unknown statuses fall back to Open. */
+/** Colours, icon and CSS classes for a status. Unknown statuses get neutral styling, not another status's. */
 export function getStatusConfig(status) {
-	return STATUS_CONFIG[resolveStatus(status)];
+	return STATUS_CONFIG[status] || UNKNOWN_STATUS_CONFIG;
 }
 
 /** Localised label. The status value itself is the translation source string. */
@@ -134,11 +141,10 @@ export function getStatusLabel(status) {
 
 /** Soft badge: light background, coloured text, matching border. */
 export function getStatusBadge(status) {
-	const resolvedStatus = resolveStatus(status);
-	const config = STATUS_CONFIG[resolvedStatus];
+	const config = getStatusConfig(status);
 	return {
 		icon: config.icon,
-		label: getStatusLabel(resolvedStatus),
+		label: getStatusLabel(status),
 		bg: config.badgeBg,
 		text: config.strongText,
 		border: config.border,
@@ -148,11 +154,10 @@ export function getStatusBadge(status) {
 
 /** Solid badge: saturated background, white text. Open stays muted on purpose. */
 export function getStatusSolid(status) {
-	const resolvedStatus = resolveStatus(status);
-	const config = STATUS_CONFIG[resolvedStatus];
+	const config = getStatusConfig(status);
 	return {
 		icon: config.icon,
-		label: getStatusLabel(resolvedStatus),
+		label: getStatusLabel(status),
 		bg: config.solidBg,
 		class: config.solidText,
 	};
@@ -160,11 +165,10 @@ export function getStatusSolid(status) {
 
 /** Option shape for dropdowns and filter chips. */
 export function getStatusOption(status) {
-	const resolvedStatus = resolveStatus(status);
-	const config = STATUS_CONFIG[resolvedStatus];
+	const config = getStatusConfig(status);
 	return {
 		value: status,
-		label: getStatusLabel(resolvedStatus),
+		label: getStatusLabel(status),
 		icon: config.icon,
 		class: config.text,
 		bg: config.softBg,

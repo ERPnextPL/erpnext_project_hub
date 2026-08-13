@@ -1134,9 +1134,11 @@ def delete_task(task_name: str):
 		for child in children:
 			delete_task(child["name"])
 
-	# Clear outgoing parent link and incoming timelog references before deletion
+	# Clear links that would otherwise prevent deletion, while retaining the old
+	# parent for the hierarchy roll-up below.
 	old_parent = frappe.db.get_value("Task", task_name, "parent_task")
 	frappe.db.set_value("Task", task_name, "parent_task", None, update_modified=False)
+	frappe.db.delete("Task Depends On", {"task": task_name})
 	frappe.db.sql("UPDATE `tabTimesheet Detail` SET task = NULL WHERE task = %s", task_name)
 	frappe.delete_doc("Task", task_name)
 
@@ -2769,6 +2771,12 @@ def create_my_task(
 	# If parent_task is provided, ensure it's a group task
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
+		if parent.status in ("Completed", "Cancelled"):
+			frappe.throw(
+				_("Cannot add a subtask to {0} because it is {1}").format(
+					frappe.bold(parent.subject), parent.status
+				)
+			)
 		if not parent.is_group:
 			parent.is_group = 1
 			parent.save()

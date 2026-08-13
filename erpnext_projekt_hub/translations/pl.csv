@@ -266,3 +266,5 @@
 "Parent Task Reopened","Zadanie nadrzędne wznowione"
 "{0} is no longer Completed because it now contains an unfinished subtask.","{0} nie jest już zakończone, ponieważ zawiera teraz niedokończone podzadanie."
 "Cannot add a subtask to {0} because it is Cancelled","Nie można dodać podzadania do {0}, ponieważ jest ono anulowane"
+"Cannot add a subtask to {0} because it is {1}","Nie można dodać podzadania do {0}, ponieważ ma ono status {1}"
+"Cannot move a subtask under {0} because it is {1}","Nie można przenieść podzadania pod {0}, ponieważ ma ono status {1}"
