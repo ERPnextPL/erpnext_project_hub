@@ -89,8 +89,8 @@ onMounted(async () => {
 	});
 	store.filters = { ...store.filters, ...restoredFilters };
 	searchInput.value = restoredFilters.search;
-	filtersHydrated.value = true;
 	await store.fetchTasks();
+	filtersHydrated.value = true;
 });
 
 function handleRetry() {

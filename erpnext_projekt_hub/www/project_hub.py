@@ -3,7 +3,6 @@ Project Hub page controller.
 """
 
 import hashlib
-import os
 
 import frappe
 from frappe import _
@@ -23,34 +22,18 @@ ASSET_ENTRIES = (
 	("erpnext_projekt_hub", "public", "frontend", "assets", "frappe-ui.css"),
 )
 
-# (mtimes, token) of the last hashed build, so the files are only re-read when
-# they change.
-_asset_version_cache: tuple[tuple[float, ...], str] | None = None
-
 
 def get_asset_version() -> str:
 	"""Return a cache-busting token derived from the built assets.
 
-	Hashes the file contents rather than using mtimes so every node of a
-	multi-server deployment serves the same token for the same build.
+	Hashes the current file contents so deployments that preserve mtimes still
+	produce a new token when an asset changes.
 	"""
-	global _asset_version_cache
-
 	paths = [frappe.get_app_path(*entry) for entry in ASSET_ENTRIES]
 
 	try:
-		mtimes = tuple(os.path.getmtime(path) for path in paths)
-	except OSError:
-		# No build on disk - the page is broken anyway, so just avoid caching it.
-		return frappe.generate_hash(length=10)
-
-	if _asset_version_cache and _asset_version_cache[0] == mtimes:
-		return _asset_version_cache[1]
-
-	hasher = hashlib.sha1(usedforsecurity=False)
-
-	try:
 		# Paths are derived from the hardcoded ASSET_ENTRIES tuple, not user input.
+		hasher = hashlib.sha1(usedforsecurity=False)
 		for path in paths:
 			with open(path, "rb") as bundle:  # nosemgrep
 				hasher.update(bundle.read())
@@ -58,9 +41,7 @@ def get_asset_version() -> str:
 	except OSError:
 		return frappe.generate_hash(length=10)
 
-	token = hasher.hexdigest()[:10]
-	_asset_version_cache = (mtimes, token)
-	return token
+	return hasher.hexdigest()[:10]
 
 
 def get_context(context):

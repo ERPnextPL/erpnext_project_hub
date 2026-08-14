@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { AlertCircle, User, Flag, Calendar, X } from "lucide-vue-next";
 import { getStatusOption } from "../utils/taskStatus";
@@ -33,7 +33,7 @@ const currentUser = computed(() => {
 });
 
 function cloneFilterArray(value) {
-	return Array.isArray(value) ? [...value] : [];
+	return Array.isArray(value) ? value.filter((status) => !disabledStatuses.includes(status)) : [];
 }
 
 const activeStatus = ref(cloneFilterArray(props.initialFilters?.status));
@@ -42,6 +42,21 @@ const activeAssignee = ref(props.initialFilters?.assignee ?? null);
 const myTasksActive = ref(activeAssignee.value === currentUser.value && !!activeAssignee.value);
 const dueTodayActive = ref(!!props.initialFilters?.dueToday);
 const overdueActive = ref(!!props.initialFilters?.overdue);
+
+watch(
+	() => props.initialFilters,
+	(filters) => {
+		if (!filters) return;
+
+		activeStatus.value = cloneFilterArray(filters.status);
+		activePriority.value = cloneFilterArray(filters.priority);
+		activeAssignee.value = filters.assignee ?? null;
+		myTasksActive.value = activeAssignee.value === currentUser.value && !!activeAssignee.value;
+		dueTodayActive.value = !!filters.dueToday;
+		overdueActive.value = !!filters.overdue;
+	},
+	{ deep: true }
+);
 
 onMounted(async () => {
 	if (store.taskStatuses.length === 0) {

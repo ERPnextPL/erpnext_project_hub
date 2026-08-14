@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -8,9 +9,7 @@ from erpnext_projekt_hub.www import project_hub
 
 
 class TestProjectHubAssetVersion(FrappeTestCase):
-	def test_css_changes_refresh_the_asset_version_token(self):
-		self.addCleanup(lambda: setattr(project_hub, "_asset_version_cache", None))
-
+	def test_css_changes_refresh_the_asset_version_token_when_mtime_is_preserved(self):
 		with tempfile.TemporaryDirectory() as tmpdir:
 			root = Path(tmpdir)
 			assets = root / "erpnext_projekt_hub" / "public" / "frontend" / "assets"
@@ -21,16 +20,17 @@ class TestProjectHubAssetVersion(FrappeTestCase):
 			(assets / "frappe-ui.css").write_text(".btn { color: blue; }\n", encoding="utf-8")
 
 			def fake_get_app_path(*parts):
-				return str(root.joinpath(*parts[1:]))
+				return str(root.joinpath(*parts))
 
 			with patch(
 				"erpnext_projekt_hub.www.project_hub.frappe.get_app_path", side_effect=fake_get_app_path
 			):
-				project_hub._asset_version_cache = None
 				first_token = project_hub.get_asset_version()
 
-				(assets / "index.css").write_text("body { color: green; }\n", encoding="utf-8")
-				project_hub._asset_version_cache = None
+				css_path = assets / "index.css"
+				mtime_ns = css_path.stat().st_mtime_ns
+				css_path.write_text("body { color: green; }\n", encoding="utf-8")
+				os.utime(css_path, ns=(mtime_ns, mtime_ns))
 				second_token = project_hub.get_asset_version()
 
 		self.assertNotEqual(first_token, second_token)

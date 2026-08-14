@@ -129,7 +129,8 @@ const FILTER_DEFAULTS = {
 // The query string is user-editable and outlives deploys, so drop anything the
 // app no longer accepts instead of filtering the tree down to nothing.
 function sanitizeStatusFilter(value) {
-	const statuses = value.filter((status) => TASK_STATUSES.includes(status));
+	const statuses = value.filter((status) => TASK_STATUSES.includes(status) && status !== "Template");
+	if (value.length === 0) return [];
 	return statuses.length > 0 ? statuses : [...ACTIVE_STATUSES];
 }
 
