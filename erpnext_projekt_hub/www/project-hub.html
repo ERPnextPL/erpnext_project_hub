@@ -4,8 +4,8 @@
 {% block title %}Project Outliner{% endblock %}
 
 {% block head_include %}
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css?v={{ asset_version }}">
 {% endblock %}
 
 {% block page_content %}
@@ -20,5 +20,5 @@
 	window["{{ key }}"] = {{ boot[key] | tojson }};
 	{% endfor %}
 </script>
-<script type="module" crossorigin src="/assets/erpnext_projekt_hub/frontend/assets/main.js"></script>
+<script type="module" crossorigin src="/assets/erpnext_projekt_hub/frontend/assets/main.js?v={{ asset_version }}"></script>
 {% endblock %}

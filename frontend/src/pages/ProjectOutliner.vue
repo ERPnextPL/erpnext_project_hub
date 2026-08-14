@@ -6,7 +6,9 @@ import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { isMilestoneCompleted } from "../utils/milestone";
-import { ACTIVE_STATUSES } from "../utils/taskStatus";
+import { ACTIVE_STATUSES, TASK_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
+import { readFilters, writeFilters } from "../utils/urlFilters";
 import TaskTree from "../components/TaskTree.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
@@ -115,14 +117,28 @@ async function submitFab() {
 	}
 }
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
-const activeFilters = ref({
+const FILTER_DEFAULTS = {
 	status: [...ACTIVE_STATUSES], // Domyślne statusy
 	priority: [], // Array for multiselect
 	assignee: null,
 	dueToday: false,
 	overdue: false, // Nowy filtr dla przeterminowanych zadań
 	search: "",
-});
+};
+
+// The query string is user-editable and outlives deploys, so drop anything the
+// app no longer accepts instead of filtering the tree down to nothing.
+const FILTER_SANITIZERS = {
+	status: (value) => value.filter((status) => TASK_STATUSES.includes(status)),
+	priority: (value) => value.filter((priority) => PRIORITY_VALUES.includes(priority)),
+};
+
+const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+const activeFilters = ref(restoredFilters);
+
+// Seed the search box before its watcher below is registered, so restoring a
+// search term does not fire the debounced search and refetch on load.
+searchInput.value = restoredFilters.search;
 
 const hasActiveFilters = computed(() => {
 	return (
@@ -155,6 +171,16 @@ const debouncedSearch = useDebounceFn((value) => {
 watch(searchInput, (value) => {
 	debouncedSearch(value);
 });
+
+// Mirror every filter change into the URL so a refresh - or a shared link -
+// restores the same view. Also re-emitted when the project changes, because the
+// component is reused across projects and would otherwise keep the filters
+// applied while the address bar no longer shows them.
+watch(
+	[activeFilters, () => props.projectId],
+	useDebounceFn(() => writeFilters(router, route, activeFilters.value, FILTER_DEFAULTS), 300),
+	{ deep: true }
+);
 
 onMounted(() => {
 	store.fetchTasks(props.projectId, activeFilters.value);

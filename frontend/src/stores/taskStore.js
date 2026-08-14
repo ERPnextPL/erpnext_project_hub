@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { ACTIVE_STATUSES, BOARD_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -581,7 +582,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		} catch (error) {
 			console.error("Failed to fetch task priorities:", error);
 			// Fallback to default priorities if API fails
-			taskPriorities.value = ["Low", "Medium", "High", "Urgent"];
+			taskPriorities.value = [...PRIORITY_VALUES];
 			return taskPriorities.value;
 		}
 	}

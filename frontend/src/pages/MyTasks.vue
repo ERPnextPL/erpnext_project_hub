@@ -5,6 +5,9 @@ import { useRoute, useRouter } from "vue-router";
 import { useMyTasksStore } from "../stores/myTasksStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useDebounceFn } from "@vueuse/core";
+import { readFilters, writeFilters } from "../utils/urlFilters";
+import { TASK_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
 import {
 	CheckSquare,
 	Search,
@@ -34,8 +37,35 @@ const translate = (text) => {
 		: text;
 };
 
+// Filter defaults - must mirror the shape of `filters` in myTasksStore.
+const FILTER_DEFAULTS = {
+	status: [],
+	priority: [],
+	project: null,
+	dueFilter: null,
+	search: "",
+	sortBy: "default",
+	sortOrder: "asc",
+};
+
+const DUE_FILTER_VALUES = ["today", "week", "overdue", "all"];
+
+// The query string is user-editable and outlives deploys, so drop anything the
+// app no longer accepts instead of filtering the list down to nothing.
+const FILTER_SANITIZERS = {
+	status: (value) => value.filter((status) => TASK_STATUSES.includes(status)),
+	priority: (value) => value.filter((priority) => PRIORITY_VALUES.includes(priority)),
+	dueFilter: (value) => (DUE_FILTER_VALUES.includes(value) ? value : null),
+	sortOrder: (value) => (value === "desc" ? "desc" : "asc"),
+};
+
+// Restore before the watchers below are registered, so seeding the search box
+// does not fire the debounced search and refetch on load.
+const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+store.filters = { ...store.filters, ...restoredFilters };
+
 const showFilters = ref(false);
-const searchInput = ref("");
+const searchInput = ref(restoredFilters.search);
 const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
 
 // Time log modal state
@@ -51,6 +81,14 @@ const debouncedSearch = useDebounceFn((value) => {
 watch(searchInput, (value) => {
 	debouncedSearch(value);
 });
+
+// Mirror every filter change into the URL so a refresh - or a shared link -
+// restores the same view.
+watch(
+	() => store.filters,
+	useDebounceFn((value) => writeFilters(router, route, value, FILTER_DEFAULTS), 300),
+	{ deep: true }
+);
 
 onMounted(async () => {
 	await Promise.all([store.fetchMetadata(), store.fetchProjects()]);
