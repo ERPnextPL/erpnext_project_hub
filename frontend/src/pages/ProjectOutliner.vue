@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
@@ -61,6 +61,8 @@ const milestoneSidebarOpen = ref(false);
 const attachmentsSidebarOpen = ref(false);
 const attachmentCount = ref(0);
 const searchInput = ref("");
+const filtersHydrated = ref(false);
+const suppressSearchSync = ref(false);
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
 const draggingGroupKey = ref(null);
@@ -130,20 +132,26 @@ const FILTER_DEFAULTS = {
 // app no longer accepts instead of filtering the tree down to nothing.
 function sanitizeStatusFilter(value) {
 	if (value.length === 0) return [];
-	const statuses = value.filter((status) => status !== "Template");
+	const statuses = value.filter(
+		(status) => store.taskStatuses.includes(status) && status !== "Template"
+	);
 	return statuses.length > 0 ? statuses : [...ACTIVE_STATUSES];
+}
+
+function sanitizePriorityFilter(value) {
+	return value.filter((priority) => store.taskPriorities.includes(priority));
 }
 
 const FILTER_SANITIZERS = {
 	status: sanitizeStatusFilter,
+	priority: sanitizePriorityFilter,
 };
 
-const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
-const activeFilters = ref(restoredFilters);
-
-// Seed the search box before its watcher below is registered, so restoring a
-// search term does not fire the debounced search and refetch on load.
-searchInput.value = restoredFilters.search;
+const activeFilters = ref({
+	...FILTER_DEFAULTS,
+	status: [...FILTER_DEFAULTS.status],
+	priority: [...FILTER_DEFAULTS.priority],
+});
 
 const hasActiveFilters = computed(() => {
 	return (
@@ -174,6 +182,7 @@ const debouncedSearch = useDebounceFn((value) => {
 }, 300);
 
 watch(searchInput, (value) => {
+	if (!filtersHydrated.value || suppressSearchSync.value) return;
 	debouncedSearch(value);
 });
 
@@ -189,13 +198,25 @@ watch(
 	() => props.projectId,
 	() => {
 		const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+		suppressSearchSync.value = true;
 		activeFilters.value = restoredFilters;
 		searchInput.value = restoredFilters.search;
+		nextTick(() => {
+			suppressSearchSync.value = false;
+		});
 		store.fetchTasks(props.projectId, activeFilters.value);
 	}
 );
 
-onMounted(() => {
+onMounted(async () => {
+	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities()]);
+	const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+	suppressSearchSync.value = true;
+	activeFilters.value = restoredFilters;
+	searchInput.value = restoredFilters.search;
+	filtersHydrated.value = true;
+	await nextTick();
+	suppressSearchSync.value = false;
 	store.fetchTasks(props.projectId, activeFilters.value);
 });
 

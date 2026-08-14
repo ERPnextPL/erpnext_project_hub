@@ -2,6 +2,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_projekt_hub.api.project_hub import delete_task
+from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import execute
 
 test_ignore = ["Task"]
 
@@ -252,3 +253,16 @@ class TestDependenciesDoNotDriveStatus(FrappeTestCase):
 
 		dependent.reload()
 		self.assertEqual(dependent.status, "Open")
+
+
+class TestTaskReferenceLinkField(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_reference_link_custom_field_exists(self):
+		execute()
+
+		field = frappe.get_meta("Task").get_field("reference_link")
+		self.assertIsNotNone(field)
+		self.assertEqual(field.fieldtype, "Data")
+		self.assertEqual(field.insert_after, "milestone")

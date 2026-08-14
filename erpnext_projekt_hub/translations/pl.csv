@@ -164,6 +164,8 @@
 "Customer Request {0} does not exist.","Wniosek klienta {0} nie istnieje."
 "Change Request must use the same customer and project as Customer Request.","Wniosek o zmianę musi używać tego samego klienta i projektu co wniosek klienta."
 "Customer Request {0} is already linked to Change Request {1}.","Wniosek klienta {0} jest już powiązany z wnioskiem o zmianę {1}."
+"Reference link","Link referencyjny",""
+"GitHub branch, documentation, or another URL","Adres URL gałęzi GitHub, dokumentacji lub inny",""
 "To Analyze","Do analizy"
 "Quoted","Wycenione"
 "Accepted","Zaakceptowane"

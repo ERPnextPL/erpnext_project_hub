@@ -33,7 +33,14 @@ def ensure_task_custom_field():
 					"insert_after": "project",
 					"read_only": 1,
 					"no_copy": 1,
-				}
+				},
+				{
+					"fieldname": "reference_link",
+					"label": "Reference Link",
+					"fieldtype": "Data",
+					"description": "GitHub branch, documentation, or other reference URL for this task.",
+					"insert_after": "milestone",
+				},
 			]
 		},
 		update=True,

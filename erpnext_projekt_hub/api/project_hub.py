@@ -2568,6 +2568,7 @@ def _get_task_response(task):
 		"project_name": project_name,
 		"exp_start_date": task.exp_start_date,
 		"exp_end_date": task.exp_end_date,
+		"reference_link": getattr(task, "reference_link", None),
 		"description": task.description,
 		"progress": task.progress,
 		"expected_time": getattr(task, "expected_time", None),
