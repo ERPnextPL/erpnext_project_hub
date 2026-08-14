@@ -2,7 +2,9 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_projekt_hub.api.project_hub import delete_task
-from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import execute
+from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import (
+	ensure_task_custom_field,
+)
 
 test_ignore = ["Task"]
 
@@ -260,7 +262,7 @@ class TestTaskReferenceLinkField(FrappeTestCase):
 		frappe.set_user("Administrator")
 
 	def test_reference_link_custom_field_exists(self):
-		execute()
+		ensure_task_custom_field()
 
 		field = frappe.get_meta("Task").get_field("reference_link")
 		self.assertIsNotNone(field)

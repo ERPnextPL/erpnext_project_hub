@@ -268,7 +268,7 @@ fixtures = [
 			[
 				"name",
 				"in",
-				["Task-milestone"],
+				["Task-milestone", "Task-reference_link"],
 			]
 		],
 	},

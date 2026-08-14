@@ -197,6 +197,7 @@ watch(
 watch(
 	() => props.projectId,
 	() => {
+		debouncedSearch.cancel?.();
 		const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
 		suppressSearchSync.value = true;
 		activeFilters.value = restoredFilters;
