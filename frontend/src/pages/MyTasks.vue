@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useMyTasksStore } from "../stores/myTasksStore";
@@ -51,6 +51,7 @@ const DUE_FILTER_VALUES = ["today", "week", "overdue", "all"];
 const showFilters = ref(false);
 const searchInput = ref("");
 const filtersHydrated = ref(false);
+const suppressInitialSync = ref(false);
 const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
 
 // Time log modal state
@@ -64,18 +65,22 @@ const debouncedSearch = useDebounceFn((value) => {
 }, 300);
 
 watch(searchInput, (value) => {
-	if (!filtersHydrated.value) return;
+	if (!filtersHydrated.value || suppressInitialSync.value) return;
 	debouncedSearch(value);
 });
 
 // Mirror every filter change into the URL so a refresh - or a shared link -
 // restores the same view.
+const debouncedWriteFilters = useDebounceFn((value) => {
+	writeFilters(router, route, value, FILTER_DEFAULTS);
+}, 300);
+
 watch(
 	() => store.filters,
-	useDebounceFn((value) => {
-		if (!filtersHydrated.value) return;
-		writeFilters(router, route, value, FILTER_DEFAULTS);
-	}, 300),
+	(value) => {
+		if (!filtersHydrated.value || suppressInitialSync.value) return;
+		debouncedWriteFilters(value);
+	},
 	{ deep: true }
 );
 
@@ -87,10 +92,13 @@ onMounted(async () => {
 		dueFilter: (value) => (DUE_FILTER_VALUES.includes(value) ? value : null),
 		sortOrder: (value) => (value === "desc" ? "desc" : "asc"),
 	});
+	suppressInitialSync.value = true;
 	store.filters = { ...store.filters, ...restoredFilters };
 	searchInput.value = restoredFilters.search;
-	await store.fetchTasks();
 	filtersHydrated.value = true;
+	await nextTick();
+	suppressInitialSync.value = false;
+	await store.fetchTasks();
 });
 
 function handleRetry() {

@@ -44,16 +44,22 @@ const dueTodayActive = ref(!!props.initialFilters?.dueToday);
 const overdueActive = ref(!!props.initialFilters?.overdue);
 
 watch(
-	() => props.initialFilters,
-	(filters) => {
-		if (!filters) return;
+	() => [
+		props.initialFilters?.status,
+		props.initialFilters?.priority,
+		props.initialFilters?.assignee,
+		props.initialFilters?.dueToday,
+		props.initialFilters?.overdue,
+	],
+	([status, priority, assignee, dueToday, overdue]) => {
+		if (!props.initialFilters) return;
 
-		activeStatus.value = cloneFilterArray(filters.status);
-		activePriority.value = cloneFilterArray(filters.priority);
-		activeAssignee.value = filters.assignee ?? null;
+		activeStatus.value = cloneFilterArray(status);
+		activePriority.value = cloneFilterArray(priority);
+		activeAssignee.value = assignee ?? null;
 		myTasksActive.value = activeAssignee.value === currentUser.value && !!activeAssignee.value;
-		dueTodayActive.value = !!filters.dueToday;
-		overdueActive.value = !!filters.overdue;
+		dueTodayActive.value = !!dueToday;
+		overdueActive.value = !!overdue;
 	},
 	{ deep: true }
 );

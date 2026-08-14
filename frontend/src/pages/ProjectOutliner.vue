@@ -6,7 +6,7 @@ import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { isMilestoneCompleted } from "../utils/milestone";
-import { ACTIVE_STATUSES, TASK_STATUSES } from "../utils/taskStatus";
+import { ACTIVE_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
 import { readFilters, writeFilters } from "../utils/urlFilters";
 import TaskTree from "../components/TaskTree.vue";
@@ -129,14 +129,13 @@ const FILTER_DEFAULTS = {
 // The query string is user-editable and outlives deploys, so drop anything the
 // app no longer accepts instead of filtering the tree down to nothing.
 function sanitizeStatusFilter(value) {
-	const statuses = value.filter((status) => TASK_STATUSES.includes(status) && status !== "Template");
 	if (value.length === 0) return [];
+	const statuses = value.filter((status) => status !== "Template");
 	return statuses.length > 0 ? statuses : [...ACTIVE_STATUSES];
 }
 
 const FILTER_SANITIZERS = {
 	status: sanitizeStatusFilter,
-	priority: (value) => value.filter((priority) => PRIORITY_VALUES.includes(priority)),
 };
 
 const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
