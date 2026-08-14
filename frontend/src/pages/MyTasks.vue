@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useMyTasksStore } from "../stores/myTasksStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useDebounceFn } from "@vueuse/core";
+import { readFilters, writeFilters } from "../utils/urlFilters";
 import {
 	CheckSquare,
 	Search,
@@ -34,8 +35,24 @@ const translate = (text) => {
 		: text;
 };
 
+// Filter defaults - must mirror the shape of `filters` in myTasksStore.
+const FILTER_DEFAULTS = {
+	status: [],
+	priority: [],
+	project: null,
+	dueFilter: null,
+	search: "",
+	sortBy: "default",
+	sortOrder: "asc",
+};
+
+const DUE_FILTER_VALUES = ["today", "week", "overdue", "all"];
+const SORT_BY_VALUES = ["default", "due_date", "priority", "modified", "subject", "project", "status"];
+
 const showFilters = ref(false);
 const searchInput = ref("");
+const filtersHydrated = ref(false);
+const suppressInitialSync = ref(false);
 const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
 
 // Time log modal state
@@ -49,11 +66,40 @@ const debouncedSearch = useDebounceFn((value) => {
 }, 300);
 
 watch(searchInput, (value) => {
+	if (!filtersHydrated.value || suppressInitialSync.value) return;
 	debouncedSearch(value);
 });
 
+// Mirror every filter change into the URL so a refresh - or a shared link -
+// restores the same view.
+const debouncedWriteFilters = useDebounceFn((value) => {
+	writeFilters(router, route, value, FILTER_DEFAULTS);
+}, 300);
+
+watch(
+	() => store.filters,
+	(value) => {
+		if (!filtersHydrated.value || suppressInitialSync.value) return;
+		debouncedWriteFilters(value);
+	},
+	{ deep: true }
+);
+
 onMounted(async () => {
 	await Promise.all([store.fetchMetadata(), store.fetchProjects()]);
+	const restoredFilters = readFilters(route, FILTER_DEFAULTS, {
+		status: (value) => value.filter((status) => store.statuses.includes(status)),
+		priority: (value) => value.filter((priority) => store.priorities.includes(priority)),
+		dueFilter: (value) => (DUE_FILTER_VALUES.includes(value) ? value : null),
+		sortBy: (value) => (SORT_BY_VALUES.includes(value) ? value : "default"),
+		sortOrder: (value) => (value === "desc" ? "desc" : "asc"),
+	});
+	suppressInitialSync.value = true;
+	store.filters = { ...store.filters, ...restoredFilters };
+	searchInput.value = restoredFilters.search;
+	filtersHydrated.value = true;
+	await nextTick();
+	suppressInitialSync.value = false;
 	await store.fetchTasks();
 });
 

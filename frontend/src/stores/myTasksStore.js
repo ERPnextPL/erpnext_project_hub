@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { BOARD_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
 
 // Helper to get CSRF token
 function getCsrfToken() {
@@ -182,7 +183,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			console.error("Failed to fetch metadata:", err);
 			// Fallback values
 			statuses.value = [...BOARD_STATUSES];
-			priorities.value = ["Low", "Medium", "High", "Urgent"];
+			priorities.value = [...PRIORITY_VALUES];
 		}
 	}
 

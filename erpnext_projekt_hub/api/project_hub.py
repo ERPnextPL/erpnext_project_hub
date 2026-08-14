@@ -1059,6 +1059,7 @@ def update_task(task_name: str, **kwargs):
 				"exp_end_date": task.exp_end_date,
 				"progress": task.progress,
 				"description": task.description,
+				"reference_link": getattr(task, "reference_link", None),
 			}
 
 	# Allowed fields to update
@@ -1070,6 +1071,7 @@ def update_task(task_name: str, **kwargs):
 		"exp_end_date",
 		"progress",
 		"description",
+		"reference_link",
 		"is_group",
 		"project",
 		"expected_time",
@@ -1099,6 +1101,7 @@ def update_task(task_name: str, **kwargs):
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
 		"description": task.description,
+		"reference_link": getattr(task, "reference_link", None),
 		"project": task.project,
 		"expected_time": getattr(task, "expected_time", None),
 		"completed_on": task.completed_on,
@@ -2568,6 +2571,7 @@ def _get_task_response(task):
 		"project_name": project_name,
 		"exp_start_date": task.exp_start_date,
 		"exp_end_date": task.exp_end_date,
+		"reference_link": getattr(task, "reference_link", None),
 		"description": task.description,
 		"progress": task.progress,
 		"expected_time": getattr(task, "expected_time", None),

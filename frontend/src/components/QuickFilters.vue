@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { AlertCircle, User, Flag, Calendar, X } from "lucide-vue-next";
 import { getStatusOption } from "../utils/taskStatus";
@@ -9,11 +9,16 @@ const props = defineProps({
 		type: Object,
 		default: null,
 	},
+	initialFilters: {
+		type: Object,
+		default: null,
+	},
 });
 
 const emit = defineEmits(["filter-change", "close"]);
 
 const store = useTaskStore();
+const hasInitialFilters = props.initialFilters !== null && props.initialFilters !== undefined;
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
 	return typeof realWindow !== "undefined" && typeof realWindow.__ === "function"
@@ -21,18 +26,43 @@ const translate = (text) => {
 		: text;
 };
 
-const activeStatus = ref([]);
-const activePriority = ref([]);
-const activeAssignee = ref(null);
-const myTasksActive = ref(false);
-const dueTodayActive = ref(false);
-const overdueActive = ref(false);
-
 const disabledStatuses = ["Template"];
 
 const currentUser = computed(() => {
 	return window.frappe?.session?.user || "";
 });
+
+function cloneFilterArray(value) {
+	return Array.isArray(value) ? value.filter((status) => !disabledStatuses.includes(status)) : [];
+}
+
+const activeStatus = ref(cloneFilterArray(props.initialFilters?.status));
+const activePriority = ref(cloneFilterArray(props.initialFilters?.priority));
+const activeAssignee = ref(props.initialFilters?.assignee ?? null);
+const myTasksActive = ref(activeAssignee.value === currentUser.value && !!activeAssignee.value);
+const dueTodayActive = ref(!!props.initialFilters?.dueToday);
+const overdueActive = ref(!!props.initialFilters?.overdue);
+
+watch(
+	() => [
+		props.initialFilters?.status,
+		props.initialFilters?.priority,
+		props.initialFilters?.assignee,
+		props.initialFilters?.dueToday,
+		props.initialFilters?.overdue,
+	],
+	([status, priority, assignee, dueToday, overdue]) => {
+		if (!props.initialFilters) return;
+
+		activeStatus.value = cloneFilterArray(status);
+		activePriority.value = cloneFilterArray(priority);
+		activeAssignee.value = assignee ?? null;
+		myTasksActive.value = activeAssignee.value === currentUser.value && !!activeAssignee.value;
+		dueTodayActive.value = !!dueToday;
+		overdueActive.value = !!overdue;
+	},
+	{ deep: true }
+);
 
 onMounted(async () => {
 	if (store.taskStatuses.length === 0) {
@@ -42,7 +72,7 @@ onMounted(async () => {
 		await store.fetchTaskPriorities();
 	}
 
-	if (activeStatus.value.length === 0 && store.taskStatuses.length > 0) {
+	if (!hasInitialFilters && activeStatus.value.length === 0 && store.taskStatuses.length > 0) {
 		activeStatus.value = store.taskStatuses.filter(
 			(status) =>
 				status !== "Cancelled" &&

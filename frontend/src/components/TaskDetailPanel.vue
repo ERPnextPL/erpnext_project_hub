@@ -905,6 +905,7 @@ async function persistAllFields() {
 		"priority",
 		"exp_end_date",
 		"exp_start_date",
+		"reference_link",
 		"progress",
 		"description",
 		"expected_time",
@@ -2071,6 +2072,18 @@ async function deleteAttachment(fileName) {
 											{{ milestone.milestone_name }}
 										</option>
 									</select>
+								</div>
+								<div>
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Reference link") }}
+									</div>
+									<input
+										v-model="editableTask.reference_link"
+										type="url"
+										@blur="saveField('reference_link', editableTask.reference_link)"
+										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										:placeholder="translate('GitHub branch, documentation, or another URL')"
+									/>
 								</div>
 							</div>
 						</section>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
@@ -7,6 +7,8 @@ import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { isMilestoneCompleted } from "../utils/milestone";
 import { ACTIVE_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
+import { readFilters, writeFilters } from "../utils/urlFilters";
 import TaskTree from "../components/TaskTree.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
@@ -59,6 +61,8 @@ const milestoneSidebarOpen = ref(false);
 const attachmentsSidebarOpen = ref(false);
 const attachmentCount = ref(0);
 const searchInput = ref("");
+const filtersHydrated = ref(false);
+const suppressSearchSync = ref(false);
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
 const draggingGroupKey = ref(null);
@@ -115,13 +119,38 @@ async function submitFab() {
 	}
 }
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
-const activeFilters = ref({
+const FILTER_DEFAULTS = {
 	status: [...ACTIVE_STATUSES], // Domyślne statusy
 	priority: [], // Array for multiselect
 	assignee: null,
 	dueToday: false,
 	overdue: false, // Nowy filtr dla przeterminowanych zadań
 	search: "",
+};
+
+// The query string is user-editable and outlives deploys, so drop anything the
+// app no longer accepts instead of filtering the tree down to nothing.
+function sanitizeStatusFilter(value) {
+	if (value.length === 0) return [];
+	const statuses = value.filter(
+		(status) => store.taskStatuses.includes(status) && status !== "Template"
+	);
+	return statuses.length > 0 ? statuses : [...ACTIVE_STATUSES];
+}
+
+function sanitizePriorityFilter(value) {
+	return value.filter((priority) => store.taskPriorities.includes(priority));
+}
+
+const FILTER_SANITIZERS = {
+	status: sanitizeStatusFilter,
+	priority: sanitizePriorityFilter,
+};
+
+const activeFilters = ref({
+	...FILTER_DEFAULTS,
+	status: [...FILTER_DEFAULTS.status],
+	priority: [...FILTER_DEFAULTS.priority],
 });
 
 const hasActiveFilters = computed(() => {
@@ -153,10 +182,42 @@ const debouncedSearch = useDebounceFn((value) => {
 }, 300);
 
 watch(searchInput, (value) => {
+	if (!filtersHydrated.value || suppressSearchSync.value) return;
 	debouncedSearch(value);
 });
 
-onMounted(() => {
+// Mirror every filter change into the URL so a refresh - or a shared link -
+// restores the same view.
+watch(
+	activeFilters,
+	useDebounceFn(() => writeFilters(router, route, activeFilters.value, FILTER_DEFAULTS), 300),
+	{ deep: true }
+);
+
+watch(
+	() => props.projectId,
+	() => {
+		debouncedSearch.cancel?.();
+		const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+		suppressSearchSync.value = true;
+		activeFilters.value = restoredFilters;
+		searchInput.value = restoredFilters.search;
+		nextTick(() => {
+			suppressSearchSync.value = false;
+		});
+		store.fetchTasks(props.projectId, activeFilters.value);
+	}
+);
+
+onMounted(async () => {
+	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities()]);
+	const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+	suppressSearchSync.value = true;
+	activeFilters.value = restoredFilters;
+	searchInput.value = restoredFilters.search;
+	filtersHydrated.value = true;
+	await nextTick();
+	suppressSearchSync.value = false;
 	store.fetchTasks(props.projectId, activeFilters.value);
 });
 
@@ -643,7 +704,12 @@ const groupedTasksByMilestone = computed(() => {
 				<Transition name="filter-panel">
 					<div v-if="!sidebarCollapsed"
 						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-						<QuickFilters :project="store.project" @filter-change="handleFilterChange" @close="sidebarCollapsed = true" />
+						<QuickFilters
+							:project="store.project"
+							:initial-filters="activeFilters"
+							@filter-change="handleFilterChange"
+							@close="sidebarCollapsed = true"
+						/>
 					</div>
 				</Transition>
 
@@ -908,10 +974,13 @@ const groupedTasksByMilestone = computed(() => {
 									v-model="fabPriority"
 									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
 								>
-									<option value="Low">{{ translate("Low") }}</option>
-									<option value="Medium">{{ translate("Medium") }}</option>
-									<option value="High">{{ translate("High") }}</option>
-									<option value="Urgent">{{ translate("Urgent") }}</option>
+									<option
+										v-for="priority in PRIORITY_VALUES"
+										:key="priority"
+										:value="priority"
+									>
+										{{ translate(priority) }}
+									</option>
 								</select>
 							</div>
 							<div>
