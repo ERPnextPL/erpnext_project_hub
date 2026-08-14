@@ -47,6 +47,7 @@ const FILTER_DEFAULTS = {
 };
 
 const DUE_FILTER_VALUES = ["today", "week", "overdue", "all"];
+const SORT_BY_VALUES = ["default", "due_date", "priority", "modified", "subject", "project", "status"];
 
 const showFilters = ref(false);
 const searchInput = ref("");
@@ -90,6 +91,7 @@ onMounted(async () => {
 		status: (value) => value.filter((status) => store.statuses.includes(status)),
 		priority: (value) => value.filter((priority) => store.priorities.includes(priority)),
 		dueFilter: (value) => (DUE_FILTER_VALUES.includes(value) ? value : null),
+		sortBy: (value) => (SORT_BY_VALUES.includes(value) ? value : "default"),
 		sortOrder: (value) => (value === "desc" ? "desc" : "asc"),
 	});
 	suppressInitialSync.value = true;
