@@ -9,11 +9,16 @@ const props = defineProps({
 		type: Object,
 		default: null,
 	},
+	initialFilters: {
+		type: Object,
+		default: null,
+	},
 });
 
 const emit = defineEmits(["filter-change", "close"]);
 
 const store = useTaskStore();
+const hasInitialFilters = props.initialFilters !== null && props.initialFilters !== undefined;
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
 	return typeof realWindow !== "undefined" && typeof realWindow.__ === "function"
@@ -21,18 +26,22 @@ const translate = (text) => {
 		: text;
 };
 
-const activeStatus = ref([]);
-const activePriority = ref([]);
-const activeAssignee = ref(null);
-const myTasksActive = ref(false);
-const dueTodayActive = ref(false);
-const overdueActive = ref(false);
-
 const disabledStatuses = ["Template"];
 
 const currentUser = computed(() => {
 	return window.frappe?.session?.user || "";
 });
+
+function cloneFilterArray(value) {
+	return Array.isArray(value) ? [...value] : [];
+}
+
+const activeStatus = ref(cloneFilterArray(props.initialFilters?.status));
+const activePriority = ref(cloneFilterArray(props.initialFilters?.priority));
+const activeAssignee = ref(props.initialFilters?.assignee ?? null);
+const myTasksActive = ref(activeAssignee.value === currentUser.value && !!activeAssignee.value);
+const dueTodayActive = ref(!!props.initialFilters?.dueToday);
+const overdueActive = ref(!!props.initialFilters?.overdue);
 
 onMounted(async () => {
 	if (store.taskStatuses.length === 0) {
@@ -42,7 +51,7 @@ onMounted(async () => {
 		await store.fetchTaskPriorities();
 	}
 
-	if (activeStatus.value.length === 0 && store.taskStatuses.length > 0) {
+	if (!hasInitialFilters && activeStatus.value.length === 0 && store.taskStatuses.length > 0) {
 		activeStatus.value = store.taskStatuses.filter(
 			(status) =>
 				status !== "Cancelled" &&

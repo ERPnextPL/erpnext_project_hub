@@ -128,8 +128,13 @@ const FILTER_DEFAULTS = {
 
 // The query string is user-editable and outlives deploys, so drop anything the
 // app no longer accepts instead of filtering the tree down to nothing.
+function sanitizeStatusFilter(value) {
+	const statuses = value.filter((status) => TASK_STATUSES.includes(status));
+	return statuses.length > 0 ? statuses : [...ACTIVE_STATUSES];
+}
+
 const FILTER_SANITIZERS = {
-	status: (value) => value.filter((status) => TASK_STATUSES.includes(status)),
+	status: sanitizeStatusFilter,
 	priority: (value) => value.filter((priority) => PRIORITY_VALUES.includes(priority)),
 };
 
@@ -173,13 +178,21 @@ watch(searchInput, (value) => {
 });
 
 // Mirror every filter change into the URL so a refresh - or a shared link -
-// restores the same view. Also re-emitted when the project changes, because the
-// component is reused across projects and would otherwise keep the filters
-// applied while the address bar no longer shows them.
+// restores the same view.
 watch(
-	[activeFilters, () => props.projectId],
+	activeFilters,
 	useDebounceFn(() => writeFilters(router, route, activeFilters.value, FILTER_DEFAULTS), 300),
 	{ deep: true }
+);
+
+watch(
+	() => props.projectId,
+	() => {
+		const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+		activeFilters.value = restoredFilters;
+		searchInput.value = restoredFilters.search;
+		store.fetchTasks(props.projectId, activeFilters.value);
+	}
 );
 
 onMounted(() => {
@@ -669,7 +682,12 @@ const groupedTasksByMilestone = computed(() => {
 				<Transition name="filter-panel">
 					<div v-if="!sidebarCollapsed"
 						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-						<QuickFilters :project="store.project" @filter-change="handleFilterChange" @close="sidebarCollapsed = true" />
+						<QuickFilters
+							:project="store.project"
+							:initial-filters="activeFilters"
+							@filter-change="handleFilterChange"
+							@close="sidebarCollapsed = true"
+						/>
 					</div>
 				</Transition>
 
@@ -934,10 +952,13 @@ const groupedTasksByMilestone = computed(() => {
 									v-model="fabPriority"
 									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
 								>
-									<option value="Low">{{ translate("Low") }}</option>
-									<option value="Medium">{{ translate("Medium") }}</option>
-									<option value="High">{{ translate("High") }}</option>
-									<option value="Urgent">{{ translate("Urgent") }}</option>
+									<option
+										v-for="priority in PRIORITY_VALUES"
+										:key="priority"
+										:value="priority"
+									>
+										{{ translate(priority) }}
+									</option>
 								</select>
 							</div>
 							<div>

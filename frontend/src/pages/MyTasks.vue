@@ -6,8 +6,6 @@ import { useMyTasksStore } from "../stores/myTasksStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useDebounceFn } from "@vueuse/core";
 import { readFilters, writeFilters } from "../utils/urlFilters";
-import { TASK_STATUSES } from "../utils/taskStatus";
-import { PRIORITY_VALUES } from "../utils/priority";
 import {
 	CheckSquare,
 	Search,
@@ -50,22 +48,9 @@ const FILTER_DEFAULTS = {
 
 const DUE_FILTER_VALUES = ["today", "week", "overdue", "all"];
 
-// The query string is user-editable and outlives deploys, so drop anything the
-// app no longer accepts instead of filtering the list down to nothing.
-const FILTER_SANITIZERS = {
-	status: (value) => value.filter((status) => TASK_STATUSES.includes(status)),
-	priority: (value) => value.filter((priority) => PRIORITY_VALUES.includes(priority)),
-	dueFilter: (value) => (DUE_FILTER_VALUES.includes(value) ? value : null),
-	sortOrder: (value) => (value === "desc" ? "desc" : "asc"),
-};
-
-// Restore before the watchers below are registered, so seeding the search box
-// does not fire the debounced search and refetch on load.
-const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
-store.filters = { ...store.filters, ...restoredFilters };
-
 const showFilters = ref(false);
-const searchInput = ref(restoredFilters.search);
+const searchInput = ref("");
+const filtersHydrated = ref(false);
 const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
 
 // Time log modal state
@@ -79,6 +64,7 @@ const debouncedSearch = useDebounceFn((value) => {
 }, 300);
 
 watch(searchInput, (value) => {
+	if (!filtersHydrated.value) return;
 	debouncedSearch(value);
 });
 
@@ -86,12 +72,24 @@ watch(searchInput, (value) => {
 // restores the same view.
 watch(
 	() => store.filters,
-	useDebounceFn((value) => writeFilters(router, route, value, FILTER_DEFAULTS), 300),
+	useDebounceFn((value) => {
+		if (!filtersHydrated.value) return;
+		writeFilters(router, route, value, FILTER_DEFAULTS);
+	}, 300),
 	{ deep: true }
 );
 
 onMounted(async () => {
 	await Promise.all([store.fetchMetadata(), store.fetchProjects()]);
+	const restoredFilters = readFilters(route, FILTER_DEFAULTS, {
+		status: (value) => value.filter((status) => store.statuses.includes(status)),
+		priority: (value) => value.filter((priority) => store.priorities.includes(priority)),
+		dueFilter: (value) => (DUE_FILTER_VALUES.includes(value) ? value : null),
+		sortOrder: (value) => (value === "desc" ? "desc" : "asc"),
+	});
+	store.filters = { ...store.filters, ...restoredFilters };
+	searchInput.value = restoredFilters.search;
+	filtersHydrated.value = true;
 	await store.fetchTasks();
 });
 
