@@ -6,6 +6,7 @@ import hashlib
 
 import frappe
 from frappe import _
+from frappe.translate import get_translations_from_apps
 from frappe.website.utils import get_boot_data
 
 from erpnext_projekt_hub.access import has_project_hub_access
@@ -59,6 +60,9 @@ def get_context(context):
 	# Pass CSRF token and boot data to template
 	context.csrf_token = frappe.session.csrf_token
 	context.boot = get_boot_data()
+	# Scoped to this app's own translations file, not the site-wide dictionary
+	# (get_messages_for_boot), which would drag in every installed app's strings.
+	context.boot["messages"] = get_translations_from_apps(frappe.local.lang, apps=["erpnext_projekt_hub"])
 	context.asset_version = get_asset_version()
 
 	return context

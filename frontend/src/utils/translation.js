@@ -19,7 +19,14 @@ const formatWithReplacements = (text, replacements) => {
 	});
 };
 
-export const formatTranslation = formatWithReplacements;
+const lookupMessage = (text) => {
+	const win = getGlobalWindow();
+	const messages = win && win.messages;
+	return messages && Object.prototype.hasOwnProperty.call(messages, text) ? messages[text] : text;
+};
+
+export const formatTranslation = (text, replacements) =>
+	formatWithReplacements(lookupMessage(text), replacements);
 export const getRealWindow = () => getGlobalWindow();
 
 export const translate = (text, replacements) => {
@@ -27,5 +34,5 @@ export const translate = (text, replacements) => {
 	if (win && typeof win.__ === "function") {
 		return win.__(text, replacements);
 	}
-	return formatWithReplacements(text, replacements);
+	return formatTranslation(text, replacements);
 };

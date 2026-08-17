@@ -284,8 +284,4 @@ fixtures = [
 		"dt": "Workspace Shortcut",
 		"filters": [["parent", "=", "Projects"], ["type", "=", "URL"], ["url", "=", "/project-hub"]],
 	},
-	{
-		"dt": "Server Script",
-		"filters": [["name", "=", "Sub task update"]],
-	},
 ]
