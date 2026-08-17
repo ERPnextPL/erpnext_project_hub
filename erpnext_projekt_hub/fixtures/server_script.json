@@ -1,0 +1,19 @@
+[
+ {
+  "doctype": "Server Script",
+  "name": "Sub task update",
+  "script_type": "DocType Event",
+  "reference_doctype": "Task",
+  "event_frequency": "All",
+  "cron_format": null,
+  "doctype_event": "Before Save",
+  "api_method": null,
+  "allow_guest": 0,
+  "module": null,
+  "disabled": 0,
+  "script": "if doc.depends_on:\n\ttotal = len(doc.depends_on)\n\tcompleted = 0\n\tcancelled = 0\n\n\tfor row in doc.depends_on:\n\t\tif row.task:\n\t\t\ttry:\n\t\t\t\ttask = frappe.get_doc(\"Task\", row.task)\n\t\t\t\tif task.status == \"Completed\":\n\t\t\t\t\tcompleted += 1\n\t\t\t\telif task.status == \"Cancelled\":\n\t\t\t\t\tcancelled += 1\n\t\t\texcept frappe.DoesNotExistError:\n\t\t\t\tfrappe.log_error(f\"Task {row.task} not found\", \"Subtask Progress Update\")\n\n\t# Odliczamy anulowane od calkowitej liczby\n\teffective_total = total - cancelled\n\n\tif effective_total > 0:\n\t\tpercent = int((completed / effective_total) * 100)\n\telse:\n\t\tpercent = 0  # jesli wszystkie anulowane, postep = 0\n\n\tdoc.progress = percent\n\n\t# Status nie jest juz automatycznie zmieniany na Completed na podstawie\n\t# postepu zaleznosci - to prowadzilo do sytuacji, w ktorej zadania z\n\t# ukonczonymi zaleznosciami nie dalo sie recznie otworzyc z powrotem\n\t# (zapis zawsze wymuszal Completed). Uzytkownik decyduje kiedy zadanie\n\t# jest faktycznie ukonczone, tak samo jak w rollupie podzadan w\n\t# events/task_events.py.\n",
+  "enable_rate_limit": 0,
+  "rate_limit_count": 5,
+  "rate_limit_seconds": 86400
+ }
+]
