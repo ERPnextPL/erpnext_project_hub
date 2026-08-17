@@ -1,5 +1,6 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import flt
 
 from erpnext_projekt_hub.api.project_hub import delete_task
 from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import (
@@ -228,7 +229,7 @@ class TestCompletedParentIsUncompleted(FrappeTestCase):
 
 
 class TestDependenciesDoNotDriveStatus(FrappeTestCase):
-	"""The Depends On table no longer moves any status."""
+	"""The Depends On table no longer moves any status or any progress."""
 
 	def setUp(self):
 		frappe.set_user("Administrator")
@@ -255,6 +256,49 @@ class TestDependenciesDoNotDriveStatus(FrappeTestCase):
 
 		dependent.reload()
 		self.assertEqual(dependent.status, "Open")
+
+	def test_completing_a_dependency_does_not_move_progress(self):
+		"""A task without subtasks keeps the progress a person entered."""
+		dependency = create_task("_Test Dependency - progress source")
+		dependent = create_task("_Test Dependent - keeps its progress")
+		dependent.append("depends_on", {"task": dependency.name})
+		dependent.progress = 30
+		dependent.save(ignore_permissions=True)
+
+		set_status(dependency, "Completed")
+
+		dependent.reload()
+		self.assertEqual(flt(dependent.progress), 30)
+
+	def test_dependencies_do_not_overwrite_the_subtask_roll_up(self):
+		"""Progress has a single source: the subtask roll-up.
+
+		ERPNext mirrors every subtask into its parent's Depends On table
+		(Task.populate_depends_on), so a parent's dependencies are its subtasks
+		plus whatever was added by hand. A parent with an extra hand-added
+		dependency must still report the roll-up figure over its subtasks, and
+		must keep reporting it across an unrelated save.
+		"""
+		parent = create_task("_Test Parent - roll-up wins", status="Working", is_group=1)
+		sub = create_task("_Test Sub - the only subtask", parent=parent.name)
+		manual = create_task("_Test Manual Dependency - stays open")
+
+		parent.reload()
+		parent.append("depends_on", {"task": manual.name})
+		parent.save(ignore_permissions=True)
+
+		set_status(sub, "Completed")
+
+		parent.reload()
+		self.assertEqual(flt(parent.progress), 100)
+
+		# An unrelated save must not recalculate progress from the two
+		# dependency rows, one of which is still open.
+		parent.description = "touched"
+		parent.save(ignore_permissions=True)
+
+		parent.reload()
+		self.assertEqual(flt(parent.progress), 100)
 
 
 class TestTaskReferenceLinkField(FrappeTestCase):
