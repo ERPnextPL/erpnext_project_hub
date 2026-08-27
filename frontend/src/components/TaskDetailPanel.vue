@@ -55,9 +55,29 @@ const props = defineProps({
 const emit = defineEmits(["close"]);
 
 const store = useTaskStore();
+const dateFields = new Set(["exp_start_date", "exp_end_date", "completed_on"]);
+
+function normalizeDateValue(value) {
+	if (!value) return "";
+	if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return value;
+	}
+	const parsed = dayjs(value);
+	return parsed.isValid() ? parsed.format("YYYY-MM-DD") : "";
+}
+
+function normalizeTaskForEdit(task) {
+	const normalized = { ...task };
+	dateFields.forEach((field) => {
+		if (normalized[field]) {
+			normalized[field] = normalizeDateValue(normalized[field]);
+		}
+	});
+	return normalized;
+}
 
 // Local editable state
-const editableTask = ref({ ...props.task });
+const editableTask = ref(normalizeTaskForEdit(props.task));
 const isSaving = ref(false);
 const activeTab = ref("details");
 const showTimeLogModal = ref(false);
@@ -153,7 +173,7 @@ const isFullscreen = ref(false);
 watch(
 	() => props.task,
 	(newTask) => {
-		editableTask.value = { ...newTask };
+		editableTask.value = normalizeTaskForEdit(newTask);
 		attachmentsFetched.value = false;
 		attachments.value = [];
 		commentsFetched.value = false;
@@ -322,7 +342,10 @@ async function handleMilestoneChange(event) {
 	editableTask.value.milestone = newMilestone;
 
 	try {
-		await store.assignTaskToMilestone(props.task.name, newMilestone);
+		const data = await store.assignTaskToMilestone(props.task.name, newMilestone);
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
 				message: newMilestone
@@ -349,7 +372,10 @@ async function handleProjectChange() {
 	if (newProject === props.task.project) return;
 
 	try {
-		await store.updateTask(props.task.name, { project: newProject });
+		const data = await store.updateTask(props.task.name, { project: newProject });
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
 				message: translate("Task project changed"),
@@ -473,8 +499,11 @@ function validateDates() {
 }
 
 	async function saveField(field, value) {
-		const previousValue = props.task[field];
-		if (value === previousValue) return;
+		const previousValue = dateFields.has(field)
+			? normalizeDateValue(props.task[field])
+			: props.task[field];
+		const normalizedValue = dateFields.has(field) ? normalizeDateValue(value) : value;
+		if (normalizedValue === previousValue) return;
 
 		if (field === "exp_end_date" && !validateDates()) {
 			return;
@@ -484,13 +513,13 @@ function validateDates() {
 		let previousStatus = null;
 		let statusChanged = false;
 		try {
-			const updates = { [field]: value };
+			const updates = { [field]: normalizedValue };
 
 			// Jeśli zmieniamy datę realizacji dla zadania ze statusem "Overdue"
 			// i nowa data nie jest w przeszłości, zmień status na "Open"
-			if (field === "exp_end_date" && props.task.status === "Overdue" && value) {
+			if (field === "exp_end_date" && props.task.status === "Overdue" && normalizedValue) {
 				const today = dayjs().startOf("day");
-				const newDueDate = dayjs(value).startOf("day");
+				const newDueDate = dayjs(normalizedValue).startOf("day");
 
 				if (!newDueDate.isBefore(today)) {
 					updates.status = "Open";
@@ -506,7 +535,10 @@ function validateDates() {
 				}
 			}
 
-			await store.updateTask(props.task.name, updates);
+			const data = await store.updateTask(props.task.name, updates);
+			if (data) {
+				Object.assign(editableTask.value, normalizeTaskForEdit(data));
+			}
 			if (realWindow?.frappe && field === "exp_end_date") {
 				realWindow.frappe.show_alert({
 					message: translate("Date updated successfully"),
@@ -643,7 +675,10 @@ async function handleStatusSelection(option) {
 	}
 
 	try {
-		await store.updateTask(props.task.name, updates);
+		const data = await store.updateTask(props.task.name, updates);
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
 		showAutosaveFeedback();
 	} catch (error) {
 		editableTask.value.status = props.task.status;
@@ -913,9 +948,15 @@ async function persistAllFields() {
 	];
 	const updates = {};
 	fieldsToCheck.forEach((field) => {
-		const current = props.task[field];
+		const current = dateFields.has(field)
+			? normalizeDateValue(props.task[field])
+			: props.task[field];
 		const rawUpdated = editableTask.value[field];
-		const updated = rawUpdated === "" ? null : rawUpdated;
+		const updated = dateFields.has(field)
+			? normalizeDateValue(rawUpdated)
+			: rawUpdated === ""
+			? null
+			: rawUpdated;
 		if (updated === current) return;
 		updates[field] = updated;
 	});
@@ -933,7 +974,7 @@ async function persistAllFields() {
 	try {
 		const data = await store.updateTask(props.task.name, updates);
 		if (data) {
-			Object.assign(editableTask.value, data);
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
 		}
 		showAutosaveFeedback();
 	} catch (error) {
