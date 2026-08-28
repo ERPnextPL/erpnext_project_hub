@@ -150,6 +150,7 @@ const commentsLoading = ref(false);
 const commentsFetched = ref(false);
 const commentText = ref("");
 const commentMentions = ref([]);
+const commentMentionOptions = { mentions: commentMentions };
 const commentEditorRef = ref(null);
 const commentSubmitting = ref(false);
 const commentHasContent = computed(
@@ -1238,10 +1239,15 @@ async function fetchComments() {
 
 async function fetchCommentMentions() {
 	try {
-		commentMentions.value = (await attachmentApiCall(
+		const mentions = (await attachmentApiCall(
 			"frappe.desk.search.get_names_for_mentions",
 			{ search_term: "" }
 		)) || [];
+		commentMentions.value = mentions.map((mention) => ({
+			id: mention.id,
+			label: mention.value,
+			value: mention.id,
+		}));
 	} catch (error) {
 		console.error("Failed to load comment mentions:", error);
 		commentMentions.value = [];
@@ -1999,7 +2005,7 @@ async function deleteAttachment(fileName) {
 											:content="commentText"
 											@change="handleCommentChange"
 											:editable="true"
-											:mentions="commentMentions"
+											:mentions="commentMentionOptions"
 											:upload-function="uploadCommentImage"
 											:placeholder="() => translate('Type your comment...')"
 											editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
