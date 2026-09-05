@@ -1614,8 +1614,15 @@ def create_timelog(
 	user = frappe.session.user
 	today = frappe.utils.today()
 
-	# Try to find an existing draft timesheet for today
-	existing_timesheet = frappe.get_all(
+	# Get task details
+	task_doc = frappe.get_doc("Task", task)
+	timelog_meta = frappe.get_meta("Timesheet Detail")
+
+	# Try to find an existing draft timesheet for today that is compatible
+	# with this task's project. A Timesheet's "parent_project" (if set)
+	# locks every row to that same project, so a draft opened for a
+	# different project must not be reused here.
+	candidate_timesheets = frappe.get_all(
 		"Timesheet",
 		filters={
 			"owner": user,
@@ -1623,12 +1630,16 @@ def create_timelog(
 			"start_date": ["<=", today],
 			"end_date": [">=", today],
 		},
-		limit=1,
+		fields=["name", "parent_project"],
 	)
-
-	# Get task details
-	task_doc = frappe.get_doc("Task", task)
-	timelog_meta = frappe.get_meta("Timesheet Detail")
+	existing_timesheet_name = next(
+		(
+			ts.name
+			for ts in candidate_timesheets
+			if not ts.parent_project or ts.parent_project == task_doc.project
+		),
+		None,
+	)
 
 	timelog_row = {
 		"activity_type": activity_type,
@@ -1642,8 +1653,8 @@ def create_timelog(
 	if is_billable is not None and timelog_meta.has_field("is_billable"):
 		timelog_row["is_billable"] = cint(is_billable)
 
-	if existing_timesheet:
-		timesheet = frappe.get_doc("Timesheet", existing_timesheet[0].name)
+	if existing_timesheet_name:
+		timesheet = frappe.get_doc("Timesheet", existing_timesheet_name)
 		# Add time log detail to existing timesheet
 		timesheet.append("time_logs", timelog_row)
 		timesheet.save()
