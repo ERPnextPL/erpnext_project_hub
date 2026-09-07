@@ -1664,6 +1664,7 @@ def create_timelog(
 			{
 				"doctype": "Timesheet",
 				"employee": get_employee_for_user(user),
+				"parent_project": task_doc.project,
 				"start_date": today,
 				"end_date": today,
 				"time_logs": [timelog_row],
