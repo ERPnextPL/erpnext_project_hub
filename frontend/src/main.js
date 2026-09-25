@@ -2,7 +2,9 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { FrappeUI, setConfig, frappeRequest } from "frappe-ui";
 import App from "./App.vue";
-import router from "./router";
+import { createAppRouter } from "./router";
+import { registerCoreTabs } from "./tabs/coreTabs";
+import { loadPlugins } from "./plugins";
 import "./index.css";
 import { formatTranslation } from "./utils/translation";
 
@@ -24,11 +26,17 @@ if (!rootContext.window) {
 // Configure frappe-ui
 setConfig("resourceFetcher", frappeRequest);
 
-const app = createApp(App);
-const pinia = createPinia();
+// Core tabs go first so plugins can override them (unregisterTab); the router is
+// built once plugins have registered their tabs too.
+registerCoreTabs();
 
-app.use(pinia);
-app.use(router);
-app.use(FrappeUI);
+loadPlugins().then(() => {
+	const app = createApp(App);
+	const pinia = createPinia();
 
-app.mount("#app");
+	app.use(pinia);
+	app.use(createAppRouter());
+	app.use(FrappeUI);
+
+	app.mount("#app");
+});
