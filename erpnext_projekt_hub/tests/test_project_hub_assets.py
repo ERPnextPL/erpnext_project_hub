@@ -23,7 +23,10 @@ class TestProjectHubPlugins(FrappeTestCase):
 				return str(root.joinpath(*parts))
 
 			with (
-				patch("erpnext_projekt_hub.www.project_hub.frappe.get_hooks", return_value=hooks),
+				patch(
+					"erpnext_projekt_hub.www.project_hub.frappe.get_hooks",
+					side_effect=lambda hook: hooks if hook == "projekt_hub_plugins" else [],
+				),
 				patch(
 					"erpnext_projekt_hub.www.project_hub.frappe.get_app_path", side_effect=fake_get_app_path
 				),
