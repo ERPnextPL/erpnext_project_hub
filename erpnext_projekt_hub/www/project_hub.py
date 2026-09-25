@@ -24,16 +24,16 @@ ASSET_ENTRIES = (
 )
 
 
-def get_asset_version() -> str:
+def get_asset_version(entries=ASSET_ENTRIES) -> str:
 	"""Return a cache-busting token derived from the built assets.
 
 	Hashes the current file contents so deployments that preserve mtimes still
 	produce a new token when an asset changes.
 	"""
-	paths = [frappe.get_app_path(*entry) for entry in ASSET_ENTRIES]
+	paths = [frappe.get_app_path(*entry) for entry in entries]
 
 	try:
-		# Paths are derived from the hardcoded ASSET_ENTRIES tuple, not user input.
+		# Paths come from ASSET_ENTRIES or from apps' hooks.py, not user input.
 		hasher = hashlib.sha1(usedforsecurity=False)
 		for path in paths:
 			with open(path, "rb") as bundle:  # nosemgrep
@@ -43,6 +43,29 @@ def get_asset_version() -> str:
 		return frappe.generate_hash(length=10)
 
 	return hasher.hexdigest()[:10]
+
+
+def get_plugins() -> list[dict]:
+	"""Return the frontend plugins (extra tabs) of the apps installed on this site.
+
+	An app registers a prebuilt bundle in its hooks.py, with paths under /assets:
+	    projekt_hub_plugins = [{"js": "<app>/frontend/tabs.js", "css": "<app>/frontend/tabs.css"}]
+	frappe.get_hooks() only reads the hooks of apps installed on the current site,
+	so a paid plugin deployed to a shared bench stays off for sites without it.
+	See frontend/src/plugins.js for how the bundles are loaded.
+	"""
+	plugins = []
+	for plugin in frappe.get_hooks("projekt_hub_plugins"):
+		files = {kind: plugin[kind] for kind in ("js", "css") if plugin.get(kind)}
+		if "js" not in files:
+			continue
+
+		version = get_asset_version(
+			[(app, "public", *parts) for app, *parts in (path.split("/") for path in files.values())]
+		)
+		plugins.append({kind: f"/assets/{path}?v={version}" for kind, path in files.items()})
+
+	return plugins
 
 
 def get_context(context):
@@ -63,6 +86,9 @@ def get_context(context):
 	# Scoped to this app's own translations file, not the site-wide dictionary
 	# (get_messages_for_boot), which would drag in every installed app's strings.
 	context.boot["messages"] = get_translations_from_apps(frappe.local.lang, apps=["erpnext_projekt_hub"])
+	context.boot["projekt_hub_plugins"] = get_plugins()
+	# Exposed as frappe.user_roles by project-hub.html, as desk does from its own boot.
+	context.boot["user_roles"] = frappe.get_roles()
 	context.asset_version = get_asset_version()
 
 	return context

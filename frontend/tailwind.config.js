@@ -6,8 +6,10 @@ export default {
 		"./index.html",
 		"./src/**/*.{vue,js,ts,jsx,tsx}",
 		"../node_modules/frappe-ui/src/**/*.{vue,js,ts}",
-		"../../projekt_hub_pro/projekt_hub_pro/public/frontend/src/**/*.{vue,js,ts,jsx,tsx}",
 	],
+	// Accent classes of tabs registered by plugins (tab.color / tab.bg), which
+	// OutlinerNav renders but this build never sees in its sources.
+	safelist: [{ pattern: /^(text-[a-z]+-600|bg-[a-z]+-50)$/ }],
 	theme: {
 		extend: {
 			colors: {
