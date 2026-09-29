@@ -1,42 +1,14 @@
-import { createApp } from "vue";
-import { createPinia } from "pinia";
-import { FrappeUI, setConfig, frappeRequest } from "frappe-ui";
-import App from "./App.vue";
-import { createAppRouter } from "./router";
-import { registerCoreTabs } from "./tabs/coreTabs";
-import { loadPlugins } from "./plugins";
-import "./index.css";
-import { formatTranslation } from "./utils/translation";
-
-// Provide a minimal window.__ stub during server-side initialization so imports
-// that reference `window.__` don't crash before the client hydrates.
-const rootContext = typeof globalThis !== "undefined" ? globalThis : {};
-const stubTranslate = (text, replacements) => formatTranslation(text, replacements);
-
-if (!rootContext.window) {
-	rootContext.window = {
-		__(text, replacements) {
-			return stubTranslate(text, replacements);
-		},
-	};
-} else if (typeof rootContext.window.__ !== "function") {
-	rootContext.window.__ = (text, replacements) => stubTranslate(text, replacements);
-}
-
-// Configure frappe-ui
-setConfig("resourceFetcher", frappeRequest);
-
-// Core tabs go first so plugins can override them (unregisterTab); the router is
-// built once plugins have registered their tabs too.
-registerCoreTabs();
-
-loadPlugins().then(() => {
-	const app = createApp(App);
-	const pinia = createPinia();
-
-	app.use(pinia);
-	app.use(createAppRouter());
-	app.use(FrappeUI);
-
-	app.mount("#app");
-});
+// This file is the SPA's Vite entry, served with a cache-busting query string
+// (project-hub.html: main.js?v=<asset hash>, see www/project_hub.py). A lazy
+// route chunk that needs code from here would import a URL without that query
+// string ("../main.js"), which the browser treats as a different module from
+// "main.js?v=…" — loading and running the whole app a second time (two Vue
+// apps mounting on #app, loadPlugins() firing twice, Pinia state split across
+// the two instances). So this entry must never hold code a chunk can import:
+// it only kicks off the real bootstrap as a dynamic import, which Vite then
+// emits as its own hashed chunk that every importer references identically.
+//
+// The bootstrap file is named index.js, not bootstrap.js: Vite names a
+// dynamic import's extracted CSS after its chunk, and project-hub.html /
+// www/project_hub.py hardcode the built CSS as "index.css".
+import("./index.js");

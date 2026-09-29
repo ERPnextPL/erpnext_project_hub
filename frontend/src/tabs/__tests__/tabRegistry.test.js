@@ -330,6 +330,7 @@ describe('Core Tabs Integration', () => {
 		expect(tabs.find(t => t.key === 'projects')).toBeDefined();
 		expect(tabs.find(t => t.key === 'tasks')).toBeDefined();
 		expect(tabs.find(t => t.key === 'my-time')).toBeDefined();
+		expect(tabs.find(t => t.key === 'work-planning')).toBeDefined();
 	});
 });
 
