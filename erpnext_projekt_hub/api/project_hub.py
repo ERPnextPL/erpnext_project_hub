@@ -1290,14 +1290,29 @@ def bulk_update_tasks(tasks: list):
 
 @frappe.whitelist()
 def get_users():
-	"""Get list of users with the Projects User role that can be assigned to tasks."""
+	"""Get list of users that can be assigned to tasks.
+
+	Only users holding the "Projects User" role (or a manager-tier role, which
+	always implies access) are assignable.
+	"""
+	assignable_roles = ["Projects User", "Project Manager", "Projects Manager", "System Manager"]
+	assignable_user_names = frappe.get_all(
+		"Has Role",
+		filters={"role": ["in", assignable_roles], "parenttype": "User"},
+		pluck="parent",
+		distinct=True,
+	)
+
+	if not assignable_user_names:
+		return []
+
 	users = frappe.get_all(
 		"User",
-		filters=[
-			["User", "enabled", "=", 1],
-			["User", "user_type", "=", "System User"],
-			["Has Role", "role", "=", "Projects User"],
-		],
+		filters={
+			"enabled": 1,
+			"user_type": "System User",
+			"name": ["in", assignable_user_names],
+		},
 		fields=["name", "full_name", "user_image"],
 		order_by="full_name",
 	)
@@ -1330,8 +1345,11 @@ def assign_task(
 		if user_type != "System User":
 			frappe.throw(_("Only System Users can be assigned to tasks"))
 
-		# Validate user has Projects User role
-		if not frappe.db.exists("Has Role", {"parent": user, "role": "Projects User", "parenttype": "User"}):
+		# Validate user has the Projects User role or a manager-tier role that implies access
+		assignable_roles = ["Projects User", "Project Manager", "Projects Manager", "System Manager"]
+		if not frappe.db.exists(
+			"Has Role", {"parent": user, "role": ["in", assignable_roles], "parenttype": "User"}
+		):
 			frappe.throw(_("Only users with the Projects User role can be assigned to tasks"))
 
 		add_assignment(
