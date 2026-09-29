@@ -83,7 +83,9 @@ def _get_day(day, employee, base_hours, holiday_list_info, holidays, leaves) -> 
 		return result
 
 	share = 1.0
-	list_covers_day = bool(holiday_list_info and holiday_list_info.from_date <= day <= holiday_list_info.to_date)
+	list_covers_day = bool(
+		holiday_list_info and holiday_list_info.from_date <= day <= holiday_list_info.to_date
+	)
 	holiday = holidays.get(day) if list_covers_day else None
 	if holiday:
 		result["status"] = WEEKEND if holiday.weekly_off else HOLIDAY
@@ -124,7 +126,8 @@ def _get_employees(employees: list[str]) -> dict[str, dict]:
 		fields.append("default_shift")
 
 	return {
-		row.name: row for row in frappe.get_all("Employee", filters={"name": ("in", employees)}, fields=fields)
+		row.name: row
+		for row in frappe.get_all("Employee", filters={"name": ("in", employees)}, fields=fields)
 	}
 
 

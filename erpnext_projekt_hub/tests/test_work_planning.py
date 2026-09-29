@@ -80,7 +80,9 @@ class TestAvailabilityRules(FrappeTestCase):
 
 	def test_public_holiday_is_off_with_its_name(self):
 		result = day(MONDAY, info=holiday_list_info(), holidays={MONDAY: holiday("Easter <b>Monday</b>")})
-		self.assertEqual((result["hours"], result["status"], result["reason"]), (0, "holiday", "Easter Monday"))
+		self.assertEqual(
+			(result["hours"], result["status"], result["reason"]), (0, "holiday", "Easter Monday")
+		)
 
 	def test_weekend_is_off_when_the_list_holds_only_public_holidays(self):
 		self.assertEqual(day(SATURDAY, info=holiday_list_info(has_weekly_offs=False))["hours"], 0)
@@ -144,7 +146,11 @@ class TestWorkPlanning(FrappeTestCase):
 		existing = frappe.db.get_value("Project", {"project_name": project_name})
 		if existing:
 			return existing
-		return frappe.get_doc({"doctype": "Project", "project_name": project_name, "status": "Open"}).insert().name
+		return (
+			frappe.get_doc({"doctype": "Project", "project_name": project_name, "status": "Open"})
+			.insert()
+			.name
+		)
 
 	def plan(self, project, *allocations):
 		return work_planning.save_plan_entries(
@@ -182,7 +188,10 @@ class TestWorkPlanning(FrappeTestCase):
 		self.assertEqual(data["week_start"], str(MONDAY))
 		self.assertTrue(data["can_plan"])
 		monday = data["plan"][self.employee][str(MONDAY)]
-		self.assertEqual(sorted((entry.project, entry.hours) for entry in monday), sorted([(self.project, 3), (self.other_project, 2)]))
+		self.assertEqual(
+			sorted((entry.project, entry.hours) for entry in monday),
+			sorted([(self.project, 3), (self.other_project, 2)]),
+		)
 
 	def test_copy_previous_week_skips_days_off_and_days_already_planned(self):
 		previous_monday = MONDAY - timedelta(days=7)
@@ -200,7 +209,10 @@ class TestWorkPlanning(FrappeTestCase):
 		planned = dict(
 			frappe.get_all(
 				"Work Plan Entry",
-				filters={"employee": self.employee, "date": ("between", [MONDAY, MONDAY + timedelta(days=6)])},
+				filters={
+					"employee": self.employee,
+					"date": ("between", [MONDAY, MONDAY + timedelta(days=6)]),
+				},
 				fields=["date", "hours"],
 				as_list=True,
 			)
@@ -217,7 +229,9 @@ class TestWorkPlanning(FrappeTestCase):
 
 		self.assertFalse(data["can_plan"])
 		self.assertEqual([row.name for row in data["employees"]], [self.employee])
-		self.assertRaises(frappe.PermissionError, work_planning.save_plan_entries, self.employee, self.project, [])
+		self.assertRaises(
+			frappe.PermissionError, work_planning.save_plan_entries, self.employee, self.project, []
+		)
 
 	def test_duplicate_entry_for_the_same_day_and_project_is_rejected(self):
 		self.plan(self.project, (MONDAY, 3))

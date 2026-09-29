@@ -12,7 +12,9 @@ class WorkPlanEntry(Document):
 	def validate(self):
 		self.hours = flt(self.hours, 2)
 		if self.hours <= 0 or self.hours > MAX_HOURS_PER_ENTRY:
-			frappe.throw(_("Planned hours must be greater than 0 and at most {0}").format(MAX_HOURS_PER_ENTRY))
+			frappe.throw(
+				_("Planned hours must be greater than 0 and at most {0}").format(MAX_HOURS_PER_ENTRY)
+			)
 
 		duplicate = frappe.db.exists(
 			"Work Plan Entry",

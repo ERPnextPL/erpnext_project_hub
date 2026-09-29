@@ -141,6 +141,10 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 	const showWeekend = ref(readShowWeekend());
 
 	const projectsCache = new Map();
+	// Guards fetchPlan() against out-of-order responses: a slow request for a
+	// week the user has since navigated away from must not overwrite state a
+	// newer, faster request already applied.
+	let fetchRequestId = 0;
 
 	function getDay(employee, date) {
 		return (
@@ -272,6 +276,7 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 	});
 
 	async function fetchPlan() {
+		const requestId = ++fetchRequestId;
 		loading.value = true;
 		error.value = null;
 		try {
@@ -279,6 +284,8 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 				week_start: weekStart.value,
 				department: department.value || null,
 			});
+			if (requestId !== fetchRequestId) return; // superseded by a later fetchPlan() call
+
 			weekStart.value = data.week_start;
 			dates.value = data.dates || [];
 			employees.value = data.employees || [];
@@ -289,9 +296,10 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 			defaultDailyHours.value = data.default_daily_hours || 8;
 			loaded.value = true;
 		} catch (err) {
+			if (requestId !== fetchRequestId) return;
 			error.value = err.message || translate("Failed to load the work plan");
 		} finally {
-			loading.value = false;
+			if (requestId === fetchRequestId) loading.value = false;
 		}
 	}
 
