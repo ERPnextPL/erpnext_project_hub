@@ -43,5 +43,7 @@ declare module 'vue' {
     TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']
+    WorkPlanEntryModal: typeof import('./src/components/work-planning/WorkPlanEntryModal.vue')['default']
+    WorkPlanGrid: typeof import('./src/components/work-planning/WorkPlanGrid.vue')['default']
   }
 }
