@@ -147,7 +147,14 @@ class TestWorkPlanning(FrappeTestCase):
 		if existing:
 			return existing
 		return (
-			frappe.get_doc({"doctype": "Project", "project_name": project_name, "status": "Open"})
+			frappe.get_doc(
+				{
+					"doctype": "Project",
+					"project_name": project_name,
+					"status": "Open",
+					"company": frappe.db.get_value("Company", {}, "name"),
+				}
+			)
 			.insert()
 			.name
 		)
