@@ -134,12 +134,25 @@ class TestWorkPlanning(FrappeTestCase):
 			}
 		).insert(ignore_if_duplicate=True)
 		self.employee = make_employee("_test_work_planning@example.com", holiday_list=holiday_list.name)
+		self.holiday_list = holiday_list.name
 		self.project = self.make_project("_Test Work Planning Project")
 		self.other_project = self.make_project("_Test Work Planning Other Project")
+		frappe.get_doc("User", self.as_employee()).add_roles("Projects User")
 		frappe.db.delete("Work Plan Entry", {"employee": self.employee})
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
+
+	@staticmethod
+	def as_employee() -> str:
+		"""The user behind self.employee: a Projects User who plans only their own days."""
+		return "_test_work_planning@example.com"
+
+	def make_other_employee(self) -> str:
+		"""A second employee, to check one employee cannot reach the other's plan."""
+		employee = make_employee("_test_work_planning_other@example.com", holiday_list=self.holiday_list)
+		frappe.db.delete("Work Plan Entry", {"employee": employee})
+		return employee
 
 	@staticmethod
 	def make_project(project_name):
@@ -226,19 +239,139 @@ class TestWorkPlanning(FrappeTestCase):
 		)
 		self.assertEqual(planned, {MONDAY: 4, MONDAY + timedelta(days=1): 2})
 
-	def test_employee_without_planning_rights_sees_only_their_own_plan(self):
-		user = "_test_work_planning@example.com"
-		frappe.get_doc("User", user).add_roles("Projects User")
+	def test_employee_sees_and_plans_only_their_own_row(self):
 		self.plan(self.project, (MONDAY, 3))
 
-		frappe.set_user(user)
+		frappe.set_user(self.as_employee())
 		data = work_planning.get_work_plan(str(MONDAY))
 
-		self.assertFalse(data["can_plan"])
+		self.assertTrue(data["can_plan"])
+		self.assertFalse(data["can_plan_for_others"])
+		self.assertEqual(data["own_employee"], self.employee)
 		self.assertEqual([row.name for row in data["employees"]], [self.employee])
-		self.assertRaises(
-			frappe.PermissionError, work_planning.save_plan_entries, self.employee, self.project, []
+		self.assertEqual(data["departments"], [])
+
+	def test_employee_plans_their_own_days(self):
+		frappe.set_user(self.as_employee())
+
+		saved = work_planning.save_plan_entries(
+			self.employee, self.project, [{"date": str(MONDAY), "hours": 5}]
 		)
+		self.assertEqual(saved["saved"], 1)
+
+		entry = frappe.db.get_value(
+			"Work Plan Entry", {"employee": self.employee, "date": MONDAY}, ["name", "owner"], as_dict=True
+		)
+		self.assertEqual(entry.owner, self.as_employee())
+
+		work_planning.update_plan_entry(entry.name, hours=6)
+		self.assertEqual(frappe.db.get_value("Work Plan Entry", entry.name, "hours"), 6)
+
+		work_planning.delete_plan_entry(entry.name)
+		self.assertFalse(frappe.db.exists("Work Plan Entry", entry.name))
+
+	def test_employee_cannot_touch_another_employees_plan(self):
+		other_employee = self.make_other_employee()
+		other_entry = frappe.get_doc(
+			{
+				"doctype": "Work Plan Entry",
+				"employee": other_employee,
+				"date": MONDAY,
+				"project": self.project,
+				"hours": 4,
+			}
+		).insert()
+
+		frappe.set_user(self.as_employee())
+
+		# Through the API, whichever endpoint the employee reaches for.
+		self.assertRaises(
+			frappe.PermissionError,
+			work_planning.save_plan_entries,
+			other_employee,
+			self.project,
+			[{"date": str(MONDAY), "hours": 2}],
+		)
+		self.assertRaises(frappe.PermissionError, work_planning.update_plan_entry, other_entry.name, 2)
+		self.assertRaises(frappe.PermissionError, work_planning.delete_plan_entry, other_entry.name)
+		self.assertRaises(frappe.PermissionError, work_planning.get_plannable_projects, other_employee)
+
+		# And writing the DocType directly, which the API does not guard.
+		forged = frappe.get_doc(
+			{
+				"doctype": "Work Plan Entry",
+				"employee": other_employee,
+				"date": MONDAY + timedelta(days=1),
+				"project": self.project,
+				"hours": 3,
+			}
+		)
+		self.assertRaises(frappe.PermissionError, forged.insert)
+
+		self.assertEqual(frappe.db.get_value("Work Plan Entry", other_entry.name, "hours"), 4)
+
+	def test_employee_does_not_see_another_employees_entries(self):
+		other_employee = self.make_other_employee()
+		frappe.get_doc(
+			{
+				"doctype": "Work Plan Entry",
+				"employee": other_employee,
+				"date": MONDAY,
+				"project": self.project,
+				"hours": 4,
+			}
+		).insert()
+		self.plan(self.project, (MONDAY, 3))
+
+		frappe.set_user(self.as_employee())
+
+		# get_list is the permission-aware path behind the desk list view, /api/resource
+		# and reports; get_all deliberately bypasses permissions and is server-side only.
+		visible = frappe.get_list("Work Plan Entry", filters={"date": MONDAY}, pluck="employee")
+		self.assertEqual(visible, [self.employee])
+
+	def test_copying_the_previous_week_as_an_employee_copies_only_their_own_week(self):
+		other_employee = self.make_other_employee()
+		previous_monday = MONDAY - timedelta(days=7)
+		self.plan(self.project, (previous_monday, 4))
+		frappe.get_doc(
+			{
+				"doctype": "Work Plan Entry",
+				"employee": other_employee,
+				"date": previous_monday,
+				"project": self.project,
+				"hours": 4,
+			}
+		).insert()
+
+		frappe.set_user(self.as_employee())
+		result = work_planning.copy_previous_week(str(MONDAY))
+
+		self.assertEqual(result["copied"], 1)
+		frappe.set_user("Administrator")
+		self.assertEqual(
+			frappe.get_all("Work Plan Entry", filters={"date": MONDAY}, pluck="employee"),
+			[self.employee],
+		)
+
+	def test_changes_made_by_an_employee_stay_traceable_on_the_doctype(self):
+		self.plan(self.project, (MONDAY, 3))
+		entry = frappe.db.get_value("Work Plan Entry", {"employee": self.employee, "date": MONDAY})
+
+		user = self.as_employee()
+		frappe.set_user(user)
+		work_planning.update_plan_entry(entry, hours=7)
+
+		frappe.set_user("Administrator")
+		self.assertEqual(frappe.db.get_value("Work Plan Entry", entry, "modified_by"), user)
+		versions = frappe.get_all(
+			"Version",
+			filters={"ref_doctype": "Work Plan Entry", "docname": entry},
+			fields=["owner", "data"],
+		)
+		self.assertTrue(versions, "track_changes should record who changed the entry")
+		self.assertEqual(versions[-1].owner, user)
+		self.assertIn("hours", versions[-1].data)
 
 	def test_duplicate_entry_for_the_same_day_and_project_is_rejected(self):
 		self.plan(self.project, (MONDAY, 3))

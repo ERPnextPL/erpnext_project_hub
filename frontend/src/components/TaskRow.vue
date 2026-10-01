@@ -1,16 +1,23 @@
+<script>
+import { ref as moduleRef } from "vue";
+
+// Only one row's status dropdown may be open at a time across the whole list
+const openStatusMenuTask = moduleRef(null);
+</script>
+
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
 import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
-import { getStatusConfig, getStatusLabel, isTaskActive } from "../utils/taskStatus";
+import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
+import BlockedToggle from "./shared/BlockedToggle.vue";
 import {
 	GripVertical,
 	ChevronRight,
 	ChevronDown,
 	X,
-	Circle,
 	Clock,
 	User,
 	Calendar,
@@ -20,6 +27,8 @@ import {
 	Plus,
 	Diamond,
 	FileText,
+	Lock,
+	Unlock,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -137,18 +146,18 @@ onMounted(() => {
 	}
 });
 
-const statusConfig = computed(() => {
-	const config = {};
-	store.taskStatuses.forEach((status) => {
-		const statusStyle = getStatusConfig(status);
-		config[status] = {
-			icon: statusStyle.icon,
-			class: statusStyle.rowClass,
-			label: getStatusLabel(status),
-		};
-	});
-	return config;
+// Same options and styling as the status dropdown in My Tasks
+const statusConfig = Object.fromEntries(
+	BOARD_STATUSES.map((status) => [status, getStatusSolid(status)])
+);
+
+const currentStatus = computed(() => {
+	return statusConfig[props.task.status] || statusConfig["Open"];
 });
+
+// Status dropdown - teleported to body because the task list sits in overflow-hidden containers
+const showStatusDropdown = computed(() => openStatusMenuTask.value === props.task.name);
+const statusDropdownPosition = ref({ x: 0, y: 0 });
 
 const priorityClassMap = {
 	Urgent: "priority-urgent",
@@ -222,34 +231,28 @@ function handleKeydown(e) {
 	}
 }
 
-async function cycleStatus() {
-	// Filter out non-workflow statuses like Overdue (Cancelled is included but has special handling)
-	const excludedStatuses = ["Overdue", "Template"];
-	const cyclableStatuses = store.taskStatuses.filter((s) => !excludedStatuses.includes(s));
-
-	if (cyclableStatuses.length === 0) return;
-
-	if (props.task.status === "Completed") {
-		const targetStatus = cyclableStatuses.includes("Working")
-			? "Working"
-			: cyclableStatuses[0];
-		emit("update", props.task.name, { status: targetStatus });
+function toggleStatusDropdown(event) {
+	if (showStatusDropdown.value) {
+		closeStatusDropdown();
 		return;
 	}
+	const rect = event.currentTarget.getBoundingClientRect();
+	statusDropdownPosition.value = { x: rect.left, y: rect.bottom + 4 };
+	openStatusMenuTask.value = props.task.name;
+}
 
-	const currentIndex = cyclableStatuses.indexOf(props.task.status);
-
-	// If current status is not in cycle (e.g. it was Overdue), reset to first status (usually Open)
-	if (currentIndex === -1) {
-		emit("update", props.task.name, { status: cyclableStatuses[0] });
-		return;
+function closeStatusDropdown() {
+	if (showStatusDropdown.value) {
+		openStatusMenuTask.value = null;
 	}
+}
 
-	const nextIndex = (currentIndex + 1) % cyclableStatuses.length;
-	const nextStatus = cyclableStatuses[nextIndex];
+async function updateStatus(newStatus) {
+	closeStatusDropdown();
+	if (newStatus === props.task.status) return;
 
 	// Special handling for Cancelled status
-	if (nextStatus === "Cancelled") {
+	if (newStatus === "Cancelled") {
 		// Check if task has any subtasks
 		const subtasks = store.tasks.filter((t) => t.parent_task === props.task.name);
 		if (subtasks.length > 0) {
@@ -258,7 +261,7 @@ async function cycleStatus() {
 		}
 	}
 
-	emit("update", props.task.name, { status: nextStatus });
+	emit("update", props.task.name, { status: newStatus });
 }
 
 async function handleCancelWithSubtasks() {
@@ -387,6 +390,15 @@ function logTime() {
 	emit("contextmenu-close");
 }
 
+function setBlocked(blocked) {
+	emit("update", props.task.name, { is_blocked: blocked ? 1 : 0 });
+}
+
+function toggleBlockedFromMenu() {
+	setBlocked(!props.task.is_blocked);
+	emit("contextmenu-close");
+}
+
 // Drag handlers for milestone assignment
 function handleDragStart(event) {
 	event.dataTransfer.effectAllowed = "move";
@@ -448,14 +460,23 @@ function handleGlobalClick(event) {
 	if (showDescriptionPreview.value && !event.target.closest(".description-preview-trigger")) {
 		showDescriptionPreview.value = false;
 	}
+	if (showStatusDropdown.value && !event.target.closest(".task-status-menu")) {
+		closeStatusDropdown();
+	}
 }
 
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
+	// The menu is fixed-positioned, so close it instead of letting it drift on scroll
+	document.addEventListener("scroll", closeStatusDropdown, true);
+	realWindow?.addEventListener?.("resize", closeStatusDropdown);
 });
 
 onUnmounted(() => {
 	document.removeEventListener("click", handleGlobalClick);
+	document.removeEventListener("scroll", closeStatusDropdown, true);
+	realWindow?.removeEventListener?.("resize", closeStatusDropdown);
+	closeStatusDropdown();
 });
 </script>
 
@@ -610,17 +631,49 @@ onUnmounted(() => {
 			</div>
 
 		<!-- Status -->
-		<div v-else-if="columnId === 'status'" class="min-w-0">
+		<div v-else-if="columnId === 'status'" class="min-w-0 flex items-center gap-1">
 			<button
-				@click.stop="cycleStatus"
+				@click.stop="toggleStatusDropdown"
 				:class="[
-					'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-					statusConfig[task.status]?.class || 'status-open',
+					'task-status-toggle inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors',
+					currentStatus.bg,
+					currentStatus.class,
 				]"
 			>
-				<component :is="statusConfig[task.status]?.icon || Circle" class="w-3 h-3" />
-				{{ statusConfig[task.status]?.label || task.status }}
+				<component :is="currentStatus.icon" class="w-3 h-3" />
+				{{ currentStatus.label }}
+				<ChevronDown class="w-3 h-3" />
 			</button>
+
+			<BlockedToggle :blocked="task.is_blocked" @toggle="setBlocked" />
+
+			<!-- Status dropdown -->
+			<Teleport to="body">
+				<Transition name="fade">
+					<div
+						v-if="showStatusDropdown"
+						class="task-status-menu fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
+						:style="{
+							left: statusDropdownPosition.x + 'px',
+							top: statusDropdownPosition.y + 'px',
+						}"
+						@click.stop
+					>
+						<button
+							v-for="(config, status) in statusConfig"
+							:key="status"
+							@click="updateStatus(status)"
+							:class="[
+								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700',
+								task.status === status && 'bg-gray-50 dark:bg-gray-700',
+							]"
+						>
+							<component :is="config.icon" :class="['w-4 h-4', config.class]" />
+							{{ config.label }}
+						</button>
+					</div>
+				</Transition>
+			</Teleport>
 		</div>
 
 		<!-- Assignee -->
@@ -705,10 +758,19 @@ onUnmounted(() => {
 				<button
 					v-if="task.exp_end_date"
 					type="button"
-					class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+					:class="[
+						'flex items-center gap-1 text-sm',
+						task.is_overdue ? 'text-red-600 font-medium hover:text-red-700' : 'text-gray-600 hover:text-gray-900',
+					]"
 				>
-					<Calendar class="w-4 h-4 text-gray-400" />
+					<Calendar :class="['w-4 h-4', task.is_overdue ? 'text-red-500' : 'text-gray-400']" />
 					<span>{{ task.exp_end_date }}</span>
+					<span
+						v-if="task.is_overdue"
+						class="ml-1 inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+					>
+						{{ translate("Overdue") }}
+					</span>
 				</button>
 				<button
 					v-else
@@ -778,6 +840,13 @@ onUnmounted(() => {
 				>
 					<Plus class="w-4 h-4" />
 					{{ translate("Add subtask") }}
+				</button>
+				<button
+					@click="toggleBlockedFromMenu"
+					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+				>
+					<component :is="task.is_blocked ? Unlock : Lock" class="w-4 h-4" />
+					{{ task.is_blocked ? translate("Unblock") : translate("Mark as blocked") }}
 				</button>
 				<button
 					@click="openInDesk"

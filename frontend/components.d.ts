@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
+    BlockedToggle: typeof import('./src/components/shared/BlockedToggle.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MilestoneDropdown: typeof import('./src/components/MilestoneDropdown.vue')['default']

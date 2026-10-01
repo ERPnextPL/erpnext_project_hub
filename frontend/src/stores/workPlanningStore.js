@@ -130,6 +130,8 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 	const availability = ref({});
 	const plan = ref({});
 	const canPlan = ref(false);
+	const canPlanForOthers = ref(false);
+	const ownEmployee = ref(null);
 	const departments = ref([]);
 	const defaultDailyHours = ref(8);
 	const loading = ref(false);
@@ -160,6 +162,12 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 
 	function getEntries(employee, date) {
 		return plan.value[employee]?.[date] || [];
+	}
+
+	// Planners edit every row; everybody else only the row of their own employee.
+	function canPlanEmployee(employee) {
+		if (!canPlan.value) return false;
+		return canPlanForOthers.value || employee === ownEmployee.value;
 	}
 
 	function getPlanned(employee, date) {
@@ -292,6 +300,8 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 			availability.value = data.availability || {};
 			plan.value = data.plan || {};
 			canPlan.value = !!data.can_plan;
+			canPlanForOthers.value = !!data.can_plan_for_others;
+			ownEmployee.value = data.own_employee || null;
 			departments.value = data.departments || [];
 			defaultDailyHours.value = data.default_daily_hours || 8;
 			loaded.value = true;
@@ -397,6 +407,8 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 		availability,
 		plan,
 		canPlan,
+		canPlanForOthers,
+		ownEmployee,
 		departments,
 		defaultDailyHours,
 		loading,
@@ -411,6 +423,7 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 		projectSummary,
 		getDay,
 		getEntries,
+		canPlanEmployee,
 		getPlanned,
 		getAvailable,
 		getEmployeeWeek,

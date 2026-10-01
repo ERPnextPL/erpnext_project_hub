@@ -87,7 +87,7 @@
 								</span>
 								<button
 									v-if="
-										store.canPlan &&
+										store.canPlanEmployee(employee.name) &&
 										(store.getEntries(employee.name, date).length ||
 											store.getAvailable(employee.name, date) <= 0)
 									"
@@ -120,10 +120,10 @@
 								class="flex w-full items-center justify-between gap-1 rounded border px-1.5 py-1 text-left text-xs transition"
 								:class="[
 									getProjectColor(entry.project).chip,
-									store.canPlan ? 'cursor-pointer' : 'cursor-default',
+									store.canPlanEmployee(employee.name) ? 'cursor-pointer' : 'cursor-default',
 								]"
 								:title="entryTitle(entry)"
-								@click="store.canPlan && emit('edit', { employee, date, entry })"
+								@click="store.canPlanEmployee(employee.name) && emit('edit', { employee, date, entry })"
 							>
 								<span class="truncate">{{ entry.project_name || entry.project }}</span>
 								<span class="shrink-0 font-semibold tabular-nums">
@@ -133,7 +133,7 @@
 
 							<button
 								v-if="
-									store.canPlan &&
+									store.canPlanEmployee(employee.name) &&
 									!store.getEntries(employee.name, date).length &&
 									store.getAvailable(employee.name, date) > 0
 								"

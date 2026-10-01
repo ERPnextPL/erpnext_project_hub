@@ -1,8 +1,10 @@
 """Work planning tab of Projekt HUB.
 
-Planners (users who can create Work Plan Entry) plan how many hours each employee
-works on which project on each day of a week, against the employee's availability
-(see erpnext_projekt_hub.availability). Everyone else sees their own plan only.
+Planners (see access.PLANNER_ROLES) plan how many hours each employee works on which
+project on each day of a week, against the employee's availability (see
+erpnext_projekt_hub.availability). Everybody else plans the days of their own Employee
+record only, so nobody changes a colleague's plan; the Work Plan Entry controller
+enforces the same rule on every write, and track_changes keeps the history.
 """
 
 import json
@@ -12,7 +14,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, flt, getdate
 
-from erpnext_projekt_hub.access import has_project_hub_access
+from erpnext_projekt_hub.access import can_plan_for_others, get_own_employee, has_project_hub_access
 from erpnext_projekt_hub.availability import DEFAULT_DAILY_HOURS, get_availability
 
 ENTRY_FIELDS = ["name", "employee", "date", "project", "project_name", "hours", "note"]
@@ -23,14 +25,31 @@ def _check_access():
 		frappe.throw(_("You do not have permission to access Projekt HUB"), frappe.PermissionError)
 
 
-def _can_plan() -> bool:
+def _can_write_entries() -> bool:
+	"""Whether the DocType's role permissions let the user create plan entries at all."""
 	return bool(frappe.has_permission("Work Plan Entry", "create"))
 
 
-def _check_can_plan():
+def _check_can_plan(employee: str | None = None) -> str | None:
+	"""Throw unless the user may plan `employee`, and return the employee they are limited to.
+
+	None means no limit: a planner plans the whole team. Anybody else is limited to
+	their own Employee record, so passing a different `employee` is refused.
+	"""
 	_check_access()
-	if not _can_plan():
+	if not _can_write_entries():
 		frappe.throw(_("You do not have permission to plan work"), frappe.PermissionError)
+
+	if can_plan_for_others():
+		return None
+
+	own_employee = get_own_employee()
+	if not own_employee:
+		frappe.throw(_("Your user is not linked to an active employee"), frappe.PermissionError)
+	if employee and employee != own_employee:
+		frappe.throw(_("You can only plan your own work"), frappe.PermissionError)
+
+	return own_employee
 
 
 def _get_week_dates(week_start) -> list:
@@ -87,14 +106,13 @@ def get_work_plan(week_start: str, department: str | None = None) -> dict:
 	_check_access()
 
 	dates = _get_week_dates(week_start)
-	can_plan = _can_plan()
+	own_employee = get_own_employee()
+	can_write = _can_write_entries()
+	plan_for_others = can_write and can_plan_for_others()
 
-	if can_plan:
+	if plan_for_others:
 		employees = _get_employees(department=department)
 	else:
-		own_employee = frappe.db.get_value(
-			"Employee", {"user_id": frappe.session.user, "status": "Active"}, "name"
-		)
 		employees = _get_employees(employee=own_employee) if own_employee else []
 
 	employee_names = [row.name for row in employees]
@@ -105,7 +123,7 @@ def get_work_plan(week_start: str, department: str | None = None) -> dict:
 		plan[entry.employee][entry.date].append(entry)
 
 	departments = []
-	if can_plan:
+	if plan_for_others:
 		departments = sorted(
 			set(
 				frappe.get_all(
@@ -122,7 +140,11 @@ def get_work_plan(week_start: str, department: str | None = None) -> dict:
 		"employees": employees,
 		"availability": get_availability(employee_names, dates),
 		"plan": plan,
-		"can_plan": can_plan,
+		# can_plan says the user may plan something, own_employee which row that is
+		# when they are not a planner: the UI opens the editor for that row only.
+		"can_plan": plan_for_others or (can_write and bool(own_employee)),
+		"can_plan_for_others": plan_for_others,
+		"own_employee": own_employee,
 		"departments": departments,
 		"default_daily_hours": DEFAULT_DAILY_HOURS,
 	}
@@ -131,7 +153,7 @@ def get_work_plan(week_start: str, department: str | None = None) -> dict:
 @frappe.whitelist()
 def get_plannable_projects(employee: str | None = None) -> list[dict]:
 	"""Return open projects, the ones the employee is a member of first."""
-	_check_can_plan()
+	employee = _check_can_plan(employee) or employee
 
 	projects = frappe.get_all(
 		"Project",
@@ -171,7 +193,7 @@ def save_plan_entries(employee: str, project: str, allocations: str | list, note
 
 	A day the employee is already planned on this project gets its hours replaced.
 	"""
-	_check_can_plan()
+	_check_can_plan(employee)
 
 	if isinstance(allocations, str):
 		allocations = json.loads(allocations)
@@ -212,9 +234,9 @@ def update_plan_entry(
 	name: str, hours: float | None = None, project: str | None = None, note: str | None = None
 ) -> dict:
 	"""Change the hours, project or note of one plan entry."""
-	_check_can_plan()
-
 	entry = frappe.get_doc("Work Plan Entry", name)
+	_check_can_plan(entry.employee)
+
 	if hours is not None:
 		entry.hours = flt(hours, 2)
 	if project:
@@ -228,7 +250,7 @@ def update_plan_entry(
 
 @frappe.whitelist(methods=["POST"])
 def delete_plan_entry(name: str) -> None:
-	_check_can_plan()
+	_check_can_plan(frappe.db.get_value("Work Plan Entry", name, "employee"))
 	frappe.delete_doc("Work Plan Entry", name)
 
 
@@ -237,13 +259,17 @@ def copy_previous_week(week_start: str, department: str | None = None) -> dict:
 	"""Copy last week's plan into this week, day by day.
 
 	Days on which the employee is not available this week, and days already planned
-	on the same project, are skipped.
+	on the same project, are skipped. Without the right to plan others, only the
+	caller's own week is copied.
 	"""
-	_check_can_plan()
+	own_employee = _check_can_plan()
 
 	dates = _get_week_dates(week_start)
 	previous_dates = [add_days(day, -7) for day in dates]
-	employees = [row.name for row in _get_employees(department=department)]
+	if own_employee:
+		employees = [own_employee]
+	else:
+		employees = [row.name for row in _get_employees(department=department)]
 
 	availability = get_availability(employees, dates)
 	already_planned = {

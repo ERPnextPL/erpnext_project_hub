@@ -21,12 +21,17 @@ export const TASK_STATUSES = [
 
 /**
  * Statuses offered as board columns and filter options. "Template" only ever
- * applies to template tasks, which are never part of a project.
+ * applies to template tasks, which are never part of a project. "Overdue" is
+ * not offered either: a missed due date is shown by the task's `is_overdue`
+ * flag, so the task keeps its real status. It stays in TASK_STATUSES only so
+ * that an old task still carrying it renders correctly.
  */
-export const BOARD_STATUSES = TASK_STATUSES.filter((status) => status !== "Template");
+export const BOARD_STATUSES = TASK_STATUSES.filter(
+	(status) => status !== "Template" && status !== "Overdue"
+);
 
 /** Statuses counted as still open - the default filter selection. */
-export const ACTIVE_STATUSES = ["Open", "Working", "Pending Review", "Overdue"];
+export const ACTIVE_STATUSES = ["Open", "Working", "Pending Review"];
 
 /** Whether a task can still receive changes such as adding a subtask. */
 export function isTaskActive(status) {

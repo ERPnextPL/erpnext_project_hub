@@ -70,7 +70,7 @@
 						/>
 					</div>
 					<select
-						v-if="store.canPlan && store.departments.length"
+						v-if="store.canPlanForOthers && store.departments.length"
 						:value="store.department"
 						class="rounded-md border border-gray-300 py-1.5 pl-2 pr-8 text-sm text-gray-700 focus:border-violet-500 focus:ring-violet-500"
 						@change="store.setDepartment($event.target.value)"
@@ -113,11 +113,15 @@
 			</div>
 
 			<div
-				v-if="store.loaded && !store.canPlan"
+				v-if="store.loaded && !store.canPlanForOthers"
 				class="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"
 			>
 				<Info class="mt-0.5 h-4 w-4 shrink-0" />
-				{{ translate("This is your work plan. Project managers plan the work of the team.") }}
+				{{
+					store.canPlan
+						? translate("This is your work plan. You plan your own hours; project managers plan the work of the team.")
+						: translate("This is your work plan. Project managers plan the work of the team.")
+				}}
 			</div>
 
 			<!-- Summary -->
@@ -197,7 +201,7 @@
 				{{
 					store.employees.length
 						? translate("No employees match the search")
-						: store.canPlan
+						: store.canPlanForOthers
 						? translate("No active employees")
 						: translate("Your user is not linked to an active employee")
 				}}

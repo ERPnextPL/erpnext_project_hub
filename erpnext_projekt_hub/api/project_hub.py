@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import cint, flt, today
 
 from erpnext_projekt_hub.events.task_events import _walk_ancestors
+from erpnext_projekt_hub.overrides.task import compute_is_overdue
 
 
 def _get_incomplete_subtasks(task_name: str) -> list:
@@ -575,6 +576,7 @@ def get_project_tasks(
 		"creation",
 		"modified",
 		"project",
+		"is_blocked",
 	]
 
 	task_filters = {"project": project}
@@ -628,6 +630,9 @@ def get_project_tasks(
 
 	# Keep tree structure by including missing parents
 	tasks = _include_missing_parents(tasks, project, fields)
+
+	for task in tasks:
+		task["is_overdue"] = compute_is_overdue(task)
 
 	# Deterministic sort
 	tasks = sorted(
@@ -1060,6 +1065,8 @@ def update_task(task_name: str, **kwargs):
 				"progress": task.progress,
 				"description": task.description,
 				"reference_link": getattr(task, "reference_link", None),
+				"is_blocked": task.get("is_blocked"),
+				"is_overdue": compute_is_overdue(task),
 			}
 
 	# Allowed fields to update
@@ -1075,12 +1082,16 @@ def update_task(task_name: str, **kwargs):
 		"is_group",
 		"project",
 		"expected_time",
+		"is_blocked",
 	]
 
 	for field in allowed_fields:
 		if field not in kwargs:
 			continue
-		task.set(field, kwargs[field])
+		value = kwargs[field]
+		if field == "is_blocked":
+			value = cint(value)
+		task.set(field, value)
 
 	# Set completed_on date when task is completed, clear it otherwise
 	if kwargs.get("status") == "Completed":
@@ -1105,6 +1116,8 @@ def update_task(task_name: str, **kwargs):
 		"project": task.project,
 		"expected_time": getattr(task, "expected_time", None),
 		"completed_on": task.completed_on,
+		"is_blocked": task.get("is_blocked"),
+		"is_overdue": compute_is_overdue(task),
 	}
 
 
@@ -1891,6 +1904,11 @@ def get_quick_time_log_descriptions():
 	)
 
 
+# Statuses people may not pick in the Hub. A missed due date is shown by the
+# is_overdue flag instead, so the task keeps its real status (see overrides/task.py).
+HIDDEN_TASK_STATUSES = ("Overdue",)
+
+
 @frappe.whitelist()
 def get_task_statuses():
 	"""Get list of task statuses from ERPNext."""
@@ -1901,10 +1919,10 @@ def get_task_statuses():
 	if status_field and status_field.options:
 		# Options are stored as newline-separated string
 		statuses = [s.strip() for s in status_field.options.split("\n") if s.strip()]
-		return statuses
+		return [s for s in statuses if s not in HIDDEN_TASK_STATUSES]
 
 	# Fallback to default statuses
-	return ["Open", "Working", "Pending Review", "Completed", "Overdue", "Cancelled"]
+	return ["Open", "Working", "Pending Review", "Completed", "Cancelled"]
 
 
 @frappe.whitelist()
@@ -2438,6 +2456,7 @@ def get_my_tasks(
 			t.description,
 			t.progress,
 			t.expected_time,
+			t.is_blocked,
 			t._assign,
 			t.modified,
 			t.creation,
@@ -2468,18 +2487,8 @@ def get_my_tasks(
 	)
 	total_count = frappe.db.sql(count_query, values, as_dict=True)[0].get("count", 0)
 
-	# Add overdue flag
-	from frappe.utils import getdate, today
-
-	today_date = getdate(today())
 	for task in tasks:
-		if task.get("exp_end_date"):
-			task["is_overdue"] = getdate(task["exp_end_date"]) < today_date and task["status"] not in [
-				"Completed",
-				"Cancelled",
-			]
-		else:
-			task["is_overdue"] = False
+		task["is_overdue"] = compute_is_overdue(task)
 
 	return {
 		"tasks": tasks,
@@ -2525,9 +2534,10 @@ def quick_update_task(
 	status: str | None = None,
 	priority: str | None = None,
 	exp_end_date: str | None = None,
+	is_blocked: int | None = None,
 ):
 	"""
-	Quick update for task status, priority, or due date.
+	Quick update for task status, priority, due date, or the blocked flag.
 	Used for inline editing in My Tasks view.
 	Returns updated task data.
 	"""
@@ -2566,6 +2576,9 @@ def quick_update_task(
 	if exp_end_date is not None:
 		task.exp_end_date = exp_end_date if exp_end_date else None
 
+	if is_blocked is not None:
+		task.is_blocked = cint(is_blocked)
+
 	task.save()
 
 	return _get_task_response(task)
@@ -2582,13 +2595,6 @@ def _get_task_response(task):
 	parent_subject = None
 	if getattr(task, "parent_task", None):
 		parent_subject = frappe.db.get_value("Task", task.parent_task, "subject")
-
-	is_overdue = False
-	if task.exp_end_date:
-		is_overdue = getdate(task.exp_end_date) < getdate(today()) and task.status not in [
-			"Completed",
-			"Cancelled",
-		]
 
 	return {
 		"name": task.name,
@@ -2607,7 +2613,8 @@ def _get_task_response(task):
 		"expected_time": getattr(task, "expected_time", None),
 		"_assign": task._assign,
 		"modified": task.modified,
-		"is_overdue": is_overdue,
+		"is_overdue": compute_is_overdue(task),
+		"is_blocked": task.get("is_blocked"),
 	}
 
 
