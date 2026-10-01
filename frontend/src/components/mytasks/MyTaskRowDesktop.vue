@@ -6,6 +6,7 @@ import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
+import BlockedToggle from "../shared/BlockedToggle.vue";
 import {
 	Clock,
 	CheckCircle2,
@@ -16,6 +17,8 @@ import {
 	Folder,
 	CornerDownRight,
 	FileText,
+	Lock,
+	Unlock,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -182,6 +185,16 @@ async function updateStatus(newStatus) {
 	}
 }
 
+async function updateBlocked(blocked) {
+	showContextMenu.value = false;
+	isUpdating.value = true;
+	try {
+		await store.quickUpdateTask(props.task.name, { is_blocked: blocked ? 1 : 0 });
+	} finally {
+		isUpdating.value = false;
+	}
+}
+
 async function updatePriority(newPriority) {
 	store.closeInlineDropdown();
 	if (newPriority === props.task.priority) return;
@@ -240,7 +253,7 @@ onUnmounted(() => {
 		@contextmenu="showMenu"
 		:style="props.indentLevel ? { paddingLeft: props.indentLevel * 16 + 'px' } : undefined"
 		:class="[
-			'grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center',
+			'group grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center',
 			isUpdating && 'opacity-60',
 		]"
 	>
@@ -340,7 +353,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Status -->
-		<div class="col-span-2 flex items-center relative status-dropdown" @click.stop>
+		<div class="col-span-2 flex items-center gap-1 relative status-dropdown" @click.stop>
 			<button
 				@click="store.toggleInlineDropdown(task.name, 'status')"
 				:class="[
@@ -353,6 +366,8 @@ onUnmounted(() => {
 				{{ currentStatus.label }}
 				<ChevronDown class="w-3 h-3" />
 			</button>
+
+			<BlockedToggle :blocked="task.is_blocked" :disabled="isUpdating" @toggle="updateBlocked" />
 
 			<!-- Status dropdown -->
 			<Transition name="fade">
@@ -456,6 +471,13 @@ onUnmounted(() => {
 				>
 					<Clock class="w-4 h-4" />
 					{{ translate("Add time") }}
+				</button>
+				<button
+					@click="updateBlocked(!task.is_blocked)"
+					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+				>
+					<component :is="task.is_blocked ? Unlock : Lock" class="w-4 h-4" />
+					{{ task.is_blocked ? translate("Unblock") : translate("Mark as blocked") }}
 				</button>
 			</div>
 		</Teleport>

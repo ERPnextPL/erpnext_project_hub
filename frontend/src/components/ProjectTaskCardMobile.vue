@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { Calendar, User, Flag } from "lucide-vue-next";
+import { Calendar, User, Flag, Lock } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusBadge } from "../utils/taskStatus";
 
@@ -95,6 +95,13 @@ const formattedDate = computed(() => {
 			<span v-if="assigneeLabel" class="inline-flex items-center gap-1">
 				<User class="h-3.5 w-3.5" />
 				{{ assigneeLabel }}
+			</span>
+			<span
+				v-if="task.is_blocked"
+				class="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-100 px-2 py-0.5 font-medium text-red-700"
+			>
+				<Lock class="h-3 w-3" />
+				{{ translate("Blocked") }}
 			</span>
 			<span
 				v-if="task.priority"

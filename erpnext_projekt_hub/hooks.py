@@ -1,3 +1,5 @@
+import frappe
+
 app_name = "erpnext_projekt_hub"
 app_title = "Projekt HUB"
 app_publisher = "Krzysztof"
@@ -130,21 +132,30 @@ after_uninstall = "erpnext_projekt_hub.uninstall.after_uninstall"
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+permission_query_conditions = {
+	"Work Plan Entry": "erpnext_projekt_hub.projekt_hub.doctype.work_plan_entry.work_plan_entry.get_permission_query_conditions",
+}
+
+has_permission = {
+	"Work Plan Entry": "erpnext_projekt_hub.projekt_hub.doctype.work_plan_entry.work_plan_entry.has_permission",
+}
 
 # DocType Class
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
+# HubTask keeps a missed due date from overwriting the task status. Frappe v16
+# can mix it into ERPNext's controller; v15 has no extend_doctype_class hook, so
+# there the class has to be replaced.
+if int(frappe.__version__.split(".")[0]) >= 16:
+	extend_doctype_class = {
+		"Task": ["erpnext_projekt_hub.overrides.task.HubTask"],
+	}
+else:
+	# nosemgrep: frappe-semgrep-rules.rules.override-doctype-class
+	override_doctype_class = {
+		"Task": "erpnext_projekt_hub.overrides.task.HubTask",
+	}
 
 # Document Events
 # ---------------
@@ -152,6 +163,7 @@ after_uninstall = "erpnext_projekt_hub.uninstall.after_uninstall"
 
 doc_events = {
 	"Task": {
+		"validate": "erpnext_projekt_hub.overrides.task.set_overdue_flag",
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
 	}
@@ -268,7 +280,7 @@ fixtures = [
 			[
 				"name",
 				"in",
-				["Task-milestone", "Task-reference_link"],
+				["Task-milestone", "Task-reference_link", "Task-is_overdue", "Task-is_blocked"],
 			]
 		],
 	},

@@ -30,6 +30,7 @@ import {
 	Info,
 	Image,
 	Upload,
+	Lock,
 } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
@@ -563,6 +564,32 @@ function validateDates() {
 			isSaving.value = false;
 		}
 	}
+
+// Not routed through saveField: in My Tasks props.task is not refreshed after a
+// save, so comparing with it would skip switching the flag back.
+async function toggleBlocked(checked) {
+	const previousValue = editableTask.value.is_blocked;
+	const value = checked ? 1 : 0;
+	editableTask.value.is_blocked = value;
+	isSaving.value = true;
+	try {
+		const data = await store.updateTask(props.task.name, { is_blocked: value });
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
+		showAutosaveFeedback();
+	} catch (error) {
+		editableTask.value.is_blocked = previousValue;
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update field"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		isSaving.value = false;
+	}
+}
 
 function showAutosaveFeedback() {
 	autosaveIndicatorVisible.value = true;
@@ -1550,7 +1577,7 @@ async function deleteAttachment(fileName) {
 									@click="toggleHeaderDueDate"
 									:class="[
 										'inline-flex items-center gap-1 rounded hover:bg-gray-100 px-1.5 py-0.5 transition-colors',
-										props.task.is_overdue ? 'text-red-600 font-medium' : 'text-gray-500'
+										editableTask.is_overdue ? 'text-red-600 font-medium' : 'text-gray-500'
 									]"
 								>
 									<Calendar class="w-3 h-3" />
@@ -1575,7 +1602,7 @@ async function deleteAttachment(fileName) {
 									</div>
 								</Transition>
 							</div>
-							<span v-if="props.task.is_overdue" class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">
+							<span v-if="editableTask.is_overdue" class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">
 								{{ translate("Overdue") }}
 							</span>
 						</div>
@@ -1645,6 +1672,25 @@ async function deleteAttachment(fileName) {
 									</div>
 								</Transition>
 							</div>
+							<label
+								class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer select-none transition-colors"
+								:class="
+									editableTask.is_blocked
+										? 'border-red-200 bg-red-50 text-red-700'
+										: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+								"
+								:title="translate('Mark as blocked')"
+							>
+								<input
+									type="checkbox"
+									class="h-3.5 w-3.5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+									:checked="Boolean(editableTask.is_blocked)"
+									:disabled="isSaving"
+									@change="toggleBlocked($event.target.checked)"
+								/>
+								<Lock class="w-3.5 h-3.5" />
+								{{ translate("Blocked") }}
+							</label>
 							<span
 								v-if="currentMilestoneName"
 								class="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700"
@@ -2224,7 +2270,7 @@ async function deleteAttachment(fileName) {
 								<div v-if="dateValidationError" class="text-xs text-red-600">
 									{{ dateValidationError }}
 								</div>
-								<div v-if="props.task.is_overdue" class="flex flex-wrap gap-2">
+								<div v-if="editableTask.is_overdue" class="flex flex-wrap gap-2">
 									<button
 										type="button"
 										class="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700"

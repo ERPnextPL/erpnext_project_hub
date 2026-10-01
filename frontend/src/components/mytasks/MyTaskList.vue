@@ -25,8 +25,7 @@ const props = defineProps({
 	},
 });
 
-// Overdue first - the rest keeps the canonical order from taskStatus.js
-const statusOrder = ["Overdue", ...BOARD_STATUSES.filter((status) => status !== "Overdue")];
+const statusOrder = BOARD_STATUSES;
 const statusLabels = Object.fromEntries(
 	statusOrder.map((status) => [status, getStatusLabel(status)])
 );

@@ -14,6 +14,7 @@ import {
 	Plus,
 	ChevronRight,
 	FileText,
+	Lock,
 } from "lucide-vue-next";
 import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
 
@@ -281,6 +282,15 @@ onUnmounted(() => {
 					>
 						<component :is="currentStatus.icon" class="w-3 h-3" />
 						{{ currentStatus.label }}
+					</span>
+
+					<!-- Blocked flag (switched in the task panel on touch devices) -->
+					<span
+						v-if="task.is_blocked"
+						class="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200"
+					>
+						<Lock class="w-3 h-3" />
+						{{ translate("Blocked") }}
 					</span>
 
 					<!-- Priority -->

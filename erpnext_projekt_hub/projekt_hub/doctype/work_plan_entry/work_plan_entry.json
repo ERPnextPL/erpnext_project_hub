@@ -115,9 +115,12 @@
    "write": 1
   },
   {
+   "create": 1,
+   "delete": 1,
    "read": 1,
    "report": 1,
-   "role": "Projects User"
+   "role": "Projects User",
+   "write": 1
   }
  ],
  "sort_field": "date",

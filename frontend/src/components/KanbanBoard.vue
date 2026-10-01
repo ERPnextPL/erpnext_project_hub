@@ -4,6 +4,7 @@ import { useTaskStore } from "../stores/taskStore";
 import { BOARD_STATUSES, getStatusConfig, getStatusLabel } from "../utils/taskStatus";
 import { translate } from "../utils/translation";
 import { User, Calendar, GripVertical, Plus, ListTodo, Flag } from "lucide-vue-next";
+import BlockedToggle from "./shared/BlockedToggle.vue";
 
 const props = defineProps({
 	tasks: {
@@ -87,6 +88,10 @@ async function onDrop(e, columnId) {
 
 function handleTaskClick(task) {
 	emit("task-click", task);
+}
+
+function setBlocked(task, blocked) {
+	store.updateTask(task.name, { is_blocked: blocked ? 1 : 0 });
 }
 
 function getAssignee(task) {
@@ -205,6 +210,10 @@ function getSubtaskCount(task) {
 							<p class="text-sm font-medium text-gray-900 flex-1 line-clamp-2">
 								{{ task.subject }}
 							</p>
+							<BlockedToggle
+								:blocked="task.is_blocked"
+								@toggle="(blocked) => setBlocked(task, blocked)"
+							/>
 						</div>
 
 						<!-- Task metadata row 1: Priority badge -->
