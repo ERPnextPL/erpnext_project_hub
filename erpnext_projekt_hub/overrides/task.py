@@ -9,7 +9,8 @@ CLOSED_STATUSES = ("Completed", "Cancelled", "Template")
 
 
 class HubTask(Task):
-	"""Override ERPNext's Task controller to preserve its behavior."""
+	"""Task controller tweaks, mixed in via ``extend_doctype_class`` on Frappe v16
+	and installed via ``override_doctype_class`` on v15 (see hooks.py)."""
 
 	def update_status(self):
 		"""Flag a missed due date instead of overwriting the status.

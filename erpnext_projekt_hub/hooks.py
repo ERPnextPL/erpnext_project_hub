@@ -1,3 +1,5 @@
+import frappe
+
 app_name = "erpnext_projekt_hub"
 app_title = "Projekt HUB"
 app_publisher = "Krzysztof"
@@ -142,9 +144,18 @@ has_permission = {
 # ---------------
 # Override standard doctype classes
 
-override_doctype_class = {
-	"Task": "erpnext_projekt_hub.overrides.task.HubTask",
-}
+# HubTask keeps a missed due date from overwriting the task status. Frappe v16
+# can mix it into ERPNext's controller; v15 has no extend_doctype_class hook, so
+# there the class has to be replaced.
+if int(frappe.__version__.split(".")[0]) >= 16:
+	extend_doctype_class = {
+		"Task": ["erpnext_projekt_hub.overrides.task.HubTask"],
+	}
+else:
+	# nosemgrep: frappe-semgrep-rules.rules.override-doctype-class
+	override_doctype_class = {
+		"Task": "erpnext_projekt_hub.overrides.task.HubTask",
+	}
 
 # Document Events
 # ---------------
