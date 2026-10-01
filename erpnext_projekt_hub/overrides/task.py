@@ -1,15 +1,15 @@
 # Copyright (c) 2024, Krzysztof and contributors
 # For license information, please see license.txt
 
-import frappe
-from erpnext.projects.doctype.task.task import Task
 from frappe.utils import getdate, today
 
 # Statuses in which a missed due date no longer matters.
 CLOSED_STATUSES = ("Completed", "Cancelled", "Template")
 
 
-class HubTask(Task):
+class HubTask:
+	"""Mixed into ERPNext's Task controller through ``extend_doctype_class``."""
+
 	def update_status(self):
 		"""Flag a missed due date instead of overwriting the status.
 
