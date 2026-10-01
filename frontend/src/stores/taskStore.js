@@ -634,12 +634,16 @@ async function reorderTask(taskName, newParent, newIdx) {
 		}
 	}
 
-	async function updateTimelog(timelogName, updates) {
+	async function updateTimelog(timelogName, updates, taskName) {
 		try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_timelog", {
 				timelog_name: timelogName,
 				...updates,
 			});
+			// Refresh timelogs for this task
+			if (taskName) {
+				await fetchTaskTimelogs(taskName);
+			}
 			return data;
 		} catch (error) {
 			console.error("Failed to update timelog:", error);

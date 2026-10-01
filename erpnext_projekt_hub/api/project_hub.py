@@ -1496,6 +1496,7 @@ def get_task_timelogs(task_name: str):
 			ts.employee,
 			ts.employee_name,
 			ts.status,
+			ts.docstatus,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -1515,8 +1516,17 @@ def get_task_timelogs(task_name: str):
 		as_dict=1,
 	)
 
+	session_user = frappe.session.user
+	session_employee = get_employee_for_user(session_user)
+
 	# Show the employee assigned on the timesheet, not whoever created it
 	for log in timelogs:
+		# Same rules as update_timelog: only own entries on a draft timesheet
+		is_own = (session_employee and log.employee == session_employee) or (
+			not log.employee and log.owner == session_user
+		)
+		log["can_edit"] = 1 if log.docstatus == 0 and is_own else 0
+
 		if log.employee:
 			log["user_full_name"] = log.employee_name
 			log["user_image"] = frappe.get_cached_value("Employee", log.employee, "image")
@@ -1742,9 +1752,13 @@ def update_timelog(
 	if not timelog_name:
 		frappe.throw(_("Timelog name is required"))
 
-	# Get the timesheet detail
-	timelog = frappe.get_doc("Timesheet Detail", timelog_name)
-	timesheet = frappe.get_doc("Timesheet", timelog.parent)
+	# Edit the row held by the parent doc - changes on a separately loaded
+	# Timesheet Detail would be discarded by timesheet.save()
+	parent = frappe.db.get_value("Timesheet Detail", timelog_name, "parent")
+	if not parent:
+		frappe.throw(_("Time log {0} not found").format(timelog_name), frappe.DoesNotExistError)
+	timesheet = frappe.get_doc("Timesheet", parent)
+	timelog = next(d for d in timesheet.time_logs if d.name == timelog_name)
 
 	if not _is_own_timesheet(timesheet):
 		frappe.throw(_("You can only edit your own time logs"))

@@ -21,6 +21,11 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	// Existing time log row (from get_task_timelogs) - switches the modal to edit mode
+	timelog: {
+		type: Object,
+		default: null,
+	},
 });
 
 const emit = defineEmits(["close", "save"]);
@@ -165,6 +170,11 @@ watch(
 		if (newVal) {
 			isSaving.value = false;
 			resetForm();
+			if (props.timelog) {
+				fillFormFromTimelog(props.timelog);
+				focusHoursInput();
+				return;
+			}
 			// Set default date to today with current time minus 1 hour
 			const now = new Date();
 			const endTime = new Date(now.getTime() - 60 * 60 * 1000); // Subtract 1 hour
@@ -173,18 +183,34 @@ watch(
 			// Set default activity type from global settings
 			applyDefaultActivityType(activityTypes.value);
 			calculateToTime();
-			if (props.autoFocus) {
-				nextTick(() => {
-					if (hoursInputRef.value) {
-						hoursInputRef.value.focus();
-						hoursInputRef.value.select?.();
-					}
-				});
-			}
+			focusHoursInput();
 		}
 	},
 	{ immediate: true }
 );
+
+function focusHoursInput() {
+	if (!props.autoFocus) return;
+	nextTick(() => {
+		if (hoursInputRef.value) {
+			hoursInputRef.value.focus();
+			hoursInputRef.value.select?.();
+		}
+	});
+}
+
+function fillFormFromTimelog(timelog) {
+	const fromTime = timelog.from_time ? new Date(String(timelog.from_time).replace(" ", "T")) : null;
+	formData.value = {
+		hours: String(timelog.hours ?? ""),
+		activity_type: timelog.activity_type || "",
+		description: timelog.description || "",
+		from_time: fromTime && !Number.isNaN(fromTime.getTime()) ? formatLocalDateTimeValue(fromTime) : "",
+		to_time: "",
+		is_billable: Boolean(timelog.is_billable),
+	};
+	calculateToTime();
+}
 
 watch(
 	() => props.show,
@@ -290,6 +316,7 @@ function handleSave() {
 
 	isSaving.value = true;
 	emit("save", {
+		...(props.timelog ? { timelog_name: props.timelog.timelog_name } : {}),
 		task: props.task.name,
 		hours: parseFloat(formData.value.hours),
 		activity_type: formData.value.activity_type,
@@ -341,7 +368,7 @@ function handleClose() {
 							<div class="flex items-center gap-2">
 								<Clock class="w-5 h-5 text-blue-600" />
 								<h3 id="timelog-modal-title" class="text-lg font-semibold text-gray-900">
-									Dodaj czas
+									{{ timelog ? "Edytuj czas" : "Dodaj czas" }}
 								</h3>
 							</div>
 							<button

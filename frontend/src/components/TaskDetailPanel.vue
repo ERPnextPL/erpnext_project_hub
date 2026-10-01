@@ -25,6 +25,7 @@ import {
 	ChevronRight,
 	Plus,
 	Trash2,
+	Pencil,
 	Diamond,
 	Folder,
 	Info,
@@ -165,6 +166,7 @@ const dueInputRef = ref(null);
 const assigneeControlRef = ref(null);
 const timeLogModalHours = ref(1);
 const timeLogModalAutoFocus = ref(false);
+const editingTimelog = ref(null);
 const shortcutHighlight = ref(null);
 let shortcutHighlightTimer = null;
 const showDetailsSkeleton = computed(() => isSaving.value && sectionStates.value.details);
@@ -779,14 +781,31 @@ function setShortcutHighlight(target) {
 }
 
 function openTimeLogModalWithPreset({ hours = 1, autoFocus = false } = {}) {
+	editingTimelog.value = null;
 	timeLogModalHours.value = hours;
 	timeLogModalAutoFocus.value = autoFocus;
+	showTimeLogModal.value = true;
+}
+
+function openEditTimelog(log) {
+	if (!log?.can_edit) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Only draft time entries can be updated"),
+				indicator: "orange",
+			});
+		}
+		return;
+	}
+	editingTimelog.value = log;
+	timeLogModalAutoFocus.value = true;
 	showTimeLogModal.value = true;
 }
 
 function closeTimeLogModal() {
 	showTimeLogModal.value = false;
 	timeLogModalAutoFocus.value = false;
+	editingTimelog.value = null;
 }
 
 function focusDueField() {
@@ -1123,6 +1142,10 @@ async function loadTimelogs() {
 }
 
 async function handleTimeLogSave(timelogData) {
+	if (timelogData.timelog_name) {
+		await handleTimeLogUpdate(timelogData);
+		return;
+	}
 	try {
 		await store.createTimelog(timelogData);
 		closeTimeLogModal();
@@ -1135,6 +1158,20 @@ async function handleTimeLogSave(timelogData) {
 	} catch (error) {
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
+		}
+	}
+}
+
+async function handleTimeLogUpdate({ timelog_name, task, ...updates }) {
+	try {
+		await store.updateTimelog(timelog_name, updates, props.task.name);
+		closeTimeLogModal();
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Time entry updated"), indicator: "green" });
+		}
+	} catch (error) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Failed to update time entry"), indicator: "red" });
 		}
 	}
 }
@@ -2337,6 +2374,20 @@ async function deleteAttachment(fileName) {
 													<span>{{ formatDate(log.from_time) }}</span>
 												</div>
 											</div>
+											<span
+												v-if="!log.can_edit && log.docstatus === 1"
+												class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+											>
+												{{ translate(log.status || "Submitted") }}
+											</span>
+											<button
+												v-if="log.can_edit"
+												@click="openEditTimelog(log)"
+												class="rounded-md p-1 text-gray-400 hover:bg-blue-100 hover:text-blue-600"
+												:title="translate('Edit time log')"
+											>
+												<Pencil class="h-3.5 w-3.5" />
+											</button>
 											<button
 												@click="handleDeleteTimelog(log.timelog_name)"
 												class="rounded-md p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
@@ -2374,6 +2425,7 @@ async function deleteAttachment(fileName) {
 		<TimeLogModal
 			:task="task"
 			:show="showTimeLogModal"
+			:timelog="editingTimelog"
 			:default-hours="timeLogModalHours"
 			:auto-focus="timeLogModalAutoFocus"
 			@close="closeTimeLogModal"
