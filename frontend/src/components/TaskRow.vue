@@ -204,7 +204,7 @@ function togglePriorityDropdown(event) {
 		closePriorityDropdown();
 		return;
 	}
-	closeStatusDropdown();
+	openStatusMenuTask.value = null;
 	const rect = event.currentTarget.getBoundingClientRect();
 	priorityDropdownPosition.value = { x: rect.left, y: rect.bottom + 4 };
 	openPriorityMenuTask.value = props.task.name;
@@ -274,7 +274,7 @@ function toggleStatusDropdown(event) {
 		closeStatusDropdown();
 		return;
 	}
-	closePriorityDropdown();
+	openPriorityMenuTask.value = null;
 	const rect = event.currentTarget.getBoundingClientRect();
 	statusDropdownPosition.value = { x: rect.left, y: rect.bottom + 4 };
 	openStatusMenuTask.value = props.task.name;
