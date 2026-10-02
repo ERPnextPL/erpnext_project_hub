@@ -3,6 +3,7 @@ import { ref as moduleRef } from "vue";
 
 // Only one row's status dropdown may be open at a time across the whole list
 const openStatusMenuTask = moduleRef(null);
+const openPriorityMenuTask = moduleRef(null);
 </script>
 
 <script setup>
@@ -194,6 +195,33 @@ const currentPriority = computed(() => {
 	};
 });
 
+// Priority dropdown - same teleported fixed-position pattern as the status dropdown
+const showPriorityDropdown = computed(() => openPriorityMenuTask.value === props.task.name);
+const priorityDropdownPosition = ref({ x: 0, y: 0 });
+
+function togglePriorityDropdown(event) {
+	if (showPriorityDropdown.value) {
+		closePriorityDropdown();
+		return;
+	}
+	openStatusMenuTask.value = null;
+	const rect = event.currentTarget.getBoundingClientRect();
+	priorityDropdownPosition.value = { x: rect.left, y: rect.bottom + 4 };
+	openPriorityMenuTask.value = props.task.name;
+}
+
+function closePriorityDropdown() {
+	if (showPriorityDropdown.value) {
+		openPriorityMenuTask.value = null;
+	}
+}
+
+function updatePriority(newPriority) {
+	closePriorityDropdown();
+	if (newPriority === props.task.priority) return;
+	emit("update", props.task.name, { priority: newPriority });
+}
+
 function toggleExpand() {
 	store.toggleExpand(props.task.name);
 }
@@ -246,6 +274,7 @@ function toggleStatusDropdown(event) {
 		closeStatusDropdown();
 		return;
 	}
+	openPriorityMenuTask.value = null;
 	const rect = event.currentTarget.getBoundingClientRect();
 	statusDropdownPosition.value = { x: rect.left, y: rect.bottom + 4 };
 	openStatusMenuTask.value = props.task.name;
@@ -473,20 +502,28 @@ function handleGlobalClick(event) {
 	if (showStatusDropdown.value && !event.target.closest(".task-status-menu")) {
 		closeStatusDropdown();
 	}
+	if (showPriorityDropdown.value && !event.target.closest(".task-priority-menu")) {
+		closePriorityDropdown();
+	}
 }
 
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
 	// The menu is fixed-positioned, so close it instead of letting it drift on scroll
 	document.addEventListener("scroll", closeStatusDropdown, true);
+	document.addEventListener("scroll", closePriorityDropdown, true);
 	realWindow?.addEventListener?.("resize", closeStatusDropdown);
+	realWindow?.addEventListener?.("resize", closePriorityDropdown);
 });
 
 onUnmounted(() => {
 	document.removeEventListener("click", handleGlobalClick);
 	document.removeEventListener("scroll", closeStatusDropdown, true);
+	document.removeEventListener("scroll", closePriorityDropdown, true);
 	realWindow?.removeEventListener?.("resize", closeStatusDropdown);
+	realWindow?.removeEventListener?.("resize", closePriorityDropdown);
 	closeStatusDropdown();
+	closePriorityDropdown();
 });
 </script>
 
@@ -808,10 +845,11 @@ onUnmounted(() => {
 
 		<!-- Priority -->
 		<div v-else-if="columnId === 'priority'" class="min-w-0 flex items-center">
-			<span
+			<button
 				v-if="task.priority"
+				@click.stop="togglePriorityDropdown"
 				:class="[
-					'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium',
+					'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
 					currentPriority.bg,
 					currentPriority.class,
 				]"
@@ -819,8 +857,43 @@ onUnmounted(() => {
 			>
 				<Flag class="w-3.5 h-3.5" />
 				<span class="truncate">{{ currentPriority.label }}</span>
-			</span>
-			<span v-else class="text-sm text-gray-400">—</span>
+			</button>
+			<button
+				v-else
+				@click.stop="togglePriorityDropdown"
+				class="text-sm text-gray-400 hover:text-gray-600 px-2"
+			>
+				—
+			</button>
+
+			<!-- Priority dropdown -->
+			<Teleport to="body">
+				<Transition name="fade">
+					<div
+						v-if="showPriorityDropdown"
+						class="task-priority-menu fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
+						:style="{
+							left: priorityDropdownPosition.x + 'px',
+							top: priorityDropdownPosition.y + 'px',
+						}"
+						@click.stop
+					>
+						<button
+							v-for="(config, priority) in priorityConfig"
+							:key="priority"
+							@click="updatePriority(priority)"
+							:class="[
+								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-700',
+								config.class,
+								task.priority === priority && 'bg-gray-50 dark:bg-gray-700',
+							]"
+						>
+							<Flag class="w-3.5 h-3.5" />
+							{{ config.label }}
+						</button>
+					</div>
+				</Transition>
+			</Teleport>
 		</div>
 		</template>
 

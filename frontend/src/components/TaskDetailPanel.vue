@@ -2021,8 +2021,11 @@ async function deleteAttachment(fileName) {
 									<Plus class="h-4 w-4" />
 									{{ translate("Add subtask") }}
 								</button>
+							</div>
+							<div class="p-4 space-y-4">
 								<QuickAddTask
-									v-else-if="canAddSubtask"
+									v-if="canAddSubtask && showSubtaskInput"
+									class="rounded-xl border border-blue-200 bg-blue-50/40 !px-3"
 									:project-id="task.project"
 									:parent-task="task.name"
 									:placeholder="translate('Subtask name...')"
@@ -2031,19 +2034,31 @@ async function deleteAttachment(fileName) {
 									@created="handleSubtaskCreated"
 									@cancel="showSubtaskInput = false"
 								/>
-							</div>
-							<div class="p-4 space-y-4">
 								<div>
 									<div class="mb-2 flex items-center justify-between text-xs text-gray-500">
 										<span>{{ taskCompletion.hint }}</span>
 										<span>{{ taskCompletion.label }}</span>
 									</div>
-									<div class="h-2 overflow-hidden rounded-full bg-gray-100">
-										<div
-											class="h-full rounded-full transition-all duration-300"
-											:class="taskCompletion.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'"
-											:style="{ width: taskCompletion.percent + '%' }"
-										></div>
+									<div class="relative flex h-4 items-center">
+										<div class="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+											<div
+												class="h-full rounded-full transition-all duration-300"
+												:class="taskCompletion.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'"
+												:style="{ width: taskCompletion.percent + '%' }"
+											></div>
+										</div>
+										<input
+											v-if="taskCompletion.source === 'manual' && !isClosed"
+											type="range"
+											min="0"
+											max="100"
+											step="5"
+											:value="taskCompletion.percent"
+											:aria-label="translate('Manual progress')"
+											class="absolute inset-0 h-4 w-full cursor-pointer opacity-0"
+											@input="editableTask.progress = Number($event.target.value)"
+											@change="saveField('progress', Number($event.target.value))"
+										/>
 									</div>
 								</div>
 
