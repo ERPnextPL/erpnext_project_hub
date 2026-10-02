@@ -21,6 +21,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	showCancel: {
+		type: Boolean,
+		default: false,
+	},
 });
 
 const emit = defineEmits(["created", "cancel"]);
@@ -97,11 +101,20 @@ onMounted(() => {
 		/>
 		<button
 			v-if="inputValue.trim()"
+			type="button"
 			@click="createTask"
 			:disabled="isCreating"
 			class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 flex-shrink-0"
 		>
-			{{ isCreating ? "Adding..." : "Add" }}
+			{{ isCreating ? translate("Adding...") : translate("Add") }}
+		</button>
+		<button
+			v-if="showCancel"
+			type="button"
+			@click="emit('cancel')"
+			class="px-2 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 flex-shrink-0"
+		>
+			{{ translate("Cancel") }}
 		</button>
 	</div>
 </template>

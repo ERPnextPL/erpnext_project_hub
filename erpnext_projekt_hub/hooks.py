@@ -166,7 +166,13 @@ doc_events = {
 		"validate": "erpnext_projekt_hub.overrides.task.set_overdue_flag",
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
-	}
+	},
+	"ToDo": {
+		"before_insert": [
+			"erpnext_projekt_hub.events.todo_events.set_task_assignment_description",
+			"erpnext_projekt_hub.events.todo_events.set_task_assignment_date",
+		],
+	},
 }
 
 # Scheduled Tasks

@@ -198,10 +198,17 @@ const topUserHours = computed(() => {
 								{{ translate("Hours") }}
 							</div>
 							<div class="flex items-end gap-2">
-								<span class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+								<span
+									class="text-2xl font-bold text-gray-900 dark:text-gray-100"
+									:title="translate('Estimated hours summed from all tasks in this project')"
+								>
 									{{ formatHours(financials.estimated_hours) }}
 								</span>
-								<span v-if="hasBudgetHoursData" class="text-sm text-gray-500 pb-0.5">
+								<span
+									v-if="hasBudgetHoursData"
+									class="text-sm text-gray-500 pb-0.5"
+									:title="translate('Total budget hours calculated from the project estimated cost and hourly cost rate')"
+								>
 									/ {{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
 								</span>
 								<span v-else class="text-sm text-gray-500 pb-0.5">
@@ -218,21 +225,34 @@ const topUserHours = computed(() => {
 									></div>
 								</div>
 								<div class="flex justify-between text-xs mt-1">
-									<span class="text-gray-500">
+									<span
+										class="text-gray-500"
+										:title="translate('Estimated project hours as a percentage of the available budget hours')"
+									>
 										{{ estimatedVsAvailablePct }}%
 									</span>
-									<span class="text-gray-500">
+									<span
+										class="text-gray-500"
+										:title="translate('Estimated hours compared with total available budget hours')"
+									>
 										{{ formatHours(financials.estimated_hours) }} / {{ formatHours(financials.budget_total_hours) }}
 									</span>
 								</div>
 							</div>
 
 							<div class="flex gap-3 text-xs text-gray-500 pt-1">
-								<span class="flex items-center gap-1">
+								<span
+									class="flex items-center gap-1"
+									:title="translate('Submitted timesheet hours for this project')"
+								>
 									<CheckCircle2 class="w-3 h-3 text-green-500" />
 									{{ translate("Submitted") }}: {{ formatHours(financials.submitted_hours) }}
 								</span>
-								<span v-if="financials.draft_hours > 0" class="flex items-center gap-1">
+								<span
+									v-if="financials.draft_hours > 0"
+									class="flex items-center gap-1"
+									:title="translate('Draft timesheet hours for this project')"
+								>
 									<FileEdit class="w-3 h-3 text-amber-500" />
 									{{ translate("Draft") }}: {{ formatHours(financials.draft_hours) }}
 								</span>
@@ -248,13 +268,20 @@ const topUserHours = computed(() => {
 								{{ translate("Budget Usage") }}
 							</div>
 							<div class="flex items-end gap-2">
-								<span class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+								<span
+									class="text-2xl font-bold text-gray-900 dark:text-gray-100"
+									:title="translate('Percentage of the project cost budget still remaining')"
+								>
 									{{ budgetRemainingPct ?? 0 }}%
 								</span>
 								<span class="text-sm text-gray-500 pb-0.5">
 									{{ translate("remaining") }}
 								</span>
-								<span v-if="hasBudgetHoursData" class="text-sm text-gray-500 pb-0.5">
+								<span
+									v-if="hasBudgetHoursData"
+									class="text-sm text-gray-500 pb-0.5"
+									:title="translate('Total budget hours calculated from the project estimated cost and hourly cost rate')"
+								>
 									/ {{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
 								</span>
 							</div>
@@ -262,7 +289,10 @@ const topUserHours = computed(() => {
 							<div v-if="hasBudgetHoursData">
 								<div class="flex justify-between text-xs mb-1">
 									<span class="text-gray-400">{{ translate("Budget hours") }}</span>
-									<span class="text-gray-500">
+									<span
+										class="text-gray-500"
+										:title="translate('Budget hours remaining after the recorded project costs')"
+									>
 										{{ formatHours(financials.budget_remaining_hours) }} {{ translate("remaining") }}
 									</span>
 								</div>
@@ -277,10 +307,16 @@ const topUserHours = computed(() => {
 									></div>
 								</div>
 								<div class="flex justify-between text-xs mt-1">
-									<span class="text-gray-500">
+									<span
+										class="text-gray-500"
+										:title="translate('Percentage of the project cost budget already used')"
+									>
 										{{ financials.budget_hours_progress }}%
 									</span>
-									<span class="text-gray-500">
+									<span
+										class="text-gray-500"
+										:title="translate('Total budget hours calculated from the project estimated cost and hourly cost rate')"
+									>
 										{{ formatHours(financials.budget_total_hours) }} {{ translate("available") }}
 									</span>
 								</div>
@@ -316,15 +352,18 @@ const topUserHours = computed(() => {
 											<span class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[120px]" :title="row.label">
 												{{ row.label }}
 											</span>
-											<span class="text-xs font-semibold text-gray-700 dark:text-gray-300 ml-2 flex-shrink-0">
+											<span
+												class="text-xs font-semibold text-gray-700 dark:text-gray-300 ml-2 flex-shrink-0"
+												:title="translate('Total submitted and draft timesheet hours for this team member')"
+											>
 												{{ formatHours(row.total) }}
 											</span>
 										</div>
 										<div class="flex items-center gap-3 text-[11px] text-gray-500">
-											<span>
+											<span :title="translate('Submitted timesheet hours for this team member')">
 												{{ translate("Submitted") }}: {{ formatHours(row.submitted) }}
 											</span>
-											<span v-if="row.draft > 0">
+											<span v-if="row.draft > 0" :title="translate('Draft timesheet hours for this team member')">
 												{{ translate("Draft") }}: {{ formatHours(row.draft) }}
 											</span>
 										</div>
@@ -334,6 +373,7 @@ const topUserHours = computed(() => {
 										>
 											<div
 												class="h-full rounded-full transition-all duration-500"
+												:title="translate('Share of all reported project hours assigned to this team member')"
 												:class="
 													row.total === topUserHours
 														? 'bg-yellow-500'
