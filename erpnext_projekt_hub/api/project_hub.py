@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import cint, flt, today
 
 from erpnext_projekt_hub.events.task_events import _walk_ancestors
+from erpnext_projekt_hub.events.todo_events import sync_task_todo_dates
 from erpnext_projekt_hub.overrides.task import compute_is_overdue
 
 
@@ -2664,6 +2665,7 @@ def shift_overdue_due_dates(limit: int = 100):
 		try:
 			new_due = add_days(due_date, 2)
 			frappe.db.set_value("Task", task["name"], "exp_end_date", new_due, update_modified=True)
+			sync_task_todo_dates(task["name"], new_due)
 			shifted += 1
 		except Exception as exc:
 			frappe.log_error(

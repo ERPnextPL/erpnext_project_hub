@@ -4,6 +4,8 @@
 import frappe
 from frappe.utils import flt
 
+from erpnext_projekt_hub.events.todo_events import sync_task_todo_dates
+
 # A subtask in one of these statuses is no longer finished. A parent that is
 # already Completed cannot honestly stay Completed once one of its subtasks
 # moves back to any of them.
@@ -29,6 +31,9 @@ def on_task_update(doc, method=None):
 		previous = doc.get_doc_before_save()
 		if previous and previous.milestone:
 			update_milestone_progress(previous.milestone)
+
+	if doc.has_value_changed("exp_end_date"):
+		sync_task_todo_dates(doc.name, doc.exp_end_date)
 
 	if doc.flags.ignore_hierarchy_sync:
 		return

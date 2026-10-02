@@ -818,7 +818,7 @@ onUnmounted(() => {
 				:title="currentPriority.label"
 			>
 				<Flag class="w-3.5 h-3.5" />
-				<ChevronDown class="w-3 h-3" />
+				<span class="truncate">{{ currentPriority.label }}</span>
 			</span>
 			<span v-else class="text-sm text-gray-400">—</span>
 		</div>
