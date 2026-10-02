@@ -88,6 +88,7 @@ const showMarkdownPreview = ref(false);
 const isEditingDescription = ref(false);
 const showShortcutsInfo = ref(false);
 const shortcutsInfoRef = ref(null);
+const showSubtaskInput = ref(false);
 
 const descriptionMarkdownPreview = computed(() =>
 	renderMarkdown(editableTask.value.description || "")
@@ -186,6 +187,7 @@ watch(
 		commentMentions.value = [];
 		isEditingDescription.value = false;
 		showMarkdownPreview.value = false;
+		showSubtaskInput.value = false;
 		ensureCommentsLoaded();
 		ensureAttachmentsLoaded();
 		ensureTimeLogsLoaded();
@@ -316,6 +318,12 @@ const directSubtasks = computed(() => {
 
 const canAddSubtask = computed(() => {
 	return isTaskActive(editableTask.value.status);
+});
+
+watch(canAddSubtask, (canAdd) => {
+	if (!canAdd) {
+		showSubtaskInput.value = false;
+	}
 });
 
 const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));
@@ -1226,6 +1234,7 @@ function formatDateTime(dateStr) {
 }
 
 async function handleSubtaskCreated() {
+	showSubtaskInput.value = false;
 	// Refresh tasks and re-select current task to update children
 	await store.fetchTasks(props.task.project);
 	// Find updated task in store and re-select it
@@ -1304,8 +1313,7 @@ async function fetchComments() {
 async function fetchCommentMentions() {
 	try {
 		const mentions = (await attachmentApiCall(
-			"frappe.desk.search.get_names_for_mentions",
-			{ search_term: "" }
+			"erpnext_projekt_hub.api.project_hub.get_mention_options"
 		)) || [];
 		commentMentions.value = mentions.map((mention) => ({
 			id: mention.id,
@@ -2004,12 +2012,24 @@ async function deleteAttachment(fileName) {
 										{{ directSubtasks.length ? `${completedSubtasks} / ${directSubtasks.length}` : translate('No subtasks') }}
 									</div>
 								</div>
+								<button
+									v-if="canAddSubtask && !showSubtaskInput"
+									type="button"
+									class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:border-blue-300 hover:bg-blue-100"
+									@click="showSubtaskInput = true"
+								>
+									<Plus class="h-4 w-4" />
+									{{ translate("Add subtask") }}
+								</button>
 								<QuickAddTask
-									v-if="canAddSubtask"
+									v-else-if="canAddSubtask"
 									:project-id="task.project"
 									:parent-task="task.name"
-									:placeholder="translate('Add subtask...')"
+									:placeholder="translate('Subtask name...')"
+									:auto-focus="true"
+									:show-cancel="true"
 									@created="handleSubtaskCreated"
+									@cancel="showSubtaskInput = false"
 								/>
 							</div>
 							<div class="p-4 space-y-4">

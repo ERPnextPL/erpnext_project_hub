@@ -27,6 +27,7 @@ import {
 	Plus,
 	Diamond,
 	FileText,
+	Flag,
 	Lock,
 	Unlock,
 } from "lucide-vue-next";
@@ -160,28 +161,37 @@ const showStatusDropdown = computed(() => openStatusMenuTask.value === props.tas
 const statusDropdownPosition = ref({ x: 0, y: 0 });
 
 const priorityClassMap = {
-	Urgent: "priority-urgent",
-	High: "priority-high",
-	Medium: "priority-medium",
-	Low: "priority-low",
+	Urgent: "text-red-600",
+	High: "text-orange-600",
+	Medium: "text-amber-600",
+	Low: "text-slate-600",
 };
 
-const priorityLabelMap = {
-	Urgent: "!!!",
-	High: "!!",
-	Medium: "!",
-	Low: "-",
+const priorityBackgroundMap = {
+	Urgent: "bg-red-100 border border-red-200",
+	High: "bg-orange-100 border border-orange-200",
+	Medium: "bg-amber-100 border border-amber-200",
+	Low: "bg-slate-100 border border-slate-200",
 };
 
 const priorityConfig = computed(() => {
 	const config = {};
 	store.taskPriorities.forEach((priority) => {
 		config[priority] = {
-			class: priorityClassMap[priority] || "priority-medium",
-			label: priorityLabelMap[priority] || priority.charAt(0),
+			class: priorityClassMap[priority] || priorityClassMap.Medium,
+			bg: priorityBackgroundMap[priority] || priorityBackgroundMap.Medium,
+			label: translate(priority),
 		};
 	});
 	return config;
+});
+
+const currentPriority = computed(() => {
+	return priorityConfig.value[props.task.priority] || {
+		class: priorityClassMap.Medium,
+		bg: priorityBackgroundMap.Medium,
+		label: translate("Medium"),
+	};
 });
 
 function toggleExpand() {
@@ -800,9 +810,15 @@ onUnmounted(() => {
 		<div v-else-if="columnId === 'priority'" class="min-w-0 flex items-center">
 			<span
 				v-if="task.priority"
-				:class="['text-sm font-bold', priorityConfig[task.priority]?.class]"
+				:class="[
+					'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium',
+					currentPriority.bg,
+					currentPriority.class,
+				]"
+				:title="currentPriority.label"
 			>
-				{{ priorityConfig[task.priority]?.label }}
+				<Flag class="w-3.5 h-3.5" />
+				<ChevronDown class="w-3 h-3" />
 			</span>
 			<span v-else class="text-sm text-gray-400">—</span>
 		</div>

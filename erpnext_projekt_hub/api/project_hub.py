@@ -2724,6 +2724,21 @@ def get_project_attachments(project_name: str):
 
 
 @frappe.whitelist()
+def get_mention_options():
+	"""Return all users and user groups available for @mentions in comments.
+
+	frappe.desk.search.get_names_for_mentions returns nothing for an empty
+	search term, while the comment editor filters the full list client-side.
+	"""
+	from frappe.desk.search import get_user_groups, get_users_for_mentions
+
+	users = frappe.cache.get_value("users_for_mentions", get_users_for_mentions)
+	groups = frappe.cache.get_value("user_groups", get_user_groups)
+	options = [{"id": row["id"], "value": row.get("value") or row["id"]} for row in users + groups]
+	return sorted(options, key=lambda d: d["value"].lower())
+
+
+@frappe.whitelist()
 def get_task_comments(task_name: str):
 	"""Get task comments from Comment doctype."""
 	if not task_name:
