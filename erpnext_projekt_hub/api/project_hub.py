@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
 
+from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE, get_projekt_hub_user_names
 from erpnext_projekt_hub.events.task_events import _walk_ancestors
 from erpnext_projekt_hub.events.todo_events import sync_task_todo_dates
 from erpnext_projekt_hub.overrides.task import compute_is_overdue
@@ -1304,33 +1305,24 @@ def bulk_update_tasks(tasks: list):
 
 @frappe.whitelist()
 def get_users():
-	"""Get list of users that can be assigned to tasks.
+	"""Get list of users that can be assigned to tasks and projects.
 
-	Only users holding the "Projects User" role (or a manager-tier role, which
-	always implies access) are assignable.
+	Only enabled System Users holding the "Projekt HUB User" role are returned.
 	"""
-	assignable_roles = ["Projects User", "Project Manager", "Projects Manager", "System Manager"]
-	assignable_user_names = frappe.get_all(
-		"Has Role",
-		filters={"role": ["in", assignable_roles], "parenttype": "User"},
-		pluck="parent",
-		distinct=True,
-	)
-
-	if not assignable_user_names:
+	hub_user_names = get_projekt_hub_user_names()
+	if not hub_user_names:
 		return []
 
-	users = frappe.get_all(
+	return frappe.get_all(
 		"User",
 		filters={
 			"enabled": 1,
 			"user_type": "System User",
-			"name": ["in", assignable_user_names],
+			"name": ["in", hub_user_names],
 		},
 		fields=["name", "full_name", "user_image"],
 		order_by="full_name",
 	)
-	return users
 
 
 @frappe.whitelist()
@@ -1359,12 +1351,8 @@ def assign_task(
 		if user_type != "System User":
 			frappe.throw(_("Only System Users can be assigned to tasks"))
 
-		# Validate user has the Projects User role or a manager-tier role that implies access
-		assignable_roles = ["Projects User", "Project Manager", "Projects Manager", "System Manager"]
-		if not frappe.db.exists(
-			"Has Role", {"parent": user, "role": ["in", assignable_roles], "parenttype": "User"}
-		):
-			frappe.throw(_("Only users with the Projects User role can be assigned to tasks"))
+		if not frappe.db.exists("Has Role", {"parent": user, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}):
+			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
 
 		add_assignment(
 			{
@@ -2727,14 +2715,19 @@ def get_project_attachments(project_name: str):
 
 @frappe.whitelist()
 def get_mention_options():
-	"""Return all users and user groups available for @mentions in comments.
+	"""Return Projekt HUB users and user groups available for @mentions in comments.
 
 	frappe.desk.search.get_names_for_mentions returns nothing for an empty
 	search term, while the comment editor filters the full list client-side.
 	"""
 	from frappe.desk.search import get_user_groups, get_users_for_mentions
 
-	users = frappe.cache.get_value("users_for_mentions", get_users_for_mentions)
+	hub_users = set(get_projekt_hub_user_names())
+	users = [
+		row
+		for row in frappe.cache.get_value("users_for_mentions", get_users_for_mentions)
+		if row["id"] in hub_users
+	]
 	groups = frappe.cache.get_value("user_groups", get_user_groups)
 	options = [{"id": row["id"], "value": row.get("value") or row["id"]} for row in users + groups]
 	return sorted(options, key=lambda d: d["value"].lower())

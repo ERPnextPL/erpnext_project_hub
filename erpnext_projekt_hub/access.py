@@ -1,6 +1,10 @@
 import frappe
 
-ALLOWED_ROLES = {"Project Manager", "Projects User", "System Manager"}
+# Holders of this role open Projekt HUB and are the only users offered for task and
+# project assignment and @mentions. System Manager keeps access so admins cannot lock
+# themselves out.
+PROJEKT_HUB_ROLE = "Projekt HUB User"
+ALLOWED_ROLES = {PROJEKT_HUB_ROLE, "System Manager"}
 
 # Roles that plan the work of the whole team. Everybody else with Hub access plans
 # only the days of their own Employee record (see api.work_planning).
@@ -14,6 +18,26 @@ def has_project_hub_access(user: str | None = None) -> bool:
 	if user == "Administrator":
 		return True
 	return bool(set(frappe.get_roles(user)) & ALLOWED_ROLES)
+
+
+def ensure_projekt_hub_role():
+	"""Create the role that grants access to Projekt HUB, if missing."""
+	if frappe.db.exists("Role", PROJEKT_HUB_ROLE):
+		return
+
+	frappe.get_doc({"doctype": "Role", "role_name": PROJEKT_HUB_ROLE, "desk_access": 1}).insert(
+		ignore_permissions=True
+	)
+
+
+def get_projekt_hub_user_names() -> list[str]:
+	"""Return the users holding the Projekt HUB role."""
+	return frappe.get_all(
+		"Has Role",
+		filters={"role": PROJEKT_HUB_ROLE, "parenttype": "User"},
+		pluck="parent",
+		distinct=True,
+	)
 
 
 def can_plan_for_others(user: str | None = None) -> bool:

@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.installer import update_site_config
 
+from erpnext_projekt_hub.access import ensure_projekt_hub_role
+
 
 def before_install():
 	"""
@@ -16,12 +18,14 @@ def before_tests():
 	from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import execute
 
 	execute()
+	ensure_projekt_hub_role()
 	_ensure_test_roots()
 
 
 def after_install():
 	"""Mark the PRO frontend as enabled for the installed site."""
 	_ensure_test_roots()
+	ensure_projekt_hub_role()
 	update_site_config("projekt_hub_pro_enabled", 1)
 
 

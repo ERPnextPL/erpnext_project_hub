@@ -3,6 +3,7 @@ from datetime import date, timedelta
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE
 from erpnext_projekt_hub.api import work_planning
 from erpnext_projekt_hub.availability import _as_timedelta, _get_day, get_availability
 
@@ -137,7 +138,7 @@ class TestWorkPlanning(FrappeTestCase):
 		self.holiday_list = holiday_list.name
 		self.project = self.make_project("_Test Work Planning Project")
 		self.other_project = self.make_project("_Test Work Planning Other Project")
-		frappe.get_doc("User", self.as_employee()).add_roles("Projects User")
+		frappe.get_doc("User", self.as_employee()).add_roles("Projects User", PROJEKT_HUB_ROLE)
 		frappe.db.delete("Work Plan Entry", {"employee": self.employee})
 
 	def tearDown(self):
