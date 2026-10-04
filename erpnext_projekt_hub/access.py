@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 
 # Holders of this role open Projekt HUB and are the only users offered for task and
 # project assignment and @mentions. System Manager keeps access so admins cannot lock
@@ -18,6 +19,12 @@ def has_project_hub_access(user: str | None = None) -> bool:
 	if user == "Administrator":
 		return True
 	return bool(set(frappe.get_roles(user)) & ALLOWED_ROLES)
+
+
+def require_project_hub_access():
+	"""Throw PermissionError unless the session user may use Projekt HUB."""
+	if not has_project_hub_access():
+		frappe.throw(_("You do not have permission to access Projekt HUB"), frappe.PermissionError)
 
 
 def ensure_projekt_hub_role():

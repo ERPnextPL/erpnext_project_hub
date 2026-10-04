@@ -48,3 +48,11 @@ class TestProjektHubRole(FrappeTestCase):
 		ids = {option["id"] for option in project_hub.get_mention_options()}
 		self.assertIn(HUB_USER, ids)
 		self.assertNotIn(OTHER_USER, ids)
+
+	def test_hub_api_rejects_users_without_the_role(self):
+		frappe.set_user(OTHER_USER)
+		with self.assertRaises(frappe.PermissionError):
+			project_hub.get_users()
+
+		frappe.set_user(HUB_USER)
+		project_hub.get_users()
