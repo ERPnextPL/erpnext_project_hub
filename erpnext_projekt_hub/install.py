@@ -19,7 +19,24 @@ def before_tests():
 def after_install():
 	"""Mark the PRO frontend as enabled for the installed site."""
 	_ensure_test_roots()
+	_ensure_project_custom_fields()
+	_ensure_request_workflows()
 	update_site_config("projekt_hub_pro_enabled", 1)
+
+
+def _ensure_project_custom_fields():
+	# Patches are skipped on fresh installs, so create the fields here as well.
+	from erpnext_projekt_hub.patches.post_model_sync.ensure_project_manager_field import execute
+
+	execute()
+
+
+def _ensure_request_workflows():
+	# Workflow states (e.g. "Draft") are not shipped by Frappe v16, and the patch
+	# that creates them is skipped on fresh installs.
+	from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import execute
+
+	execute()
 
 
 def _ensure_test_roots():
