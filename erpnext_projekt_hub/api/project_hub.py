@@ -7,6 +7,11 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
 
+from erpnext_projekt_hub.access import (
+	PROJEKT_HUB_ROLE,
+	get_projekt_hub_user_names,
+	require_project_hub_access,
+)
 from erpnext_projekt_hub.events.task_events import _walk_ancestors
 from erpnext_projekt_hub.events.todo_events import sync_task_todo_dates
 from erpnext_projekt_hub.overrides.task import compute_is_overdue
@@ -98,6 +103,7 @@ def get_projects():
 
 	Returns projects grouped by status (active vs on hold vs completed).
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 	user_roles = frappe.get_roles(user)
 
@@ -329,6 +335,7 @@ def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
 @frappe.whitelist()
 def get_project_requests(project: str):
 	"""Return customer/change requests linked to a project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -401,6 +408,7 @@ def create_customer_request(
 	quotation: str | None = None,
 ):
 	"""Create a Customer Request from the Projekt HUB UI."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 	if not subject:
@@ -450,6 +458,7 @@ def create_customer_request(
 @frappe.whitelist()
 def search_requested_by(project: str, txt: str | None = None):
 	"""Search employees that can be used in the Requested By field."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -493,6 +502,7 @@ def search_requested_by(project: str, txt: str | None = None):
 @frappe.whitelist()
 def get_customer_request_dropdown_options(project: str):
 	"""Return dropdown options used by the Customer Request modal."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -548,6 +558,7 @@ def get_project_tasks(
 	Get all tasks for a project with hierarchical structure.
 	Returns tasks sorted by parent and idx for tree building.
 	"""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -726,6 +737,7 @@ def get_project_tasks(
 @frappe.whitelist()
 def get_project_financials(project: str):
 	"""Return financial KPIs and reported hours breakdown for a project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -852,6 +864,7 @@ def update_project(
 	expected_end_date: str | None = None,
 	notes: str | None = None,
 ):
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -956,6 +969,7 @@ def create_task(
 	assign: str | None = None,
 ):
 	"""Create a new task."""
+	require_project_hub_access()
 	if not subject or not project:
 		frappe.throw(_("Subject and Project are required"))
 
@@ -1032,6 +1046,7 @@ def create_task(
 @frappe.whitelist()
 def update_task(task_name: str, **kwargs):
 	"""Update task fields."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1128,6 +1143,7 @@ def get_all_projects():
 	Get list of all active projects for task project change dropdown.
 	Returns only non-cancelled and non-template projects.
 	"""
+	require_project_hub_access()
 	projects = frappe.get_all(
 		"Project",
 		filters={"status": ["not in", ["Cancelled", "Template"]]},
@@ -1140,6 +1156,7 @@ def get_all_projects():
 @frappe.whitelist()
 def delete_task(task_name: str):
 	"""Delete a task and optionally its children."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1177,6 +1194,7 @@ def reorder_task(
 	Reorder a task - change its parent and/or position.
 	This handles both reparenting and reordering within the same parent.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1229,6 +1247,7 @@ def reorder_task(
 @frappe.whitelist()
 def toggle_task_status(task_name: str):
 	"""Toggle task between Open and Completed."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1277,6 +1296,7 @@ def bulk_update_tasks(tasks: list):
 	Bulk update multiple tasks at once.
 	Useful for drag & drop reordering.
 	"""
+	require_project_hub_access()
 	if not tasks:
 		return {"success": True}
 
@@ -1304,33 +1324,25 @@ def bulk_update_tasks(tasks: list):
 
 @frappe.whitelist()
 def get_users():
-	"""Get list of users that can be assigned to tasks.
+	"""Get list of users that can be assigned to tasks and projects.
 
-	Only users holding the "Projects User" role (or a manager-tier role, which
-	always implies access) are assignable.
+	Only enabled System Users holding the "Projekt HUB User" role are returned.
 	"""
-	assignable_roles = ["Projects User", "Project Manager", "Projects Manager", "System Manager"]
-	assignable_user_names = frappe.get_all(
-		"Has Role",
-		filters={"role": ["in", assignable_roles], "parenttype": "User"},
-		pluck="parent",
-		distinct=True,
-	)
-
-	if not assignable_user_names:
+	require_project_hub_access()
+	hub_user_names = get_projekt_hub_user_names()
+	if not hub_user_names:
 		return []
 
-	users = frappe.get_all(
+	return frappe.get_all(
 		"User",
 		filters={
 			"enabled": 1,
 			"user_type": "System User",
-			"name": ["in", assignable_user_names],
+			"name": ["in", hub_user_names],
 		},
 		fields=["name", "full_name", "user_image"],
 		order_by="full_name",
 	)
-	return users
 
 
 @frappe.whitelist()
@@ -1340,6 +1352,7 @@ def assign_task(
 	action: str = "add",
 ):
 	"""Assign or unassign a user to/from a task."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1359,12 +1372,8 @@ def assign_task(
 		if user_type != "System User":
 			frappe.throw(_("Only System Users can be assigned to tasks"))
 
-		# Validate user has the Projects User role or a manager-tier role that implies access
-		assignable_roles = ["Projects User", "Project Manager", "Projects Manager", "System Manager"]
-		if not frappe.db.exists(
-			"Has Role", {"parent": user, "role": ["in", assignable_roles], "parenttype": "User"}
-		):
-			frappe.throw(_("Only users with the Projects User role can be assigned to tasks"))
+		if not frappe.db.exists("Has Role", {"parent": user, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}):
+			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
 
 		add_assignment(
 			{
@@ -1424,6 +1433,7 @@ def assign_task(
 @frappe.whitelist()
 def get_project_users(project: str):
 	"""Get users assigned to a project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -1446,6 +1456,7 @@ def get_project_users(project: str):
 @frappe.whitelist()
 def add_project_user(project: str, user: str):
 	"""Add a user to a project."""
+	require_project_hub_access()
 	if not project or not user:
 		frappe.throw(_("Project and user are required"))
 
@@ -1473,6 +1484,7 @@ def add_project_user(project: str, user: str):
 @frappe.whitelist()
 def remove_project_user(project: str, user: str):
 	"""Remove a user from a project."""
+	require_project_hub_access()
 	if not project or not user:
 		frappe.throw(_("Project and user are required"))
 
@@ -1485,6 +1497,7 @@ def remove_project_user(project: str, user: str):
 @frappe.whitelist()
 def get_task_timelogs(task_name: str):
 	"""Get all time logs for a specific task."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1555,6 +1568,7 @@ def get_my_timelogs(
 	search: str | None = None,
 ):
 	"""Get time logs for the current user with optional filters."""
+	require_project_hub_access()
 	user = frappe.session.user
 	employee = get_employee_for_user(user)
 
@@ -1641,6 +1655,7 @@ def create_timelog(
 	Create a time log entry for a task.
 	Creates or updates a timesheet for the current user.
 	"""
+	require_project_hub_access()
 	if not task or not hours:
 		frappe.throw(_("Task and hours are required"))
 
@@ -1750,6 +1765,7 @@ def update_timelog(
 	is_billable: int | None = None,
 ):
 	"""Update an existing time log entry."""
+	require_project_hub_access()
 	if not timelog_name:
 		frappe.throw(_("Timelog name is required"))
 
@@ -1807,6 +1823,7 @@ def update_timelog(
 @frappe.whitelist()
 def delete_timelog(timelog_name: str):
 	"""Delete a time log entry."""
+	require_project_hub_access()
 	if not timelog_name:
 		frappe.throw(_("Timelog name is required"))
 
@@ -1893,6 +1910,7 @@ def _is_own_timesheet(timesheet) -> bool:
 @frappe.whitelist()
 def get_activity_types():
 	"""Get list of activity types from ERPNext."""
+	require_project_hub_access()
 	activity_types = frappe.get_all(
 		"Activity Type",
 		filters={"disabled": 0},
@@ -1911,6 +1929,7 @@ def get_quick_time_log_descriptions():
 	different set of chips per selected Activity Type; entries with no
 	activity_type are shown regardless of the selected type.
 	"""
+	require_project_hub_access()
 	return frappe.get_all(
 		"Quick Time Log Description",
 		filters={"disabled": 0},
@@ -1927,6 +1946,7 @@ HIDDEN_TASK_STATUSES = ("Overdue",)
 @frappe.whitelist()
 def get_task_statuses():
 	"""Get list of task statuses from ERPNext."""
+	require_project_hub_access()
 	# Get status options from Task doctype meta
 	task_meta = frappe.get_meta("Task")
 	status_field = task_meta.get_field("status")
@@ -1943,6 +1963,7 @@ def get_task_statuses():
 @frappe.whitelist()
 def get_task_priorities():
 	"""Get list of task priorities from ERPNext."""
+	require_project_hub_access()
 	# Get priority options from Task doctype meta
 	task_meta = frappe.get_meta("Task")
 	priority_field = task_meta.get_field("priority")
@@ -1967,6 +1988,7 @@ def get_project_milestones(project: str):
 	Get all milestones for a project with calculated progress and health status.
 	Milestones are always scoped to a single project.
 	"""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -2044,6 +2066,7 @@ def create_milestone(
 	Create a new milestone for a project.
 	Milestone is always linked to exactly one project.
 	"""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -2108,6 +2131,7 @@ def update_milestone(
 	Update milestone details.
 	Project cannot be changed - milestone is always bound to its original project.
 	"""
+	require_project_hub_access()
 	if not milestone_name:
 		frappe.throw(_("Milestone name is required"))
 
@@ -2154,6 +2178,7 @@ def update_milestone(
 @frappe.whitelist()
 def reorder_project_milestones(project: str, milestone_names: str):
 	"""Persist manual milestone order for a single project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -2196,6 +2221,7 @@ def delete_milestone(milestone_name: str):
 	Delete a milestone.
 	All tasks linked to this milestone will have their milestone field cleared.
 	"""
+	require_project_hub_access()
 	if not milestone_name:
 		frappe.throw(_("Milestone name is required"))
 
@@ -2220,6 +2246,7 @@ def assign_task_to_milestone(task_name: str, milestone: str | None = None):
 
 	Validates that task and milestone belong to the same project.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2279,6 +2306,7 @@ def get_milestone_tasks(milestone_name: str):
 	"""
 	Get all tasks assigned to a specific milestone.
 	"""
+	require_project_hub_access()
 	if not milestone_name:
 		frappe.throw(_("Milestone name is required"))
 
@@ -2306,6 +2334,7 @@ def get_milestone_tasks(milestone_name: str):
 @frappe.whitelist()
 def get_milestone_statuses():
 	"""Get list of milestone statuses from the Project Milestone doctype."""
+	require_project_hub_access()
 	milestone_meta = frappe.get_meta("Project Milestone")
 	status_field = milestone_meta.get_field("status")
 
@@ -2353,6 +2382,7 @@ def get_my_tasks(
 	Returns:
 		List of tasks with project info
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 
 	# Build filters
@@ -2519,6 +2549,7 @@ def get_my_tasks_projects():
 	Get list of projects where current user has assigned tasks.
 	Used for project filter dropdown.
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 
 	projects = frappe.db.sql(
@@ -2556,6 +2587,7 @@ def quick_update_task(
 	Used for inline editing in My Tasks view.
 	Returns updated task data.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2638,6 +2670,7 @@ def shift_overdue_due_dates(limit: int = 100):
 	"""
 	Shift overdue tasks assigned to the current user by two days.
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 	if not limit or limit <= 0:
 		limit = 100
@@ -2681,6 +2714,7 @@ def get_task_detail(task_name: str):
 	"""
 	Get full task details for drawer/edit view.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2692,6 +2726,7 @@ def get_task_detail(task_name: str):
 @frappe.whitelist()
 def get_task_attachments(task_name: str):
 	"""Get task attachments from File doctype."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2710,6 +2745,7 @@ def get_task_attachments(task_name: str):
 @frappe.whitelist()
 def get_project_attachments(project_name: str):
 	"""Get project attachments from File doctype."""
+	require_project_hub_access()
 	if not project_name:
 		frappe.throw(_("Project name is required"))
 
@@ -2727,14 +2763,20 @@ def get_project_attachments(project_name: str):
 
 @frappe.whitelist()
 def get_mention_options():
-	"""Return all users and user groups available for @mentions in comments.
+	"""Return Projekt HUB users and user groups available for @mentions in comments.
 
 	frappe.desk.search.get_names_for_mentions returns nothing for an empty
 	search term, while the comment editor filters the full list client-side.
 	"""
+	require_project_hub_access()
 	from frappe.desk.search import get_user_groups, get_users_for_mentions
 
-	users = frappe.cache.get_value("users_for_mentions", get_users_for_mentions)
+	hub_users = set(get_projekt_hub_user_names())
+	users = [
+		row
+		for row in frappe.cache.get_value("users_for_mentions", get_users_for_mentions)
+		if row["id"] in hub_users
+	]
 	groups = frappe.cache.get_value("user_groups", get_user_groups)
 	options = [{"id": row["id"], "value": row.get("value") or row["id"]} for row in users + groups]
 	return sorted(options, key=lambda d: d["value"].lower())
@@ -2743,6 +2785,7 @@ def get_mention_options():
 @frappe.whitelist()
 def get_task_comments(task_name: str):
 	"""Get task comments from Comment doctype."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2765,6 +2808,7 @@ def get_task_comments(task_name: str):
 @frappe.whitelist()
 def add_task_comment(task_name: str, content: str):
 	"""Add a comment to task using standard Frappe comment API."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 	if not content or not content.strip():
@@ -2788,6 +2832,7 @@ def add_task_comment(task_name: str, content: str):
 @frappe.whitelist()
 def delete_task_attachment(file_name: str):
 	"""Delete file attachment from task."""
+	require_project_hub_access()
 	if not file_name:
 		frappe.throw(_("File name is required"))
 
@@ -2806,6 +2851,7 @@ def delete_task_attachment(file_name: str):
 @frappe.whitelist()
 def delete_project_attachment(file_name: str):
 	"""Delete file attachment from project."""
+	require_project_hub_access()
 	if not file_name:
 		frappe.throw(_("File name is required"))
 
@@ -2835,6 +2881,7 @@ def create_my_task(
 	"""
 	Create a new task and assign it to the current user.
 	"""
+	require_project_hub_access()
 	if not subject or not project:
 		frappe.throw(_("Subject and Project are required"))
 
@@ -2892,6 +2939,7 @@ def get_projects_settings():
 	Get Projects Settings including global default activity type.
 	Returns a dict with all settings values.
 	"""
+	require_project_hub_access()
 	try:
 		# Get the single Projects Settings document
 		settings = frappe.get_single("Projects Settings")
@@ -2919,6 +2967,7 @@ def get_projects_settings():
 @frappe.whitelist()
 def get_project_summary(project: str) -> dict:
 	"""Return KPI summary for the Project form dashboard (time remaining, task %, milestone statuses)."""
+	require_project_hub_access()
 	from frappe.utils import date_diff, getdate
 	from frappe.utils import today as frappe_today
 

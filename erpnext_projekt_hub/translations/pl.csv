@@ -598,3 +598,4 @@
 "Blocked - click to unblock","Zablokowane - kliknij, aby odblokować"
 "Marks a task that cannot move forward until something outside it is resolved. Set and cleared by hand.","Oznacza zadanie, które nie może iść dalej, dopóki coś poza nim nie zostanie rozwiązane. Ustawiane i zdejmowane ręcznie."
 "Edit time log","Edytuj wpis czasu"
+"Only users with the {0} role can be assigned to tasks","Do zadań można przypisywać tylko użytkowników z rolą {0}"

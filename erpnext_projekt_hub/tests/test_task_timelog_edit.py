@@ -1,6 +1,7 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
+from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE
 from erpnext_projekt_hub.api.project_hub import create_timelog, get_task_timelogs, update_timelog
 
 test_ignore = ["Task", "Timesheet"]
@@ -34,6 +35,9 @@ class TestTaskTimelogEdit(FrappeTestCase):
 			to_time="2026-10-01 09:00:00",
 		)
 
+	def tearDown(self):
+		frappe.set_user("Administrator")
+
 	def test_own_draft_entry_is_editable(self):
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.docstatus, 0)
@@ -61,6 +65,13 @@ class TestTaskTimelogEdit(FrappeTestCase):
 			update_timelog(self.log["timelog_name"], hours=3)
 
 	def test_other_users_entry_is_not_editable(self):
-		frappe.set_user("Guest")
+		other_user = "_test_timelog_edit_other@example.com"
+		if not frappe.db.exists("User", other_user):
+			frappe.get_doc(
+				{"doctype": "User", "email": other_user, "first_name": "Other", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+		frappe.get_doc("User", other_user).add_roles("Projects User", PROJEKT_HUB_ROLE)
+
+		frappe.set_user(other_user)
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.can_edit, 0)
