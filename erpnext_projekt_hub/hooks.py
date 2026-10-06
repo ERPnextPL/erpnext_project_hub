@@ -153,7 +153,10 @@ doc_events = {
 	"Task": {
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
-	}
+	},
+	"Notification Log": {
+		"before_insert": "erpnext_projekt_hub.events.notification_log_events.before_insert",
+	},
 }
 
 # Scheduled Tasks
