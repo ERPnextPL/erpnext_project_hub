@@ -34,8 +34,8 @@ class TabRegistry {
 	 * @param {string} tabConfig.path - URL path for the tab
 	 * @param {string} tabConfig.labelKey - Translation key for tab label
 	 * @param {Component} tabConfig.icon - Lucide icon component
-	 * @param {string} tabConfig.color - Tailwind color class for active state
-	 * @param {string} tabConfig.bg - Tailwind background class for active state
+	 * @param {string} tabConfig.color - Tailwind color class for active state (plugins: text-<color>-600)
+	 * @param {string} tabConfig.bg - Tailwind background class for active state (plugins: bg-<color>-50)
 	 * @param {Function} tabConfig.component - Vue component lazy loader
 	 * @param {number} [tabConfig.order=50] - Sort order (lower numbers appear first)
 	 */

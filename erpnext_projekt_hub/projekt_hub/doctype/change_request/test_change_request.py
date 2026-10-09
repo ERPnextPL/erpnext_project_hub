@@ -7,6 +7,8 @@ from erpnext_projekt_hub.projekt_hub.doctype.customer_request.test_customer_requ
 	get_or_create_customer,
 )
 
+test_ignore = ["Customer", "Project", "Quotation", "Task"]
+
 
 class TestChangeRequest(FrappeTestCase):
 	def setUp(self):

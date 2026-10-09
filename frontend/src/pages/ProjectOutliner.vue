@@ -1,21 +1,28 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
+import { isMilestoneCompleted } from "../utils/milestone";
+import { ACTIVE_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
+import { readFilters, writeFilters } from "../utils/urlFilters";
 import TaskTree from "../components/TaskTree.vue";
 import ProjectTaskCardMobile from "../components/ProjectTaskCardMobile.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import QuickFilters from "../components/QuickFilters.vue";
 import ProjectTeam from "../components/ProjectTeam.vue";
-import MilestoneSidebar from "../components/MilestoneSidebar.vue";
+import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
+import MilestoneTrack from "../components/MilestoneTrack.vue";
+import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
+import UserSelect from "../components/UserSelect.vue";
 import {
 	ArrowLeft,
 	Filter,
@@ -28,10 +35,12 @@ import {
 	Paperclip,
 	Diamond,
 	GripVertical,
+	Plus,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { translate } from "../utils/translation";
+import { getStatusClass } from "../utils/projectDisplay";
 
 const props = defineProps({
 	projectId: {
@@ -52,18 +61,96 @@ const milestoneSidebarOpen = ref(false);
 const attachmentsSidebarOpen = ref(false);
 const attachmentCount = ref(0);
 const searchInput = ref("");
+const filtersHydrated = ref(false);
+const suppressSearchSync = ref(false);
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
 const draggingGroupKey = ref(null);
 const groupReorderDropIndex = ref(null);
+
+// FAB – quick task creation
+const fabOpen = ref(false);
+const fabSubject = ref("");
+const fabPriority = ref("Medium");
+const fabMilestone = ref("");
+const fabExpEndDate = ref("");
+const fabAssign = ref([]);
+const fabCreating = ref(false);
+const fabError = ref("");
+
+function openFab() {
+	fabSubject.value = "";
+	fabPriority.value = "Medium";
+	fabMilestone.value = "";
+	fabExpEndDate.value = "";
+	fabAssign.value = [];
+	fabError.value = "";
+	fabOpen.value = true;
+}
+
+function closeFab() {
+	fabOpen.value = false;
+}
+
+async function submitFab() {
+	if (fabCreating.value) return;
+
+	const subject = fabSubject.value.trim();
+	if (!subject) {
+		fabError.value = translate("Task name is required");
+		return;
+	}
+	fabCreating.value = true;
+	fabError.value = "";
+	try {
+		await store.createTask({
+			subject,
+			project: props.projectId,
+			priority: fabPriority.value || "Medium",
+			milestone: fabMilestone.value || null,
+			exp_end_date: fabExpEndDate.value || null,
+			assign: fabAssign.value[0] || null,
+		});
+		closeFab();
+	} catch {
+		fabError.value = translate("Failed to create task. Please try again.");
+	} finally {
+		fabCreating.value = false;
+	}
+}
 // Domyślne filtry: wszystkie statusy poza Completed, Cancelled, Closed
-const activeFilters = ref({
-	status: ["Open", "Working", "Pending Review", "Overdue"], // Domyślne statusy
+const FILTER_DEFAULTS = {
+	status: [...ACTIVE_STATUSES], // Domyślne statusy
 	priority: [], // Array for multiselect
 	assignee: null,
 	dueToday: false,
 	overdue: false, // Nowy filtr dla przeterminowanych zadań
 	search: "",
+};
+
+// The query string is user-editable and outlives deploys, so drop anything the
+// app no longer accepts instead of filtering the tree down to nothing.
+function sanitizeStatusFilter(value) {
+	if (value.length === 0) return [];
+	const statuses = value.filter(
+		(status) => store.taskStatuses.includes(status) && status !== "Template"
+	);
+	return statuses.length > 0 ? statuses : [...ACTIVE_STATUSES];
+}
+
+function sanitizePriorityFilter(value) {
+	return value.filter((priority) => store.taskPriorities.includes(priority));
+}
+
+const FILTER_SANITIZERS = {
+	status: sanitizeStatusFilter,
+	priority: sanitizePriorityFilter,
+};
+
+const activeFilters = ref({
+	...FILTER_DEFAULTS,
+	status: [...FILTER_DEFAULTS.status],
+	priority: [...FILTER_DEFAULTS.priority],
 });
 
 const hasActiveFilters = computed(() => {
@@ -75,6 +162,7 @@ const hasActiveFilters = computed(() => {
 		activeFilters.value.search
 	);
 });
+
 
 useTaskDeepLink({
 	route,
@@ -94,10 +182,42 @@ const debouncedSearch = useDebounceFn((value) => {
 }, 300);
 
 watch(searchInput, (value) => {
+	if (!filtersHydrated.value || suppressSearchSync.value) return;
 	debouncedSearch(value);
 });
 
-onMounted(() => {
+// Mirror every filter change into the URL so a refresh - or a shared link -
+// restores the same view.
+watch(
+	activeFilters,
+	useDebounceFn(() => writeFilters(router, route, activeFilters.value, FILTER_DEFAULTS), 300),
+	{ deep: true }
+);
+
+watch(
+	() => props.projectId,
+	() => {
+		debouncedSearch.cancel?.();
+		const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+		suppressSearchSync.value = true;
+		activeFilters.value = restoredFilters;
+		searchInput.value = restoredFilters.search;
+		nextTick(() => {
+			suppressSearchSync.value = false;
+		});
+		store.fetchTasks(props.projectId, activeFilters.value);
+	}
+);
+
+onMounted(async () => {
+	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities()]);
+	const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
+	suppressSearchSync.value = true;
+	activeFilters.value = restoredFilters;
+	searchInput.value = restoredFilters.search;
+	filtersHydrated.value = true;
+	await nextTick();
+	suppressSearchSync.value = false;
 	store.fetchTasks(props.projectId, activeFilters.value);
 });
 
@@ -120,6 +240,10 @@ watch(isMobile, (mobile) => {
 
 function handleEscape(event) {
 	if (event.key === "Escape") {
+		if (fabOpen.value) {
+			closeFab();
+			return;
+		}
 		milestoneSidebarOpen.value = false;
 		attachmentsSidebarOpen.value = false;
 	}
@@ -325,18 +449,29 @@ const groupedTasksByMilestone = computed(() => {
 		}
 	}
 
+	const activeGroups = [];
+	const completedGroups = [];
+
 	for (const milestone of store.milestones) {
 		const tasks = tasksByMilestone.get(milestone.name) || [];
 		if (tasks.length > 0) {
-			groups.push({
+			const group = {
 				key: milestone.name,
 				label: milestone.milestone_name || milestone.name,
 				meta: milestone,
 				tasks,
+				activeTaskCount: tasks.filter((t) => t.status !== "Cancelled").length,
 				isUnassigned: false,
-			});
+			};
+			if (isMilestoneCompleted(milestone)) {
+				completedGroups.push(group);
+			} else {
+				activeGroups.push(group);
+			}
 		}
 	}
+
+	groups.push(...activeGroups, ...completedGroups);
 
 	if (unassignedTasks.length > 0) {
 		groups.push({
@@ -366,10 +501,22 @@ const groupedTasksByMilestone = computed(() => {
 						>
 							<ArrowLeft class="w-5 h-5" />
 						</button>
-						<div v-if="store.project">
+						<div v-if="store.project" class="flex items-center gap-2.5">
+							<img
+								v-if="store.project.customer_image"
+								:src="store.project.customer_image"
+								:alt="store.project.customer_name"
+								class="w-7 h-7 rounded object-contain border border-gray-200 dark:border-gray-600 bg-white flex-shrink-0"
+							/>
 							<h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
 								{{ store.project.project_name }}
 							</h1>
+							<span
+								v-if="store.project.status && store.project.status !== 'Open'"
+								:class="['px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0', getStatusClass(store.project.status)]"
+							>
+								{{ translate(store.project.status) }}
+							</span>
 						</div>
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
@@ -404,26 +551,6 @@ const groupedTasksByMilestone = computed(() => {
 
 			<!-- Main content -->
 			<div class="flex-1 flex overflow-hidden relative">
-				<Transition name="fade">
-					<div
-						v-if="milestoneSidebarOpen && isMobile"
-						class="absolute inset-0 z-20 bg-black/20"
-						@click="closeMilestoneSidebar"
-					></div>
-				</Transition>
-
-				<Transition name="slide-sidebar-left">
-					<div
-						v-if="milestoneSidebarOpen"
-						:class="[
-							'z-30 flex-shrink-0 overflow-y-auto',
-							isMobile ? 'absolute inset-y-0 left-0' : 'relative',
-						]"
-					>
-						<MilestoneSidebar @close="closeMilestoneSidebar" />
-					</div>
-				</Transition>
-
 				<Transition name="slide-sidebar-right">
 					<div
 						v-if="attachmentsSidebarOpen"
@@ -438,17 +565,6 @@ const groupedTasksByMilestone = computed(() => {
 					</div>
 				</Transition>
 
-				<!-- Left sidebar: Milestones + Filters (collapsible) -->
-			<aside
-				v-if="!sidebarCollapsed"
-				class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 overflow-y-auto w-64 relative"
-			>
-				<div class="w-64">
-					<!-- Quick Filters -->
-					<QuickFilters :project="store.project" @filter-change="handleFilterChange" />
-				</div>
-			</aside>
-
 			<!-- Center: Task list -->
 			<main class="flex-1 overflow-y-auto">
 				<!-- Project Information Panel -->
@@ -458,6 +574,11 @@ const groupedTasksByMilestone = computed(() => {
 				/>
 				<ProjectManagerPanel
 					v-if="store.project && !store.loading && store.project.is_manager"
+					:project="store.project"
+				/>
+
+				<ProjectStatusStrip
+					v-if="store.project && !store.loading"
 					:project="store.project"
 				/>
 
@@ -486,6 +607,23 @@ const groupedTasksByMilestone = computed(() => {
 							<!-- Filter toggle + Refresh -->
 							<div class="flex items-center gap-2">
 								<button
+									@click="sidebarCollapsed = !sidebarCollapsed"
+									:class="[
+										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
+										!sidebarCollapsed || hasActiveFilters
+											? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+											: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+									]"
+								>
+									<Filter class="w-4 h-4" />
+									<span class="hidden sm:inline">{{ translate("Filters") }}</span>
+									<span
+										v-if="hasActiveFilters"
+										class="w-2 h-2 rounded-full bg-blue-600"
+									></span>
+								</button>
+
+								<button
 									@click="milestoneSidebarOpen = !milestoneSidebarOpen"
 									:class="[
 										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
@@ -505,23 +643,6 @@ const groupedTasksByMilestone = computed(() => {
 								</button>
 
 								<button
-									@click="sidebarCollapsed = !sidebarCollapsed"
-									:class="[
-										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
-										!sidebarCollapsed || hasActiveFilters
-											? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-											: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
-									]"
-								>
-									<Filter class="w-4 h-4" />
-									<span class="hidden sm:inline">{{ translate("Filters") }}</span>
-									<span
-										v-if="hasActiveFilters"
-										class="w-2 h-2 rounded-full bg-blue-600"
-									></span>
-								</button>
-
-								<button
 									@click="handleRefresh"
 									:disabled="store.loading"
 									class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
@@ -530,6 +651,11 @@ const groupedTasksByMilestone = computed(() => {
 									<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
 								</button>
 							</div>
+
+							<MilestoneTrack
+								v-if="store.milestones.length && !store.loading"
+								:milestones="store.milestones"
+							/>
 
 							<!-- View tabs (right-aligned) -->
 							<div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 sm:ml-auto">
@@ -573,6 +699,27 @@ const groupedTasksByMilestone = computed(() => {
 						</div>
 					</div>
 				</div>
+
+				<!-- Filters panel (slides down under toolbar) -->
+				<Transition name="filter-panel">
+					<div v-if="!sidebarCollapsed"
+						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+						<QuickFilters
+							:project="store.project"
+							:initial-filters="activeFilters"
+							@filter-change="handleFilterChange"
+							@close="sidebarCollapsed = true"
+						/>
+					</div>
+				</Transition>
+
+				<!-- Milestones panel (slides down under toolbar) -->
+				<Transition name="filter-panel">
+					<div v-if="milestoneSidebarOpen"
+						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-96 overflow-y-auto">
+						<MilestonePanel :hide-header="true" />
+					</div>
+				</Transition>
 
 				<div v-if="store.loading" class="flex items-center justify-center py-12">
 					<div
@@ -666,7 +813,7 @@ const groupedTasksByMilestone = computed(() => {
 											{{ group.label }}
 										</div>
 										<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-											<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
+											<span>{{ group.isUnassigned ? group.tasks.length : group.activeTaskCount }} {{ translate("tasks") }}</span>
 											<span v-if="group.meta" class="ml-2">
 												{{ formatMilestoneDate(group.meta.milestone_date) }}
 											</span>
@@ -704,7 +851,7 @@ const groupedTasksByMilestone = computed(() => {
 											{{ group.label }}
 										</div>
 										<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-											<span>{{ group.tasks.length }} {{ translate("tasks") }}</span>
+											<span>{{ group.isUnassigned ? group.tasks.length : group.activeTaskCount }} {{ translate("tasks") }}</span>
 											<span v-if="group.meta" class="ml-2">
 												{{ formatMilestoneDate(group.meta.milestone_date) }}
 											</span>
@@ -765,5 +912,177 @@ const groupedTasksByMilestone = computed(() => {
 		</div>
 
 		<BackToDeskButton />
+
+		<!-- FAB: quick task creation -->
+		<button
+			@click="openFab"
+			class="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-blue-300"
+			:title="translate('Add task')"
+			:aria-label="translate('Add task')"
+		>
+			<Plus class="h-6 w-6" />
+		</button>
+
+		<!-- FAB modal -->
+		<Transition name="fab-modal">
+			<div
+				v-if="fabOpen"
+				class="fixed inset-0 z-50 flex items-end justify-end p-6 sm:items-center sm:justify-center"
+				@click.self="closeFab"
+			>
+				<div class="absolute inset-0 bg-black/30" @click="closeFab" />
+				<div
+					class="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-2xl"
+					@keydown.esc="closeFab"
+				>
+					<div class="flex items-center justify-between mb-4">
+						<h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+							{{ translate("New Task") }}
+						</h2>
+						<button
+							@click="closeFab"
+							class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600"
+						>
+							<X class="h-4 w-4" />
+						</button>
+					</div>
+
+					<div class="space-y-4">
+						<!-- Subject -->
+						<div>
+							<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+								{{ translate("Task name") }} *
+							</label>
+							<input
+								v-model="fabSubject"
+								type="text"
+								:placeholder="translate('Enter task name...')"
+								autofocus
+								@keydown.enter.prevent="submitFab"
+								@keydown.esc="closeFab"
+								class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+							/>
+						</div>
+
+						<!-- Priority + Milestone row -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Priority") }}
+								</label>
+								<select
+									v-model="fabPriority"
+									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+								>
+									<option
+										v-for="priority in PRIORITY_VALUES"
+										:key="priority"
+										:value="priority"
+									>
+										{{ translate(priority) }}
+									</option>
+								</select>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Milestone") }}
+								</label>
+								<select
+									v-model="fabMilestone"
+									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+								>
+									<option value="">{{ translate("None") }}</option>
+									<option
+										v-for="m in store.milestones"
+										:key="m.name"
+										:value="m.name"
+									>
+										{{ m.milestone_name || m.name }}
+									</option>
+								</select>
+							</div>
+						</div>
+
+						<!-- Assignee + Due date row -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Assignee") }}
+								</label>
+								<UserSelect
+									v-model="fabAssign"
+									:multiple="false"
+									:placeholder="translate('Assign user...')"
+									@add="(u) => (fabAssign = [u])"
+									@remove="() => (fabAssign = [])"
+								/>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+									{{ translate("Due date") }}
+								</label>
+								<input
+									v-model="fabExpEndDate"
+									type="date"
+									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+								/>
+							</div>
+						</div>
+
+						<!-- Error -->
+						<p v-if="fabError" class="text-xs text-red-600 dark:text-red-400">{{ fabError }}</p>
+
+						<!-- Actions -->
+						<div class="flex gap-3 pt-1">
+							<button
+								@click="submitFab"
+								:disabled="fabCreating || !fabSubject.trim()"
+								class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+							>
+								{{ fabCreating ? translate("Creating...") : translate("Create task") }}
+							</button>
+							<button
+								@click="closeFab"
+								class="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+							>
+								{{ translate("Cancel") }}
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</Transition>
 	</div>
 </template>
+
+<style scoped>
+.filter-panel-enter-active,
+.filter-panel-leave-active {
+	transition: max-height 0.25s ease, opacity 0.2s ease;
+	overflow: hidden;
+	max-height: 500px;
+}
+.filter-panel-enter-from,
+.filter-panel-leave-to {
+	max-height: 0;
+	opacity: 0;
+}
+
+.fab-modal-enter-active,
+.fab-modal-leave-active {
+	transition: opacity 0.15s ease;
+}
+.fab-modal-enter-from,
+.fab-modal-leave-to {
+	opacity: 0;
+}
+.fab-modal-enter-active .relative.z-10,
+.fab-modal-leave-active .relative.z-10 {
+	transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.fab-modal-enter-from .relative.z-10,
+.fab-modal-leave-to .relative.z-10 {
+	transform: scale(0.96) translateY(8px);
+	opacity: 0;
+}
+</style>

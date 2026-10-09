@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from "vue";
 import { Calendar, ChevronLeft, ChevronRight, Diamond } from "lucide-vue-next";
 import { translate } from "../utils/translation";
+import { TASK_STATUSES, getStatusConfig } from "../utils/taskStatus";
+import { useTaskStore } from "../stores/taskStore";
+import BlockedToggle from "./shared/BlockedToggle.vue";
 
 const t = translate;
 
@@ -22,15 +25,10 @@ const emit = defineEmits(["task-click"]);
 const viewStartDate = ref(new Date());
 const daysToShow = ref(30);
 
-// Status colors
-const statusColors = {
-	Open: "bg-blue-500",
-	Working: "bg-amber-500",
-	"Pending Review": "bg-purple-500",
-	Completed: "bg-green-500",
-	Overdue: "bg-red-500",
-	Cancelled: "bg-gray-400",
-};
+// Status colors - resolved from the shared status config
+const statusColors = Object.fromEntries(
+	TASK_STATUSES.map((status) => [status, getStatusConfig(status).dot])
+);
 
 // Priority colors for border
 const priorityColors = {
@@ -132,6 +130,12 @@ function navigateNext() {
 
 function goToToday() {
 	viewStartDate.value = new Date();
+}
+
+const store = useTaskStore();
+
+function setBlocked(task, blocked) {
+	store.updateTask(task.name, { is_blocked: blocked ? 1 : 0 });
 }
 
 function handleTaskClick(task) {
@@ -254,9 +258,13 @@ onMounted(() => {
 								v-if="task.milestone"
 								class="w-3 h-3 flex-shrink-0 text-amber-500"
 							/>
-							<span class="text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600">
+							<span class="text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 flex-1 min-w-0">
 								{{ task.subject }}
 							</span>
+							<BlockedToggle
+								:blocked="task.is_blocked"
+								@toggle="(blocked) => setBlocked(task, blocked)"
+							/>
 						</div>
 						<div class="flex items-center gap-2 mt-1">
 							<span

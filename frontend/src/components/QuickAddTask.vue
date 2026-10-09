@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { translate } from "../utils/translation";
 import { Plus } from "lucide-vue-next";
 
 const props = defineProps({
@@ -12,15 +13,15 @@ const props = defineProps({
 		type: String,
 		default: null,
 	},
-	milestone: {
-		type: String,
-		default: null,
-	},
 	placeholder: {
 		type: String,
 		default: "Add a task...",
 	},
 	autoFocus: {
+		type: Boolean,
+		default: false,
+	},
+	showCancel: {
 		type: Boolean,
 		default: false,
 	},
@@ -39,26 +40,32 @@ async function createTask() {
 
 	isCreating.value = true;
 	try {
+		// A Completed or Cancelled parent is rejected server-side (it throws) -
+		// callers should already hide this control in that case, this is the
+		// backstop. Anything else missing from the store is filled in there.
 		const parent = props.parentTask
 			? store.tasks.find((t) => t.name === props.parentTask)
 			: null;
-		if (parent && (parent.status === "Completed" || parent.status === "Cancelled")) {
-			return;
-		}
 
 		await store.createTask({
 			subject,
 			project: props.projectId,
 			parent_task: props.parentTask,
-			status: parent?.status,
 			priority: parent?.priority,
 			exp_end_date: parent?.exp_end_date || null,
-			// milestone: props.milestone, // if you have milestone field
+			milestone: parent?.milestone || null,
 		});
 		inputValue.value = "";
 		emit("created");
 	} catch (error) {
 		console.error("Failed to create task:", error);
+		// apiCall already alerts on a server error; only cover what it cannot.
+		if (!error?.alerted && window.frappe) {
+			frappe.show_alert({
+				message: error?.message || translate("Could not add the subtask"),
+				indicator: "red",
+			});
+		}
 	} finally {
 		isCreating.value = false;
 	}
@@ -94,11 +101,20 @@ onMounted(() => {
 		/>
 		<button
 			v-if="inputValue.trim()"
+			type="button"
 			@click="createTask"
 			:disabled="isCreating"
 			class="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 flex-shrink-0"
 		>
-			{{ isCreating ? "Adding..." : "Add" }}
+			{{ isCreating ? translate("Adding...") : translate("Add") }}
+		</button>
+		<button
+			v-if="showCancel"
+			type="button"
+			@click="emit('cancel')"
+			class="px-2 py-1 text-sm font-medium text-gray-600 hover:text-gray-900 flex-shrink-0"
+		>
+			{{ translate("Cancel") }}
 		</button>
 	</div>
 </template>

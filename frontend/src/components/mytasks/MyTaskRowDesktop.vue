@@ -1,15 +1,15 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import { useMyTasksStore } from "../../stores/myTasksStore";
 import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
+import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
+import BlockedToggle from "../shared/BlockedToggle.vue";
 import {
-	Circle,
 	Clock,
 	CheckCircle2,
-	AlertCircle,
 	Flag,
 	Calendar,
 	ChevronDown,
@@ -17,6 +17,8 @@ import {
 	Folder,
 	CornerDownRight,
 	FileText,
+	Lock,
+	Unlock,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -48,6 +50,8 @@ const store = useMyTasksStore();
 const realWindow = getRealWindow();
 
 const isUpdating = ref(false);
+const dueDateInputRef = ref(null);
+const editableDueDate = ref("");
 
 const isStatusDropdownOpen = computed(() => {
 	return (
@@ -67,52 +71,16 @@ const showContextMenu = ref(false);
 const contextMenuPosition = ref({ x: 0, y: 0 });
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+	return isTaskActive(props.task.status);
 });
 
 function isTouchDevice() {
 	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
 }
 
-// Status config - shorter labels to fit in grid
-const statusConfig = {
-	Open: {
-		icon: Circle,
-		class: "text-slate-700",
-		bg: "bg-blue-100 border border-blue-200",
-		label: translate("Open"),
-	},
-	Working: {
-		icon: Clock,
-		class: "text-white",
-		bg: "bg-blue-600 border border-blue-600",
-		label: translate("Working"),
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-purple-600 border border-purple-600",
-		label: translate("Pending Review"),
-	},
-	Completed: {
-		icon: CheckCircle2,
-		class: "text-white",
-		bg: "bg-emerald-600 border border-emerald-600",
-		label: translate("Completed"),
-	},
-	Overdue: {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-red-600 border border-red-600",
-		label: translate("Overdue"),
-	},
-	Cancelled: {
-		icon: Circle,
-		class: "text-slate-500",
-		bg: "bg-gray-100 border border-gray-200",
-		label: translate("Cancelled"),
-	},
-};
+const statusConfig = Object.fromEntries(
+	BOARD_STATUSES.map((status) => [status, getStatusSolid(status)])
+);
 
 const priorityConfig = {
 	Urgent: {
@@ -181,6 +149,30 @@ const dateClass = computed(() => {
 	return "text-gray-600";
 });
 
+function openDueDatePicker(currentValue) {
+	editableDueDate.value = currentValue || "";
+	nextTick(() => {
+		const el = dueDateInputRef.value?.$el || dueDateInputRef.value;
+		el?.focus?.();
+		if (typeof el?.showPicker === "function") {
+			el.showPicker();
+		} else {
+			el?.click?.();
+		}
+	});
+}
+
+async function updateDueDate() {
+	if (editableDueDate.value === props.task.exp_end_date) return;
+
+	isUpdating.value = true;
+	try {
+		await store.quickUpdateTask(props.task.name, { exp_end_date: editableDueDate.value });
+	} finally {
+		isUpdating.value = false;
+	}
+}
+
 async function updateStatus(newStatus) {
 	store.closeInlineDropdown();
 	if (newStatus === props.task.status) return;
@@ -188,6 +180,16 @@ async function updateStatus(newStatus) {
 	isUpdating.value = true;
 	try {
 		await store.quickUpdateTask(props.task.name, { status: newStatus });
+	} finally {
+		isUpdating.value = false;
+	}
+}
+
+async function updateBlocked(blocked) {
+	showContextMenu.value = false;
+	isUpdating.value = true;
+	try {
+		await store.quickUpdateTask(props.task.name, { is_blocked: blocked ? 1 : 0 });
 	} finally {
 		isUpdating.value = false;
 	}
@@ -251,7 +253,7 @@ onUnmounted(() => {
 		@contextmenu="showMenu"
 		:style="props.indentLevel ? { paddingLeft: props.indentLevel * 16 + 'px' } : undefined"
 		:class="[
-			'grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center',
+			'group grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors items-center',
 			isUpdating && 'opacity-60',
 		]"
 	>
@@ -291,7 +293,7 @@ onUnmounted(() => {
 					]"
 				/>
 			</button>
-			<div class="min-w-0">
+			<div class="min-w-0 flex-1">
 				<div v-if="taskDescription" class="flex items-start gap-1 text-xs text-gray-400">
 					<FileText class="w-3 h-3 flex-shrink-0" />
 					<span v-if="descriptionPreviewLabel" class="line-clamp-3 whitespace-pre-line break-words">{{
@@ -351,7 +353,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Status -->
-		<div class="col-span-2 flex items-center relative status-dropdown" @click.stop>
+		<div class="col-span-2 flex items-center gap-1 relative status-dropdown" @click.stop>
 			<button
 				@click="store.toggleInlineDropdown(task.name, 'status')"
 				:class="[
@@ -364,6 +366,8 @@ onUnmounted(() => {
 				{{ currentStatus.label }}
 				<ChevronDown class="w-3 h-3" />
 			</button>
+
+			<BlockedToggle :blocked="task.is_blocked" :disabled="isUpdating" @toggle="updateBlocked" />
 
 			<!-- Status dropdown -->
 			<Transition name="fade">
@@ -426,16 +430,31 @@ onUnmounted(() => {
 
 		<!-- Due date -->
 		<div class="col-span-2 flex items-center" @click.stop>
-			<div :class="['flex items-center gap-1.5 text-sm', dateClass]">
-				<Calendar class="w-3.5 h-3.5" />
-				<span v-if="formattedDate">{{ formattedDate }}</span>
-				<span v-else class="text-gray-300">{{ translate("No deadline") }}</span>
+			<div :class="['relative flex items-center gap-1.5 text-sm', dateClass]">
+				<button
+					type="button"
+					class="flex items-center gap-1.5 hover:text-gray-900 transition-colors"
+					@click.stop="openDueDatePicker(task.exp_end_date)"
+				>
+					<Calendar class="w-3.5 h-3.5" />
+					<span v-if="formattedDate">{{ formattedDate }}</span>
+					<span v-else class="text-gray-300">{{ translate("No deadline") }}</span>
+				</button>
 				<span
 					v-if="task.is_overdue"
 					class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded"
 				>
 					!
 				</span>
+				<input
+					ref="dueDateInputRef"
+					v-model="editableDueDate"
+					type="date"
+					class="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
+					tabindex="-1"
+					@change="updateDueDate"
+					aria-label="Edit due date"
+				/>
 			</div>
 		</div>
 
@@ -452,6 +471,13 @@ onUnmounted(() => {
 				>
 					<Clock class="w-4 h-4" />
 					{{ translate("Add time") }}
+				</button>
+				<button
+					@click="updateBlocked(!task.is_blocked)"
+					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+				>
+					<component :is="task.is_blocked ? Unlock : Lock" class="w-4 h-4" />
+					{{ task.is_blocked ? translate("Unblock") : translate("Mark as blocked") }}
 				</button>
 			</div>
 		</Teleport>
