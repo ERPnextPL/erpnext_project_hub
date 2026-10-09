@@ -21,6 +21,11 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	// Existing time log row (from get_task_timelogs) - switches the modal to edit mode
+	timelog: {
+		type: Object,
+		default: null,
+	},
 });
 
 const emit = defineEmits(["close", "save"]);
@@ -87,10 +92,20 @@ const getPreferredActivityType = (availableTypes = []) => {
 	return availableTypes[0];
 };
 
+// Tracks the last value we set automatically, so a later re-apply (e.g. once
+// projectsSettings finishes loading) can tell an untouched auto-default apart
+// from a value the user picked manually, and avoid clobbering the latter.
+const lastAutoActivityType = ref("");
+
 const applyDefaultActivityType = (availableTypes) => {
 	const defaultType = getPreferredActivityType(availableTypes);
-	if (defaultType) {
+	if (!defaultType) {
+		return;
+	}
+	const current = formData.value.activity_type;
+	if (!current || current === lastAutoActivityType.value) {
 		formData.value.activity_type = defaultType;
+		lastAutoActivityType.value = defaultType;
 	}
 };
 
@@ -98,6 +113,12 @@ const applyDefaultActivityType = (availableTypes) => {
 onMounted(() => {
 	if (store.activityTypes.length === 0) {
 		store.fetchActivityTypes();
+	}
+	if (store.quickDescriptions.length === 0) {
+		store.fetchQuickDescriptions();
+	}
+	if (!store.projectsSettings) {
+		store.fetchProjectsSettings();
 	}
 	// Add escape key listener
 	document.addEventListener("keydown", handleEscapeKey);
@@ -117,6 +138,18 @@ function handleEscapeKey(event) {
 
 // Activity types from store
 const activityTypes = computed(() => store.activityTypes);
+// Each entry: { description, activity_type }. Entries with no activity_type
+// are shown regardless of the currently selected Activity Type.
+const quickDescriptions = computed(() => store.quickDescriptions);
+const filteredQuickDescriptions = computed(() =>
+	quickDescriptions.value
+		.filter((d) => !d.activity_type || d.activity_type === formData.value.activity_type)
+		.map((d) => d.description)
+);
+
+function applyQuickDescription(description) {
+	formData.value.description = description;
+}
 
 function resolveDefaultHours() {
 	const candidate = typeof props.defaultHours === "number" ? props.defaultHours : parseFloat(props.defaultHours);
@@ -137,6 +170,11 @@ watch(
 		if (newVal) {
 			isSaving.value = false;
 			resetForm();
+			if (props.timelog) {
+				fillFormFromTimelog(props.timelog);
+				focusHoursInput();
+				return;
+			}
 			// Set default date to today with current time minus 1 hour
 			const now = new Date();
 			const endTime = new Date(now.getTime() - 60 * 60 * 1000); // Subtract 1 hour
@@ -145,18 +183,34 @@ watch(
 			// Set default activity type from global settings
 			applyDefaultActivityType(activityTypes.value);
 			calculateToTime();
-			if (props.autoFocus) {
-				nextTick(() => {
-					if (hoursInputRef.value) {
-						hoursInputRef.value.focus();
-						hoursInputRef.value.select?.();
-					}
-				});
-			}
+			focusHoursInput();
 		}
 	},
 	{ immediate: true }
 );
+
+function focusHoursInput() {
+	if (!props.autoFocus) return;
+	nextTick(() => {
+		if (hoursInputRef.value) {
+			hoursInputRef.value.focus();
+			hoursInputRef.value.select?.();
+		}
+	});
+}
+
+function fillFormFromTimelog(timelog) {
+	const fromTime = timelog.from_time ? new Date(String(timelog.from_time).replace(" ", "T")) : null;
+	formData.value = {
+		hours: String(timelog.hours ?? ""),
+		activity_type: timelog.activity_type || "",
+		description: timelog.description || "",
+		from_time: fromTime && !Number.isNaN(fromTime.getTime()) ? formatLocalDateTimeValue(fromTime) : "",
+		to_time: "",
+		is_billable: Boolean(timelog.is_billable),
+	};
+	calculateToTime();
+}
 
 watch(
 	() => props.show,
@@ -174,6 +228,16 @@ watch(activityTypes, (newTypes) => {
 	}
 });
 
+// Watch for projects settings to re-apply default activity_type once loaded
+watch(
+	() => store.projectsSettings,
+	() => {
+		if (props.show && activityTypes.value.length > 0) {
+			applyDefaultActivityType(activityTypes.value);
+		}
+	}
+);
+
 function resetForm() {
 	formData.value = {
 		hours: "",
@@ -183,6 +247,7 @@ function resetForm() {
 		to_time: "",
 		is_billable: false,
 	};
+	lastAutoActivityType.value = "";
 }
 
 function calculateToTime() {
@@ -237,8 +302,12 @@ function handleSave() {
 		return;
 	}
 
-	if (formData.value.description.trim().length < 10) {
-		showAlert("Description must have at least 10 characters");
+	const trimmedDescription = formData.value.description.trim();
+	const isPredefinedDescription = quickDescriptions.value.some(
+		(d) => d.description === trimmedDescription
+	);
+	if (!isPredefinedDescription && trimmedDescription.length < 5) {
+		showAlert("Description must have at least 5 characters");
 		return;
 	}
 
@@ -247,6 +316,7 @@ function handleSave() {
 
 	isSaving.value = true;
 	emit("save", {
+		...(props.timelog ? { timelog_name: props.timelog.timelog_name } : {}),
 		task: props.task.name,
 		hours: parseFloat(formData.value.hours),
 		activity_type: formData.value.activity_type,
@@ -298,7 +368,7 @@ function handleClose() {
 							<div class="flex items-center gap-2">
 								<Clock class="w-5 h-5 text-blue-600" />
 								<h3 id="timelog-modal-title" class="text-lg font-semibold text-gray-900">
-									Dodaj czas
+									{{ timelog ? "Edytuj czas" : "Dodaj czas" }}
 								</h3>
 							</div>
 							<button
@@ -408,12 +478,28 @@ function handleClose() {
 									{{ translate("Description") }}
 									<span class="text-red-500">*</span>
 								</label>
+								<div v-if="filteredQuickDescriptions.length" class="flex flex-wrap gap-2 mb-2">
+									<button
+										v-for="quickDescription in filteredQuickDescriptions"
+										:key="quickDescription"
+										type="button"
+										@click="applyQuickDescription(quickDescription)"
+										:class="[
+											'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+											formData.description === quickDescription
+												? 'bg-blue-600 text-white border-blue-600'
+												: 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100',
+										]"
+									>
+										{{ quickDescription }}
+									</button>
+								</div>
 								<textarea
 									v-model="formData.description"
 									required
 									rows="3"
 									:placeholder="
-										translate('Work description (minimum 10 characters)...')
+										translate('Work description (minimum 5 characters)...')
 									"
 									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								></textarea>

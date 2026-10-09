@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import QuickAddTask from "./QuickAddTask.vue";
 import UserSelect from "./UserSelect.vue";
 import TimeLogModal from "./TimeLogModal.vue?v=20241220-2030";
@@ -17,18 +18,20 @@ import {
 	Clock,
 	CheckCircle2,
 	Circle,
-	AlertCircle,
 	FileText,
 	MessageSquare,
 	Paperclip,
 	ChevronDown,
+	ChevronRight,
 	Plus,
 	Trash2,
+	Pencil,
 	Diamond,
 	Folder,
 	Info,
 	Image,
 	Upload,
+	Lock,
 } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
@@ -54,9 +57,29 @@ const props = defineProps({
 const emit = defineEmits(["close"]);
 
 const store = useTaskStore();
+const dateFields = new Set(["exp_start_date", "exp_end_date", "completed_on"]);
+
+function normalizeDateValue(value) {
+	if (!value) return "";
+	if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return value;
+	}
+	const parsed = dayjs(value);
+	return parsed.isValid() ? parsed.format("YYYY-MM-DD") : "";
+}
+
+function normalizeTaskForEdit(task) {
+	const normalized = { ...task };
+	dateFields.forEach((field) => {
+		if (normalized[field]) {
+			normalized[field] = normalizeDateValue(normalized[field]);
+		}
+	});
+	return normalized;
+}
 
 // Local editable state
-const editableTask = ref({ ...props.task });
+const editableTask = ref(normalizeTaskForEdit(props.task));
 const isSaving = ref(false);
 const activeTab = ref("details");
 const showTimeLogModal = ref(false);
@@ -65,6 +88,7 @@ const showMarkdownPreview = ref(false);
 const isEditingDescription = ref(false);
 const showShortcutsInfo = ref(false);
 const shortcutsInfoRef = ref(null);
+const showSubtaskInput = ref(false);
 
 const descriptionMarkdownPreview = computed(() =>
 	renderMarkdown(editableTask.value.description || "")
@@ -78,9 +102,17 @@ const descriptionPreviewButtonLabel = computed(() =>
 
 const statusMenuOpen = ref(false);
 const priorityMenuOpen = ref(false);
+const headerStatusMenuOpen = ref(false);
+const headerPriorityMenuOpen = ref(false);
+const headerAttachmentsOpen = ref(false);
+const headerAttachmentsRef = ref(null);
+const headerDueDateOpen = ref(false);
+const headerDueDateRef = ref(null);
 const showDuePresets = ref(false);
 const statusMenuRef = ref(null);
 const priorityMenuRef = ref(null);
+const headerStatusMenuRef = ref(null);
+const headerPriorityMenuRef = ref(null);
 const duePresetsRef = ref(null);
 const dueLabelRef = ref(null);
 const autosaveIndicatorVisible = ref(false);
@@ -93,6 +125,7 @@ const defaultSectionState = {
 	subtasks: true,
 	attachments: false,
 	comments: false,
+	context: false,
 };
 
 function loadSectionStates() {
@@ -120,9 +153,12 @@ const commentsLoading = ref(false);
 const commentsFetched = ref(false);
 const commentText = ref("");
 const commentMentions = ref([]);
+const commentMentionOptions = { mentions: commentMentions };
 const commentEditorRef = ref(null);
 const commentSubmitting = ref(false);
-const commentHasContent = computed(() => stripHtml(commentText.value).length > 0);
+const commentHasContent = computed(
+	() => stripHtml(commentText.value).length > 0 || /<img[^>]*>/i.test(commentText.value)
+);
 const uploadProgress = ref(0);
 const isUploading = ref(false);
 const fileInputRef = ref(null);
@@ -131,6 +167,7 @@ const dueInputRef = ref(null);
 const assigneeControlRef = ref(null);
 const timeLogModalHours = ref(1);
 const timeLogModalAutoFocus = ref(false);
+const editingTimelog = ref(null);
 const shortcutHighlight = ref(null);
 let shortcutHighlightTimer = null;
 const showDetailsSkeleton = computed(() => isSaving.value && sectionStates.value.details);
@@ -141,7 +178,7 @@ const isFullscreen = ref(false);
 watch(
 	() => props.task,
 	(newTask) => {
-		editableTask.value = { ...newTask };
+		editableTask.value = normalizeTaskForEdit(newTask);
 		attachmentsFetched.value = false;
 		attachments.value = [];
 		commentsFetched.value = false;
@@ -150,6 +187,7 @@ watch(
 		commentMentions.value = [];
 		isEditingDescription.value = false;
 		showMarkdownPreview.value = false;
+		showSubtaskInput.value = false;
 		ensureCommentsLoaded();
 		ensureAttachmentsLoaded();
 		ensureTimeLogsLoaded();
@@ -179,44 +217,12 @@ onMounted(() => {
 	ensureTimeLogsLoaded();
 });
 
-const statusPalette = {
-	Open: {
-		icon: Circle,
-		label: translate("Open"),
-		bg: "bg-blue-50 border border-blue-200",
-		text: "text-blue-700",
-	},
-	Working: {
-		icon: Clock,
-		label: translate("Working"),
-		bg: "bg-blue-600 border border-blue-600",
-		text: "text-white",
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		label: translate("Pending Review"),
-		bg: "bg-purple-600 border border-purple-600",
-		text: "text-white",
-	},
-	Completed: {
-		icon: CheckCircle2,
-		label: translate("Completed"),
-		bg: "bg-green-600 border border-green-600",
-		text: "text-white",
-	},
-	Overdue: {
-		icon: AlertCircle,
-		label: translate("Overdue"),
-		bg: "bg-red-600 border border-red-600",
-		text: "text-white",
-	},
-	Cancelled: {
-		icon: Circle,
-		label: translate("Cancelled"),
-		bg: "bg-gray-100 border border-gray-200",
-		text: "text-slate-500",
-	},
-};
+const statusPalette = Object.fromEntries(
+	TASK_STATUSES.map((status) => {
+		const solid = getStatusSolid(status);
+		return [status, { icon: solid.icon, label: solid.label, bg: solid.bg, text: solid.class }];
+	})
+);
 
 const priorityPalette = {
 	Low: {
@@ -298,10 +304,26 @@ const taskCompletion = computed(() => {
 
 const hasDescription = computed(() => Boolean((editableTask.value.description || "").trim()));
 
+const currentMilestoneName = computed(() => {
+	if (!editableTask.value.milestone) return null;
+	const found = store.milestones.find((m) => m.name === editableTask.value.milestone);
+	return found?.milestone_name || editableTask.value.milestone;
+});
+
 const directSubtasks = computed(() => {
 	return store.tasks
 		.filter((item) => item.parent_task === props.task.name)
 		.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+});
+
+const canAddSubtask = computed(() => {
+	return isTaskActive(editableTask.value.status);
+});
+
+watch(canAddSubtask, (canAdd) => {
+	if (!canAdd) {
+		showSubtaskInput.value = false;
+	}
 });
 
 const statusCycleOrder = computed(() => statusOptions.value.map((opt) => opt.value));
@@ -332,7 +354,10 @@ async function handleMilestoneChange(event) {
 	editableTask.value.milestone = newMilestone;
 
 	try {
-		await store.assignTaskToMilestone(props.task.name, newMilestone);
+		const data = await store.assignTaskToMilestone(props.task.name, newMilestone);
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
 				message: newMilestone
@@ -359,7 +384,10 @@ async function handleProjectChange() {
 	if (newProject === props.task.project) return;
 
 	try {
-		await store.updateTask(props.task.name, { project: newProject });
+		const data = await store.updateTask(props.task.name, { project: newProject });
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({
 				message: translate("Task project changed"),
@@ -393,6 +421,84 @@ async function saveDescription() {
 	isEditingDescription.value = false;
 }
 
+function getPastedImageFiles(event) {
+	return Array.from(event.clipboardData?.items || [])
+		.filter((item) => item.kind === "file" && item.type?.startsWith("image/"))
+		.map((item) => item.getAsFile())
+		.filter(Boolean);
+}
+
+function insertDescriptionMarkdown(markdown, target) {
+	const currentDescription = editableTask.value.description || "";
+	const start = typeof target?.selectionStart === "number" ? target.selectionStart : currentDescription.length;
+	const end = typeof target?.selectionEnd === "number" ? target.selectionEnd : start;
+	const prefix = currentDescription.slice(0, start);
+	const suffix = currentDescription.slice(end);
+	const before = prefix && !prefix.endsWith("\n") ? "\n" : "";
+	const after = suffix && !suffix.startsWith("\n") ? "\n" : "";
+
+	editableTask.value.description = `${prefix}${before}${markdown}${after}${suffix}`;
+	nextTick(() => {
+		const cursor = start + before.length + markdown.length;
+		target?.setSelectionRange?.(cursor, cursor);
+		target?.focus?.();
+	});
+}
+
+async function handleDescriptionPaste(event) {
+	const imageFiles = getPastedImageFiles(event);
+	if (!imageFiles.length) return;
+
+	event.preventDefault();
+	isUploading.value = true;
+	uploadProgress.value = 0;
+
+	const taskName = props.task.name;
+
+	try {
+		const markdownItems = [];
+		let completed = 0;
+		for (const file of imageFiles) {
+			const uploadedFile = await uploadTaskFile(file, {
+				doctype: "Task",
+				docname: taskName,
+				optimize: true,
+				max_width: 1920,
+				max_height: 1920,
+			});
+			if (uploadedFile?.file_url) {
+				markdownItems.push(`![${uploadedFile.file_name || file.name}](${uploadedFile.file_url})`);
+			}
+			completed++;
+			uploadProgress.value = Math.round((completed / imageFiles.length) * 100);
+		}
+
+		if (markdownItems.length) {
+			insertDescriptionMarkdown(markdownItems.join("\n"), event.target);
+			await saveField("description", editableTask.value.description);
+			await fetchAttachments();
+		}
+
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Image added to description"),
+				indicator: "green",
+			});
+		}
+	} catch (error) {
+		console.error("Pasted image upload failed:", error);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: error?.message || translate("Failed to upload file"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		isUploading.value = false;
+		uploadProgress.value = 0;
+	}
+}
+
 function validateDates() {
 	const start = editableTask.value.exp_start_date;
 	const due = editableTask.value.exp_end_date;
@@ -405,8 +511,11 @@ function validateDates() {
 }
 
 	async function saveField(field, value) {
-		const previousValue = props.task[field];
-		if (value === previousValue) return;
+		const previousValue = dateFields.has(field)
+			? normalizeDateValue(props.task[field])
+			: props.task[field];
+		const normalizedValue = dateFields.has(field) ? normalizeDateValue(value) : value;
+		if (normalizedValue === previousValue) return;
 
 		if (field === "exp_end_date" && !validateDates()) {
 			return;
@@ -416,13 +525,13 @@ function validateDates() {
 		let previousStatus = null;
 		let statusChanged = false;
 		try {
-			const updates = { [field]: value };
+			const updates = { [field]: normalizedValue };
 
 			// Jeśli zmieniamy datę realizacji dla zadania ze statusem "Overdue"
 			// i nowa data nie jest w przeszłości, zmień status na "Open"
-			if (field === "exp_end_date" && props.task.status === "Overdue" && value) {
+			if (field === "exp_end_date" && props.task.status === "Overdue" && normalizedValue) {
 				const today = dayjs().startOf("day");
-				const newDueDate = dayjs(value).startOf("day");
+				const newDueDate = dayjs(normalizedValue).startOf("day");
 
 				if (!newDueDate.isBefore(today)) {
 					updates.status = "Open";
@@ -438,7 +547,10 @@ function validateDates() {
 				}
 			}
 
-			await store.updateTask(props.task.name, updates);
+			const data = await store.updateTask(props.task.name, updates);
+			if (data) {
+				Object.assign(editableTask.value, normalizeTaskForEdit(data));
+			}
 			if (realWindow?.frappe && field === "exp_end_date") {
 				realWindow.frappe.show_alert({
 					message: translate("Date updated successfully"),
@@ -462,6 +574,32 @@ function validateDates() {
 			isSaving.value = false;
 		}
 	}
+
+// Not routed through saveField: in My Tasks props.task is not refreshed after a
+// save, so comparing with it would skip switching the flag back.
+async function toggleBlocked(checked) {
+	const previousValue = editableTask.value.is_blocked;
+	const value = checked ? 1 : 0;
+	editableTask.value.is_blocked = value;
+	isSaving.value = true;
+	try {
+		const data = await store.updateTask(props.task.name, { is_blocked: value });
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
+		showAutosaveFeedback();
+	} catch (error) {
+		editableTask.value.is_blocked = previousValue;
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update field"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		isSaving.value = false;
+	}
+}
 
 function showAutosaveFeedback() {
 	autosaveIndicatorVisible.value = true;
@@ -514,6 +652,44 @@ function togglePriorityMenu(event) {
 	}
 }
 
+function toggleHeaderStatusMenu(event) {
+	event.stopPropagation();
+	headerStatusMenuOpen.value = !headerStatusMenuOpen.value;
+	if (headerStatusMenuOpen.value) {
+		headerPriorityMenuOpen.value = false;
+	}
+}
+
+function toggleHeaderPriorityMenu(event) {
+	event.stopPropagation();
+	headerPriorityMenuOpen.value = !headerPriorityMenuOpen.value;
+	if (headerPriorityMenuOpen.value) {
+		headerStatusMenuOpen.value = false;
+	}
+}
+
+function toggleHeaderAttachments(event) {
+	event.stopPropagation();
+	headerAttachmentsOpen.value = !headerAttachmentsOpen.value;
+}
+
+function toggleHeaderDueDate(event) {
+	event.stopPropagation();
+	headerDueDateOpen.value = !headerDueDateOpen.value;
+}
+
+const headerDueDatePresets = computed(() => {
+	const today = dayjs();
+	const dayOfWeek = today.day(); // 0=Sun, 1=Mon..6=Sat
+	const daysToNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek) % 7 || 7;
+	return [
+		{ label: translate("Today"), date: today.format("YYYY-MM-DD") },
+		{ label: translate("Tomorrow"), date: today.add(1, "day").format("YYYY-MM-DD") },
+		{ label: translate("Start of next week"), date: today.add(daysToNextMonday, "day").format("YYYY-MM-DD") },
+		{ label: translate("End of month"), date: today.endOf("month").format("YYYY-MM-DD") },
+	];
+});
+
 async function handleStatusSelection(option) {
 	const newStatus = option.value;
 	const progress = Number(editableTask.value.progress) || 0;
@@ -528,7 +704,32 @@ async function handleStatusSelection(option) {
 		await saveField("progress", 100);
 	}
 	editableTask.value.status = newStatus;
-	await saveField("status", newStatus);
+
+	const updates = { status: newStatus };
+	if (newStatus === "Completed" && !editableTask.value.completed_on) {
+		const today = dayjs().format("YYYY-MM-DD");
+		editableTask.value.completed_on = today;
+		updates.completed_on = today;
+	}
+
+	try {
+		const data = await store.updateTask(props.task.name, updates);
+		if (data) {
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
+		}
+		showAutosaveFeedback();
+	} catch (error) {
+		editableTask.value.status = props.task.status;
+		if (updates.completed_on) {
+			editableTask.value.completed_on = props.task.completed_on || "";
+		}
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Failed to update task"),
+				indicator: "red",
+			});
+		}
+	}
 	statusMenuOpen.value = false;
 }
 
@@ -588,14 +789,31 @@ function setShortcutHighlight(target) {
 }
 
 function openTimeLogModalWithPreset({ hours = 1, autoFocus = false } = {}) {
+	editingTimelog.value = null;
 	timeLogModalHours.value = hours;
 	timeLogModalAutoFocus.value = autoFocus;
+	showTimeLogModal.value = true;
+}
+
+function openEditTimelog(log) {
+	if (!log?.can_edit) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate("Only draft time entries can be updated"),
+				indicator: "orange",
+			});
+		}
+		return;
+	}
+	editingTimelog.value = log;
+	timeLogModalAutoFocus.value = true;
 	showTimeLogModal.value = true;
 }
 
 function closeTimeLogModal() {
 	showTimeLogModal.value = false;
 	timeLogModalAutoFocus.value = false;
+	editingTimelog.value = null;
 }
 
 function focusDueField() {
@@ -663,6 +881,34 @@ function handleDocumentClick(event) {
 		!priorityMenuRef.value.contains(event.target)
 	) {
 		priorityMenuOpen.value = false;
+	}
+	if (
+		headerStatusMenuOpen.value &&
+		headerStatusMenuRef.value &&
+		!headerStatusMenuRef.value.contains(event.target)
+	) {
+		headerStatusMenuOpen.value = false;
+	}
+	if (
+		headerPriorityMenuOpen.value &&
+		headerPriorityMenuRef.value &&
+		!headerPriorityMenuRef.value.contains(event.target)
+	) {
+		headerPriorityMenuOpen.value = false;
+	}
+	if (
+		headerAttachmentsOpen.value &&
+		headerAttachmentsRef.value &&
+		!headerAttachmentsRef.value.contains(event.target)
+	) {
+		headerAttachmentsOpen.value = false;
+	}
+	if (
+		headerDueDateOpen.value &&
+		headerDueDateRef.value &&
+		!headerDueDateRef.value.contains(event.target)
+	) {
+		headerDueDateOpen.value = false;
 	}
 	if (
 		showDuePresets.value &&
@@ -749,15 +995,23 @@ async function persistAllFields() {
 		"priority",
 		"exp_end_date",
 		"exp_start_date",
+		"reference_link",
 		"progress",
 		"description",
 		"expected_time",
+		"completed_on",
 	];
 	const updates = {};
 	fieldsToCheck.forEach((field) => {
-		const current = props.task[field];
+		const current = dateFields.has(field)
+			? normalizeDateValue(props.task[field])
+			: props.task[field];
 		const rawUpdated = editableTask.value[field];
-		const updated = rawUpdated === "" ? null : rawUpdated;
+		const updated = dateFields.has(field)
+			? normalizeDateValue(rawUpdated)
+			: rawUpdated === ""
+			? null
+			: rawUpdated;
 		if (updated === current) return;
 		updates[field] = updated;
 	});
@@ -775,7 +1029,7 @@ async function persistAllFields() {
 	try {
 		const data = await store.updateTask(props.task.name, updates);
 		if (data) {
-			Object.assign(editableTask.value, data);
+			Object.assign(editableTask.value, normalizeTaskForEdit(data));
 		}
 		showAutosaveFeedback();
 	} catch (error) {
@@ -825,6 +1079,17 @@ watch(
 		ensureCommentsLoaded();
 	}
 );
+
+async function navigateToParent() {
+	if (!props.task.parent_task) return;
+	const found = store.tasks.find((t) => t.name === props.task.parent_task);
+	if (found) {
+		store.selectTask(found);
+	} else {
+		const detail = await store.fetchTaskDetail(props.task.parent_task);
+		if (detail) store.selectTask(detail);
+	}
+}
 
 function openInDesk() {
 	realWindow?.open(`/app/task/${props.task.name}`, "_blank");
@@ -885,6 +1150,10 @@ async function loadTimelogs() {
 }
 
 async function handleTimeLogSave(timelogData) {
+	if (timelogData.timelog_name) {
+		await handleTimeLogUpdate(timelogData);
+		return;
+	}
 	try {
 		await store.createTimelog(timelogData);
 		closeTimeLogModal();
@@ -897,6 +1166,34 @@ async function handleTimeLogSave(timelogData) {
 	} catch (error) {
 		if (realWindow?.frappe) {
 			realWindow.frappe.show_alert({ message: "Failed to save time log", indicator: "red" });
+		}
+	}
+}
+
+async function handleTimeLogUpdate({ timelog_name, task, ...updates }) {
+	try {
+		await store.updateTimelog(timelog_name, updates, props.task.name);
+		closeTimeLogModal();
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Time entry updated"), indicator: "green" });
+		}
+	} catch (error) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Failed to update time entry"), indicator: "red" });
+		}
+	}
+}
+
+async function deleteSubtask(childName) {
+	if (!confirm(translate("Are you sure you want to delete this subtask?"))) return;
+	try {
+		await store.deleteTask(childName);
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Subtask deleted"), indicator: "green" });
+		}
+	} catch (error) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({ message: translate("Failed to delete subtask"), indicator: "red" });
 		}
 	}
 }
@@ -933,10 +1230,11 @@ function formatDate(dateStr) {
 
 function formatDateTime(dateStr) {
 	if (!dateStr) return "";
-	return dayjs(dateStr).format("YYYY-MM-DD HH:mm:ss");
+	return dayjs(dateStr).format("YYYY-MM-DD HH:mm");
 }
 
 async function handleSubtaskCreated() {
+	showSubtaskInput.value = false;
 	// Refresh tasks and re-select current task to update children
 	await store.fetchTasks(props.task.project);
 	// Find updated task in store and re-select it
@@ -1014,10 +1312,14 @@ async function fetchComments() {
 
 async function fetchCommentMentions() {
 	try {
-		commentMentions.value = (await attachmentApiCall(
-			"frappe.desk.search.get_names_for_mentions",
-			{ search_term: "" }
+		const mentions = (await attachmentApiCall(
+			"erpnext_projekt_hub.api.project_hub.get_mention_options"
 		)) || [];
+		commentMentions.value = mentions.map((mention) => ({
+			id: mention.id,
+			label: mention.value,
+			value: mention.id,
+		}));
 	} catch (error) {
 		console.error("Failed to load comment mentions:", error);
 		commentMentions.value = [];
@@ -1199,10 +1501,41 @@ function uploadTaskFile(file, options = {}) {
 	});
 }
 
+// The editor shows a base64 preview of a pasted image until its upload resolves.
+// Frappe strips data: URIs when it sanitizes a comment, so sending that preview
+// would store an image tag with no source at all.
+function hasPendingImageUpload(html) {
+	return /<img[^>]+src=["']data:/i.test(html);
+}
+
+async function uploadCommentImage(file) {
+	const uploadedFile = await uploadTaskFile(file, {
+		doctype: "Task",
+		docname: props.task.name,
+		optimize: true,
+		max_width: 1920,
+		max_height: 1920,
+	});
+	await fetchAttachments();
+	return uploadedFile;
+}
+
 async function submitComment() {
 	const editor = commentEditorRef.value?.editor;
 	const content = editor?.getHTML?.().trim?.() || commentText.value.trim();
 	if (!content || commentSubmitting.value) return;
+
+	if (hasPendingImageUpload(content)) {
+		if (realWindow?.frappe) {
+			realWindow.frappe.show_alert({
+				message: translate(
+					"The image is not uploaded yet. Wait for it to finish, or remove it from the comment."
+				),
+				indicator: "orange",
+			});
+		}
+		return;
+	}
 
 	commentSubmitting.value = true;
 	try {
@@ -1270,9 +1603,51 @@ async function deleteAttachment(fileName) {
 				<div class="flex items-start justify-between gap-4">
 					<div class="min-w-0 flex-1">
 						<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+							<template v-if="task.parent_task">
+								<button
+									type="button"
+									class="inline-flex items-center gap-1 rounded px-1 py-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+									@click="navigateToParent"
+									:title="task.parent_task"
+								>
+									{{ task.parent_subject || task.parent_task }}
+								</button>
+								<ChevronRight class="w-3 h-3 text-gray-400 shrink-0" />
+							</template>
 							<span class="font-semibold text-gray-700">{{ task.name }}</span>
 							<span v-if="task.project">{{ task.project }}</span>
-							<span v-if="props.task.is_overdue" class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">
+							<div class="relative" ref="headerDueDateRef">
+								<button
+									type="button"
+									@click="toggleHeaderDueDate"
+									:class="[
+										'inline-flex items-center gap-1 rounded hover:bg-gray-100 px-1.5 py-0.5 transition-colors',
+										editableTask.is_overdue ? 'text-red-600 font-medium' : 'text-gray-500'
+									]"
+								>
+									<Calendar class="w-3 h-3" />
+									<span v-if="editableTask.exp_end_date">{{ dayjs(editableTask.exp_end_date).format('DD.MM.YYYY') }}</span>
+									<span v-else class="text-gray-400">{{ translate("Due date") }}</span>
+								</button>
+								<Transition name="menu-fade">
+									<div
+										v-if="headerDueDateOpen"
+										class="absolute left-0 top-full z-40 mt-1 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+									>
+										<button
+											v-for="preset in headerDueDatePresets"
+											:key="preset.label"
+											type="button"
+											class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+											@click="editableTask.exp_end_date = preset.date; saveField('exp_end_date', preset.date); headerDueDateOpen = false"
+										>
+											<span>{{ preset.label }}</span>
+											<span class="text-xs text-gray-400">{{ dayjs(preset.date).format('DD.MM') }}</span>
+										</button>
+									</div>
+								</Transition>
+							</div>
+							<span v-if="editableTask.is_overdue" class="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">
 								{{ translate("Overdue") }}
 							</span>
 						</div>
@@ -1284,22 +1659,89 @@ async function deleteAttachment(fileName) {
 							@blur="saveField('subject', editableTask.subject)"
 						/>
 						<div class="mt-3 flex flex-wrap items-center gap-2">
-							<button
-								type="button"
-								class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
-								:class="[currentStatusPalette.bg, currentStatusPalette.text]"
-								@click="markAsWorking"
-								:title="translate('Click to mark as working')"
+							<div class="relative" ref="headerStatusMenuRef">
+								<button
+									type="button"
+									class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+									:class="[currentStatusPalette.bg, currentStatusPalette.text]"
+									@click="toggleHeaderStatusMenu"
+								>
+									<component :is="currentStatusPalette.icon" class="w-3.5 h-3.5" />
+									{{ currentStatusPalette.label }}
+								</button>
+								<Transition name="menu-fade">
+									<div
+										v-if="headerStatusMenuOpen"
+										class="absolute left-0 top-full z-40 mt-2 w-44 rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
+									>
+										<button
+											v-for="opt in statusOptions"
+											:key="opt.value"
+											type="button"
+											class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
+											:class="editableTask.status === opt.value ? 'bg-gray-50 text-gray-900 font-medium' : 'text-gray-600'"
+											@click="handleStatusSelection(opt); headerStatusMenuOpen = false"
+										>
+											<component :is="opt.palette.icon" class="h-4 w-4" />
+											{{ opt.palette.label }}
+										</button>
+									</div>
+								</Transition>
+							</div>
+							<div class="relative" ref="headerPriorityMenuRef">
+								<button
+									type="button"
+									class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+									:class="[currentPriorityPalette.bg, currentPriorityPalette.text]"
+									@click="toggleHeaderPriorityMenu"
+								>
+									<Flag class="w-3.5 h-3.5" />
+									{{ currentPriorityPalette.label }}
+								</button>
+								<Transition name="menu-fade">
+									<div
+										v-if="headerPriorityMenuOpen"
+										class="absolute left-0 top-full z-40 mt-2 w-36 rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
+									>
+										<button
+											v-for="opt in priorityOptions"
+											:key="opt.value"
+											type="button"
+											class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
+											:class="editableTask.priority === opt.value ? opt.palette.text + ' font-medium' : 'text-gray-600'"
+											@click="handlePrioritySelection(opt); headerPriorityMenuOpen = false"
+										>
+											<Flag class="h-4 w-4" />
+											{{ opt.palette.label }}
+										</button>
+									</div>
+								</Transition>
+							</div>
+							<label
+								class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium cursor-pointer select-none transition-colors"
+								:class="
+									editableTask.is_blocked
+										? 'border-red-200 bg-red-50 text-red-700'
+										: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+								"
+								:title="translate('Mark as blocked')"
 							>
-								<component :is="currentStatusPalette.icon" class="w-3.5 h-3.5" />
-								{{ currentStatusPalette.label }}
-							</button>
+								<input
+									type="checkbox"
+									class="h-3.5 w-3.5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+									:checked="Boolean(editableTask.is_blocked)"
+									:disabled="isSaving"
+									@change="toggleBlocked($event.target.checked)"
+								/>
+								<Lock class="w-3.5 h-3.5" />
+								{{ translate("Blocked") }}
+							</label>
 							<span
-								class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
-								:class="[currentPriorityPalette.bg, currentPriorityPalette.text]"
+								v-if="currentMilestoneName"
+								class="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700"
 							>
-								<Flag class="w-3.5 h-3.5" />
-								{{ currentPriorityPalette.label }}
+								<Diamond class="w-3.5 h-3.5" />
+								{{ currentMilestoneName }}
 							</span>
 							<button
 								type="button"
@@ -1370,6 +1812,96 @@ async function deleteAttachment(fileName) {
 					</div>
 
 					<div class="flex items-center gap-2 shrink-0">
+						<!-- Attachments button -->
+						<div class="relative" ref="headerAttachmentsRef">
+							<button
+								type="button"
+								class="relative rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+								@click="toggleHeaderAttachments"
+								:title="translate('Attachments')"
+							>
+								<Paperclip class="w-4 h-4" />
+								<span
+									v-if="attachments.length > 0"
+									class="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center leading-none"
+								>{{ attachments.length }}</span>
+							</button>
+							<Transition name="menu-fade">
+								<div
+									v-if="headerAttachmentsOpen"
+									class="absolute right-0 top-full z-50 mt-2 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl overflow-hidden"
+									@dragover.prevent="isDragOver = true"
+									@dragleave="isDragOver = false"
+									@drop.prevent="isDragOver = false; handleDrop($event)"
+								>
+									<div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+										<span class="text-sm font-semibold text-gray-800">{{ translate("Attachments") }}</span>
+										<button
+											type="button"
+											@click.stop="triggerFileInput"
+											:disabled="isUploading"
+											class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+										>
+											<Upload class="h-3.5 w-3.5" />
+											{{ translate("Add file") }}
+										</button>
+										<input
+											ref="fileInputRef"
+											type="file"
+											accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+											multiple
+											class="hidden"
+											@change="handleFileSelect"
+										/>
+									</div>
+									<div class="p-3 max-h-80 overflow-y-auto">
+										<div v-if="isUploading" class="space-y-1 mb-3">
+											<div class="h-1.5 overflow-hidden rounded-full bg-gray-100">
+												<div class="h-full rounded-full bg-blue-500 transition-all" :style="{ width: uploadProgress + '%' }"></div>
+											</div>
+											<p class="text-center text-xs text-gray-500">{{ translate("Uploading") }}... {{ uploadProgress }}%</p>
+										</div>
+										<div v-if="attachmentsLoading" class="py-6 text-center">
+											<div class="mx-auto h-5 w-5 animate-spin rounded-full border-b-2 border-blue-600"></div>
+										</div>
+										<div v-else-if="attachments.length === 0 && !isDragOver" class="py-6 text-center text-sm text-gray-400">
+											{{ translate("No attachments yet") }}
+										</div>
+										<div v-else class="grid grid-cols-3 gap-2">
+											<div
+												v-for="file in attachments"
+												:key="file.name"
+												class="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
+												@click="realWindow?.open(file.file_url, '_blank')"
+											>
+												<div v-if="isImageFile(file)" class="aspect-square">
+													<img :src="file.file_url" :alt="file.file_name" class="h-full w-full object-cover" loading="lazy" />
+												</div>
+												<div v-else class="aspect-square flex flex-col items-center justify-center p-2">
+													<FileText class="mb-1 h-6 w-6 text-gray-400" />
+													<span class="w-full truncate text-center text-[9px] text-gray-500">{{ file.file_name }}</span>
+												</div>
+												<div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
+													<p class="truncate text-[9px] text-white">{{ file.file_name }}</p>
+												</div>
+												<button
+													type="button"
+													@click.stop="deleteAttachment(file.name)"
+													class="absolute right-0.5 top-0.5 rounded-full bg-white/90 p-0.5 text-gray-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+													:title="translate('Delete attachment')"
+												>
+													<Trash2 class="h-2.5 w-2.5" />
+												</button>
+											</div>
+										</div>
+										<div v-if="isDragOver" class="mt-2 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50 px-4 py-4 text-center text-sm text-blue-700">
+											{{ translate("Drop files here") }}
+										</div>
+									</div>
+								</div>
+							</Transition>
+						</div>
+
 						<button
 							v-if="!isTouchDevice"
 							type="button"
@@ -1448,11 +1980,16 @@ async function deleteAttachment(fileName) {
 										rows="8"
 										class="w-full rounded-xl border border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
 										:placeholder="translate('Add description...')"
+										@paste="handleDescriptionPaste"
 									/>
-									<div v-if="showMarkdownPreview" class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap break-words" v-html="descriptionMarkdownPreview"></div>
+									<div
+										v-if="showMarkdownPreview"
+										class="markdown-body rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700"
+										v-html="descriptionMarkdownPreview"
+									></div>
 								</div>
 								<div v-else-if="hasDescription" class="space-y-3 text-sm leading-6 text-gray-700">
-									<div class="whitespace-pre-wrap break-words" v-html="descriptionMarkdownPreview"></div>
+									<div class="markdown-body" v-html="descriptionMarkdownPreview"></div>
 								</div>
 								<button
 									v-else
@@ -1469,98 +2006,59 @@ async function deleteAttachment(fileName) {
 							<div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
 								<div>
 									<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-										{{ translate("Activity") }}
-									</div>
-									<div class="text-sm text-gray-500">
-										{{ comments.length }} {{ translate("comments") }}
-									</div>
-								</div>
-								<span class="text-xs text-gray-500">
-									{{ task.modified ? `${translate('Last change')} ${formatDateTime(task.modified)}` : '' }}
-								</span>
-							</div>
-							<div class="p-4 space-y-4">
-								<div class="space-y-2">
-									<div class="text-sm font-medium text-gray-700">
-										{{ translate("Add a comment") }}
-									</div>
-									<TextEditor
-										ref="commentEditorRef"
-										:content="commentText"
-										@change="handleCommentChange"
-										:editable="true"
-										:mentions="commentMentions"
-										:placeholder="() => translate('Type your comment...')"
-										editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
-									/>
-									<div class="flex justify-end">
-										<button
-											type="button"
-											@click="submitComment"
-											:disabled="commentSubmitting || !commentHasContent"
-											class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											<span v-if="commentSubmitting" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-											{{ translate("Post Comment") }}
-										</button>
-									</div>
-								</div>
-
-								<div v-if="commentsLoading" class="py-8 text-center">
-									<div class="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
-								</div>
-
-								<div v-else-if="comments.length === 0" class="py-8 text-center text-sm text-gray-500">
-									{{ translate("No comments yet") }}
-								</div>
-
-								<div v-else class="space-y-3">
-									<div
-										v-for="comment in comments"
-										:key="comment.name"
-										class="rounded-xl border border-gray-200 bg-gray-50 p-4"
-									>
-										<div class="mb-2 flex items-center justify-between gap-3">
-											<div class="text-xs font-semibold text-gray-700">
-												{{ comment.comment_by || comment.owner }}
-											</div>
-											<div class="text-xs text-gray-500">{{ comment.creation }}</div>
-										</div>
-										<div class="text-sm text-gray-700 whitespace-pre-wrap" v-html="comment.content"></div>
-									</div>
-								</div>
-							</div>
-						</section>
-
-						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-							<div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-								<div>
-									<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
 										{{ translate("Checklist") }}
 									</div>
 									<div class="text-sm text-gray-500">
 										{{ directSubtasks.length ? `${completedSubtasks} / ${directSubtasks.length}` : translate('No subtasks') }}
 									</div>
 								</div>
-								<QuickAddTask
-									:project-id="task.project"
-									:parent-task="task.name"
-									placeholder="Dodaj podzadanie..."
-									@created="handleSubtaskCreated"
-								/>
+								<button
+									v-if="canAddSubtask && !showSubtaskInput"
+									type="button"
+									class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:border-blue-300 hover:bg-blue-100"
+									@click="showSubtaskInput = true"
+								>
+									<Plus class="h-4 w-4" />
+									{{ translate("Add subtask") }}
+								</button>
 							</div>
 							<div class="p-4 space-y-4">
+								<QuickAddTask
+									v-if="canAddSubtask && showSubtaskInput"
+									class="rounded-xl border border-blue-200 bg-blue-50/40 !px-3"
+									:project-id="task.project"
+									:parent-task="task.name"
+									:placeholder="translate('Subtask name...')"
+									:auto-focus="true"
+									:show-cancel="true"
+									@created="handleSubtaskCreated"
+									@cancel="showSubtaskInput = false"
+								/>
 								<div>
 									<div class="mb-2 flex items-center justify-between text-xs text-gray-500">
 										<span>{{ taskCompletion.hint }}</span>
 										<span>{{ taskCompletion.label }}</span>
 									</div>
-									<div class="h-2 overflow-hidden rounded-full bg-gray-100">
-										<div
-											class="h-full rounded-full transition-all duration-300"
-											:class="taskCompletion.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'"
-											:style="{ width: taskCompletion.percent + '%' }"
-										></div>
+									<div class="relative flex h-4 items-center">
+										<div class="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+											<div
+												class="h-full rounded-full transition-all duration-300"
+												:class="taskCompletion.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'"
+												:style="{ width: taskCompletion.percent + '%' }"
+											></div>
+										</div>
+										<input
+											v-if="taskCompletion.source === 'manual' && !isClosed"
+											type="range"
+											min="0"
+											max="100"
+											step="5"
+											:value="taskCompletion.percent"
+											:aria-label="translate('Manual progress')"
+											class="absolute inset-0 h-4 w-full cursor-pointer opacity-0"
+											@input="editableTask.progress = Number($event.target.value)"
+											@change="saveField('progress', Number($event.target.value))"
+										/>
 									</div>
 								</div>
 
@@ -1571,7 +2069,8 @@ async function deleteAttachment(fileName) {
 									<div
 										v-for="child in directSubtasks"
 										:key="child.name"
-										class="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3"
+										class="group flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 cursor-pointer hover:border-blue-200 hover:bg-blue-50 transition-colors"
+										@click="store.selectTask(child)"
 									>
 										<component
 											:is="child.status === 'Completed' ? CheckCircle2 : Circle"
@@ -1585,94 +2084,88 @@ async function deleteAttachment(fileName) {
 												{{ child.status }}
 											</div>
 										</div>
+										<div class="flex items-center gap-1 flex-shrink-0">
+											<ExternalLink class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+											<button
+												@click.stop="deleteSubtask(child.name)"
+												class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+												:title="translate('Delete subtask')"
+											>
+												<Trash2 class="h-3.5 w-3.5" />
+											</button>
+										</div>
 									</div>
 								</div>
 							</div>
 						</section>
+
+							<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+								<div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+									<div>
+										<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+											{{ translate("Activity") }}
+										</div>
+										<div class="text-sm text-gray-500">
+											{{ comments.length }} {{ translate("comments") }}
+										</div>
+									</div>
+									<span class="text-xs text-gray-500">
+										{{ task.modified ? `${translate('Last change')} ${formatDateTime(task.modified)}` : '' }}
+									</span>
+								</div>
+								<div class="p-4 space-y-4">
+									<div class="space-y-2">
+										<div class="text-sm font-medium text-gray-700">
+											{{ translate("Add a comment") }}
+										</div>
+										<TextEditor
+											ref="commentEditorRef"
+											:content="commentText"
+											@change="handleCommentChange"
+											:editable="true"
+											:mentions="commentMentionOptions"
+											:upload-function="uploadCommentImage"
+											:placeholder="() => translate('Type your comment...')"
+											editor-class="min-h-[140px] rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+										/>
+										<div class="flex justify-end">
+											<button
+												type="button"
+												@click="submitComment"
+												:disabled="commentSubmitting || !commentHasContent"
+												class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												<span v-if="commentSubmitting" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+												{{ translate("Post Comment") }}
+											</button>
+										</div>
+									</div>
+									<div v-if="commentsLoading" class="py-8 text-center">
+										<div class="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+									</div>
+									<div v-else-if="comments.length === 0" class="py-8 text-center text-sm text-gray-500">
+										{{ translate("No comments yet") }}
+									</div>
+									<div v-else class="space-y-3">
+										<div
+											v-for="comment in comments"
+											:key="comment.name"
+											class="rounded-xl border border-gray-200 bg-gray-50 p-4"
+										>
+											<div class="mb-2 flex items-center justify-between gap-3">
+												<div class="text-xs font-semibold text-gray-700">
+													{{ comment.comment_by || comment.owner }}
+												</div>
+												<div class="text-xs text-gray-500">{{ formatDate(comment.creation) }}</div>
+											</div>
+											<div class="text-sm text-gray-700 whitespace-pre-wrap" v-html="comment.content"></div>
+										</div>
+									</div>
+								</div>
+							</section>
 					</div>
 
 					<aside class="min-w-0 space-y-4">
-						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-							<div class="border-b border-gray-200 px-4 py-3">
-								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-									{{ translate("Metadata") }}
-								</div>
-							</div>
-							<div class="space-y-4 p-4">
-								<div class="relative" ref="statusMenuRef">
-									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-										{{ translate("Status") }}
-									</div>
-									<button
-										type="button"
-										class="flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-										:class="[currentStatusPalette.bg, currentStatusPalette.text]"
-										@click="toggleStatusMenu"
-									>
-										<div class="flex items-center gap-2">
-											<component :is="currentStatusPalette.icon" class="h-4 w-4" />
-											<span class="font-medium">{{ currentStatusPalette.label }}</span>
-										</div>
-										<ChevronDown class="h-3 w-3 text-gray-400" />
-									</button>
-									<Transition name="menu-fade">
-										<div
-											v-if="statusMenuOpen"
-											class="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
-										>
-											<button
-												v-for="opt in statusOptions"
-												:key="opt.value"
-												type="button"
-												class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-												:class="editableTask.status === opt.value ? opt.palette.text : 'text-gray-600'"
-												@click="handleStatusSelection(opt)"
-											>
-												<component :is="opt.palette.icon" class="h-4 w-4" />
-												{{ opt.palette.label }}
-											</button>
-										</div>
-									</Transition>
-								</div>
-
-								<div class="relative" ref="priorityMenuRef">
-									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-										{{ translate("Priority") }}
-									</div>
-									<button
-										type="button"
-										class="flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-										:class="[currentPriorityPalette.bg, currentPriorityPalette.text]"
-										@click="togglePriorityMenu"
-									>
-										<div class="flex items-center gap-2">
-											<Flag class="h-4 w-4" />
-											<span class="font-medium">{{ currentPriorityPalette.label }}</span>
-										</div>
-										<ChevronDown class="h-3 w-3 text-gray-400" />
-									</button>
-									<Transition name="menu-fade">
-										<div
-											v-if="priorityMenuOpen"
-											class="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg"
-										>
-											<button
-												v-for="opt in priorityOptions"
-												:key="opt.value"
-												type="button"
-												class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-												:class="editableTask.priority === opt.value ? opt.palette.text : 'text-gray-600'"
-												@click="handlePrioritySelection(opt)"
-											>
-												<Flag class="h-4 w-4" />
-												{{ opt.palette.label }}
-											</button>
-										</div>
-									</Transition>
-								</div>
-							</div>
-						</section>
-
 						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
 							<div class="border-b border-gray-200 px-4 py-3">
 								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1696,12 +2189,18 @@ async function deleteAttachment(fileName) {
 						</section>
 
 						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-							<div class="border-b border-gray-200 px-4 py-3">
+							<button
+								type="button"
+								class="flex w-full items-center justify-between px-4 py-3 text-left"
+								:class="sectionStates.context ? 'border-b border-gray-200' : ''"
+								@click="toggleSection('context')"
+							>
 								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
 									{{ translate("Context") }}
 								</div>
-							</div>
-							<div class="space-y-4 p-4">
+								<ChevronDown :class="['h-4 w-4 text-gray-400 transition-transform', sectionStates.context ? 'rotate-180' : '']" />
+							</button>
+							<div v-if="sectionStates.context" class="space-y-4 p-4">
 								<div>
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Project") }}
@@ -1738,6 +2237,18 @@ async function deleteAttachment(fileName) {
 											{{ milestone.milestone_name }}
 										</option>
 									</select>
+								</div>
+								<div>
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Reference link") }}
+									</div>
+									<input
+										v-model="editableTask.reference_link"
+										type="url"
+										@blur="saveField('reference_link', editableTask.reference_link)"
+										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										:placeholder="translate('GitHub branch, documentation, or another URL')"
+									/>
 								</div>
 							</div>
 						</section>
@@ -1817,10 +2328,21 @@ async function deleteAttachment(fileName) {
 										/>
 									</div>
 								</div>
+								<div v-if="editableTask.status === 'Completed'" class="flex flex-col gap-2">
+									<div class="text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Completed on") }}
+									</div>
+									<input
+										v-model="editableTask.completed_on"
+										type="date"
+										@blur="saveField('completed_on', editableTask.completed_on)"
+										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+									/>
+								</div>
 								<div v-if="dateValidationError" class="text-xs text-red-600">
 									{{ dateValidationError }}
 								</div>
-								<div v-if="props.task.is_overdue" class="flex flex-wrap gap-2">
+								<div v-if="editableTask.is_overdue" class="flex flex-wrap gap-2">
 									<button
 										type="button"
 										class="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700"
@@ -1835,121 +2357,6 @@ async function deleteAttachment(fileName) {
 									>
 										{{ translate("Mark working") }}
 									</button>
-								</div>
-							</div>
-						</section>
-
-						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-							<div class="border-b border-gray-200 px-4 py-3">
-								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-									{{ translate("Progress") }}
-								</div>
-							</div>
-							<div class="space-y-4 p-4">
-								<div>
-									<div class="mb-2 flex items-center justify-between text-xs text-gray-500">
-										<span>{{ taskCompletion.hint }}</span>
-										<span>{{ taskCompletion.label }}</span>
-									</div>
-									<div class="h-2 overflow-hidden rounded-full bg-gray-100">
-										<div
-											class="h-full rounded-full transition-all duration-300"
-											:class="taskCompletion.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'"
-											:style="{ width: taskCompletion.percent + '%' }"
-										></div>
-									</div>
-								</div>
-								<div class="text-xs text-gray-500">
-									{{ translate("Progress follows checklist completion when subtasks exist.") }}
-								</div>
-							</div>
-						</section>
-
-						<section class="rounded-2xl border border-gray-200 bg-white shadow-sm">
-							<div class="border-b border-gray-200 px-4 py-3">
-								<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-									{{ translate("Attachments") }}
-								</div>
-							</div>
-							<div class="space-y-4 p-4" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop">
-								<div class="flex items-center justify-between gap-2">
-									<div class="text-xs text-gray-500">
-										{{ attachments.length }} {{ translate("files") }}
-									</div>
-									<button
-										type="button"
-										@click="triggerFileInput"
-										:disabled="isUploading"
-										class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
-									>
-										<Upload class="h-3.5 w-3.5" />
-										{{ translate("Add file") }}
-									</button>
-									<input
-										ref="fileInputRef"
-										type="file"
-										accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-										multiple
-										class="hidden"
-										@change="handleFileSelect"
-									/>
-								</div>
-								<div v-if="isUploading" class="space-y-1">
-									<div class="h-1.5 overflow-hidden rounded-full bg-gray-100">
-										<div
-											class="h-full rounded-full bg-blue-500 transition-all"
-											:style="{ width: uploadProgress + '%' }"
-										></div>
-									</div>
-									<p class="text-center text-xs text-gray-500">
-										{{ translate("Uploading") }}... {{ uploadProgress }}%
-									</p>
-								</div>
-								<div v-else-if="attachmentsLoading" class="py-6 text-center">
-									<div class="mx-auto h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
-								</div>
-								<div v-else-if="attachments.length === 0 && !isDragOver" class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500">
-									{{ translate("No attachments yet") }}
-								</div>
-								<div v-else class="grid grid-cols-2 gap-2">
-									<div
-										v-for="file in attachments"
-										:key="file.name"
-										class="group relative cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
-										@click="realWindow?.open(file.file_url, '_blank')"
-									>
-										<div v-if="isImageFile(file)" class="aspect-square">
-											<img
-												:src="file.file_url"
-												:alt="file.file_name"
-												class="h-full w-full object-cover"
-												loading="lazy"
-											/>
-										</div>
-										<div v-else class="aspect-square flex flex-col items-center justify-center p-2">
-											<FileText class="mb-1 h-7 w-7 text-gray-400" />
-											<span class="w-full truncate text-center text-[10px] text-gray-500">
-												{{ file.file_name }}
-											</span>
-										</div>
-										<div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-											<p class="truncate text-[10px] text-white">{{ file.file_name }}</p>
-											<p v-if="file.file_size" class="text-[9px] text-white/70">
-												{{ formatFileSize(file.file_size) }}
-											</p>
-										</div>
-										<button
-											type="button"
-											@click.stop="deleteAttachment(file.name)"
-											class="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-gray-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
-											:title="translate('Delete attachment')"
-										>
-											<Trash2 class="h-3 w-3" />
-										</button>
-									</div>
-								</div>
-								<div v-if="isDragOver" class="rounded-xl border-2 border-dashed border-blue-400 bg-blue-50 px-4 py-6 text-center text-sm text-blue-700">
-									{{ translate("Drop files here") }}
 								</div>
 							</div>
 						</section>
@@ -2002,6 +2409,20 @@ async function deleteAttachment(fileName) {
 													<span>{{ formatDate(log.from_time) }}</span>
 												</div>
 											</div>
+											<span
+												v-if="!log.can_edit && log.docstatus === 1"
+												class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+											>
+												{{ translate(log.status || "Submitted") }}
+											</span>
+											<button
+												v-if="log.can_edit"
+												@click="openEditTimelog(log)"
+												class="rounded-md p-1 text-gray-400 hover:bg-blue-100 hover:text-blue-600"
+												:title="translate('Edit time log')"
+											>
+												<Pencil class="h-3.5 w-3.5" />
+											</button>
 											<button
 												@click="handleDeleteTimelog(log.timelog_name)"
 												class="rounded-md p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
@@ -2039,6 +2460,7 @@ async function deleteAttachment(fileName) {
 		<TimeLogModal
 			:task="task"
 			:show="showTimeLogModal"
+			:timelog="editingTimelog"
 			:default-hours="timeLogModalHours"
 			:auto-focus="timeLogModalAutoFocus"
 			@close="closeTimeLogModal"

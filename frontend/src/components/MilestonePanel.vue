@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { isMilestoneCompleted } from "../utils/milestone";
 import {
 	Diamond,
 	Plus,
@@ -21,6 +22,10 @@ const translate = (text) => {
 		: text;
 };
 
+const props = defineProps({
+	hideHeader: { type: Boolean, default: false },
+});
+
 const store = useTaskStore();
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
@@ -29,6 +34,14 @@ const openMenuId = ref(null);
 const isCollapsed = ref(false);
 const draggingMilestoneName = ref(null);
 const milestoneDropIndex = ref(null);
+
+const showContent = computed(() => props.hideHeader || !isCollapsed.value);
+
+const sortedMilestones = computed(() => {
+	const active = store.milestones.filter((m) => !isMilestoneCompleted(m));
+	const completed = store.milestones.filter(isMilestoneCompleted);
+	return [...active, ...completed];
+});
 
 // Load milestones when project changes
 watch(
@@ -238,7 +251,7 @@ async function handleMilestoneDrop(event, index) {
 
 	if (!draggedName) return;
 
-	const order = [...store.milestones.map((milestone) => milestone.name)];
+	const order = [...sortedMilestones.value.map((milestone) => milestone.name)];
 	const fromIndex = order.findIndex((name) => name === draggedName);
 
 	if (fromIndex === -1 || fromIndex === index) return;
@@ -319,6 +332,9 @@ async function handleDrop(event, milestoneName) {
 
 onMounted(() => {
 	document.addEventListener("click", handleClickOutside);
+	if (!store.milestoneStatuses.length) {
+		store.fetchMilestoneStatuses();
+	}
 });
 
 onUnmounted(() => {
@@ -330,6 +346,7 @@ onUnmounted(() => {
 	<div class="milestone-panel flex h-full min-h-0 flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 		<!-- Header -->
 		<div
+			v-if="!hideHeader"
 			class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
 			@click="isCollapsed = !isCollapsed"
 		>
@@ -359,7 +376,7 @@ onUnmounted(() => {
 
 		<!-- Active Filter Indicator -->
 		<div
-			v-if="store.activeMilestoneFilter.length && !isCollapsed"
+			v-if="store.activeMilestoneFilter.length && showContent"
 			class="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between"
 		>
 			<span class="text-xs text-blue-700 dark:text-blue-400">
@@ -375,7 +392,7 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Milestone List -->
-		<div v-if="!isCollapsed" class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+		<div v-if="showContent" class="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
 			<div
 				@click="store.setMilestoneFilter(store.NO_MILESTONE_FILTER)"
 				:class="[
@@ -400,7 +417,7 @@ onUnmounted(() => {
 				</div>
 			</div>
 			<div
-				v-for="(milestone, index) in store.milestones"
+				v-for="(milestone, index) in sortedMilestones"
 				:key="milestone.name"
 				@click="handleMilestoneClick(milestone)"
 				:draggable="true"
@@ -519,9 +536,24 @@ onUnmounted(() => {
 			</div>
 		</div>
 
+		<!-- Footer add button (dropdown mode only) -->
+		<div
+			v-if="hideHeader && showContent"
+			class="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700"
+		>
+			<button
+				@click="showCreateModal = true"
+				class="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+			>
+				<Plus class="w-3.5 h-3.5" />
+				{{ translate("Add milestone") }}
+			</button>
+		</div>
+
 		<!-- Modals -->
 		<MilestoneModal
 			:show="showCreateModal"
+			:statuses="store.milestoneStatuses"
 			@save="handleCreate"
 			@close="showCreateModal = false"
 		/>
@@ -529,6 +561,7 @@ onUnmounted(() => {
 		<MilestoneModal
 			:show="showEditModal"
 			:milestone="editingMilestone"
+			:statuses="store.milestoneStatuses"
 			edit-mode
 			@save="handleUpdate"
 			@close="

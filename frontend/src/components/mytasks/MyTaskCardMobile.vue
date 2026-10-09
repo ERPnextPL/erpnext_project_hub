@@ -6,10 +6,7 @@ import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import {
-	Circle,
-	Clock,
 	CheckCircle2,
-	AlertCircle,
 	Flag,
 	Calendar,
 	Folder,
@@ -17,7 +14,9 @@ import {
 	Plus,
 	ChevronRight,
 	FileText,
+	Lock,
 } from "lucide-vue-next";
+import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
 
 const props = defineProps({
 	task: {
@@ -33,44 +32,9 @@ const subtaskSubject = ref("");
 const realWindow = getRealWindow();
 
 // Status config
-const statusConfig = {
-	Open: {
-		icon: Circle,
-		class: "text-slate-700",
-		bg: "bg-blue-100 border border-blue-200",
-		label: translate("Open"),
-	},
-	Working: {
-		icon: Clock,
-		class: "text-white",
-		bg: "bg-blue-600 border border-blue-600",
-		label: translate("Working"),
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-purple-600 border border-purple-600",
-		label: translate("Pending Review"),
-	},
-	Completed: {
-		icon: CheckCircle2,
-		class: "text-white",
-		bg: "bg-emerald-600 border border-emerald-600",
-		label: translate("Completed"),
-	},
-	Overdue: {
-		icon: AlertCircle,
-		class: "text-white",
-		bg: "bg-red-600 border border-red-600",
-		label: translate("Overdue"),
-	},
-	Cancelled: {
-		icon: Circle,
-		class: "text-slate-500",
-		bg: "bg-gray-100 border border-gray-200",
-		label: translate("Cancelled"),
-	},
-};
+const statusConfig = Object.fromEntries(
+	TASK_STATUSES.map((status) => [status, getStatusSolid(status)])
+);
 
 const priorityConfig = {
 	Urgent: {
@@ -119,7 +83,7 @@ const formattedDate = computed(() => {
 });
 
 const canAddSubtask = computed(() => {
-	return !["Completed", "Cancelled"].includes(props.task.status);
+	return isTaskActive(props.task.status);
 });
 
 const dateClass = computed(() => {
@@ -318,6 +282,15 @@ onUnmounted(() => {
 					>
 						<component :is="currentStatus.icon" class="w-3 h-3" />
 						{{ currentStatus.label }}
+					</span>
+
+					<!-- Blocked flag (switched in the task panel on touch devices) -->
+					<span
+						v-if="task.is_blocked"
+						class="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200"
+					>
+						<Lock class="w-3 h-3" />
+						{{ translate("Blocked") }}
 					</span>
 
 					<!-- Priority -->

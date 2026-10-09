@@ -9,11 +9,14 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
+    BlockedToggle: typeof import('./src/components/shared/BlockedToggle.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
+    MilestoneDropdown: typeof import('./src/components/MilestoneDropdown.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']
     MilestonePanel: typeof import('./src/components/MilestonePanel.vue')['default']
     MilestoneSidebar: typeof import('./src/components/MilestoneSidebar.vue')['default']
+    MilestoneTrack: typeof import('./src/components/MilestoneTrack.vue')['default']
     MyTaskCardMobile: typeof import('./src/components/mytasks/MyTaskCardMobile.vue')['default']
     MyTaskFilters: typeof import('./src/components/mytasks/MyTaskFilters.vue')['default']
     MyTaskList: typeof import('./src/components/mytasks/MyTaskList.vue')['default']
@@ -21,8 +24,12 @@ declare module 'vue' {
     OutlinerNav: typeof import('./src/components/OutlinerNav.vue')['default']
     PriorityBadge: typeof import('./src/components/shared/PriorityBadge.vue')['default']
     ProjectAttachmentsSidebar: typeof import('./src/components/ProjectAttachmentsSidebar.vue')['default']
+    ProjectCard: typeof import('./src/components/ProjectCard.vue')['default']
     ProjectInfoPanel: typeof import('./src/components/ProjectInfoPanel.vue')['default']
+    ProjectListHeader: typeof import('./src/components/ProjectListHeader.vue')['default']
+    ProjectListRow: typeof import('./src/components/ProjectListRow.vue')['default']
     ProjectManagerPanel: typeof import('./src/components/ProjectManagerPanel.vue')['default']
+    ProjectStatusStrip: typeof import('./src/components/ProjectStatusStrip.vue')['default']
     ProjectTaskCardMobile: typeof import('./src/components/ProjectTaskCardMobile.vue')['default']
     ProjectTeam: typeof import('./src/components/ProjectTeam.vue')['default']
     QuickAddTask: typeof import('./src/components/QuickAddTask.vue')['default']
@@ -37,5 +44,7 @@ declare module 'vue' {
     TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']
+    WorkPlanEntryModal: typeof import('./src/components/work-planning/WorkPlanEntryModal.vue')['default']
+    WorkPlanGrid: typeof import('./src/components/work-planning/WorkPlanGrid.vue')['default']
   }
 }

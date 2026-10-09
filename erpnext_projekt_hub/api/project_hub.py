@@ -5,7 +5,16 @@ Provides CRUD operations for tasks in a hierarchical tree view.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, today
+from frappe.utils import cint, flt, today
+
+from erpnext_projekt_hub.access import (
+	PROJEKT_HUB_ROLE,
+	get_projekt_hub_user_names,
+	require_project_hub_access,
+)
+from erpnext_projekt_hub.events.task_events import _walk_ancestors
+from erpnext_projekt_hub.events.todo_events import sync_task_todo_dates
+from erpnext_projekt_hub.overrides.task import compute_is_overdue
 
 
 def _get_incomplete_subtasks(task_name: str) -> list:
@@ -92,8 +101,9 @@ def get_projects():
 	- Projects Manager / System Manager: sees all projects (except Cancelled)
 	- Projects User: sees only projects where they have tasks assigned or are project members
 
-	Returns projects grouped by status (active vs completed).
+	Returns projects grouped by status (active vs on hold vs completed).
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 	user_roles = frappe.get_roles(user)
 
@@ -118,6 +128,8 @@ def get_projects():
 				"expected_start_date",
 				"expected_end_date",
 				"priority",
+				"project_manager",
+				"customer",
 			],
 			order_by="status asc, modified desc",
 		)
@@ -156,7 +168,7 @@ def get_projects():
 		all_user_projects = list(set(project_names_from_tasks + project_names_from_membership))
 
 		if not all_user_projects:
-			return {"active": [], "completed": [], "is_manager": False}
+			return {"active": [], "on_hold": [], "completed": [], "is_manager": False}
 
 		# Get project details
 		projects = frappe.get_all(
@@ -170,13 +182,45 @@ def get_projects():
 				"expected_start_date",
 				"expected_end_date",
 				"priority",
+				"project_manager",
+				"customer",
 			],
 			order_by="status asc, modified desc",
 		)
 
+	# Resolve project_manager emails to full names in one batch
+	manager_emails = list({p["project_manager"] for p in projects if p.get("project_manager")})
+	manager_names = {}
+	if manager_emails:
+		rows = frappe.get_all(
+			"User",
+			filters={"name": ["in", manager_emails]},
+			fields=["name", "full_name"],
+		)
+		manager_names = {r["name"]: r["full_name"] for r in rows}
+
+	# Resolve customer names and logos in one batch
+	customer_ids = list({p["customer"] for p in projects if p.get("customer")})
+	customer_data = {}
+	if customer_ids:
+		rows = frappe.get_all(
+			"Customer",
+			filters={"name": ["in", customer_ids]},
+			fields=["name", "customer_name", "image"],
+		)
+		customer_data = {r["name"]: {"customer_name": r["customer_name"], "image": r["image"]} for r in rows}
+
 	# Add task count, user's task count, assigned users count, and next milestone for each project
 	for project in projects:
-		project["task_count"] = frappe.db.count("Task", {"project": project["name"]})
+		project["project_manager_name"] = manager_names.get(
+			project.get("project_manager"), project.get("project_manager")
+		)
+		cdata = customer_data.get(project.get("customer"), {})
+		project["customer_name"] = cdata.get("customer_name")
+		project["customer_image"] = cdata.get("image")
+		project["task_count"] = frappe.db.count(
+			"Task", {"project": project["name"], "status": ["!=", "Cancelled"]}
+		)
 
 		# Count user's assigned tasks in this project
 		if not is_manager:
@@ -184,7 +228,7 @@ def get_projects():
 				"""
 				SELECT COUNT(*) as count
 				FROM `tabTask`
-				WHERE project = %s AND _assign LIKE %s
+				WHERE project = %s AND _assign LIKE %s AND status != 'Cancelled'
 			""",
 				(project["name"], f"%{user}%"),
 				as_dict=True,
@@ -241,11 +285,35 @@ def get_projects():
 			project["next_milestone_date"] = None
 			project["days_to_milestone"] = None
 
-	# Separate active and completed projects
-	active_projects = [p for p in projects if p["status"] != "Completed"]
+	# Separate active, on hold and completed projects
+	active_projects = [p for p in projects if p["status"] not in ("On hold", "Completed")]
+	on_hold_projects = [p for p in projects if p["status"] == "On hold"]
 	completed_projects = [p for p in projects if p["status"] == "Completed"]
 
-	return {"active": active_projects, "completed": completed_projects, "is_manager": is_manager}
+	return {
+		"active": active_projects,
+		"on_hold": on_hold_projects,
+		"completed": completed_projects,
+		"is_manager": is_manager,
+	}
+
+
+def _get_customer_contact(contact_name: str | None) -> dict:
+	"""Return contact details (name/email/phone) for the given Contact, if any."""
+	if not contact_name:
+		return {}
+
+	contact = frappe.db.get_value(
+		"Contact", contact_name, ["full_name", "email_id", "phone", "mobile_no"], as_dict=True
+	)
+	if not contact:
+		return {}
+
+	return {
+		"customer_contact_name": contact.get("full_name"),
+		"customer_contact_email": contact.get("email_id"),
+		"customer_contact_phone": contact.get("phone") or contact.get("mobile_no"),
+	}
 
 
 def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
@@ -267,6 +335,7 @@ def _is_project_manager_user(project_doc, user: str | None = None) -> bool:
 @frappe.whitelist()
 def get_project_requests(project: str):
 	"""Return customer/change requests linked to a project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -324,6 +393,157 @@ def get_project_requests(project: str):
 
 
 @frappe.whitelist()
+def create_customer_request(
+	project: str,
+	subject: str,
+	request_date: str | None = None,
+	source: str | None = None,
+	requested_by: str | None = None,
+	notes: str | None = None,
+	business_value: str | None = None,
+	analysis: str | None = None,
+	estimated_hours: str | None = None,
+	currency: str | None = None,
+	estimated_amount: str | None = None,
+	quotation: str | None = None,
+):
+	"""Create a Customer Request from the Projekt HUB UI."""
+	require_project_hub_access()
+	if not project:
+		frappe.throw(_("Project is required"))
+	if not subject:
+		frappe.throw(_("Subject is required"))
+	if not frappe.has_permission("Customer Request", "create"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+	if not project_doc.customer:
+		frappe.throw(_("Project must have a customer"))
+
+	request = frappe.get_doc(
+		{
+			"doctype": "Customer Request",
+			"project": project_doc.name,
+			"customer": project_doc.customer,
+			"subject": subject,
+		}
+	)
+	for fieldname, value in {
+		"request_date": request_date,
+		"source": source,
+		"requested_by": requested_by,
+		"notes": notes,
+		"business_value": business_value,
+		"analysis": analysis,
+		"estimated_hours": estimated_hours,
+		"currency": currency,
+		"estimated_amount": estimated_amount,
+		"quotation": quotation,
+	}.items():
+		if value not in (None, ""):
+			request.set(fieldname, value)
+
+	request.insert()
+
+	return {
+		"name": request.name,
+		"project": request.project,
+		"customer": request.customer,
+		"subject": request.subject,
+	}
+
+
+@frappe.whitelist()
+def search_requested_by(project: str, txt: str | None = None):
+	"""Search employees that can be used in the Requested By field."""
+	require_project_hub_access()
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	filters = {"status": "Active"}
+	if project_doc.company:
+		filters["company"] = project_doc.company
+
+	or_filters = []
+	if txt:
+		term = f"%{txt}%"
+		or_filters = [
+			["name", "like", term],
+			["employee_name", "like", term],
+			["user_id", "like", term],
+		]
+
+	employees = frappe.get_all(
+		"Employee",
+		filters=filters,
+		or_filters=or_filters,
+		fields=["name", "employee_name", "user_id"],
+		order_by="employee_name asc, name asc",
+		limit_page_length=50,
+		ignore_permissions=True,
+	)
+
+	return [
+		{
+			"value": employee.name,
+			"label": employee.employee_name or employee.name,
+			"description": employee.user_id or "",
+		}
+		for employee in employees
+	]
+
+
+@frappe.whitelist()
+def get_customer_request_dropdown_options(project: str):
+	"""Return dropdown options used by the Customer Request modal."""
+	require_project_hub_access()
+	if not project:
+		frappe.throw(_("Project is required"))
+
+	project_doc = frappe.get_doc("Project", project)
+	if not project_doc.has_permission("read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	currencies = frappe.get_all(
+		"Currency",
+		fields=["name"],
+		order_by="name asc",
+		limit_page_length=200,
+		ignore_permissions=True,
+	)
+
+	quotation_filters = {"docstatus": ["<", 2]}
+	if project_doc.customer:
+		quotation_filters.update({"quotation_to": "Customer", "party_name": project_doc.customer})
+
+	quotations = frappe.get_all(
+		"Quotation",
+		filters=quotation_filters,
+		fields=["name", "title", "transaction_date", "grand_total", "currency"],
+		order_by="modified desc",
+		limit_page_length=50,
+	)
+
+	return {
+		"currencies": [{"value": currency.name, "label": currency.name} for currency in currencies],
+		"quotations": [
+			{
+				"value": quotation.name,
+				"label": quotation.title or quotation.name,
+				"description": quotation.name,
+			}
+			for quotation in quotations
+		],
+	}
+
+
+@frappe.whitelist()
 def get_project_tasks(
 	project: str,
 	status: str | None = None,
@@ -338,6 +558,7 @@ def get_project_tasks(
 	Get all tasks for a project with hierarchical structure.
 	Returns tasks sorted by parent and idx for tree building.
 	"""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -367,6 +588,7 @@ def get_project_tasks(
 		"creation",
 		"modified",
 		"project",
+		"is_blocked",
 	]
 
 	task_filters = {"project": project}
@@ -421,6 +643,9 @@ def get_project_tasks(
 	# Keep tree structure by including missing parents
 	tasks = _include_missing_parents(tasks, project, fields)
 
+	for task in tasks:
+		task["is_overdue"] = compute_is_overdue(task)
+
 	# Deterministic sort
 	tasks = sorted(
 		tasks,
@@ -454,10 +679,35 @@ def get_project_tasks(
 		as_dict=1,
 	)
 
-	# Get customer name if customer is set
+	# Get customer name, logo and primary contact if customer is set
 	customer_name = None
+	customer_image = None
+	customer_primary_contact = None
 	if project_doc.customer:
-		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
+		cdata = frappe.db.get_value(
+			"Customer",
+			project_doc.customer,
+			["customer_name", "image", "customer_primary_contact"],
+			as_dict=True,
+		)
+		if cdata:
+			customer_name = cdata.get("customer_name")
+			customer_image = cdata.get("image")
+			customer_primary_contact = cdata.get("customer_primary_contact")
+
+	customer_contact = _get_customer_contact(customer_primary_contact)
+
+	task_counts = frappe.db.sql(
+		"""
+		SELECT
+			COUNT(*) AS total_tasks,
+			SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed_tasks
+		FROM `tabTask`
+		WHERE project = %s AND COALESCE(is_group, 0) = 0 AND status != 'Cancelled'
+		""",
+		project,
+		as_dict=True,
+	)[0]
 
 	return {
 		"project": {
@@ -471,10 +721,14 @@ def get_project_tasks(
 			"actual_end_date": getattr(project_doc, "actual_end_date", None),
 			"customer": project_doc.customer,
 			"customer_name": customer_name,
+			"customer_image": customer_image,
+			**customer_contact,
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
 			"is_manager": _is_project_manager_user(project_doc),
+			"total_tasks": cint(task_counts.total_tasks),
+			"completed_tasks": cint(task_counts.completed_tasks),
 		},
 		"tasks": tasks,
 	}
@@ -483,6 +737,7 @@ def get_project_tasks(
 @frappe.whitelist()
 def get_project_financials(project: str):
 	"""Return financial KPIs and reported hours breakdown for a project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -493,6 +748,7 @@ def get_project_financials(project: str):
 	hours_by_user = frappe.db.sql(
 		"""
 		SELECT
+			ts.employee,
 			ts.employee_name,
 			ts.owner AS user_email,
 			COALESCE(SUM(tsd.hours), 0) AS hours,
@@ -500,7 +756,7 @@ def get_project_financials(project: str):
 		FROM `tabTimesheet Detail` tsd
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		WHERE tsd.project = %s AND ts.docstatus < 2
-		GROUP BY ts.owner, ts.employee_name, ts.docstatus
+		GROUP BY ts.employee, ts.employee_name, ts.owner, ts.docstatus
 		ORDER BY hours DESC
 		""",
 		project,
@@ -511,8 +767,8 @@ def get_project_financials(project: str):
 	draft_hours = 0.0
 	hours_map = {}
 	for row in hours_by_user:
-		key = row["user_email"] or row["employee_name"] or "Unknown"
-		label = row["employee_name"] or row["user_email"] or "Unknown"
+		key = row["employee"] or row["user_email"] or row["employee_name"] or "Unknown"
+		label = row["employee_name"] or row["user_email"] or row["employee"] or "Unknown"
 		if key not in hours_map:
 			hours_map[key] = {"label": label, "submitted": 0.0, "draft": 0.0}
 		if row["docstatus"] == 1:
@@ -551,10 +807,21 @@ def get_project_financials(project: str):
 	)
 
 	total_reported_hours = round(submitted_hours + draft_hours, 2)
+	hourly_cost_rate = _get_execution_hourly_cost_rate()
+	estimated_costing = float(getattr(project_doc, "estimated_costing", 0) or 0)
+	total_costing_amount = float(getattr(project_doc, "total_costing_amount", 0) or 0)
+	budget_total_hours = estimated_costing / hourly_cost_rate if hourly_cost_rate else 0
+	budget_used_hours = total_costing_amount / hourly_cost_rate if hourly_cost_rate else 0
+	budget_remaining_hours = (
+		max(estimated_costing - total_costing_amount, 0) / hourly_cost_rate if hourly_cost_rate else 0
+	)
+	budget_hours_progress = (
+		min(100, round((budget_used_hours / budget_total_hours) * 100)) if budget_total_hours else 0
+	)
 
 	return {
-		"estimated_costing": float(getattr(project_doc, "estimated_costing", 0) or 0),
-		"total_costing_amount": float(getattr(project_doc, "total_costing_amount", 0) or 0),
+		"estimated_costing": estimated_costing,
+		"total_costing_amount": total_costing_amount,
 		"total_purchase_cost": float(getattr(project_doc, "total_purchase_cost", 0) or 0),
 		"gross_margin": float(getattr(project_doc, "gross_margin", 0) or 0),
 		"per_gross_margin": float(getattr(project_doc, "per_gross_margin", 0) or 0),
@@ -563,8 +830,31 @@ def get_project_financials(project: str):
 		"total_hours": total_reported_hours,
 		"submitted_hours": round(submitted_hours, 2),
 		"draft_hours": round(draft_hours, 2),
+		"hourly_cost_rate": round(hourly_cost_rate, 2),
+		"budget_total_hours": round(budget_total_hours, 2),
+		"budget_used_hours": round(budget_used_hours, 2),
+		"budget_remaining_hours": round(budget_remaining_hours, 2),
+		"budget_hours_progress": budget_hours_progress,
 		"hours_per_user": hours_per_user,
 	}
+
+
+def _get_execution_hourly_cost_rate() -> float:
+	for activity_type in ("Wykonanie", "Execution"):
+		rates = frappe.get_all(
+			"Activity Cost",
+			filters={"activity_type": activity_type, "costing_rate": [">", 0]},
+			fields=["costing_rate"],
+		)
+		if rates:
+			return sum(float(row.costing_rate or 0) for row in rates) / len(rates)
+
+	for activity_type in ("Wykonanie", "Execution"):
+		rate = frappe.db.get_value("Activity Type", {"activity_type": activity_type}, "costing_rate")
+		if rate:
+			return float(rate)
+
+	return 0.0
 
 
 @frappe.whitelist()
@@ -574,12 +864,16 @@ def update_project(
 	expected_end_date: str | None = None,
 	notes: str | None = None,
 ):
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
 	project_doc = frappe.get_doc("Project", project)
 
-	if not frappe.has_permission("Project", "write", doc=project_doc):
+	current_user = frappe.session.user
+	has_write = frappe.has_permission("Project", "write", doc=project_doc)
+	is_assigned_manager = bool(getattr(project_doc, "project_manager", None) == current_user)
+	if not has_write and not is_assigned_manager:
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 	if expected_start_date == "":
@@ -627,8 +921,21 @@ def update_project(
 	)
 
 	customer_name = None
+	customer_image = None
+	customer_primary_contact = None
 	if project_doc.customer:
-		customer_name = frappe.db.get_value("Customer", project_doc.customer, "customer_name")
+		cdata = frappe.db.get_value(
+			"Customer",
+			project_doc.customer,
+			["customer_name", "image", "customer_primary_contact"],
+			as_dict=True,
+		)
+		if cdata:
+			customer_name = cdata.get("customer_name")
+			customer_image = cdata.get("image")
+			customer_primary_contact = cdata.get("customer_primary_contact")
+
+	customer_contact = _get_customer_contact(customer_primary_contact)
 
 	return {
 		"name": project_doc.name,
@@ -641,6 +948,8 @@ def update_project(
 		"actual_end_date": getattr(project_doc, "actual_end_date", None),
 		"customer": project_doc.customer,
 		"customer_name": customer_name,
+		"customer_image": customer_image,
+		**customer_contact,
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -656,17 +965,32 @@ def create_task(
 	priority: str = "Medium",
 	status: str = "Open",
 	exp_end_date: str | None = None,
+	milestone: str | None = None,
+	assign: str | None = None,
 ):
 	"""Create a new task."""
+	require_project_hub_access()
 	if not subject or not project:
 		frappe.throw(_("Subject and Project are required"))
 
 	if parent_task:
 		status = "Open"
 
+	if milestone:
+		milestone_doc = frappe.get_doc("Project Milestone", milestone)
+		if milestone_doc.project != project:
+			frappe.throw(_("Milestone does not belong to the selected project"))
+
 	# If parent_task is provided, ensure it's a group task
+	parent = None
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
+		if parent.status in ("Completed", "Cancelled"):
+			frappe.throw(
+				_("Cannot add a subtask to {0} because it is {1}").format(
+					frappe.bold(parent.subject), _(parent.status)
+				)
+			)
 		if not parent.is_group:
 			# Automatically make it a group
 			parent.is_group = 1
@@ -691,14 +1015,21 @@ def create_task(
 			"priority": priority,
 			"status": status,
 			"exp_end_date": exp_end_date,
+			"milestone": milestone,
 			"idx": new_idx,
 		}
 	)
 	task.insert()
 
+	if assign:
+		from frappe.desk.form.assign_to import add as add_assignment
+
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": [assign]})
+
 	return {
 		"name": task.name,
 		"subject": task.subject,
+		"project": task.project,
 		"status": task.status,
 		"priority": task.priority,
 		"parent_task": task.parent_task,
@@ -706,6 +1037,8 @@ def create_task(
 		"exp_start_date": task.exp_start_date,
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
+		"milestone": task.get("milestone"),
+		"_assign": frappe.as_json([assign]) if assign else task.get("_assign"),
 		"idx": task.idx,
 	}
 
@@ -713,6 +1046,7 @@ def create_task(
 @frappe.whitelist()
 def update_task(task_name: str, **kwargs):
 	"""Update task fields."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -746,6 +1080,9 @@ def update_task(task_name: str, **kwargs):
 				"exp_end_date": task.exp_end_date,
 				"progress": task.progress,
 				"description": task.description,
+				"reference_link": getattr(task, "reference_link", None),
+				"is_blocked": task.get("is_blocked"),
+				"is_overdue": compute_is_overdue(task),
 			}
 
 	# Allowed fields to update
@@ -757,15 +1094,20 @@ def update_task(task_name: str, **kwargs):
 		"exp_end_date",
 		"progress",
 		"description",
+		"reference_link",
 		"is_group",
 		"project",
 		"expected_time",
+		"is_blocked",
 	]
 
 	for field in allowed_fields:
 		if field not in kwargs:
 			continue
-		task.set(field, kwargs[field])
+		value = kwargs[field]
+		if field == "is_blocked":
+			value = cint(value)
+		task.set(field, value)
 
 	# Set completed_on date when task is completed, clear it otherwise
 	if kwargs.get("status") == "Completed":
@@ -786,9 +1128,12 @@ def update_task(task_name: str, **kwargs):
 		"exp_end_date": task.exp_end_date,
 		"progress": task.progress,
 		"description": task.description,
+		"reference_link": getattr(task, "reference_link", None),
 		"project": task.project,
 		"expected_time": getattr(task, "expected_time", None),
 		"completed_on": task.completed_on,
+		"is_blocked": task.get("is_blocked"),
+		"is_overdue": compute_is_overdue(task),
 	}
 
 
@@ -798,6 +1143,7 @@ def get_all_projects():
 	Get list of all active projects for task project change dropdown.
 	Returns only non-cancelled and non-template projects.
 	"""
+	require_project_hub_access()
 	projects = frappe.get_all(
 		"Project",
 		filters={"status": ["not in", ["Cancelled", "Template"]]},
@@ -810,6 +1156,7 @@ def get_all_projects():
 @frappe.whitelist()
 def delete_task(task_name: str):
 	"""Delete a task and optionally its children."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -821,7 +1168,18 @@ def delete_task(task_name: str):
 		for child in children:
 			delete_task(child["name"])
 
+	# Clear links that would otherwise prevent deletion, while retaining the old
+	# parent for the hierarchy roll-up below.
+	old_parent = frappe.db.get_value("Task", task_name, "parent_task")
+	frappe.db.set_value("Task", task_name, "parent_task", None, update_modified=False)
+	frappe.db.delete("Task Depends On", {"task": task_name})
+	frappe.db.sql("UPDATE `tabTimesheet Detail` SET task = NULL WHERE task = %s", task_name)
 	frappe.delete_doc("Task", task_name)
+
+	# The parent link was cleared before deletion so on_task_trash couldn't see it -
+	# roll up progress to the real old parent here instead.
+	if old_parent:
+		_walk_ancestors(old_parent, reopen=False)
 
 	return {"success": True}
 
@@ -836,6 +1194,7 @@ def reorder_task(
 	Reorder a task - change its parent and/or position.
 	This handles both reparenting and reordering within the same parent.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -847,6 +1206,12 @@ def reorder_task(
 		# If new parent exists, ensure it's a group
 		if parent_task:
 			new_parent = frappe.get_doc("Task", parent_task)
+			if new_parent.status in ("Completed", "Cancelled"):
+				frappe.throw(
+					_("Cannot move a subtask under {0} because it is {1}").format(
+						frappe.bold(new_parent.subject), _(new_parent.status)
+					)
+				)
 			if not new_parent.is_group:
 				new_parent.is_group = 1
 				new_parent.save()
@@ -882,6 +1247,7 @@ def reorder_task(
 @frappe.whitelist()
 def toggle_task_status(task_name: str):
 	"""Toggle task between Open and Completed."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -930,6 +1296,7 @@ def bulk_update_tasks(tasks: list):
 	Bulk update multiple tasks at once.
 	Useful for drag & drop reordering.
 	"""
+	require_project_hub_access()
 	if not tasks:
 		return {"success": True}
 
@@ -957,33 +1324,25 @@ def bulk_update_tasks(tasks: list):
 
 @frappe.whitelist()
 def get_users():
-	"""Get list of users that can be assigned to tasks.
+	"""Get list of users that can be assigned to tasks and projects.
 
-	Only users holding the "Projects User" role (or a manager-tier role, which
-	always implies access) are assignable.
+	Only enabled System Users holding the "Projekt HUB User" role are returned.
 	"""
-	assignable_roles = ["Projects User", "Project Manager", "Projects Manager", "System Manager"]
-	assignable_user_names = frappe.get_all(
-		"Has Role",
-		filters={"role": ["in", assignable_roles], "parenttype": "User"},
-		pluck="parent",
-		distinct=True,
-	)
-
-	if not assignable_user_names:
+	require_project_hub_access()
+	hub_user_names = get_projekt_hub_user_names()
+	if not hub_user_names:
 		return []
 
-	users = frappe.get_all(
+	return frappe.get_all(
 		"User",
 		filters={
 			"enabled": 1,
 			"user_type": "System User",
-			"name": ["in", assignable_user_names],
+			"name": ["in", hub_user_names],
 		},
 		fields=["name", "full_name", "user_image"],
 		order_by="full_name",
 	)
-	return users
 
 
 @frappe.whitelist()
@@ -993,6 +1352,7 @@ def assign_task(
 	action: str = "add",
 ):
 	"""Assign or unassign a user to/from a task."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1000,6 +1360,21 @@ def assign_task(
 	from frappe.desk.form.assign_to import remove as remove_assignment
 
 	if action == "add" and user:
+		# Validate user exists, is enabled, and is a System User
+		user_doc = frappe.get_value("User", user, ["enabled", "user_type"])
+		if not user_doc:
+			frappe.throw(_("User {0} does not exist").format(user))
+
+		enabled, user_type = user_doc
+		if not enabled:
+			frappe.throw(_("User {0} is disabled").format(user))
+
+		if user_type != "System User":
+			frappe.throw(_("Only System Users can be assigned to tasks"))
+
+		if not frappe.db.exists("Has Role", {"parent": user, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}):
+			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
+
 		add_assignment(
 			{
 				"doctype": "Task",
@@ -1058,6 +1433,7 @@ def assign_task(
 @frappe.whitelist()
 def get_project_users(project: str):
 	"""Get users assigned to a project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -1080,6 +1456,7 @@ def get_project_users(project: str):
 @frappe.whitelist()
 def add_project_user(project: str, user: str):
 	"""Add a user to a project."""
+	require_project_hub_access()
 	if not project or not user:
 		frappe.throw(_("Project and user are required"))
 
@@ -1107,6 +1484,7 @@ def add_project_user(project: str, user: str):
 @frappe.whitelist()
 def remove_project_user(project: str, user: str):
 	"""Remove a user from a project."""
+	require_project_hub_access()
 	if not project or not user:
 		frappe.throw(_("Project and user are required"))
 
@@ -1119,6 +1497,7 @@ def remove_project_user(project: str, user: str):
 @frappe.whitelist()
 def get_task_timelogs(task_name: str):
 	"""Get all time logs for a specific task."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1128,7 +1507,10 @@ def get_task_timelogs(task_name: str):
 		SELECT
 			ts.name as timesheet_name,
 			ts.owner,
+			ts.employee,
+			ts.employee_name,
 			ts.status,
+			ts.docstatus,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -1148,11 +1530,24 @@ def get_task_timelogs(task_name: str):
 		as_dict=1,
 	)
 
-	# Get user details for each log
+	session_user = frappe.session.user
+	session_employee = get_employee_for_user(session_user)
+
+	# Show the employee assigned on the timesheet, not whoever created it
 	for log in timelogs:
-		user = frappe.get_cached_doc("User", log.owner)
-		log["user_full_name"] = user.full_name
-		log["user_image"] = user.user_image
+		# Same rules as update_timelog: only own entries on a draft timesheet
+		is_own = (session_employee and log.employee == session_employee) or (
+			not log.employee and log.owner == session_user
+		)
+		log["can_edit"] = 1 if log.docstatus == 0 and is_own else 0
+
+		if log.employee:
+			log["user_full_name"] = log.employee_name
+			log["user_image"] = frappe.get_cached_value("Employee", log.employee, "image")
+		else:
+			user = frappe.get_cached_doc("User", log.owner)
+			log["user_full_name"] = user.full_name
+			log["user_image"] = user.user_image
 
 	# Calculate total hours
 	total_hours = sum(log.get("hours", 0) for log in timelogs)
@@ -1173,10 +1568,16 @@ def get_my_timelogs(
 	search: str | None = None,
 ):
 	"""Get time logs for the current user with optional filters."""
+	require_project_hub_access()
 	user = frappe.session.user
+	employee = get_employee_for_user(user)
 
-	conditions = ["ts.owner = %s", "ts.docstatus < 2"]
-	values: list[str] = [user]
+	if employee:
+		conditions = ["(ts.owner = %s OR ts.employee = %s)", "ts.docstatus < 2"]
+		values: list[str] = [user, employee]
+	else:
+		conditions = ["ts.owner = %s", "ts.docstatus < 2"]
+		values: list[str] = [user]
 
 	if status:
 		conditions.append("ts.status = %s")
@@ -1209,6 +1610,8 @@ def get_my_timelogs(
 			ts.status,
 			ts.docstatus,
 			ts.owner,
+			ts.employee,
+			ts.employee_name,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -1252,6 +1655,7 @@ def create_timelog(
 	Create a time log entry for a task.
 	Creates or updates a timesheet for the current user.
 	"""
+	require_project_hub_access()
 	if not task or not hours:
 		frappe.throw(_("Task and hours are required"))
 
@@ -1267,8 +1671,15 @@ def create_timelog(
 	user = frappe.session.user
 	today = frappe.utils.today()
 
-	# Try to find an existing draft timesheet for today
-	existing_timesheet = frappe.get_all(
+	# Get task details
+	task_doc = frappe.get_doc("Task", task)
+	timelog_meta = frappe.get_meta("Timesheet Detail")
+
+	# Try to find an existing draft timesheet for today that is compatible
+	# with this task's project. A Timesheet's "parent_project" (if set)
+	# locks every row to that same project, so a draft opened for a
+	# different project must not be reused here.
+	candidate_timesheets = frappe.get_all(
 		"Timesheet",
 		filters={
 			"owner": user,
@@ -1276,12 +1687,16 @@ def create_timelog(
 			"start_date": ["<=", today],
 			"end_date": [">=", today],
 		},
-		limit=1,
+		fields=["name", "parent_project"],
 	)
-
-	# Get task details
-	task_doc = frappe.get_doc("Task", task)
-	timelog_meta = frappe.get_meta("Timesheet Detail")
+	existing_timesheet_name = next(
+		(
+			ts.name
+			for ts in candidate_timesheets
+			if not ts.parent_project or ts.parent_project == task_doc.project
+		),
+		None,
+	)
 
 	timelog_row = {
 		"activity_type": activity_type,
@@ -1295,8 +1710,8 @@ def create_timelog(
 	if is_billable is not None and timelog_meta.has_field("is_billable"):
 		timelog_row["is_billable"] = cint(is_billable)
 
-	if existing_timesheet:
-		timesheet = frappe.get_doc("Timesheet", existing_timesheet[0].name)
+	if existing_timesheet_name:
+		timesheet = frappe.get_doc("Timesheet", existing_timesheet_name)
 		# Add time log detail to existing timesheet
 		timesheet.append("time_logs", timelog_row)
 		timesheet.save()
@@ -1306,6 +1721,7 @@ def create_timelog(
 			{
 				"doctype": "Timesheet",
 				"employee": get_employee_for_user(user),
+				"parent_project": task_doc.project,
 				"start_date": today,
 				"end_date": today,
 				"time_logs": [timelog_row],
@@ -1349,15 +1765,19 @@ def update_timelog(
 	is_billable: int | None = None,
 ):
 	"""Update an existing time log entry."""
+	require_project_hub_access()
 	if not timelog_name:
 		frappe.throw(_("Timelog name is required"))
 
-	# Get the timesheet detail
-	timelog = frappe.get_doc("Timesheet Detail", timelog_name)
-	timesheet = frappe.get_doc("Timesheet", timelog.parent)
+	# Edit the row held by the parent doc - changes on a separately loaded
+	# Timesheet Detail would be discarded by timesheet.save()
+	parent = frappe.db.get_value("Timesheet Detail", timelog_name, "parent")
+	if not parent:
+		frappe.throw(_("Time log {0} not found").format(timelog_name), frappe.DoesNotExistError)
+	timesheet = frappe.get_doc("Timesheet", parent)
+	timelog = next(d for d in timesheet.time_logs if d.name == timelog_name)
 
-	# Check if user owns this timesheet
-	if timesheet.owner != frappe.session.user:
+	if not _is_own_timesheet(timesheet):
 		frappe.throw(_("You can only edit your own time logs"))
 
 	# Validate timesheet state before update
@@ -1403,6 +1823,7 @@ def update_timelog(
 @frappe.whitelist()
 def delete_timelog(timelog_name: str):
 	"""Delete a time log entry."""
+	require_project_hub_access()
 	if not timelog_name:
 		frappe.throw(_("Timelog name is required"))
 
@@ -1412,7 +1833,7 @@ def delete_timelog(timelog_name: str):
 
 	# Check if user owns this timesheet or has admin privileges
 	is_admin_deletion = False
-	if timesheet.owner != frappe.session.user:
+	if not _is_own_timesheet(timesheet):
 		# Allow System Manager and Administrator roles to delete any time logs
 		user_roles = frappe.get_roles(frappe.session.user)
 		if "System Manager" not in user_roles and "Administrator" not in user_roles:
@@ -1476,9 +1897,20 @@ def get_employee_for_user(user: str):
 	return employee
 
 
+def _is_own_timesheet(timesheet) -> bool:
+	user = frappe.session.user
+	employee = get_employee_for_user(user)
+	if employee and timesheet.employee == employee:
+		return True
+	if not timesheet.employee and timesheet.owner == user:
+		return True
+	return False
+
+
 @frappe.whitelist()
 def get_activity_types():
 	"""Get list of activity types from ERPNext."""
+	require_project_hub_access()
 	activity_types = frappe.get_all(
 		"Activity Type",
 		filters={"disabled": 0},
@@ -1490,8 +1922,31 @@ def get_activity_types():
 
 
 @frappe.whitelist()
+def get_quick_time_log_descriptions():
+	"""Get list of predefined quick descriptions for time logs.
+
+	Each entry carries its optional activity_type so the frontend can show a
+	different set of chips per selected Activity Type; entries with no
+	activity_type are shown regardless of the selected type.
+	"""
+	require_project_hub_access()
+	return frappe.get_all(
+		"Quick Time Log Description",
+		filters={"disabled": 0},
+		fields=["description", "activity_type"],
+		order_by="sort_order asc, description asc",
+	)
+
+
+# Statuses people may not pick in the Hub. A missed due date is shown by the
+# is_overdue flag instead, so the task keeps its real status (see overrides/task.py).
+HIDDEN_TASK_STATUSES = ("Overdue",)
+
+
+@frappe.whitelist()
 def get_task_statuses():
 	"""Get list of task statuses from ERPNext."""
+	require_project_hub_access()
 	# Get status options from Task doctype meta
 	task_meta = frappe.get_meta("Task")
 	status_field = task_meta.get_field("status")
@@ -1499,15 +1954,16 @@ def get_task_statuses():
 	if status_field and status_field.options:
 		# Options are stored as newline-separated string
 		statuses = [s.strip() for s in status_field.options.split("\n") if s.strip()]
-		return statuses
+		return [s for s in statuses if s not in HIDDEN_TASK_STATUSES]
 
 	# Fallback to default statuses
-	return ["Open", "Working", "Pending Review", "Completed", "Overdue", "Cancelled"]
+	return ["Open", "Working", "Pending Review", "Completed", "Cancelled"]
 
 
 @frappe.whitelist()
 def get_task_priorities():
 	"""Get list of task priorities from ERPNext."""
+	require_project_hub_access()
 	# Get priority options from Task doctype meta
 	task_meta = frappe.get_meta("Task")
 	priority_field = task_meta.get_field("priority")
@@ -1532,6 +1988,7 @@ def get_project_milestones(project: str):
 	Get all milestones for a project with calculated progress and health status.
 	Milestones are always scoped to a single project.
 	"""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -1609,6 +2066,7 @@ def create_milestone(
 	Create a new milestone for a project.
 	Milestone is always linked to exactly one project.
 	"""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -1673,6 +2131,7 @@ def update_milestone(
 	Update milestone details.
 	Project cannot be changed - milestone is always bound to its original project.
 	"""
+	require_project_hub_access()
 	if not milestone_name:
 		frappe.throw(_("Milestone name is required"))
 
@@ -1719,6 +2178,7 @@ def update_milestone(
 @frappe.whitelist()
 def reorder_project_milestones(project: str, milestone_names: str):
 	"""Persist manual milestone order for a single project."""
+	require_project_hub_access()
 	if not project:
 		frappe.throw(_("Project is required"))
 
@@ -1761,6 +2221,7 @@ def delete_milestone(milestone_name: str):
 	Delete a milestone.
 	All tasks linked to this milestone will have their milestone field cleared.
 	"""
+	require_project_hub_access()
 	if not milestone_name:
 		frappe.throw(_("Milestone name is required"))
 
@@ -1785,6 +2246,7 @@ def assign_task_to_milestone(task_name: str, milestone: str | None = None):
 
 	Validates that task and milestone belong to the same project.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -1844,6 +2306,7 @@ def get_milestone_tasks(milestone_name: str):
 	"""
 	Get all tasks assigned to a specific milestone.
 	"""
+	require_project_hub_access()
 	if not milestone_name:
 		frappe.throw(_("Milestone name is required"))
 
@@ -1870,7 +2333,18 @@ def get_milestone_tasks(milestone_name: str):
 
 @frappe.whitelist()
 def get_milestone_statuses():
-	"""Get available milestone statuses."""
+	"""Get list of milestone statuses from the Project Milestone doctype."""
+	require_project_hub_access()
+	milestone_meta = frappe.get_meta("Project Milestone")
+	status_field = milestone_meta.get_field("status")
+
+	if status_field and status_field.options:
+		# Options are stored as newline-separated string
+		statuses = [s.strip() for s in status_field.options.split("\n") if s.strip()]
+		if statuses:
+			return statuses
+
+	# Fallback to default statuses
 	return ["Open", "In Progress", "Completed", "Cancelled"]
 
 
@@ -1908,6 +2382,7 @@ def get_my_tasks(
 	Returns:
 		List of tasks with project info
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 
 	# Build filters
@@ -1925,6 +2400,8 @@ def get_my_tasks(
 			filters.append(f"t.status IN ({status_placeholders})")
 			for i, s in enumerate(status_list):
 				values[f"status_{i}"] = s
+	else:
+		filters.append("t.status NOT IN ('Completed', 'Cancelled')")
 
 	# Priority filter
 	if priority:
@@ -2024,6 +2501,7 @@ def get_my_tasks(
 			t.description,
 			t.progress,
 			t.expected_time,
+			t.is_blocked,
 			t._assign,
 			t.modified,
 			t.creation,
@@ -2054,18 +2532,8 @@ def get_my_tasks(
 	)
 	total_count = frappe.db.sql(count_query, values, as_dict=True)[0].get("count", 0)
 
-	# Add overdue flag
-	from frappe.utils import getdate, today
-
-	today_date = getdate(today())
 	for task in tasks:
-		if task.get("exp_end_date"):
-			task["is_overdue"] = getdate(task["exp_end_date"]) < today_date and task["status"] not in [
-				"Completed",
-				"Cancelled",
-			]
-		else:
-			task["is_overdue"] = False
+		task["is_overdue"] = compute_is_overdue(task)
 
 	return {
 		"tasks": tasks,
@@ -2081,6 +2549,7 @@ def get_my_tasks_projects():
 	Get list of projects where current user has assigned tasks.
 	Used for project filter dropdown.
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 
 	projects = frappe.db.sql(
@@ -2093,6 +2562,7 @@ def get_my_tasks_projects():
 		FROM `tabTask` t
 		INNER JOIN `tabProject` p ON t.project = p.name
 		WHERE t._assign LIKE %s
+		AND t.status != 'Cancelled'
 		AND p.status != 'Cancelled'
 		GROUP BY p.name, p.project_name, p.status
 		ORDER BY p.project_name
@@ -2110,12 +2580,14 @@ def quick_update_task(
 	status: str | None = None,
 	priority: str | None = None,
 	exp_end_date: str | None = None,
+	is_blocked: int | None = None,
 ):
 	"""
-	Quick update for task status, priority, or due date.
+	Quick update for task status, priority, due date, or the blocked flag.
 	Used for inline editing in My Tasks view.
 	Returns updated task data.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2151,6 +2623,9 @@ def quick_update_task(
 	if exp_end_date is not None:
 		task.exp_end_date = exp_end_date if exp_end_date else None
 
+	if is_blocked is not None:
+		task.is_blocked = cint(is_blocked)
+
 	task.save()
 
 	return _get_task_response(task)
@@ -2168,13 +2643,6 @@ def _get_task_response(task):
 	if getattr(task, "parent_task", None):
 		parent_subject = frappe.db.get_value("Task", task.parent_task, "subject")
 
-	is_overdue = False
-	if task.exp_end_date:
-		is_overdue = getdate(task.exp_end_date) < getdate(today()) and task.status not in [
-			"Completed",
-			"Cancelled",
-		]
-
 	return {
 		"name": task.name,
 		"subject": task.subject,
@@ -2186,12 +2654,14 @@ def _get_task_response(task):
 		"project_name": project_name,
 		"exp_start_date": task.exp_start_date,
 		"exp_end_date": task.exp_end_date,
+		"reference_link": getattr(task, "reference_link", None),
 		"description": task.description,
 		"progress": task.progress,
 		"expected_time": getattr(task, "expected_time", None),
 		"_assign": task._assign,
 		"modified": task.modified,
-		"is_overdue": is_overdue,
+		"is_overdue": compute_is_overdue(task),
+		"is_blocked": task.get("is_blocked"),
 	}
 
 
@@ -2200,6 +2670,7 @@ def shift_overdue_due_dates(limit: int = 100):
 	"""
 	Shift overdue tasks assigned to the current user by two days.
 	"""
+	require_project_hub_access()
 	user = frappe.session.user
 	if not limit or limit <= 0:
 		limit = 100
@@ -2227,6 +2698,7 @@ def shift_overdue_due_dates(limit: int = 100):
 		try:
 			new_due = add_days(due_date, 2)
 			frappe.db.set_value("Task", task["name"], "exp_end_date", new_due, update_modified=True)
+			sync_task_todo_dates(task["name"], new_due)
 			shifted += 1
 		except Exception as exc:
 			frappe.log_error(
@@ -2242,6 +2714,7 @@ def get_task_detail(task_name: str):
 	"""
 	Get full task details for drawer/edit view.
 	"""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2253,6 +2726,7 @@ def get_task_detail(task_name: str):
 @frappe.whitelist()
 def get_task_attachments(task_name: str):
 	"""Get task attachments from File doctype."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2271,6 +2745,7 @@ def get_task_attachments(task_name: str):
 @frappe.whitelist()
 def get_project_attachments(project_name: str):
 	"""Get project attachments from File doctype."""
+	require_project_hub_access()
 	if not project_name:
 		frappe.throw(_("Project name is required"))
 
@@ -2287,8 +2762,30 @@ def get_project_attachments(project_name: str):
 
 
 @frappe.whitelist()
+def get_mention_options():
+	"""Return Projekt HUB users and user groups available for @mentions in comments.
+
+	frappe.desk.search.get_names_for_mentions returns nothing for an empty
+	search term, while the comment editor filters the full list client-side.
+	"""
+	require_project_hub_access()
+	from frappe.desk.search import get_user_groups, get_users_for_mentions
+
+	hub_users = set(get_projekt_hub_user_names())
+	users = [
+		row
+		for row in frappe.cache.get_value("users_for_mentions", get_users_for_mentions)
+		if row["id"] in hub_users
+	]
+	groups = frappe.cache.get_value("user_groups", get_user_groups)
+	options = [{"id": row["id"], "value": row.get("value") or row["id"]} for row in users + groups]
+	return sorted(options, key=lambda d: d["value"].lower())
+
+
+@frappe.whitelist()
 def get_task_comments(task_name: str):
 	"""Get task comments from Comment doctype."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 
@@ -2311,6 +2808,7 @@ def get_task_comments(task_name: str):
 @frappe.whitelist()
 def add_task_comment(task_name: str, content: str):
 	"""Add a comment to task using standard Frappe comment API."""
+	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 	if not content or not content.strip():
@@ -2334,6 +2832,7 @@ def add_task_comment(task_name: str, content: str):
 @frappe.whitelist()
 def delete_task_attachment(file_name: str):
 	"""Delete file attachment from task."""
+	require_project_hub_access()
 	if not file_name:
 		frappe.throw(_("File name is required"))
 
@@ -2352,6 +2851,7 @@ def delete_task_attachment(file_name: str):
 @frappe.whitelist()
 def delete_project_attachment(file_name: str):
 	"""Delete file attachment from project."""
+	require_project_hub_access()
 	if not file_name:
 		frappe.throw(_("File name is required"))
 
@@ -2381,6 +2881,7 @@ def create_my_task(
 	"""
 	Create a new task and assign it to the current user.
 	"""
+	require_project_hub_access()
 	if not subject or not project:
 		frappe.throw(_("Subject and Project are required"))
 
@@ -2389,6 +2890,12 @@ def create_my_task(
 	# If parent_task is provided, ensure it's a group task
 	if parent_task:
 		parent = frappe.get_doc("Task", parent_task)
+		if parent.status in ("Completed", "Cancelled"):
+			frappe.throw(
+				_("Cannot add a subtask to {0} because it is {1}").format(
+					frappe.bold(parent.subject), _(parent.status)
+				)
+			)
 		if not parent.is_group:
 			parent.is_group = 1
 			parent.save()
@@ -2432,6 +2939,7 @@ def get_projects_settings():
 	Get Projects Settings including global default activity type.
 	Returns a dict with all settings values.
 	"""
+	require_project_hub_access()
 	try:
 		# Get the single Projects Settings document
 		settings = frappe.get_single("Projects Settings")
@@ -2454,3 +2962,55 @@ def get_projects_settings():
 			"ignore_employee_time_overlap": False,
 			"fetch_timesheet_in_sales_invoice": False,
 		}
+
+
+@frappe.whitelist()
+def get_project_summary(project: str) -> dict:
+	"""Return KPI summary for the Project form dashboard (time remaining, task %, milestone statuses)."""
+	require_project_hub_access()
+	from frappe.utils import date_diff, getdate
+	from frappe.utils import today as frappe_today
+
+	project_doc = frappe.get_doc("Project", project)
+
+	days = None
+	is_overdue = False
+	if project_doc.expected_end_date:
+		days = date_diff(getdate(project_doc.expected_end_date), getdate(frappe_today()))
+		is_overdue = days < 0
+
+	row = frappe.db.sql(
+		"""
+		SELECT
+			COUNT(*) AS total,
+			SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed
+		FROM `tabTask`
+		WHERE project = %s AND COALESCE(is_group, 0) = 0
+		""",
+		project,
+		as_dict=True,
+	)[0]
+
+	milestones = frappe.get_all("Project Milestone", filters={"project": project}, fields=["status"])
+	by_status = {"Open": 0, "In Progress": 0, "Completed": 0, "Cancelled": 0}
+	for m in milestones:
+		s = m.status or "Open"
+		by_status[s] = by_status.get(s, 0) + 1
+
+	return {
+		"time_remaining": {
+			"days": days,
+			"is_overdue": is_overdue,
+			"has_end_date": bool(project_doc.expected_end_date),
+		},
+		"tasks": {
+			"total": cint(row.total),
+			"completed": cint(row.completed),
+			"percent_complete": flt(project_doc.percent_complete or 0),
+		},
+		"milestones": {
+			"total": len(milestones),
+			"has_milestones": len(milestones) > 0,
+			"by_status": by_status,
+		},
+	}

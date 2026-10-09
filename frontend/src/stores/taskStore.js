@@ -1,5 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { ACTIVE_STATUSES, BOARD_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -64,17 +66,20 @@ async function apiCall(method, params = {}) {
 
 	if (!response.ok) {
 		const errorMsg = data.exception || data._server_messages || "API Error";
+		const error = new Error(errorMsg);
 		if (window.frappe) {
 			frappe.show_alert({ message: errorMsg, indicator: "red" });
+			// Callers can tell an already-reported failure from a silent one.
+			error.alerted = true;
 		}
-		throw new Error(errorMsg);
+		throw error;
 	}
 	return data.message;
 }
 
 export const useTaskStore = defineStore("tasks", () => {
 	const defaultFilters = {
-		status: ["Open", "Working", "Pending Review", "Overdue"],
+		status: [...ACTIVE_STATUSES],
 		priority: [],
 		assignee: null,
 		dueToday: false,
@@ -264,6 +269,9 @@ async function updateTask(taskName, updates) {
 					}
 				}
 
+				// Capture milestone before local state update (data response doesn't include it)
+				const taskMilestoneBefore = index !== -1 ? tasks.value[index]?.milestone : null;
+
 				if (index !== -1) {
 					tasks.value[index] = { ...tasks.value[index], ...data };
 				}
@@ -273,9 +281,9 @@ async function updateTask(taskName, updates) {
 				// Refresh project data if status changed (affects percent_complete)
 				if (updates.status && data.status === updates.status && project.value) {
 					await refreshProject();
-					// Also refresh milestones if task has milestone assigned
-					const task = tasks.value[index];
-					if (task && task.milestone) {
+					// Refresh milestones when task has a milestone or when project has milestones —
+					// cancelled/completed tasks affect milestone progress stored in DB
+					if (taskMilestoneBefore || milestones.value.length > 0) {
 						await fetchMilestones(project.value.name);
 					}
 				}
@@ -496,6 +504,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	// Time log functions
 	const taskTimelogs = ref({});
 	const activityTypes = ref([]);
+	const quickDescriptions = ref([]);
 	const pendingTimelogKeys = ref(new Set());
 	const taskStatuses = ref([]);
 	const taskPriorities = ref([]);
@@ -504,6 +513,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	const NO_MILESTONE_FILTER = "__none__";
 	const milestones = ref([]);
 	const activeMilestoneFilter = ref([]);
+	const milestoneStatuses = ref([]);
 
 	async function fetchActivityTypes() {
 		try {
@@ -530,6 +540,21 @@ async function reorderTask(taskName, newParent, newIdx) {
 		}
 	}
 
+	async function fetchQuickDescriptions() {
+		try {
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.get_quick_time_log_descriptions",
+				{}
+			);
+			quickDescriptions.value = data || [];
+			return data;
+		} catch (error) {
+			console.error("Failed to fetch quick time log descriptions:", error);
+			quickDescriptions.value = [];
+			return quickDescriptions.value;
+		}
+	}
+
 	async function fetchTaskStatuses() {
 		try {
 			const data = await apiCall(
@@ -540,15 +565,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 			return data;
 		} catch (error) {
 			console.error("Failed to fetch task statuses:", error);
-			// Fallback to default statuses if API fails
-			taskStatuses.value = [
-				"Open",
-				"Working",
-				"Pending Review",
-				"Completed",
-				"Overdue",
-				"Cancelled",
-			];
+			// Fallback to the canonical list if the API call fails
+			taskStatuses.value = [...BOARD_STATUSES];
 			return taskStatuses.value;
 		}
 	}
@@ -564,7 +582,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		} catch (error) {
 			console.error("Failed to fetch task priorities:", error);
 			// Fallback to default priorities if API fails
-			taskPriorities.value = ["Low", "Medium", "High", "Urgent"];
+			taskPriorities.value = [...PRIORITY_VALUES];
 			return taskPriorities.value;
 		}
 	}
@@ -616,12 +634,16 @@ async function reorderTask(taskName, newParent, newIdx) {
 		}
 	}
 
-	async function updateTimelog(timelogName, updates) {
+	async function updateTimelog(timelogName, updates, taskName) {
 		try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_timelog", {
 				timelog_name: timelogName,
 				...updates,
 			});
+			// Refresh timelogs for this task
+			if (taskName) {
+				await fetchTaskTimelogs(taskName);
+			}
 			return data;
 		} catch (error) {
 			console.error("Failed to update timelog:", error);
@@ -648,6 +670,20 @@ async function reorderTask(taskName, newParent, newIdx) {
 	// ==========================================================================
 	// MILESTONE FUNCTIONS
 	// ==========================================================================
+
+	async function fetchMilestoneStatuses() {
+		try {
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.get_milestone_statuses",
+				{}
+			);
+			milestoneStatuses.value = data || [];
+			return data;
+		} catch (error) {
+			console.error("Failed to fetch milestone statuses:", error);
+			return milestoneStatuses.value;
+		}
+	}
 
 	async function fetchMilestones(projectName) {
 		try {
@@ -844,12 +880,14 @@ async function reorderTask(taskName, newParent, newIdx) {
 		allProjects,
 		taskTimelogs,
 		activityTypes,
+		quickDescriptions,
 		pendingTimelogKeys,
 		taskStatuses,
 		taskPriorities,
 		milestones,
 		activeMilestoneFilter,
 		NO_MILESTONE_FILTER,
+		milestoneStatuses,
 		projectTeamRefreshTrigger,
 		projectsSettings,
 		sortBy,
@@ -884,6 +922,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchProjectsSettings,
 		// Metadata
 		fetchActivityTypes,
+		fetchQuickDescriptions,
 		fetchTaskStatuses,
 		fetchTaskPriorities,
 		// Time logs
@@ -892,6 +931,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateTimelog,
 		deleteTimelog,
 		// Milestones
+		fetchMilestoneStatuses,
 		fetchMilestones,
 		createMilestone,
 		updateMilestone,

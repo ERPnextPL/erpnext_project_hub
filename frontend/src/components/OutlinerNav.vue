@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
+import { ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { getNavItems, getTabByRouteName } from "../tabRegistry";
 
 const route = useRoute();
@@ -18,6 +19,9 @@ const translate = (text) => {
 
 const scrollerRef = ref(null);
 const itemRefs = ref({});
+const hasOverflow = ref(false);
+const canScrollLeft = ref(false);
+const canScrollRight = ref(false);
 
 // Normalize Vue component refs to raw DOM elements
 const normalizeEl = (el) => {
@@ -25,7 +29,10 @@ const normalizeEl = (el) => {
 	return el.$el || el;
 };
 
-const handleResize = () => scrollActiveIntoView("auto");
+const handleResize = () => {
+	updateScrollState();
+	scrollActiveIntoView("auto");
+};
 
 const activeKey = computed(() => {
 	const { name } = route;
@@ -71,6 +78,9 @@ async function scrollActiveIntoView(behavior = "smooth") {
 	const target = currentScroll + offset;
 	const clamped = Math.min(Math.max(0, target), maxScroll);
 	scroller.scrollTo({ left: clamped, behavior });
+	if (behavior === "auto") {
+		updateScrollState();
+	}
 }
 
 function handleNavigate(to) {
@@ -81,8 +91,34 @@ function handleNavigate(to) {
 	}
 }
 
+function updateScrollState() {
+	const scroller = normalizeEl(scrollerRef.value);
+	if (!scroller) return;
+
+	const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+	const currentScroll = scroller.scrollLeft;
+	const threshold = 1;
+
+	hasOverflow.value = maxScroll > threshold;
+	canScrollLeft.value = currentScroll > threshold;
+	canScrollRight.value = currentScroll < maxScroll - threshold;
+}
+
+function scrollNav(direction) {
+	const scroller = normalizeEl(scrollerRef.value);
+	if (!scroller) return;
+
+	const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+	const target = direction === "left" ? 0 : maxScroll;
+
+	scroller.scrollTo({ left: target, behavior: "smooth" });
+}
+
 onMounted(() => {
-	scrollActiveIntoView("auto");
+	nextTick(() => {
+		updateScrollState();
+		scrollActiveIntoView("auto");
+	});
 	window.addEventListener("resize", handleResize);
 });
 
@@ -97,9 +133,21 @@ onBeforeUnmount(() => {
 
 <template>
 	<div class="flex items-center gap-3">
+		<button
+			v-if="hasOverflow"
+			type="button"
+			:title="translate('Scroll left')"
+			:aria-label="translate('Scroll left')"
+			:disabled="!canScrollLeft"
+			class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-35"
+			@click="scrollNav('left')"
+		>
+			<ChevronLeft class="h-4 w-4" />
+		</button>
 		<div
 			ref="scrollerRef"
 			class="relative w-full max-w-[200px] sm:max-w-[260px] overflow-x-auto scrollbar-hide py-1"
+			@scroll="updateScrollState"
 		>
 			<div class="flex items-center gap-2 px-1">
 				<RouterLink
@@ -129,6 +177,17 @@ onBeforeUnmount(() => {
 				</RouterLink>
 			</div>
 		</div>
+		<button
+			v-if="hasOverflow"
+			type="button"
+			:title="translate('Scroll right')"
+			:aria-label="translate('Scroll right')"
+			:disabled="!canScrollRight"
+			class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-35"
+			@click="scrollNav('right')"
+		>
+			<ChevronRight class="h-4 w-4" />
+		</button>
 	</div>
 </template>
 

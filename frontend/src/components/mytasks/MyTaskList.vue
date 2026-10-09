@@ -5,6 +5,7 @@ import MyTaskRowDesktop from "./MyTaskRowDesktop.vue";
 import MyTaskCardMobile from "./MyTaskCardMobile.vue";
 import { useWindowSize } from "@vueuse/core";
 import { ArrowUp, ArrowDown } from "lucide-vue-next";
+import { BOARD_STATUSES, getStatusLabel } from "../../utils/taskStatus";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -24,15 +25,10 @@ const props = defineProps({
 	},
 });
 
-const statusOrder = ["Overdue", "Open", "Working", "Pending Review", "Completed", "Cancelled"];
-const statusLabels = {
-	Overdue: translate("Overdue"),
-	Open: translate("Open"),
-	Working: translate("Working"),
-	"Pending Review": translate("Pending Review"),
-	Completed: translate("Completed"),
-	Cancelled: translate("Cancelled"),
-};
+const statusOrder = BOARD_STATUSES;
+const statusLabels = Object.fromEntries(
+	statusOrder.map((status) => [status, getStatusLabel(status)])
+);
 
 const tasksByName = computed(() => {
 	const m = new Map();
