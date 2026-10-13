@@ -14,15 +14,22 @@ export function useProjectRequests(projectId) {
 	const error = ref("");
 	const available = ref(true);
 	let requestId = 0;
+	let loadedProject = "";
 
 	const openCount = computed(() => customerRequests.value.filter(isOpenCustomerRequest).length);
 
 	async function fetchRequests() {
 		const project = toValue(projectId);
 		const currentRequest = ++requestId;
-		if (!project) {
+		// Rows of the previous project must never show under this one, even if
+		// this fetch fails; a refresh of the same project keeps them meanwhile.
+		if (project !== loadedProject) {
 			customerRequests.value = [];
 			changeRequests.value = [];
+			loadedProject = project || "";
+		}
+		if (!project) {
+			loading.value = false;
 			return;
 		}
 

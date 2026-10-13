@@ -623,3 +623,4 @@
 "You are now analyzing {0}","Analizujesz teraz {0}"
 "{0} is back in the analysis queue","{0} wrócił do kolejki analizy"
 "Only requests waiting for analysis can be taken.","Do analizy można wziąć tylko wnioski oczekujące na analizę."
+"Use Create Change Request to convert a Customer Request.","Aby przekształcić wniosek klienta, użyj opcji „Utwórz wniosek o zmianę”."

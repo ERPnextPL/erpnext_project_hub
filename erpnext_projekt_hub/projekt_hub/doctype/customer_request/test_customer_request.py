@@ -344,6 +344,8 @@ class TestCustomerRequest(FrappeTestCase):
 		)
 		self.assertTrue(row.can_create_change_request)
 		self.assertNotIn("Mark Converted", [action["action"] for action in row.actions])
+		with self.assertRaises(frappe.ValidationError):
+			apply_customer_request_action(customer_request.name, "Mark Converted")
 
 		result = create_change_request_from_customer_request(customer_request.name)
 

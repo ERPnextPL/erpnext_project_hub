@@ -444,6 +444,9 @@ def _set_customer_request_assignees(customer_requests):
 		]
 
 
+CONVERTED_STATE = "Converted"
+
+
 def _set_customer_request_actions(customer_requests):
 	"""Attach the workflow actions the current user may take on each request.
 
@@ -468,7 +471,7 @@ def _set_customer_request_actions(customer_requests):
 				continue
 			# Converting goes through create_change_request, which also creates
 			# the Change Request; marking it by hand would leave none behind.
-			if transition.next_state == "Converted" and row.can_create_change_request:
+			if transition.next_state == CONVERTED_STATE:
 				continue
 			if transition.condition:
 				doc = doc or frappe.get_doc("Customer Request", row.name)
@@ -477,6 +480,19 @@ def _set_customer_request_actions(customer_requests):
 			seen.add(transition.action)
 			actions.append({"action": transition.action, "next_state": transition.next_state})
 		row.actions = actions
+
+
+def _is_conversion_action(request, action):
+	from frappe.model.workflow import get_workflow_name
+
+	workflow_name = get_workflow_name(request.doctype)
+	if not workflow_name:
+		return False
+	workflow = frappe.get_cached_doc("Workflow", workflow_name)
+	return any(
+		t.state == request.workflow_state and t.action == action and t.next_state == CONVERTED_STATE
+		for t in workflow.transitions
+	)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -490,6 +506,8 @@ def apply_customer_request_action(name: str, action: str):
 
 	request = frappe.get_doc("Customer Request", name)
 	request.check_permission("write")
+	if _is_conversion_action(request, action):
+		frappe.throw(_("Use Create Change Request to convert a Customer Request."))
 	request = apply_workflow(request, action)
 
 	return {"name": request.name, "workflow_state": request.workflow_state}

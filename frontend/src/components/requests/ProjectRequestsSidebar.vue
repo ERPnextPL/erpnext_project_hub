@@ -235,6 +235,9 @@ async function runRequestAction(request, method, payload, confirmMessage, succes
 		const result = await apiPost(method, { name: request.name, ...payload });
 		showAlert(successMessage(request, result), "green");
 		emit("refresh");
+		// The parent's loading flag reaches this component's props on the next
+		// render; until then props.loading still reads the pre-refresh value.
+		await nextTick();
 		if (!props.loading) busyRequest.value = "";
 	} catch (err) {
 		console.error("Failed to change customer request state:", err);

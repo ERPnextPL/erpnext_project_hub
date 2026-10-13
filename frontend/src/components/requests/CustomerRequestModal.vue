@@ -53,6 +53,9 @@ const currencyOptions = ref([]);
 const quotationOptions = ref([]);
 const loadingDropdownOptions = ref(false);
 const createForm = ref(emptyForm());
+// Bumped on every project change, open and close: a dropdown response that
+// arrives for an older generation belongs to another project and is dropped.
+let loadGeneration = 0;
 
 function emptyForm() {
 	return {
@@ -87,6 +90,7 @@ function resetCreateForm() {
 }
 
 function handleCreateProjectChange() {
+	loadGeneration += 1;
 	createForm.value.requested_by = "";
 	createForm.value.currency = "";
 	createForm.value.quotation = "";
@@ -109,18 +113,21 @@ async function loadRequestedByOptions(query = "") {
 		return;
 	}
 
+	const generation = loadGeneration;
 	requestedByLoading.value = true;
 	try {
 		const result = await apiGet("erpnext_projekt_hub.api.project_hub.search_requested_by", {
 			project: createForm.value.project,
 			txt: query,
 		});
+		if (generation !== loadGeneration) return;
 		requestedByOptions.value = Array.isArray(result) ? result : [];
 	} catch (err) {
+		if (generation !== loadGeneration) return;
 		console.error("Failed to fetch requested by options:", err);
 		requestedByOptions.value = [];
 	} finally {
-		requestedByLoading.value = false;
+		if (generation === loadGeneration) requestedByLoading.value = false;
 	}
 }
 
@@ -131,20 +138,23 @@ async function loadDropdownOptions() {
 		return;
 	}
 
+	const generation = loadGeneration;
 	loadingDropdownOptions.value = true;
 	try {
 		const result = await apiGet(
 			"erpnext_projekt_hub.api.project_hub.get_customer_request_dropdown_options",
 			{ project: createForm.value.project }
 		);
+		if (generation !== loadGeneration) return;
 		currencyOptions.value = result?.currencies || [];
 		quotationOptions.value = result?.quotations || [];
 	} catch (err) {
+		if (generation !== loadGeneration) return;
 		console.error("Failed to fetch customer request dropdown options:", err);
 		currencyOptions.value = [];
 		quotationOptions.value = [];
 	} finally {
-		loadingDropdownOptions.value = false;
+		if (generation === loadGeneration) loadingDropdownOptions.value = false;
 	}
 }
 
@@ -232,6 +242,7 @@ function handleEscape(event) {
 watch(
 	() => props.open,
 	(open) => {
+		loadGeneration += 1;
 		if (!open) {
 			document.removeEventListener("keydown", handleEscape, true);
 			return;
