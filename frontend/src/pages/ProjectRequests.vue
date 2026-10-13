@@ -23,7 +23,6 @@ const formErrors = ref({});
 const requestedByOptions = ref([]);
 const requestedByLoading = ref(false);
 const currencyOptions = ref([]);
-const quotationOptions = ref([]);
 const loadingDropdownOptions = ref(false);
 const createForm = ref({
 	project: "",
@@ -37,7 +36,6 @@ const createForm = ref({
 	estimated_hours: "",
 	currency: "",
 	estimated_amount: "",
-	quotation: "",
 });
 
 const hasRequests = computed(
@@ -136,19 +134,16 @@ function resetCreateForm() {
 		estimated_hours: "",
 		currency: "",
 		estimated_amount: "",
-		quotation: "",
 	};
 	formErrors.value = {};
 	submitError.value = "";
 	requestedByOptions.value = [];
 	currencyOptions.value = [];
-	quotationOptions.value = [];
 }
 
 function handleCreateProjectChange() {
 	createForm.value.requested_by = "";
 	createForm.value.currency = "";
-	createForm.value.quotation = "";
 	void loadRequestedByOptions("");
 	void loadDropdownOptions();
 }
@@ -193,7 +188,6 @@ async function loadRequestedByOptions(query = "") {
 async function loadDropdownOptions() {
 	if (!createForm.value.project) {
 		currencyOptions.value = [];
-		quotationOptions.value = [];
 		return;
 	}
 
@@ -204,11 +198,9 @@ async function loadDropdownOptions() {
 			{ project: createForm.value.project }
 		);
 		currencyOptions.value = result?.currencies || [];
-		quotationOptions.value = result?.quotations || [];
 	} catch (err) {
 		console.error("Failed to fetch customer request dropdown options:", err);
 		currencyOptions.value = [];
-		quotationOptions.value = [];
 	} finally {
 		loadingDropdownOptions.value = false;
 	}
@@ -331,7 +323,6 @@ async function submitCustomerRequest() {
 			estimated_hours: createForm.value.estimated_hours,
 			currency: createForm.value.currency,
 			estimated_amount: createForm.value.estimated_amount,
-			quotation: createForm.value.quotation,
 		});
 		showCreateModal.value = false;
 		showAlert(translate("Customer request created"), "green");
@@ -749,28 +740,6 @@ watch(selectedProject, () => {
 								</p>
 							</div>
 
-							<div>
-								<label class="mb-1 block text-sm font-medium text-gray-700">
-									{{ translate("Quotation") }}
-								</label>
-								<select
-									v-model="createForm.quotation"
-									class="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-									:disabled="loadingDropdownOptions"
-								>
-									<option value="">
-										{{ loadingDropdownOptions ? translate("Loading...") : translate("Select quotation") }}
-									</option>
-									<option
-										v-for="quotation in quotationOptions"
-										:key="quotation.value"
-										:value="quotation.value"
-									>
-										{{ quotation.label }}
-										{{ quotation.description ? `(${quotation.description})` : "" }}
-									</option>
-								</select>
-							</div>
 						</div>
 					</div>
 

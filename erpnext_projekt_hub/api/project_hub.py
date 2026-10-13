@@ -398,7 +398,6 @@ def create_customer_request(
 	estimated_hours: str | None = None,
 	currency: str | None = None,
 	estimated_amount: str | None = None,
-	quotation: str | None = None,
 ):
 	"""Create a Customer Request from the Projekt HUB UI."""
 	if not project:
@@ -432,7 +431,6 @@ def create_customer_request(
 		"estimated_hours": estimated_hours,
 		"currency": currency,
 		"estimated_amount": estimated_amount,
-		"quotation": quotation,
 	}.items():
 		if value not in (None, ""):
 			request.set(fieldname, value)

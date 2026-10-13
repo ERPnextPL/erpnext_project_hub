@@ -140,6 +140,7 @@
    "label": "Commercial Documents"
   },
   {
+   "depends_on": "eval:[\"Quoted\", \"Accepted\", \"Rejected\", \"Converted\"].includes(doc.workflow_state) || doc.quotation",
    "fieldname": "quotation",
    "fieldtype": "Link",
    "in_standard_filter": 1,
@@ -163,7 +164,7 @@
    "link_fieldname": "customer_request"
   }
  ],
- "modified": "2026-05-14 00:00:00.000000",
+ "modified": "2026-10-13 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Projekt HUB",
  "name": "Customer Request",
