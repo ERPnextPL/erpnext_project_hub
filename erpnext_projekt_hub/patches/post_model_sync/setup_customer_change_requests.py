@@ -10,7 +10,26 @@ REQUEST_SHORTCUTS = (
 	("Change Request", "Change Request", "Green"),
 )
 PROJECT_HUB_SHORTCUT = ("Project Hub", "/project-hub", "Blue")
-CONTENT_SHORTCUT_LABELS = [label for label, _, _ in REQUEST_SHORTCUTS] + [PROJECT_HUB_SHORTCUT[0]]
+
+# Analysis queue: requests waiting for analysis, and those nobody has taken yet.
+# A request taken and then released keeps _assign as "[]", so "unassigned"
+# means no quoted user in _assign rather than an empty field.
+# Filters use the 4-item form: the workspace widget drops the last filter of a
+# list whose filters have 5 items (frappe.utils.cleanup_filters).
+ANALYSIS_QUEUE_FILTERS = [["Customer Request", "workflow_state", "=", "To Analyze"]]
+UNASSIGNED_ANALYSIS_FILTERS = [
+	*ANALYSIS_QUEUE_FILTERS,
+	["Customer Request", "_assign", "not like", '%"%'],
+]
+QUEUE_SHORTCUTS = (
+	("Requests to Analyze", "Customer Request", "Orange", ANALYSIS_QUEUE_FILTERS, "{} to analyze"),
+	("Unassigned Analyses", "Customer Request", "Red", UNASSIGNED_ANALYSIS_FILTERS, "{} unassigned"),
+)
+CONTENT_SHORTCUT_LABELS = (
+	[label for label, _, _ in REQUEST_SHORTCUTS]
+	+ [label for label, *_ in QUEUE_SHORTCUTS]
+	+ [PROJECT_HUB_SHORTCUT[0]]
+)
 
 
 def execute():
@@ -95,7 +114,9 @@ def customer_request_workflow():
 		"states": state_rows(
 			{
 				"Draft": ("Projects User", "Projects Manager", "System Manager"),
-				"To Analyze": ("Projects Manager", "System Manager"),
+				# The analysis is written by whoever takes the request from the
+				# queue, usually a developer without the Projects Manager role.
+				"To Analyze": ("Projects User", "Projects Manager", "System Manager"),
 				"Quoted": ("Projects Manager", "System Manager"),
 				"Accepted": ("Projects Manager", "System Manager"),
 				"Rejected": ("Projects Manager", "System Manager"),
@@ -114,8 +135,9 @@ def customer_request_workflow():
 			transition("Quoted", "Accept", "Accepted", "System Manager"),
 			transition("Quoted", "Reject", "Rejected", "Projects Manager"),
 			transition("Quoted", "Reject", "Rejected", "System Manager"),
-			transition("Accepted", "Mark Converted", "Converted", "Projects Manager"),
-			transition("Accepted", "Mark Converted", "Converted", "System Manager"),
+			# Accepted -> Converted has no transition on purpose: only
+			# CustomerRequest.create_change_request sets it, together with the
+			# Change Request it creates.
 			transition("Rejected", "Submit for Analysis", "To Analyze", "Projects User"),
 			transition("Rejected", "Submit for Analysis", "To Analyze", "Projects Manager"),
 			transition("Rejected", "Submit for Analysis", "To Analyze", "System Manager"),
@@ -190,6 +212,10 @@ def ensure_workspace_shortcuts():
 		if ensure_workspace_shortcut(workspace, label, doctype, color):
 			changed = True
 
+	for label, doctype, color, filters, count_format in QUEUE_SHORTCUTS:
+		if ensure_workspace_filtered_shortcut(workspace, label, doctype, color, filters, count_format):
+			changed = True
+
 	if ensure_workspace_url_shortcut(workspace, *PROJECT_HUB_SHORTCUT):
 		changed = True
 
@@ -214,7 +240,8 @@ def ensure_workspace_shortcuts():
 
 def ensure_workspace_shortcut(workspace, label, doctype, color):
 	for row in workspace.shortcuts:
-		if row.link_to == doctype or row.label == label:
+		# Filtered shortcuts (the analysis queue) link to the same doctype.
+		if (row.link_to == doctype and not row.stats_filter) or row.label == label:
 			changed = False
 			if row.label != label:
 				row.label = label
@@ -240,6 +267,28 @@ def ensure_workspace_shortcut(workspace, label, doctype, color):
 			"doc_view": "List",
 		},
 	)
+	return True
+
+
+def ensure_workspace_filtered_shortcut(workspace, label, doctype, color, filters, count_format):
+	"""A list shortcut that opens with `filters` applied and shows their count."""
+	values = {
+		"type": "DocType",
+		"link_to": doctype,
+		"doc_view": "List",
+		"stats_filter": json.dumps(filters),
+		"format": count_format,
+	}
+	for row in workspace.shortcuts:
+		if row.label == label:
+			changed = False
+			for fieldname, value in values.items():
+				if row.get(fieldname) != value:
+					row.set(fieldname, value)
+					changed = True
+			return changed
+
+	workspace.append("shortcuts", {"label": label, "color": color, **values})
 	return True
 
 
