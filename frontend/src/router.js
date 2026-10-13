@@ -14,6 +14,9 @@ export function createAppRouter() {
 	const routes = [
 		// Add all registered tab routes
 		...getRoutes(),
+		// The Requests tab moved into the project view (requests panel); keep old
+		// links from opening a project named "requests".
+		{ path: "/project-hub/requests", redirect: { name: "ProjectList" } },
 		// Project Outliner route (must come last to avoid conflicts)
 		{
 			path: "/project-hub/:projectId/:taskId?",
