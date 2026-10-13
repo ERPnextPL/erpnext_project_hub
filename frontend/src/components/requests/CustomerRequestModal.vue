@@ -11,15 +11,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
-	// Project preselected when the modal opens.
+	// The request is created for this project.
 	project: {
 		type: String,
 		default: "",
-	},
-	// When given, the project can be changed from a select; otherwise it is fixed.
-	projects: {
-		type: Array,
-		default: () => [],
 	},
 	projectLabel: {
 		type: String,
@@ -53,8 +48,8 @@ const currencyOptions = ref([]);
 const quotationOptions = ref([]);
 const loadingDropdownOptions = ref(false);
 const createForm = ref(emptyForm());
-// Bumped on every project change, open and close: a dropdown response that
-// arrives for an older generation belongs to another project and is dropped.
+// Bumped on every open and close: a dropdown response that arrives for an
+// older generation belongs to an earlier opening (maybe of another project).
 let loadGeneration = 0;
 
 function emptyForm() {
@@ -87,15 +82,6 @@ function resetCreateForm() {
 	requestedByOptions.value = [];
 	currencyOptions.value = [];
 	quotationOptions.value = [];
-}
-
-function handleCreateProjectChange() {
-	loadGeneration += 1;
-	createForm.value.requested_by = "";
-	createForm.value.currency = "";
-	createForm.value.quotation = "";
-	void loadRequestedByOptions("");
-	void loadDropdownOptions();
 }
 
 function closeCreateModal() {
@@ -160,9 +146,6 @@ async function loadDropdownOptions() {
 
 function validateCreateForm() {
 	const nextErrors = {};
-	if (!createForm.value.project) {
-		nextErrors.project = translate("Project is required");
-	}
 	const subject = createForm.value.subject.trim();
 
 	if (!subject) {
@@ -193,7 +176,7 @@ function validateCreateForm() {
 
 async function submitCustomerRequest() {
 	if (!createForm.value.project) {
-		formErrors.value = { project: translate("Project is required") };
+		submitError.value = translate("Project is required");
 		return;
 	}
 
@@ -298,25 +281,6 @@ onUnmounted(() => {
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<div v-if="projects.length > 0" class="md:col-span-2">
-								<label class="mb-1 block text-sm font-medium text-gray-700">
-									{{ translate("Project") }}
-								</label>
-								<select
-									v-model="createForm.project"
-									class="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-									@change="handleCreateProjectChange"
-								>
-									<option value="">{{ translate("Select project") }}</option>
-									<option v-for="item in projects" :key="item.name" :value="item.name">
-										{{ item.project_name || item.name }}
-									</option>
-								</select>
-								<p v-if="formErrors.project" class="mt-1 text-xs text-red-600">
-									{{ formErrors.project }}
-								</p>
-							</div>
-
 							<div class="md:col-span-2">
 								<label class="mb-1 block text-sm font-medium text-gray-700">
 									{{ translate("Subject") }}

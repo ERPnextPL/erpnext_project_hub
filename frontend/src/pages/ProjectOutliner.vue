@@ -311,10 +311,6 @@ function openRequestTask(taskName) {
 	router.push({ name: "ProjectOutliner", params: { projectId: props.projectId, taskId: taskName } });
 }
 
-function openAllRequests() {
-	router.push({ name: "ProjectRequests", query: { project: props.projectId } });
-}
-
 function closeMilestoneSidebar() {
 	milestoneSidebarOpen.value = false;
 }
@@ -637,7 +633,6 @@ const groupedTasksByMilestone = computed(() => {
 							@close="requestsSidebarOpen = false"
 							@refresh="fetchRequests"
 							@open-task="openRequestTask"
-							@open-all="openAllRequests"
 						/>
 					</div>
 				</Transition>

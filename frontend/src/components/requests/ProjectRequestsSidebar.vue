@@ -11,7 +11,6 @@ import {
 	Hand,
 	UserCheck,
 	UserMinus,
-	Maximize2,
 	Plus,
 	RefreshCw,
 	Search,
@@ -60,7 +59,7 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["close", "refresh", "open-task", "open-all"]);
+const emit = defineEmits(["close", "refresh", "open-task"]);
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 
@@ -335,14 +334,6 @@ onMounted(() => {
 					@click="emit('refresh')"
 				>
 					<RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
-				</button>
-				<button
-					type="button"
-					class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-					:title="translate('Open all requests')"
-					@click="emit('open-all')"
-				>
-					<Maximize2 class="w-4 h-4" />
 				</button>
 				<button
 					type="button"
