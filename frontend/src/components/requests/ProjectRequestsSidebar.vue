@@ -14,6 +14,7 @@ import {
 	Plus,
 	RefreshCw,
 	Search,
+	SquareKanban,
 	X,
 } from "lucide-vue-next";
 import CustomerRequestModal from "./CustomerRequestModal.vue";
@@ -29,8 +30,12 @@ import {
 	getRequestStateClass,
 	htmlToText,
 	isOpenCustomerRequest,
+	openRequestsBoardFromLink,
+	requestsBoardPath,
+	requestsBoardWindowName,
 	stripHtml,
 } from "../../utils/customerRequests";
+import { notifyRequestsChanged } from "../../utils/requestsChannel";
 
 const props = defineProps({
 	projectId: {
@@ -172,6 +177,7 @@ async function submitQuickRequest() {
 		});
 		quickSubject.value = "";
 		showAlert(translate("Customer request created"), "green");
+		notifyRequestsChanged(projectName.value);
 		// A new request lands in Draft, so make sure it is visible.
 		if (statusFilter.value === "closed") statusFilter.value = "open";
 		emit("refresh");
@@ -233,6 +239,7 @@ async function runRequestAction(request, method, payload, confirmMessage, succes
 	try {
 		const result = await apiPost(method, { name: request.name, ...payload });
 		showAlert(successMessage(request, result), "green");
+		notifyRequestsChanged(projectName.value);
 		emit("refresh");
 		// The parent's loading flag reaches this component's props on the next
 		// render; until then props.loading still reads the pre-refresh value.
@@ -300,6 +307,7 @@ function openFullForm() {
 
 function handleModalCreated() {
 	showModal.value = false;
+	notifyRequestsChanged(projectName.value);
 	quickSubject.value = "";
 	quickError.value = "";
 	if (statusFilter.value === "closed") statusFilter.value = "open";
@@ -326,6 +334,16 @@ onMounted(() => {
 				</div>
 			</div>
 			<div class="flex items-center gap-1">
+				<a
+					:href="requestsBoardPath(projectName)"
+					:target="requestsBoardWindowName(projectName)"
+					class="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-white hover:bg-gray-700"
+					:title="translate('Open the requests board in a new window')"
+					@click="openRequestsBoardFromLink($event, projectName)"
+				>
+					<SquareKanban class="h-3.5 w-3.5" />
+					{{ translate("Requests board") }}
+				</a>
 				<button
 					type="button"
 					class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"

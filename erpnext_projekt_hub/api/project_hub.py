@@ -355,7 +355,9 @@ def get_project_requests(project: str):
 			"requested_by",
 			"notes",
 			"business_value",
+			"analysis",
 			"workflow_state",
+			"state_changed_on",
 			"estimated_hours",
 			"estimated_amount",
 			"currency",
@@ -381,11 +383,13 @@ def get_project_requests(project: str):
 			)
 		)
 	can_create_change_request = frappe.has_permission("Change Request", "create")
+	can_edit_analysis = _can_edit_analysis(ANALYSIS_STATE)
 	for row in customer_requests:
 		row.requested_by_name = employee_names.get(row.requested_by) or row.requested_by
 		row.can_create_change_request = bool(
 			can_create_change_request and row.workflow_state == "Accepted" and not row.change_request
 		)
+		row.can_edit_analysis = can_edit_analysis and row.workflow_state == ANALYSIS_STATE
 	_set_customer_request_actions(customer_requests)
 	change_requests = frappe.get_list(
 		"Change Request",
@@ -444,6 +448,7 @@ def _set_customer_request_assignees(customer_requests):
 		]
 
 
+ANALYSIS_STATE = "To Analyze"
 CONVERTED_STATE = "Converted"
 
 
@@ -482,6 +487,28 @@ def _set_customer_request_actions(customer_requests):
 		row.actions = actions
 
 
+def _can_edit_analysis(workflow_state):
+	"""Return True when the current user may write the analysis of a request in this state.
+
+	Only a request waiting for analysis takes its analysis from the Projekt HUB
+	UI, and only from the roles the workflow lets edit that state (Desk applies
+	the same rule to the form).
+	"""
+	from frappe.model.workflow import get_workflow_name
+
+	if workflow_state != ANALYSIS_STATE:
+		return False
+	if not frappe.has_permission("Customer Request", "write"):
+		return False
+
+	workflow_name = get_workflow_name("Customer Request")
+	if not workflow_name:
+		return True
+	workflow = frappe.get_cached_doc("Workflow", workflow_name)
+	editor_roles = {row.allow_edit for row in workflow.states if row.state == workflow_state}
+	return bool(editor_roles & set(frappe.get_roles()))
+
+
 def _is_conversion_action(request, action):
 	from frappe.model.workflow import get_workflow_name
 
@@ -511,6 +538,58 @@ def apply_customer_request_action(name: str, action: str):
 	request = apply_workflow(request, action)
 
 	return {"name": request.name, "workflow_state": request.workflow_state}
+
+
+@frappe.whitelist(methods=["POST"])
+def update_customer_request_analysis(
+	name: str,
+	analysis: str | None = None,
+	estimated_hours: str | None = None,
+	currency: str | None = None,
+	estimated_amount: str | None = None,
+	quotation: str | None = None,
+):
+	"""Save the analysis and estimate of a Customer Request waiting for analysis.
+
+	A field left out (None) keeps its value; an empty string clears it.
+	"""
+	require_project_hub_access()
+	if not name:
+		frappe.throw(_("Customer Request is required"))
+
+	request = frappe.get_doc("Customer Request", name)
+	request.check_permission("write")
+	if not _can_edit_analysis(request.workflow_state):
+		frappe.throw(
+			_("The analysis can only be edited while the request waits for analysis."),
+			frappe.PermissionError,
+		)
+
+	if analysis is not None:
+		request.analysis = analysis
+	for fieldname, value in (("estimated_hours", estimated_hours), ("estimated_amount", estimated_amount)):
+		if value is None:
+			continue
+		number = flt(value)
+		if number < 0:
+			frappe.throw(_("{0} cannot be negative").format(_(request.meta.get_label(fieldname))))
+		request.set(fieldname, number)
+	for fieldname, value in (("currency", currency), ("quotation", quotation)):
+		if value is not None:
+			request.set(fieldname, value or None)
+	if request.estimated_amount and not request.currency:
+		frappe.throw(_("Currency is required when amount is provided"))
+
+	request.save()
+
+	return {
+		"name": request.name,
+		"analysis": request.analysis,
+		"estimated_hours": request.estimated_hours,
+		"currency": request.currency,
+		"estimated_amount": request.estimated_amount,
+		"quotation": request.quotation,
+	}
 
 
 @frappe.whitelist(methods=["POST"])
