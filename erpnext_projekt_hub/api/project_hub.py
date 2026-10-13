@@ -361,11 +361,13 @@ def get_project_requests(project: str):
 			"currency",
 			"quotation",
 			"change_request",
+			"_assign",
 			"owner",
 			"modified",
 		],
 		order_by="modified desc",
 	)
+	_set_customer_request_assignees(customer_requests)
 	employee_ids = list({row.requested_by for row in customer_requests if row.requested_by})
 	employee_names = {}
 	if employee_ids:
@@ -413,6 +415,33 @@ def get_project_requests(project: str):
 		"customer_requests": customer_requests,
 		"change_requests": change_requests,
 	}
+
+
+def _set_customer_request_assignees(customer_requests):
+	"""Replace the raw _assign JSON with the assigned users and their names."""
+	assignees_by_request = {}
+	for row in customer_requests:
+		users = frappe.parse_json(row.pop("_assign", None) or "[]")
+		assignees_by_request[row.name] = users if isinstance(users, list) else []
+
+	all_users = {user for users in assignees_by_request.values() for user in users}
+	full_names = {}
+	if all_users:
+		full_names = dict(
+			frappe.get_all(
+				"User",
+				filters={"name": ["in", list(all_users)]},
+				fields=["name", "full_name"],
+				as_list=True,
+				ignore_permissions=True,
+			)
+		)
+
+	for row in customer_requests:
+		row.assigned_to = [
+			{"user": user, "full_name": full_names.get(user) or user}
+			for user in assignees_by_request[row.name]
+		]
 
 
 def _set_customer_request_actions(customer_requests):
@@ -464,6 +493,41 @@ def apply_customer_request_action(name: str, action: str):
 	request = apply_workflow(request, action)
 
 	return {"name": request.name, "workflow_state": request.workflow_state}
+
+
+@frappe.whitelist(methods=["POST"])
+def take_customer_request(name: str):
+	"""Assign a Customer Request waiting for analysis to the current user."""
+	from frappe.desk.form.assign_to import add as add_assignment
+
+	require_project_hub_access()
+	request = frappe.get_doc("Customer Request", name)
+	request.check_permission("read")
+	if request.workflow_state != "To Analyze":
+		frappe.throw(_("Only requests waiting for analysis can be taken."))
+
+	add_assignment(
+		{
+			"doctype": request.doctype,
+			"name": request.name,
+			"assign_to": [frappe.session.user],
+			"description": request.subject,
+		}
+	)
+	return {"name": request.name}
+
+
+@frappe.whitelist(methods=["POST"])
+def release_customer_request(name: str):
+	"""Remove the current user's assignment from a Customer Request."""
+	from frappe.desk.form.assign_to import remove as remove_assignment
+
+	require_project_hub_access()
+	request = frappe.get_doc("Customer Request", name)
+	request.check_permission("read")
+
+	remove_assignment(request.doctype, request.name, frappe.session.user)
+	return {"name": request.name}
 
 
 @frappe.whitelist(methods=["POST"])

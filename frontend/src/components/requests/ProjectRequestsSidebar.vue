@@ -8,6 +8,9 @@ import {
 	ClipboardList,
 	ExternalLink,
 	GitPullRequestArrow,
+	Hand,
+	UserCheck,
+	UserMinus,
 	Maximize2,
 	Plus,
 	RefreshCw,
@@ -204,7 +207,25 @@ function setActionError(name, message) {
 	actionErrors.value = { ...actionErrors.value, [name]: message };
 }
 
-async function runRequestAction(request, method, payload, confirmMessage) {
+const currentUser = computed(() => realWindow?.frappe?.session?.user || "");
+
+function isAssignedToMe(request) {
+	return (request.assigned_to || []).some((assignee) => assignee.user === currentUser.value);
+}
+
+function assigneeNames(request) {
+	return (request.assigned_to || []).map((assignee) => assignee.full_name || assignee.user).join(", ");
+}
+
+function hasEstimate(request) {
+	return Boolean(request.estimated_hours || request.estimated_amount || request.quotation);
+}
+
+function movedMessage(request, result) {
+	return translate("{0} moved to {1}", [request.name, translate(result?.workflow_state || "")]);
+}
+
+async function runRequestAction(request, method, payload, confirmMessage, successMessage = movedMessage) {
 	if (busyRequest.value) return;
 	if (confirmMessage && !realWindow?.confirm(confirmMessage)) return;
 
@@ -212,10 +233,7 @@ async function runRequestAction(request, method, payload, confirmMessage) {
 	setActionError(request.name, "");
 	try {
 		const result = await apiPost(method, { name: request.name, ...payload });
-		showAlert(
-			translate("{0} moved to {1}", [request.name, translate(result?.workflow_state || "")]),
-			"green"
-		);
+		showAlert(successMessage(request, result), "green");
 		emit("refresh");
 		if (!props.loading) busyRequest.value = "";
 	} catch (err) {
@@ -242,6 +260,26 @@ function createChangeRequest(request) {
 		"erpnext_projekt_hub.api.project_hub.create_change_request_from_customer_request",
 		{},
 		translate("Create a change request for \"{0}\"?", [request.subject])
+	);
+}
+
+function takeRequest(request) {
+	return runRequestAction(
+		request,
+		"erpnext_projekt_hub.api.project_hub.take_customer_request",
+		{},
+		"",
+		() => translate("You are now analyzing {0}", [request.name])
+	);
+}
+
+function releaseRequest(request) {
+	return runRequestAction(
+		request,
+		"erpnext_projekt_hub.api.project_hub.release_customer_request",
+		{},
+		"",
+		() => translate("{0} is back in the analysis queue", [request.name])
 	);
 }
 
@@ -446,6 +484,32 @@ onMounted(() => {
 										<span v-if="request.source">· {{ translate(request.source) }}</span>
 										<span v-if="request.requested_by_name">· {{ request.requested_by_name }}</span>
 									</div>
+									<div
+										v-if="request.workflow_state === 'To Analyze'"
+										class="mt-1 flex items-center gap-1 text-xs"
+									>
+										<template v-if="request.assigned_to?.length">
+											<UserCheck class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+											<span class="text-gray-600 dark:text-gray-300">
+												{{ translate("Analyzed by: {0}", [assigneeNames(request)]) }}
+											</span>
+										</template>
+										<span v-else class="font-medium text-amber-700 dark:text-amber-400">
+											{{ translate("Waiting for someone to analyze") }}
+										</span>
+									</div>
+									<div
+										v-if="!expanded.has(request.name) && hasEstimate(request)"
+										class="mt-1 flex flex-wrap gap-x-2 text-xs font-medium text-gray-700 dark:text-gray-200"
+									>
+										<span v-if="request.estimated_hours">{{ request.estimated_hours }} h</span>
+										<span v-if="request.estimated_amount">
+											· {{ formatRequestAmount(request, "estimated_amount") }}
+										</span>
+										<span v-if="request.quotation" class="font-normal text-gray-500 dark:text-gray-400">
+											· {{ request.quotation }}
+										</span>
+									</div>
 									<p
 										v-if="!expanded.has(request.name) && request.notes"
 										class="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2"
@@ -531,9 +595,42 @@ onMounted(() => {
 						</div>
 
 						<div
-							v-if="request.actions?.length || request.can_create_change_request || actionErrors[request.name]"
+							v-if="request.workflow_state === 'To Analyze' || request.actions?.length || request.can_create_change_request || actionErrors[request.name]"
 							class="border-t border-gray-100 dark:border-gray-700 px-3 py-2"
 						>
+							<div
+								v-if="request.workflow_state === 'To Analyze'"
+								class="mb-1.5 flex flex-wrap items-center gap-1.5"
+							>
+								<button
+									v-if="!isAssignedToMe(request)"
+									type="button"
+									:disabled="Boolean(busyRequest)"
+									class="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+									@click="takeRequest(request)"
+								>
+									<Hand class="h-3.5 w-3.5" />
+									{{ translate("Take for analysis") }}
+								</button>
+								<button
+									v-else
+									type="button"
+									:disabled="Boolean(busyRequest)"
+									class="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+									@click="releaseRequest(request)"
+								>
+									<UserMinus class="h-3.5 w-3.5" />
+									{{ translate("Release") }}
+								</button>
+								<button
+									type="button"
+									class="inline-flex items-center gap-1 rounded-md border border-blue-200 dark:border-blue-800 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+									@click="openInDesk('Customer Request', request.name)"
+								>
+									<ExternalLink class="h-3.5 w-3.5" />
+									{{ translate("Analyze in Desk") }}
+								</button>
+							</div>
 							<div class="flex flex-wrap items-center gap-1.5">
 								<button
 									v-for="action in request.actions || []"
