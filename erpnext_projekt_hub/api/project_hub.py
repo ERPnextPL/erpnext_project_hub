@@ -378,8 +378,13 @@ def get_project_requests(project: str):
 				ignore_permissions=True,
 			)
 		)
+	can_create_change_request = frappe.has_permission("Change Request", "create")
 	for row in customer_requests:
 		row.requested_by_name = employee_names.get(row.requested_by) or row.requested_by
+		row.can_create_change_request = bool(
+			can_create_change_request and row.workflow_state == "Accepted" and not row.change_request
+		)
+	_set_customer_request_actions(customer_requests)
 	change_requests = frappe.get_list(
 		"Change Request",
 		filters={"project": project},
@@ -408,6 +413,73 @@ def get_project_requests(project: str):
 		"customer_requests": customer_requests,
 		"change_requests": change_requests,
 	}
+
+
+def _set_customer_request_actions(customer_requests):
+	"""Attach the workflow actions the current user may take on each request.
+
+	Mirrors frappe.model.workflow.get_transitions, but reads the workflow once
+	and loads a document only for transitions that carry a condition.
+	"""
+	from frappe.model.workflow import get_workflow_name, is_transition_condition_satisfied
+
+	workflow_name = get_workflow_name("Customer Request")
+	transitions = []
+	if workflow_name:
+		roles = set(frappe.get_roles())
+		workflow = frappe.get_cached_doc("Workflow", workflow_name)
+		transitions = [t for t in workflow.transitions if t.allowed in roles]
+
+	for row in customer_requests:
+		actions = []
+		seen = set()
+		doc = None
+		for transition in transitions:
+			if transition.state != row.workflow_state or transition.action in seen:
+				continue
+			# Converting goes through create_change_request, which also creates
+			# the Change Request; marking it by hand would leave none behind.
+			if transition.next_state == "Converted" and row.can_create_change_request:
+				continue
+			if transition.condition:
+				doc = doc or frappe.get_doc("Customer Request", row.name)
+				if not is_transition_condition_satisfied(transition, doc):
+					continue
+			seen.add(transition.action)
+			actions.append({"action": transition.action, "next_state": transition.next_state})
+		row.actions = actions
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_customer_request_action(name: str, action: str):
+	"""Move a Customer Request along its workflow from the Projekt HUB UI."""
+	from frappe.model.workflow import apply_workflow
+
+	require_project_hub_access()
+	if not name or not action:
+		frappe.throw(_("Customer Request and action are required"))
+
+	request = frappe.get_doc("Customer Request", name)
+	request.check_permission("write")
+	request = apply_workflow(request, action)
+
+	return {"name": request.name, "workflow_state": request.workflow_state}
+
+
+@frappe.whitelist(methods=["POST"])
+def create_change_request_from_customer_request(name: str):
+	"""Create the Change Request of an accepted Customer Request."""
+	require_project_hub_access()
+	if not name:
+		frappe.throw(_("Customer Request is required"))
+	if not frappe.has_permission("Change Request", "create"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	request = frappe.get_doc("Customer Request", name)
+	request.check_permission("write")
+	change_request = request.create_change_request()
+
+	return {"name": request.name, "workflow_state": request.workflow_state, "change_request": change_request}
 
 
 @frappe.whitelist()

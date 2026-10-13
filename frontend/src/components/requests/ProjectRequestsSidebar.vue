@@ -1,7 +1,8 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import dayjs from "dayjs";
 import {
+	Check,
 	ChevronDown,
 	ChevronRight,
 	ClipboardList,
@@ -16,6 +17,7 @@ import {
 import CustomerRequestModal from "./CustomerRequestModal.vue";
 import { translate } from "../../utils/translation";
 import {
+	CUSTOMER_REQUEST_PIPELINE,
 	CUSTOMER_REQUEST_STATES,
 	REQUEST_SOURCES,
 	apiPost,
@@ -78,6 +80,11 @@ const quickInputRef = ref(null);
 const showModal = ref(false);
 const modalSubject = ref("");
 const modalSource = ref("");
+
+// Workflow actions: the request being moved stays busy until the refetch the
+// action triggers has finished, so its old buttons cannot be clicked twice.
+const busyRequest = ref("");
+const actionErrors = ref({});
 
 const projectName = computed(() => props.project?.name || props.projectId);
 const hasCustomer = computed(() => !props.project || Boolean(props.project.customer));
@@ -175,6 +182,75 @@ async function submitQuickRequest() {
 		quickCreating.value = false;
 	}
 }
+
+function pipelineStepClass(request, step) {
+	const state = request.workflow_state || "Draft";
+	if (state === "Rejected") return "bg-gray-200 dark:bg-gray-600";
+	const current = CUSTOMER_REQUEST_PIPELINE.indexOf(state);
+	const index = CUSTOMER_REQUEST_PIPELINE.indexOf(step);
+	if (index < current) return "bg-green-500";
+	if (index === current) return "bg-green-600 ring-2 ring-green-200 dark:ring-green-900";
+	return "bg-gray-200 dark:bg-gray-600";
+}
+
+function actionButtonClass(action) {
+	if (action.next_state === "Rejected") {
+		return "border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/30";
+	}
+	return "bg-green-600 text-white hover:bg-green-700";
+}
+
+function setActionError(name, message) {
+	actionErrors.value = { ...actionErrors.value, [name]: message };
+}
+
+async function runRequestAction(request, method, payload, confirmMessage) {
+	if (busyRequest.value) return;
+	if (confirmMessage && !realWindow?.confirm(confirmMessage)) return;
+
+	busyRequest.value = request.name;
+	setActionError(request.name, "");
+	try {
+		const result = await apiPost(method, { name: request.name, ...payload });
+		showAlert(
+			translate("{0} moved to {1}", [request.name, translate(result?.workflow_state || "")]),
+			"green"
+		);
+		emit("refresh");
+		if (!props.loading) busyRequest.value = "";
+	} catch (err) {
+		console.error("Failed to change customer request state:", err);
+		setActionError(request.name, decodeApiError(err, translate("Status could not be changed")));
+		busyRequest.value = "";
+	}
+}
+
+function applyAction(request, action) {
+	const confirmMessage =
+		action.next_state === "Rejected" ? translate("Reject request \"{0}\"?", [request.subject]) : "";
+	return runRequestAction(
+		request,
+		"erpnext_projekt_hub.api.project_hub.apply_customer_request_action",
+		{ action: action.action },
+		confirmMessage
+	);
+}
+
+function createChangeRequest(request) {
+	return runRequestAction(
+		request,
+		"erpnext_projekt_hub.api.project_hub.create_change_request_from_customer_request",
+		{},
+		translate("Create a change request for \"{0}\"?", [request.subject])
+	);
+}
+
+watch(
+	() => props.loading,
+	(loading) => {
+		if (!loading) busyRequest.value = "";
+	}
+);
 
 function openFullForm() {
 	modalSubject.value = quickSubject.value.trim();
@@ -384,6 +460,30 @@ onMounted(() => {
 							v-if="expanded.has(request.name)"
 							class="border-t border-gray-100 dark:border-gray-700 px-3 py-3 space-y-3 text-sm"
 						>
+							<div>
+								<div class="flex items-center gap-1" :title="translate(request.workflow_state || 'Draft')">
+									<div
+										v-for="step in CUSTOMER_REQUEST_PIPELINE"
+										:key="step"
+										:class="['h-1.5 flex-1 rounded-full', pipelineStepClass(request, step)]"
+									></div>
+								</div>
+								<div class="mt-1 flex justify-between text-[10px] text-gray-400">
+									<span
+										v-for="step in CUSTOMER_REQUEST_PIPELINE"
+										:key="step"
+										:class="{ 'font-semibold text-green-700 dark:text-green-400': step === (request.workflow_state || 'Draft') }"
+									>
+										{{ translate(step) }}
+									</span>
+								</div>
+								<div
+									v-if="request.workflow_state === 'Rejected'"
+									class="mt-1 text-xs font-medium text-red-600 dark:text-red-400"
+								>
+									{{ translate("Rejected") }}
+								</div>
+							</div>
 							<div v-if="request.notes">
 								<div class="text-xs font-medium uppercase tracking-wide text-gray-400">
 									{{ translate("Notes") }}
@@ -428,6 +528,47 @@ onMounted(() => {
 									{{ request.change_request }}
 								</button>
 							</div>
+						</div>
+
+						<div
+							v-if="request.actions?.length || request.can_create_change_request || actionErrors[request.name]"
+							class="border-t border-gray-100 dark:border-gray-700 px-3 py-2"
+						>
+							<div class="flex flex-wrap items-center gap-1.5">
+								<button
+									v-for="action in request.actions || []"
+									:key="action.action"
+									type="button"
+									:disabled="Boolean(busyRequest)"
+									:title="translate('Move to: {0}', [translate(action.next_state)])"
+									:class="[
+										'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+										actionButtonClass(action),
+									]"
+									@click="applyAction(request, action)"
+								>
+									<X v-if="action.next_state === 'Rejected'" class="h-3.5 w-3.5" />
+									<Check v-else class="h-3.5 w-3.5" />
+									{{ translate(action.action) }}
+								</button>
+								<button
+									v-if="request.can_create_change_request"
+									type="button"
+									:disabled="Boolean(busyRequest)"
+									class="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+									@click="createChangeRequest(request)"
+								>
+									<GitPullRequestArrow class="h-3.5 w-3.5" />
+									{{ translate("Create Change Request") }}
+								</button>
+								<RefreshCw
+									v-if="busyRequest === request.name"
+									class="h-3.5 w-3.5 animate-spin text-gray-400"
+								/>
+							</div>
+							<p v-if="actionErrors[request.name]" class="mt-1 text-xs text-red-600 dark:text-red-400">
+								{{ actionErrors[request.name] }}
+							</p>
 						</div>
 					</article>
 				</div>

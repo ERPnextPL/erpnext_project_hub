@@ -110,6 +110,9 @@ export const CUSTOMER_REQUEST_STATES = [
 	"Rejected",
 ];
 
+// The happy path shown as a stage tracker; Rejected sits outside it.
+export const CUSTOMER_REQUEST_PIPELINE = ["Draft", "To Analyze", "Quoted", "Accepted", "Converted"];
+
 // States in which a request still needs work from the team.
 export const OPEN_CUSTOMER_REQUEST_STATES = ["Draft", "To Analyze", "Quoted", "Accepted"];
 

@@ -4,6 +4,8 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_projekt_hub.api.project_hub import (
+	apply_customer_request_action,
+	create_change_request_from_customer_request,
 	create_customer_request,
 	get_customer_request_dropdown_options,
 	get_project_requests,
@@ -277,6 +279,77 @@ class TestCustomerRequest(FrappeTestCase):
 		self.assertEqual(row.notes, "<p>_Test detailed notes</p>")
 		self.assertEqual(row.requested_by, employee)
 		self.assertEqual(row.requested_by_name, frappe.db.get_value("Employee", employee, "employee_name"))
+
+	def test_project_requests_api_lists_workflow_actions(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		customer_request = frappe.get_doc(
+			{
+				"doctype": "Customer Request",
+				"customer": customer,
+				"project": project,
+				"subject": "_Test request actions",
+			}
+		).insert(ignore_permissions=True)
+
+		result = get_project_requests(project)
+
+		row = next(row for row in result["customer_requests"] if row.name == customer_request.name)
+		self.assertEqual(row.actions, [{"action": "Submit for Analysis", "next_state": "To Analyze"}])
+		self.assertFalse(row.can_create_change_request)
+
+	def test_apply_customer_request_action_moves_workflow_state(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		customer_request = frappe.get_doc(
+			{
+				"doctype": "Customer Request",
+				"customer": customer,
+				"project": project,
+				"subject": "_Test request transition",
+			}
+		).insert(ignore_permissions=True)
+
+		result = apply_customer_request_action(customer_request.name, "Submit for Analysis")
+
+		self.assertEqual(result["workflow_state"], "To Analyze")
+		self.assertEqual(
+			frappe.db.get_value("Customer Request", customer_request.name, "workflow_state"), "To Analyze"
+		)
+		with self.assertRaises(frappe.ValidationError):
+			apply_customer_request_action(customer_request.name, "Accept")
+
+	def test_accepted_request_offers_change_request_instead_of_mark_converted(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		customer_request = frappe.get_doc(
+			{
+				"doctype": "Customer Request",
+				"customer": customer,
+				"project": project,
+				"subject": "_Test request conversion",
+				"analysis": "_Test conversion analysis",
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value(
+			"Customer Request", customer_request.name, "workflow_state", "Accepted", update_modified=False
+		)
+
+		row = next(
+			row
+			for row in get_project_requests(project)["customer_requests"]
+			if row.name == customer_request.name
+		)
+		self.assertTrue(row.can_create_change_request)
+		self.assertNotIn("Mark Converted", [action["action"] for action in row.actions])
+
+		result = create_change_request_from_customer_request(customer_request.name)
+
+		self.assertEqual(result["workflow_state"], "Converted")
+		self.assertEqual(
+			frappe.db.get_value("Change Request", result["change_request"], "customer_request"),
+			customer_request.name,
+		)
 
 	def test_create_customer_request_api_uses_project_customer(self):
 		customer = get_or_create_customer()
