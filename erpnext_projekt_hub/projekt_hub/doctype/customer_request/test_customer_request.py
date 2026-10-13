@@ -256,6 +256,28 @@ class TestCustomerRequest(FrappeTestCase):
 			[row.name for row in result["change_requests"]],
 		)
 
+	def test_project_requests_api_returns_request_details(self):
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		employee = get_or_create_employee()
+		customer_request = frappe.get_doc(
+			{
+				"doctype": "Customer Request",
+				"customer": customer,
+				"project": project,
+				"subject": "_Test detailed request",
+				"requested_by": employee,
+				"notes": "<p>_Test detailed notes</p>",
+			}
+		).insert(ignore_permissions=True)
+
+		result = get_project_requests(project)
+
+		row = next(row for row in result["customer_requests"] if row.name == customer_request.name)
+		self.assertEqual(row.notes, "<p>_Test detailed notes</p>")
+		self.assertEqual(row.requested_by, employee)
+		self.assertEqual(row.requested_by_name, frappe.db.get_value("Employee", employee, "employee_name"))
+
 	def test_create_customer_request_api_uses_project_customer(self):
 		customer = get_or_create_customer()
 		project = create_project(customer)

@@ -352,16 +352,34 @@ def get_project_requests(project: str):
 			"customer",
 			"request_date",
 			"source",
+			"requested_by",
+			"notes",
+			"business_value",
 			"workflow_state",
 			"estimated_hours",
 			"estimated_amount",
 			"currency",
 			"quotation",
 			"change_request",
+			"owner",
 			"modified",
 		],
 		order_by="modified desc",
 	)
+	employee_ids = list({row.requested_by for row in customer_requests if row.requested_by})
+	employee_names = {}
+	if employee_ids:
+		employee_names = dict(
+			frappe.get_all(
+				"Employee",
+				filters={"name": ["in", employee_ids]},
+				fields=["name", "employee_name"],
+				as_list=True,
+				ignore_permissions=True,
+			)
+		)
+	for row in customer_requests:
+		row.requested_by_name = employee_names.get(row.requested_by) or row.requested_by
 	change_requests = frappe.get_list(
 		"Change Request",
 		filters={"project": project},

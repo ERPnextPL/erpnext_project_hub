@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
+import { useProjectRequests } from "../composables/useProjectRequests";
 import { isMilestoneCompleted } from "../utils/milestone";
 import { ACTIVE_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
@@ -17,6 +18,7 @@ import ProjectTeam from "../components/ProjectTeam.vue";
 import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
+import ProjectRequestsSidebar from "../components/requests/ProjectRequestsSidebar.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
@@ -33,6 +35,7 @@ import {
 	Columns,
 	GanttChart,
 	Paperclip,
+	ClipboardList,
 	Diamond,
 	GripVertical,
 	Plus,
@@ -60,6 +63,16 @@ const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const milestoneSidebarOpen = ref(false);
 const attachmentsSidebarOpen = ref(false);
 const attachmentCount = ref(0);
+const requestsSidebarOpen = ref(false);
+const {
+	customerRequests,
+	changeRequests,
+	loading: requestsLoading,
+	error: requestsError,
+	available: requestsAvailable,
+	openCount: openRequestCount,
+	fetchRequests,
+} = useProjectRequests(() => props.projectId);
 const searchInput = ref("");
 const filtersHydrated = ref(false);
 const suppressSearchSync = ref(false);
@@ -235,6 +248,7 @@ watch(isMobile, (mobile) => {
 	if (mobile) {
 		milestoneSidebarOpen.value = false;
 		attachmentsSidebarOpen.value = false;
+		requestsSidebarOpen.value = false;
 	}
 });
 
@@ -246,6 +260,7 @@ function handleEscape(event) {
 		}
 		milestoneSidebarOpen.value = false;
 		attachmentsSidebarOpen.value = false;
+		requestsSidebarOpen.value = false;
 	}
 }
 
@@ -276,6 +291,28 @@ function handleTaskClick(task) {
 
 function closeAttachmentsSidebar() {
 	attachmentsSidebarOpen.value = false;
+}
+
+// Attachments and requests share the right-hand column, so one closes the other.
+function toggleAttachmentsSidebar() {
+	attachmentsSidebarOpen.value = !attachmentsSidebarOpen.value;
+	if (attachmentsSidebarOpen.value) requestsSidebarOpen.value = false;
+}
+
+function toggleRequestsSidebar() {
+	requestsSidebarOpen.value = !requestsSidebarOpen.value;
+	if (requestsSidebarOpen.value) {
+		attachmentsSidebarOpen.value = false;
+		fetchRequests();
+	}
+}
+
+function openRequestTask(taskName) {
+	router.push({ name: "ProjectOutliner", params: { projectId: props.projectId, taskId: taskName } });
+}
+
+function openAllRequests() {
+	router.push({ name: "ProjectRequests", query: { project: props.projectId } });
 }
 
 function closeMilestoneSidebar() {
@@ -525,7 +562,7 @@ const groupedTasksByMilestone = computed(() => {
 					<div class="flex items-center gap-3 flex-wrap justify-end">
 						<ProjectTeam :project-id="projectId" />
 						<button
-							@click="attachmentsSidebarOpen = !attachmentsSidebarOpen"
+							@click="toggleAttachmentsSidebar"
 							:class="[
 								'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
 								attachmentsSidebarOpen
@@ -541,6 +578,27 @@ const groupedTasksByMilestone = computed(() => {
 								class="ml-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
 							>
 								{{ attachmentCount }}
+							</span>
+						</button>
+						<button
+							v-if="requestsAvailable"
+							@click="toggleRequestsSidebar"
+							:class="[
+								'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
+								requestsSidebarOpen
+									? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
+									: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+							]"
+							:title="translate('Customer Requests')"
+						>
+							<ClipboardList class="w-4 h-4" />
+							<span class="hidden sm:inline">{{ translate("Requests") }}</span>
+							<span
+								v-if="openRequestCount > 0"
+								class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+								:title="translate('Active customer requests')"
+							>
+								{{ openRequestCount }}
 							</span>
 						</button>
 						<OutlinerNav />
@@ -561,6 +619,25 @@ const groupedTasksByMilestone = computed(() => {
 							:project="store.project"
 							@close="closeAttachmentsSidebar"
 							@updated="handleAttachmentsUpdated"
+						/>
+					</div>
+				</Transition>
+				<Transition name="slide-sidebar-right">
+					<div
+						v-if="requestsSidebarOpen"
+						class="order-last flex-shrink-0 overflow-y-auto relative"
+					>
+						<ProjectRequestsSidebar
+							:project-id="projectId"
+							:project="store.project"
+							:customer-requests="customerRequests"
+							:change-requests="changeRequests"
+							:loading="requestsLoading"
+							:error="requestsError"
+							@close="requestsSidebarOpen = false"
+							@refresh="fetchRequests"
+							@open-task="openRequestTask"
+							@open-all="openAllRequests"
 						/>
 					</div>
 				</Transition>
