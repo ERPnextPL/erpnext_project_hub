@@ -36,6 +36,7 @@ declare module 'vue' {
     ProjectTeam: typeof import('./src/components/ProjectTeam.vue')['default']
     QuickAddTask: typeof import('./src/components/QuickAddTask.vue')['default']
     QuickFilters: typeof import('./src/components/QuickFilters.vue')['default']
+    RequestsGuideModal: typeof import('./src/components/requests/RequestsGuideModal.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StatusBadge: typeof import('./src/components/shared/StatusBadge.vue')['default']
