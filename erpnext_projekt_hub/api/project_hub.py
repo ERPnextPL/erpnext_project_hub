@@ -493,13 +493,18 @@ def _set_workflow_actions(doctype, rows, skip_next_states=()):
 
 
 def _set_change_request_tasks(change_requests):
-	"""Attach the status and progress of the task each Change Request created."""
+	"""Attach the status and progress of the task each Change Request created.
+
+	Read without Task permissions on purpose: whoever may read a change request
+	sees its task's status and progress, and a user without Task access must not
+	lose the whole requests view to a PermissionError.
+	"""
 	task_names = [row.task for row in change_requests if row.task]
 	tasks = {}
 	if task_names:
 		tasks = {
 			task.name: task
-			for task in frappe.get_list(
+			for task in frappe.get_all(
 				"Task",
 				filters={"name": ["in", task_names]},
 				fields=["name", "subject", "status", "progress"],

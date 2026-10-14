@@ -33,6 +33,11 @@ const props = defineProps({
 		type: Function,
 		default: getRequestMoves,
 	},
+	// Column summary when its requests carry no hours or amount.
+	noEstimateLabel: {
+		type: String,
+		default: "No estimate",
+	},
 	// Card of one request: takes request, movable, dragging, busy, disabled and
 	// now, and emits open (customer request cards also take and convert).
 	cardComponent: {
@@ -87,7 +92,7 @@ function columnSummary(column) {
 	const amounts = formatAmounts(column.amounts);
 	if (amounts) parts.push(amounts);
 	if (parts.length) return parts.join(" · ");
-	return column.requests.length ? translate("No estimate") : "";
+	return column.requests.length ? translate(props.noEstimateLabel) : "";
 }
 
 function toggled(set, state) {

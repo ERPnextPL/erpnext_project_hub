@@ -102,6 +102,7 @@ const PERIODS = [
 	{ value: "30", label: "Last 30 days" },
 	{ value: "90", label: "Last 90 days" },
 ];
+const APPROVED_STATE = "Approved";
 const CANCELLED_STATE = "Cancelled";
 
 // The board shows customer requests or change requests (view=change).
@@ -212,9 +213,16 @@ function openRequest(request) {
 }
 
 // The customer request a change request came from, or the other way round.
+// Only selected when the board has it: a request the user may not read is not
+// in the list, and a selection with no drawer would block the shortcuts.
 function openLinked(view, name) {
 	setView(view);
-	selectedName.value = name;
+	const requests = view === "change" ? changeRequests.value : customerRequests.value;
+	if (requests.some((request) => request.name === name)) {
+		selectedName.value = name;
+	} else {
+		notify(translate("{0} is not on this board", [name]), "error");
+	}
 }
 
 // --- Confirmation dialog ----------------------------------------------------
@@ -259,6 +267,19 @@ async function applyAction(request, action, nextState) {
 			message: translate("Reject request \"{0}\"?", [request.subject]),
 			confirmLabel: translate("Reject"),
 			tone: "red",
+		});
+		if (!confirmed) return;
+	}
+	// Approving creates the project task at once and cannot be undone.
+	if (change && nextState === APPROVED_STATE) {
+		const confirmed = await askConfirmation({
+			title: translate("Approve the change request?"),
+			message: translate(
+				"Approving creates the task \"{0}\" in the project with the approved hours and scope, and cannot be undone. Approve once the customer has signed the order.",
+				[request.subject]
+			),
+			confirmLabel: translate("Approve"),
+			tone: "violet",
 		});
 		if (!confirmed) return;
 	}
@@ -537,6 +558,7 @@ onUnmounted(() => {
 					:now="now"
 					:get-moves="isChangeView ? getChangeRequestMoves : getRequestMoves"
 					:card-component="isChangeView ? ChangeRequestCard : RequestBoardCard"
+					:no-estimate-label="isChangeView ? 'No approved estimate' : 'No estimate'"
 					@open="openRequest"
 					@move="moveRequest"
 					@take="takeRequest"

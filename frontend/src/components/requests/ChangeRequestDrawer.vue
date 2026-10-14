@@ -227,7 +227,7 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 					:key="action.action"
 					type="button"
 					:disabled="busy"
-					:title="translate('Move to: {0}', [translate(action.next_state)])"
+					:title="translate('Move to: {0}', [translate(CHANGE_REQUEST_STATE_ALIASES[action.next_state] || action.next_state)])"
 					:class="[
 						'inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50',
 						actionClass(action),

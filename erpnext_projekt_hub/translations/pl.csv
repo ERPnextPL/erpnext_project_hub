@@ -732,3 +732,7 @@
 "specification","specyfikacja"
 "sales order","zlecenie sprzedaży"
 "order document signed by the customer","dokument zlecenia podpisany przez klienta"
+"No approved estimate","Bez zatwierdzonej wyceny"
+"{0} is not on this board","{0} nie ma na tej tablicy"
+"Approve the change request?","Zatwierdzić wniosek o zmianę?"
+"Approving creates the task ""{0}"" in the project with the approved hours and scope, and cannot be undone. Approve once the customer has signed the order.","Zatwierdzenie od razu tworzy w projekcie zadanie „{0}” z zatwierdzonymi godzinami i zakresem i nie da się go cofnąć. Zatwierdź, gdy klient podpisze zlecenie."
