@@ -12,12 +12,14 @@ import {
 	UserCheck,
 	UserMinus,
 	Plus,
+	Info,
 	RefreshCw,
 	Search,
 	SquareKanban,
 	X,
 } from "lucide-vue-next";
 import CustomerRequestModal from "./CustomerRequestModal.vue";
+import RequestsGuideModal from "./RequestsGuideModal.vue";
 import { translate } from "../../utils/translation";
 import {
 	CUSTOMER_REQUEST_PIPELINE,
@@ -85,6 +87,7 @@ const quickCreating = ref(false);
 const quickError = ref("");
 const quickInputRef = ref(null);
 const showModal = ref(false);
+const showGuide = ref(false);
 const modalSubject = ref("");
 const modalSource = ref("");
 
@@ -332,6 +335,15 @@ onMounted(() => {
 						{{ translate("{0} active of {1}", [openCount, customerRequests.length]) }}
 					</div>
 				</div>
+				<button
+					type="button"
+					class="p-1 rounded-full text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700 dark:hover:text-blue-400"
+					:title="translate('How requests work')"
+					:aria-label="translate('How requests work')"
+					@click="showGuide = true"
+				>
+					<Info class="w-4 h-4" />
+				</button>
 			</div>
 			<div class="flex items-center gap-1">
 				<a
@@ -732,6 +744,8 @@ onMounted(() => {
 				</div>
 			</section>
 		</div>
+
+		<RequestsGuideModal :open="showGuide" @close="showGuide = false" />
 
 		<CustomerRequestModal
 			:open="showModal"

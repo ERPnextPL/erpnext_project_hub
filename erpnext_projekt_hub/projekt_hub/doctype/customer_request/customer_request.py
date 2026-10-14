@@ -7,10 +7,14 @@ from frappe.utils import now_datetime, strip_html
 ANALYSIS_STATE = "To Analyze"
 QUOTED_STATE = "Quoted"
 
+# Quotation can be linked only once the request has been quoted, not during analysis.
+STATES_WITHOUT_QUOTATION = ("Draft", "To Analyze")
+
 
 class CustomerRequest(Document):
 	def validate(self):
 		self.validate_project_customer()
+		self.validate_quotation_state()
 		self.validate_quote_has_estimate()
 		self.set_state_changed_on()
 
@@ -55,6 +59,13 @@ class CustomerRequest(Document):
 		project_customer = frappe.db.get_value("Project", self.project, "customer")
 		if project_customer and project_customer != self.customer:
 			frappe.throw(_("Customer must match the customer assigned to project {0}.").format(self.project))
+
+	def validate_quotation_state(self):
+		if not self.quotation or not self.has_value_changed("quotation"):
+			return
+
+		if (self.workflow_state or "Draft") in STATES_WITHOUT_QUOTATION:
+			frappe.throw(_("Quotation can be linked only after the Customer Request has been quoted."))
 
 	@frappe.whitelist()
 	def create_change_request(self):

@@ -38,6 +38,7 @@ declare module 'vue' {
     QuickFilters: typeof import('./src/components/QuickFilters.vue')['default']
     RequestBoardCard: typeof import('./src/components/requests/RequestBoardCard.vue')['default']
     RequestDetailDrawer: typeof import('./src/components/requests/RequestDetailDrawer.vue')['default']
+    RequestsGuideModal: typeof import('./src/components/requests/RequestsGuideModal.vue')['default']
     RequestsKanban: typeof import('./src/components/requests/RequestsKanban.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

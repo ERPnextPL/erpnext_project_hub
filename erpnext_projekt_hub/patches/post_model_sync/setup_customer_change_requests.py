@@ -117,10 +117,10 @@ def customer_request_workflow():
 				# The analysis is written by whoever takes the request from the
 				# queue, usually a developer without the Projects Manager role.
 				"To Analyze": ("Projects User", "Projects Manager", "System Manager"),
-				"Quoted": ("Projects Manager", "System Manager"),
-				"Accepted": ("Projects Manager", "System Manager"),
-				"Rejected": ("Projects Manager", "System Manager"),
-				"Converted": ("Projects Manager", "System Manager"),
+				"Quoted": ("Projects User", "Projects Manager", "System Manager"),
+				"Accepted": ("Projects User", "Projects Manager", "System Manager"),
+				"Rejected": ("Projects User", "Projects Manager", "System Manager"),
+				"Converted": ("Projects User", "Projects Manager", "System Manager"),
 			}
 		),
 		"transitions": [
