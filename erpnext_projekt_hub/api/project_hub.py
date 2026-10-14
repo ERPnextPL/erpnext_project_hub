@@ -547,11 +547,11 @@ def update_customer_request_analysis(
 	estimated_hours: str | None = None,
 	currency: str | None = None,
 	estimated_amount: str | None = None,
-	quotation: str | None = None,
 ):
 	"""Save the analysis and estimate of a Customer Request waiting for analysis.
 
-	A field left out (None) keeps its value; an empty string clears it.
+	A field left out (None) keeps its value; an empty string clears it. The
+	quotation is not part of it: it can be linked only once the request is quoted.
 	"""
 	require_project_hub_access()
 	if not name:
@@ -574,9 +574,8 @@ def update_customer_request_analysis(
 		if number < 0:
 			frappe.throw(_("{0} cannot be negative").format(_(request.meta.get_label(fieldname))))
 		request.set(fieldname, number)
-	for fieldname, value in (("currency", currency), ("quotation", quotation)):
-		if value is not None:
-			request.set(fieldname, value or None)
+	if currency is not None:
+		request.currency = currency or None
 	if request.estimated_amount and not request.currency:
 		frappe.throw(_("Currency is required when amount is provided"))
 
@@ -588,7 +587,6 @@ def update_customer_request_analysis(
 		"estimated_hours": request.estimated_hours,
 		"currency": request.currency,
 		"estimated_amount": request.estimated_amount,
-		"quotation": request.quotation,
 	}
 
 

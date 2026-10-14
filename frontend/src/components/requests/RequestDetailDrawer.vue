@@ -60,7 +60,6 @@ const form = ref(formFromRequest());
 const formError = ref("");
 const saving = ref(false);
 const currencyOptions = ref([]);
-const quotationOptions = ref([]);
 let optionsLoadedFor = "";
 
 const canEdit = computed(() => Boolean(props.request.can_edit_analysis));
@@ -91,7 +90,6 @@ function formFromRequest() {
 		estimated_hours: props.request.estimated_hours || "",
 		currency: props.request.currency || "",
 		estimated_amount: props.request.estimated_amount || "",
-		quotation: props.request.quotation || "",
 	};
 }
 
@@ -106,8 +104,7 @@ const dirty = computed(() => {
 		htmlToText(form.value.analysis) !== htmlToText(initial.analysis) ||
 		!sameNumber(form.value.estimated_hours, initial.estimated_hours) ||
 		!sameNumber(form.value.estimated_amount, initial.estimated_amount) ||
-		(form.value.currency || "") !== initial.currency ||
-		(form.value.quotation || "") !== initial.quotation
+		(form.value.currency || "") !== initial.currency
 	);
 });
 
@@ -126,7 +123,6 @@ watch(
 		props.request.estimated_hours,
 		props.request.currency,
 		props.request.estimated_amount,
-		props.request.quotation,
 	],
 	() => {
 		if (!saving.value && !dirty.value) form.value = formFromRequest();
@@ -150,7 +146,6 @@ async function loadOptions() {
 			{ project: props.projectName }
 		);
 		currencyOptions.value = result?.currencies || [];
-		quotationOptions.value = result?.quotations || [];
 	} catch (err) {
 		console.error("Failed to load customer request options:", err);
 		optionsLoadedFor = "";
@@ -189,7 +184,6 @@ async function save() {
 			estimated_hours: form.value.estimated_hours ?? "",
 			currency: form.value.currency || "",
 			estimated_amount: form.value.estimated_amount ?? "",
-			quotation: form.value.quotation || "",
 		});
 		if (ok) form.value = formFromRequest();
 		return ok;
@@ -362,7 +356,7 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 						editor-class="min-h-[120px] rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
 						@change="(value) => (form.analysis = value)"
 					/>
-					<div class="grid grid-cols-2 gap-3">
+					<div class="grid grid-cols-3 gap-3">
 						<label class="flex flex-col gap-1 text-xs text-gray-600">
 							{{ translate("Estimated Hours") }}
 							<input
@@ -372,22 +366,6 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 								step="0.25"
 								class="h-9 rounded-md border border-gray-300 bg-white px-2.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
 							/>
-						</label>
-						<label class="flex flex-col gap-1 text-xs text-gray-600">
-							{{ translate("Quotation") }}
-							<select
-								v-model="form.quotation"
-								class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-							>
-								<option value="">{{ translate("Select quotation") }}</option>
-								<option
-									v-for="option in withCurrent(quotationOptions, form.quotation)"
-									:key="option.value"
-									:value="option.value"
-								>
-									{{ option.label }}{{ option.description && option.description !== option.label ? ` (${option.description})` : "" }}
-								</option>
-							</select>
 						</label>
 						<label class="flex flex-col gap-1 text-xs text-gray-600">
 							{{ translate("Estimated Amount") }}
