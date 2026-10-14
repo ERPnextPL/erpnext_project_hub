@@ -9,6 +9,7 @@
  "field_order": [
   "subject",
   "workflow_state",
+  "state_changed_on",
   "customer_request",
   "customer_section",
   "customer",
@@ -40,6 +41,14 @@
    "in_standard_filter": 1,
    "label": "Workflow State",
    "options": "Workflow State",
+   "read_only": 1
+  },
+  {
+   "description": "When the request entered its current workflow state.",
+   "fieldname": "state_changed_on",
+   "fieldtype": "Datetime",
+   "label": "In State Since",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -130,7 +139,7 @@
    "link_fieldname": "change_request"
   }
  ],
- "modified": "2026-05-14 00:00:00.000000",
+ "modified": "2026-10-14 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Projekt HUB",
  "name": "Change Request",

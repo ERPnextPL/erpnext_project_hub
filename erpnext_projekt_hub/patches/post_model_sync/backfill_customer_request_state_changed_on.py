@@ -42,12 +42,12 @@ def execute():
 		)
 
 
-def latest_state_changes(names):
-	"""Return {request name: when its workflow_state last changed} from the version log."""
+def latest_state_changes(names, doctype="Customer Request"):
+	"""Return {document name: when its workflow_state last changed} from the version log."""
 	versions = frappe.get_all(
 		"Version",
 		filters={
-			"ref_doctype": "Customer Request",
+			"ref_doctype": doctype,
 			"docname": ["in", names],
 			"data": ["like", "%workflow_state%"],
 		},

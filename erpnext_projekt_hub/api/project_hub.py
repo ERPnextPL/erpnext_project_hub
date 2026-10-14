@@ -390,7 +390,7 @@ def get_project_requests(project: str):
 			can_create_change_request and row.workflow_state == "Accepted" and not row.change_request
 		)
 		row.can_edit_analysis = can_edit_analysis and row.workflow_state == ANALYSIS_STATE
-	_set_customer_request_actions(customer_requests)
+	_set_workflow_actions("Customer Request", customer_requests, skip_next_states=(CONVERTED_STATE,))
 	change_requests = frappe.get_list(
 		"Change Request",
 		filters={"project": project},
@@ -405,10 +405,15 @@ def get_project_requests(project: str):
 			"currency",
 			"quotation",
 			"task",
+			"approved_scope",
+			"state_changed_on",
+			"creation",
 			"modified",
 		],
 		order_by="modified desc",
 	)
+	_set_workflow_actions("Change Request", change_requests)
+	_set_change_request_tasks(change_requests)
 
 	return {
 		"project": {
@@ -452,39 +457,65 @@ ANALYSIS_STATE = "To Analyze"
 CONVERTED_STATE = "Converted"
 
 
-def _set_customer_request_actions(customer_requests):
-	"""Attach the workflow actions the current user may take on each request.
+def _set_workflow_actions(doctype, rows, skip_next_states=()):
+	"""Attach the workflow actions the current user may take on each row.
 
 	Mirrors frappe.model.workflow.get_transitions, but reads the workflow once
 	and loads a document only for transitions that carry a condition.
 	"""
 	from frappe.model.workflow import get_workflow_name, is_transition_condition_satisfied
 
-	workflow_name = get_workflow_name("Customer Request")
+	workflow_name = get_workflow_name(doctype)
 	transitions = []
 	if workflow_name:
 		roles = set(frappe.get_roles())
 		workflow = frappe.get_cached_doc("Workflow", workflow_name)
 		transitions = [t for t in workflow.transitions if t.allowed in roles]
 
-	for row in customer_requests:
+	for row in rows:
 		actions = []
 		seen = set()
 		doc = None
 		for transition in transitions:
 			if transition.state != row.workflow_state or transition.action in seen:
 				continue
-			# Converting goes through create_change_request, which also creates
-			# the Change Request; marking it by hand would leave none behind.
-			if transition.next_state == CONVERTED_STATE:
+			# A Customer Request is converted through create_change_request, which
+			# also creates the Change Request; marking it by hand would leave none.
+			if transition.next_state in skip_next_states:
 				continue
 			if transition.condition:
-				doc = doc or frappe.get_doc("Customer Request", row.name)
+				doc = doc or frappe.get_doc(doctype, row.name)
 				if not is_transition_condition_satisfied(transition, doc):
 					continue
 			seen.add(transition.action)
 			actions.append({"action": transition.action, "next_state": transition.next_state})
 		row.actions = actions
+
+
+def _set_change_request_tasks(change_requests):
+	"""Attach the status and progress of the task each Change Request created.
+
+	Read without Task permissions on purpose: whoever may read a change request
+	sees its task's status and progress, and a user without Task access must not
+	lose the whole requests view to a PermissionError.
+	"""
+	task_names = [row.task for row in change_requests if row.task]
+	tasks = {}
+	if task_names:
+		tasks = {
+			task.name: task
+			for task in frappe.get_all(
+				"Task",
+				filters={"name": ["in", task_names]},
+				fields=["name", "subject", "status", "progress"],
+			)
+		}
+
+	for row in change_requests:
+		task = tasks.get(row.task)
+		row.task_subject = task.subject if task else None
+		row.task_status = task.status if task else None
+		row.task_progress = task.progress if task else None
 
 
 def _can_edit_analysis(workflow_state):
@@ -587,6 +618,29 @@ def update_customer_request_analysis(
 		"estimated_hours": request.estimated_hours,
 		"currency": request.currency,
 		"estimated_amount": request.estimated_amount,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_change_request_action(name: str, action: str):
+	"""Move a Change Request along its workflow from the Projekt HUB UI.
+
+	Approving it creates the project task, which moves it on to Task Created.
+	"""
+	from frappe.model.workflow import apply_workflow
+
+	require_project_hub_access()
+	if not name or not action:
+		frappe.throw(_("Change Request and action are required"))
+
+	change_request = frappe.get_doc("Change Request", name)
+	change_request.check_permission("write")
+	change_request = apply_workflow(change_request, action)
+
+	return {
+		"name": change_request.name,
+		"workflow_state": change_request.workflow_state,
+		"task": change_request.task,
 	}
 
 

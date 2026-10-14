@@ -10,6 +10,8 @@ declare module 'vue' {
   export interface GlobalComponents {
     BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
     BlockedToggle: typeof import('./src/components/shared/BlockedToggle.vue')['default']
+    ChangeRequestCard: typeof import('./src/components/requests/ChangeRequestCard.vue')['default']
+    ChangeRequestDrawer: typeof import('./src/components/requests/ChangeRequestDrawer.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     CustomerRequestModal: typeof import('./src/components/requests/CustomerRequestModal.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']

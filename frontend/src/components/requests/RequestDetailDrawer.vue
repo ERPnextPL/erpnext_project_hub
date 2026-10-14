@@ -52,7 +52,7 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["close", "action", "convert", "take", "release"]);
+const emit = defineEmits(["close", "action", "convert", "take", "release", "open-change-request"]);
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 
@@ -329,15 +329,15 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 							>
 								{{ request.quotation }}
 							</a>
-							<a
+							<button
 								v-if="request.change_request"
-								:href="deskUrl('Change Request', request.change_request)"
-								target="_blank"
-								rel="noopener noreferrer"
+								type="button"
 								class="text-violet-700 hover:underline"
+								:title="translate('Show on the change requests board')"
+								@click="emit('open-change-request', request.change_request)"
 							>
 								{{ request.change_request }}
-							</a>
+							</button>
 						</dd>
 					</div>
 				</dl>

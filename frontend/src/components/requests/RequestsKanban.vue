@@ -3,7 +3,12 @@ import { computed, ref } from "vue";
 import { ChevronLeft, Lock, Plus } from "lucide-vue-next";
 import RequestBoardCard from "./RequestBoardCard.vue";
 import { translate } from "../../utils/translation";
-import { formatAmounts, formatNumber, getRequestMoves } from "../../utils/customerRequests";
+import {
+	columnStates,
+	formatAmounts,
+	formatNumber,
+	getRequestMoves,
+} from "../../utils/customerRequests";
 
 const props = defineProps({
 	// Columns from buildBoardColumns().
@@ -23,6 +28,22 @@ const props = defineProps({
 		type: Date,
 		default: () => new Date(),
 	},
+	// Where a request may be moved, keyed by column state (see getRequestMoves).
+	getMoves: {
+		type: Function,
+		default: getRequestMoves,
+	},
+	// Column summary when its requests carry no hours or amount.
+	noEstimateLabel: {
+		type: String,
+		default: "No estimate",
+	},
+	// Card of one request: takes request, movable, dragging, busy, disabled and
+	// now, and emits open (customer request cards also take and convert).
+	cardComponent: {
+		type: Object,
+		default: () => RequestBoardCard,
+	},
 });
 
 const emit = defineEmits(["open", "move", "take", "convert", "add"]);
@@ -36,11 +57,12 @@ let dragActive = false;
 const expandedColumns = ref(new Set());
 const showAllColumns = ref(new Set());
 
-const draggedMoves = computed(() => (dragged.value ? getRequestMoves(dragged.value) : {}));
+const draggedMoves = computed(() => (dragged.value ? props.getMoves(dragged.value) : {}));
 
 const boardColumns = computed(() =>
 	props.columns.map((column) => {
-		const isSource = Boolean(dragged.value) && dragged.value.workflow_state === column.state;
+		const isSource =
+			Boolean(dragged.value) && columnStates(column).includes(dragged.value.workflow_state || "Draft");
 		const move = draggedMoves.value[column.state] || null;
 		const isTarget = Boolean(move);
 		const isBlocked = Boolean(dragged.value) && !isSource && !isTarget;
@@ -70,7 +92,7 @@ function columnSummary(column) {
 	const amounts = formatAmounts(column.amounts);
 	if (amounts) parts.push(amounts);
 	if (parts.length) return parts.join(" · ");
-	return column.requests.length ? translate("No estimate") : "";
+	return column.requests.length ? translate(props.noEstimateLabel) : "";
 }
 
 function toggled(set, state) {
@@ -127,7 +149,7 @@ function onDrop(event, column) {
 }
 
 function hasMoves(request) {
-	return Object.keys(getRequestMoves(request)).length > 0;
+	return Object.keys(props.getMoves(request)).length > 0;
 }
 </script>
 
@@ -199,7 +221,8 @@ function hasMoves(request) {
 				</header>
 
 				<div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pb-3 pt-1">
-					<RequestBoardCard
+					<component
+						:is="cardComponent"
 						v-for="request in column.visibleRequests"
 						:key="request.name"
 						:request="request"
