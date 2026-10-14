@@ -9,6 +9,7 @@
  "field_order": [
   "subject",
   "workflow_state",
+  "state_changed_on",
   "request_date",
   "source",
   "customer_section",
@@ -45,6 +46,14 @@
    "in_standard_filter": 1,
    "label": "Workflow State",
    "options": "Workflow State",
+   "read_only": 1
+  },
+  {
+   "description": "When the request entered its current workflow state.",
+   "fieldname": "state_changed_on",
+   "fieldtype": "Datetime",
+   "label": "In State Since",
+   "no_copy": 1,
    "read_only": 1
   },
   {

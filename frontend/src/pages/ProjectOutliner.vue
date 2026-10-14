@@ -6,6 +6,11 @@ import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useProjectRequests } from "../composables/useProjectRequests";
+import {
+	openRequestsBoardFromLink,
+	requestsBoardPath,
+	requestsBoardWindowName,
+} from "../utils/customerRequests";
 import { isMilestoneCompleted } from "../utils/milestone";
 import { ACTIVE_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
@@ -39,6 +44,7 @@ import {
 	Diamond,
 	GripVertical,
 	Plus,
+	SquareKanban,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -576,27 +582,38 @@ const groupedTasksByMilestone = computed(() => {
 								{{ attachmentCount }}
 							</span>
 						</button>
-						<button
-							v-if="requestsAvailable"
-							@click="toggleRequestsSidebar"
-							:class="[
-								'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
-								requestsSidebarOpen
-									? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
-									: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
-							]"
-							:title="translate('Customer Requests')"
-						>
-							<ClipboardList class="w-4 h-4" />
-							<span class="hidden sm:inline">{{ translate("Requests") }}</span>
-							<span
-								v-if="openRequestCount > 0"
-								class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-								:title="translate('Active customer requests')"
+						<div v-if="requestsAvailable" class="flex items-stretch">
+							<button
+								@click="toggleRequestsSidebar"
+								:class="[
+									'flex items-center gap-1.5 px-3 py-2 text-sm rounded-l-lg border transition-colors',
+									requestsSidebarOpen
+										? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
+										: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+								]"
+								:title="translate('Customer Requests')"
 							>
-								{{ openRequestCount }}
-							</span>
-						</button>
+								<ClipboardList class="w-4 h-4" />
+								<span class="hidden sm:inline">{{ translate("Requests") }}</span>
+								<span
+									v-if="openRequestCount > 0"
+									class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+									:title="translate('Active customer requests')"
+								>
+									{{ openRequestCount }}
+								</span>
+							</button>
+							<a
+								:href="requestsBoardPath(projectId)"
+								:target="requestsBoardWindowName(projectId)"
+								class="flex items-center px-2.5 -ml-px rounded-r-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+								:title="translate('Open the requests board in a new window')"
+								:aria-label="translate('Open the requests board in a new window')"
+								@click="openRequestsBoardFromLink($event, projectId)"
+							>
+								<SquareKanban class="w-4 h-4" />
+							</a>
+						</div>
 						<OutlinerNav />
 					</div>
 					</div>
