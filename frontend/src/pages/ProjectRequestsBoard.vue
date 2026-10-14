@@ -12,7 +12,10 @@ import {
 	SquareKanban,
 } from "lucide-vue-next";
 import RequestsKanban from "../components/requests/RequestsKanban.vue";
+import RequestBoardCard from "../components/requests/RequestBoardCard.vue";
 import RequestDetailDrawer from "../components/requests/RequestDetailDrawer.vue";
+import ChangeRequestCard from "../components/requests/ChangeRequestCard.vue";
+import ChangeRequestDrawer from "../components/requests/ChangeRequestDrawer.vue";
 import CustomerRequestModal from "../components/requests/CustomerRequestModal.vue";
 import { useProjectRequests } from "../composables/useProjectRequests";
 import { useCustomerRequestActions } from "../composables/useCustomerRequestActions";
@@ -31,6 +34,13 @@ import {
 	isOpenCustomerRequest,
 	sumAmounts,
 } from "../utils/customerRequests";
+import {
+	CHANGE_REQUEST_BOARD_COLUMNS,
+	CHANGE_REQUEST_STATE_ALIASES,
+	filterChangeRequests,
+	getChangeRequestMoves,
+	isOpenChangeRequest,
+} from "../utils/changeRequests";
 
 const props = defineProps({
 	projectId: {
@@ -46,6 +56,7 @@ const currentUser = realWindow?.frappe?.session?.user || "";
 
 const {
 	customerRequests,
+	changeRequests,
 	project,
 	lastLoadedAt,
 	loading,
@@ -71,6 +82,7 @@ function notify(message, kind = "success") {
 const {
 	busyRequest,
 	applyAction: runWorkflowAction,
+	applyChangeRequestAction,
 	createChangeRequest,
 	takeRequest,
 	releaseRequest,
@@ -90,8 +102,17 @@ const PERIODS = [
 	{ value: "30", label: "Last 30 days" },
 	{ value: "90", label: "Last 90 days" },
 ];
-const FILTER_DEFAULTS = { q: "", assigned: "all", source: "", period: "" };
+const CANCELLED_STATE = "Cancelled";
+
+// The board shows customer requests or change requests (view=change).
+const VIEW_TABS = [
+	{ key: "customer", label: "Customer Requests" },
+	{ key: "change", label: "Change Requests" },
+];
+const VIEWS = VIEW_TABS.map((view) => view.key);
+const FILTER_DEFAULTS = { view: "customer", q: "", assigned: "all", source: "", period: "" };
 const FILTER_SANITIZERS = {
+	view: (value) => (VIEWS.includes(value) ? value : "customer"),
 	assigned: (value) => (ASSIGNMENT_FILTERS.some((filter) => filter.key === value) ? value : "all"),
 	source: (value) => (REQUEST_SOURCES.includes(value) ? value : ""),
 	period: (value) => (PERIODS.some((period) => period.value === value) ? value : ""),
@@ -105,32 +126,63 @@ const syncFiltersToUrl = useDebounceFn(
 );
 watch(filters, syncFiltersToUrl, { deep: true });
 
+const isChangeView = computed(() => filters.value.view === "change");
+
+function setView(view) {
+	if (filters.value.view === view) return;
+	filters.value.view = view;
+	selectedName.value = "";
+}
+
 // --- Board data -------------------------------------------------------------
 
 // Target state of requests being moved, shown before the server confirms.
 const pendingStates = ref({});
 const now = ref(new Date());
 
-const boardRequests = computed(() =>
-	customerRequests.value.map((request) =>
+function withPendingStates(requests) {
+	return requests.map((request) =>
 		pendingStates.value[request.name]
 			? { ...request, workflow_state: pendingStates.value[request.name] }
 			: request
-	)
+	);
+}
+
+const boardCustomerRequests = computed(() => withPendingStates(customerRequests.value));
+const boardChangeRequests = computed(() => withPendingStates(changeRequests.value));
+const boardRequests = computed(() =>
+	isChangeView.value ? boardChangeRequests.value : boardCustomerRequests.value
 );
 const visibleRequests = computed(() =>
-	filterBoardRequests(boardRequests.value, filters.value, currentUser, now.value)
+	isChangeView.value
+		? filterChangeRequests(boardRequests.value, filters.value, now.value)
+		: filterBoardRequests(boardRequests.value, filters.value, currentUser, now.value)
 );
-const columns = computed(() => buildBoardColumns(visibleRequests.value));
+const columns = computed(() =>
+	isChangeView.value
+		? buildBoardColumns(visibleRequests.value, {
+				columns: CHANGE_REQUEST_BOARD_COLUMNS,
+				hoursField: "approved_hours",
+				amountField: "approved_amount",
+		  })
+		: buildBoardColumns(visibleRequests.value)
+);
 
 const summary = computed(() => {
-	const open = visibleRequests.value.filter(isOpenCustomerRequest);
+	const change = isChangeView.value;
+	const hoursField = change ? "approved_hours" : "estimated_hours";
+	const open = visibleRequests.value.filter(change ? isOpenChangeRequest : isOpenCustomerRequest);
 	return {
 		count: open.length,
-		hours: open.reduce((total, request) => total + (Number(request.estimated_hours) || 0), 0),
-		amounts: formatAmounts(sumAmounts(open)),
+		hours: open.reduce((total, request) => total + (Number(request[hoursField]) || 0), 0),
+		amounts: formatAmounts(sumAmounts(open, change ? "approved_amount" : "estimated_amount")),
 	};
 });
+
+const openCounts = computed(() => ({
+	customer: customerRequests.value.filter(isOpenCustomerRequest).length,
+	change: changeRequests.value.filter(isOpenChangeRequest).length,
+}));
 
 const hasCustomer = computed(() => !project.value || Boolean(project.value.customer));
 const projectLabel = computed(() => project.value?.project_name || props.projectId);
@@ -151,12 +203,18 @@ const selectedName = ref("");
 const selectedRequest = computed(
 	() => boardRequests.value.find((request) => request.name === selectedName.value) || null
 );
-watch(customerRequests, () => {
+watch([customerRequests, changeRequests], () => {
 	if (selectedName.value && !loading.value && !selectedRequest.value) selectedName.value = "";
 });
 
 function openRequest(request) {
 	selectedName.value = request.name;
+}
+
+// The customer request a change request came from, or the other way round.
+function openLinked(view, name) {
+	setView(view);
+	selectedName.value = name;
 }
 
 // --- Confirmation dialog ----------------------------------------------------
@@ -194,7 +252,8 @@ async function convertRequest(request) {
 }
 
 async function applyAction(request, action, nextState) {
-	if (nextState === REJECTED_STATE) {
+	const change = isChangeView.value;
+	if (!change && nextState === REJECTED_STATE) {
 		const confirmed = await askConfirmation({
 			title: translate("Reject request?"),
 			message: translate("Reject request \"{0}\"?", [request.subject]),
@@ -203,9 +262,19 @@ async function applyAction(request, action, nextState) {
 		});
 		if (!confirmed) return;
 	}
+	if (change && nextState === CANCELLED_STATE) {
+		const confirmed = await askConfirmation({
+			title: translate("Cancel the change request?"),
+			message: translate("Cancel \"{0}\"? Its task stays in the project.", [request.subject]),
+			confirmLabel: translate("Cancel change request"),
+			tone: "red",
+		});
+		if (!confirmed) return;
+	}
 
-	pendingStates.value = { ...pendingStates.value, [request.name]: nextState };
-	await runWorkflowAction(request, action);
+	const shownState = change ? CHANGE_REQUEST_STATE_ALIASES[nextState] || nextState : nextState;
+	pendingStates.value = { ...pendingStates.value, [request.name]: shownState };
+	await (change ? applyChangeRequestAction : runWorkflowAction)(request, action);
 	clearPending(request.name);
 }
 
@@ -216,12 +285,12 @@ function clearPending(name) {
 }
 
 function moveRequest(request, targetState) {
-	const move = getRequestMoves(request)[targetState];
+	const move = (isChangeView.value ? getChangeRequestMoves : getRequestMoves)(request)[targetState];
 	if (!move) return;
 	if (move.type === "convert") {
 		convertRequest(request);
 	} else {
-		applyAction(request, move.action, targetState);
+		applyAction(request, move.action, move.nextState);
 	}
 }
 
@@ -240,6 +309,7 @@ function openCreateModal() {
 // The modal reports the creation itself; the new request opens in the drawer.
 function handleCreated(result) {
 	showCreateModal.value = false;
+	setView("customer");
 	notifyRequestsChanged(props.projectId);
 	fetchRequests();
 	if (result?.name) selectedName.value = result.name;
@@ -272,7 +342,7 @@ function handleKeydown(event) {
 	if (event.key === "/") {
 		event.preventDefault();
 		searchInput.value?.focus();
-	} else if (event.key === "n" || event.key === "N") {
+	} else if ((event.key === "n" || event.key === "N") && !isChangeView.value) {
 		event.preventDefault();
 		openCreateModal();
 	}
@@ -352,6 +422,32 @@ onUnmounted(() => {
 
 		<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200 bg-white px-4 py-2.5 sm:px-6">
 			<div class="flex flex-wrap items-center gap-2">
+				<div role="tablist" :aria-label="translate('Requests board')" class="inline-flex gap-0.5 rounded-lg bg-gray-900/5 p-0.5">
+					<button
+						v-for="view in VIEW_TABS"
+						:key="view.key"
+						type="button"
+						role="tab"
+						:aria-selected="filters.view === view.key"
+						:class="[
+							'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm',
+							filters.view === view.key
+								? 'bg-gray-900 font-semibold text-white'
+								: 'font-medium text-gray-700 hover:bg-white',
+						]"
+						@click="setView(view.key)"
+					>
+						{{ translate(view.label) }}
+						<span
+							:class="[
+								'rounded-full px-1.5 text-xs tabular-nums',
+								filters.view === view.key ? 'bg-white/20' : 'bg-gray-200',
+							]"
+						>
+							{{ openCounts[view.key] }}
+						</span>
+					</button>
+				</div>
 				<label class="relative flex items-center">
 					<Search class="pointer-events-none absolute left-2.5 h-4 w-4 text-gray-500" />
 					<input
@@ -363,7 +459,12 @@ onUnmounted(() => {
 						class="h-9 w-72 max-w-[70vw] rounded-lg border border-gray-300 bg-gray-50 pl-8 pr-3 text-sm focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
 					/>
 				</label>
-				<div role="group" :aria-label="translate('Assigned To')" class="inline-flex gap-0.5 rounded-lg bg-gray-100 p-0.5">
+				<div
+					v-if="!isChangeView"
+					role="group"
+					:aria-label="translate('Assigned To')"
+					class="inline-flex gap-0.5 rounded-lg bg-gray-100 p-0.5"
+				>
 					<button
 						v-for="option in ASSIGNMENT_FILTERS"
 						:key="option.key"
@@ -381,6 +482,7 @@ onUnmounted(() => {
 					</button>
 				</div>
 				<select
+					v-if="!isChangeView"
 					v-model="filters.source"
 					:aria-label="translate('Source')"
 					class="h-9 rounded-lg border border-gray-300 bg-white px-2.5 text-sm text-gray-800"
@@ -394,7 +496,7 @@ onUnmounted(() => {
 					<CalendarDays class="pointer-events-none absolute left-2.5 h-4 w-4 text-gray-500" />
 					<select
 						v-model="filters.period"
-						:aria-label="translate('Request Date')"
+						:aria-label="isChangeView ? translate('Created On') : translate('Request Date')"
 						class="h-9 rounded-lg border border-gray-300 bg-white pl-8 pr-2.5 text-sm text-gray-800"
 					>
 						<option v-for="period in PERIODS" :key="period.value" :value="period.value">
@@ -406,7 +508,8 @@ onUnmounted(() => {
 			<div class="flex flex-wrap items-center gap-4 text-sm text-gray-700">
 				<span><b class="font-semibold text-gray-900">{{ summary.count }}</b> {{ translate("active") }}</span>
 				<span v-if="summary.hours">
-					<b class="font-semibold text-gray-900">{{ formatNumber(summary.hours) }}</b> {{ translate("h estimated") }}
+					<b class="font-semibold text-gray-900">{{ formatNumber(summary.hours) }}</b>
+					{{ isChangeView ? translate("h approved") : translate("h estimated") }}
 				</span>
 				<span v-if="summary.amounts" class="font-semibold text-gray-900">{{ summary.amounts }}</span>
 			</div>
@@ -427,10 +530,13 @@ onUnmounted(() => {
 			</div>
 			<main class="min-h-0 flex-1">
 				<RequestsKanban
+					:key="filters.view"
 					:columns="columns"
 					:busy-request="busyRequest"
-					:can-add="hasCustomer"
+					:can-add="!isChangeView && hasCustomer"
 					:now="now"
+					:get-moves="isChangeView ? getChangeRequestMoves : getRequestMoves"
+					:card-component="isChangeView ? ChangeRequestCard : RequestBoardCard"
 					@open="openRequest"
 					@move="moveRequest"
 					@take="takeRequest"
@@ -440,8 +546,17 @@ onUnmounted(() => {
 			</main>
 		</template>
 
+		<ChangeRequestDrawer
+			v-if="selectedRequest && isChangeView"
+			:request="selectedRequest"
+			:project-name="projectId"
+			:busy="busyRequest === selectedRequest.name"
+			@close="selectedName = ''"
+			@action="handleDrawerAction"
+			@open-customer-request="openLinked('customer', $event)"
+		/>
 		<RequestDetailDrawer
-			v-if="selectedRequest"
+			v-else-if="selectedRequest"
 			:request="selectedRequest"
 			:project-name="projectId"
 			:customer="project?.customer || ''"
@@ -453,6 +568,7 @@ onUnmounted(() => {
 			@convert="convertRequest(selectedRequest)"
 			@take="takeRequest(selectedRequest)"
 			@release="releaseRequest(selectedRequest)"
+			@open-change-request="openLinked('change', $event)"
 		/>
 
 		<CustomerRequestModal

@@ -207,11 +207,14 @@ export const STALE_STATES = ["To Analyze", "Quoted"];
  * state: a workflow action, or the conversion into a Change Request (which has
  * no workflow transition on purpose, see apply_customer_request_action).
  */
-export function getRequestMoves(request) {
+export function getRequestMoves(request, stateAliases = {}) {
 	const moves = {};
 	for (const action of request?.actions || []) {
-		if (!moves[action.next_state]) {
-			moves[action.next_state] = { type: "action", action: action.action };
+		// A state the workflow passes through on its own (an approved Change
+		// Request goes straight on to Task Created) lands in its next column.
+		const target = stateAliases[action.next_state] || action.next_state;
+		if (!moves[target]) {
+			moves[target] = { type: "action", action: action.action, nextState: action.next_state };
 		}
 	}
 	if (request?.can_create_change_request) {
@@ -271,20 +274,32 @@ function stateSince(request) {
 	return String(request.state_changed_on || request.modified || "");
 }
 
+export function columnStates(column) {
+	return column.states || [column.state];
+}
+
 /**
- * Group requests into board columns. Open columns list the request waiting the
- * longest first; closed columns the latest first. States the board does not
- * know (a customised workflow) get a column of their own at the end.
+ * Group requests into board columns (REQUEST_BOARD_COLUMNS unless given). Open
+ * columns list the request waiting the longest first; closed columns the
+ * latest first. States the board does not know (a customised workflow) get a
+ * column of their own at the end. A column may gather several states.
  */
-export function buildBoardColumns(requests) {
-	const known = new Set(REQUEST_BOARD_COLUMNS.map((column) => column.state));
+export function buildBoardColumns(
+	requests,
+	{
+		columns: boardColumns = REQUEST_BOARD_COLUMNS,
+		hoursField = "estimated_hours",
+		amountField = "estimated_amount",
+	} = {}
+) {
+	const known = new Set(boardColumns.flatMap(columnStates));
 	const extraStates = [];
 	for (const request of requests || []) {
 		const state = request.workflow_state || "Draft";
 		if (!known.has(state) && !extraStates.includes(state)) extraStates.push(state);
 	}
 	const columns = [
-		...REQUEST_BOARD_COLUMNS,
+		...boardColumns,
 		...extraStates.map((state) => ({
 			state,
 			dot: "bg-gray-400",
@@ -294,7 +309,8 @@ export function buildBoardColumns(requests) {
 	];
 
 	return columns.map((column) => {
-		const items = (requests || []).filter((request) => (request.workflow_state || "Draft") === column.state);
+		const states = columnStates(column);
+		const items = (requests || []).filter((request) => states.includes(request.workflow_state || "Draft"));
 		items.sort((a, b) =>
 			column.closed
 				? stateSince(b).localeCompare(stateSince(a))
@@ -303,17 +319,17 @@ export function buildBoardColumns(requests) {
 		return {
 			...column,
 			requests: items,
-			hours: items.reduce((total, request) => total + (Number(request.estimated_hours) || 0), 0),
-			amounts: sumAmounts(items),
+			hours: items.reduce((total, request) => total + (Number(request[hoursField]) || 0), 0),
+			amounts: sumAmounts(items, amountField),
 		};
 	});
 }
 
-/** Estimated amounts summed per currency, e.g. [{ currency: "PLN", amount: 1200 }]. */
-export function sumAmounts(requests) {
+/** Amounts summed per currency, e.g. [{ currency: "PLN", amount: 1200 }]. */
+export function sumAmounts(requests, amountField = "estimated_amount") {
 	const totals = new Map();
 	for (const request of requests || []) {
-		const amount = Number(request.estimated_amount) || 0;
+		const amount = Number(request[amountField]) || 0;
 		if (!amount) continue;
 		const currency = request.currency || "";
 		totals.set(currency, (totals.get(currency) || 0) + amount);
