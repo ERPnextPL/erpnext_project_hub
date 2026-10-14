@@ -34,6 +34,17 @@ def create_request(project, customer, subject, **values):
 	).insert(ignore_permissions=True)
 
 
+def add_version(name, changed):
+	return frappe.get_doc(
+		{
+			"doctype": "Version",
+			"ref_doctype": "Customer Request",
+			"docname": name,
+			"data": frappe.as_json({"changed": changed}),
+		}
+	).insert(ignore_permissions=True)
+
+
 def board_row(project, name):
 	return next(row for row in get_project_requests(project)["customer_requests"] if row.name == name)
 
@@ -154,24 +165,16 @@ class TestCustomerRequestsBoard(FrappeTestCase):
 
 	def test_backfill_takes_last_state_change_from_version_log(self):
 		moved = create_request(self.project, self.customer, "_Test backfill moved")
-		apply_customer_request_action(moved.name, "Submit for Analysis")
 		never_moved = create_request(self.project, self.customer, "_Test backfill new")
+		# Documents skip the version log under tests, so write the entries here:
+		# a state change, then a later edit that must not count as one.
+		state_change = add_version(moved.name, [["workflow_state", "Draft", "To Analyze"]])
+		add_version(moved.name, [["subject", "_Test backfill moved", "_Test backfill renamed"]])
 		for name in (moved.name, never_moved.name):
 			frappe.db.set_value("Customer Request", name, "state_changed_on", None, update_modified=False)
 
 		backfill_customer_request_state_changed_on.execute()
 
-		state_change = frappe.get_all(
-			"Version",
-			filters={
-				"ref_doctype": "Customer Request",
-				"docname": moved.name,
-				"data": ["like", "%workflow_state%"],
-			},
-			fields=["creation"],
-			order_by="creation desc",
-			limit=1,
-		)[0]
 		self.assertEqual(
 			get_datetime(frappe.db.get_value("Customer Request", moved.name, "state_changed_on")),
 			get_datetime(state_change.creation),
