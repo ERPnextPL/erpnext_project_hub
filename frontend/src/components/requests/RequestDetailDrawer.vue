@@ -56,6 +56,10 @@ const emit = defineEmits(["close", "action", "convert", "take", "release"]);
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 
+// The values the form started from: the request as last synchronised. Edits
+// are measured against it, not against the request prop, which a refetch
+// (from another window, say) can move under an untouched form.
+const baseline = ref(formFromRequest());
 const form = ref(formFromRequest());
 const formError = ref("");
 const saving = ref(false);
@@ -97,23 +101,28 @@ function sameNumber(a, b) {
 	return (Number(a) || 0) === (Number(b) || 0);
 }
 
-const dirty = computed(() => {
-	if (!canEdit.value) return false;
-	const initial = formFromRequest();
+function sameValues(a, b) {
 	return (
-		htmlToText(form.value.analysis) !== htmlToText(initial.analysis) ||
-		!sameNumber(form.value.estimated_hours, initial.estimated_hours) ||
-		!sameNumber(form.value.estimated_amount, initial.estimated_amount) ||
-		(form.value.currency || "") !== initial.currency
+		(a.analysis || "") === (b.analysis || "") &&
+		sameNumber(a.estimated_hours, b.estimated_hours) &&
+		sameNumber(a.estimated_amount, b.estimated_amount) &&
+		(a.currency || "") === (b.currency || "")
 	);
-});
+}
+
+const dirty = computed(() => canEdit.value && !sameValues(form.value, baseline.value));
+
+function syncForm() {
+	baseline.value = formFromRequest();
+	form.value = formFromRequest();
+}
 
 // Another request, or the same one refetched after a change made elsewhere:
 // take its values unless the user is in the middle of editing.
 watch(
 	() => props.request.name,
 	() => {
-		form.value = formFromRequest();
+		syncForm();
 		formError.value = "";
 	}
 );
@@ -125,7 +134,7 @@ watch(
 		props.request.estimated_amount,
 	],
 	() => {
-		if (!saving.value && !dirty.value) form.value = formFromRequest();
+		if (!saving.value && !dirty.value) syncForm();
 	}
 );
 
@@ -179,13 +188,18 @@ async function save() {
 
 	saving.value = true;
 	try {
-		const ok = await props.saveAnalysis(props.request, {
+		const values = {
 			analysis: form.value.analysis || "",
 			estimated_hours: form.value.estimated_hours ?? "",
 			currency: form.value.currency || "",
 			estimated_amount: form.value.estimated_amount ?? "",
-		});
-		if (ok) form.value = formFromRequest();
+		};
+		const ok = await props.saveAnalysis(props.request, values);
+		if (ok) {
+			// Edits typed while the save was on its way stay in the form, unsaved.
+			if (sameValues(form.value, values)) syncForm();
+			else baseline.value = formFromRequest();
+		}
 		return ok;
 	} finally {
 		saving.value = false;

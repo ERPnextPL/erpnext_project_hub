@@ -73,11 +73,19 @@ function columnSummary(column) {
 	return column.requests.length ? translate("No estimate") : "";
 }
 
-function toggleSet(setRef, state) {
-	const next = new Set(setRef.value);
+function toggled(set, state) {
+	const next = new Set(set);
 	if (next.has(state)) next.delete(state);
 	else next.add(state);
-	setRef.value = next;
+	return next;
+}
+
+function toggleExpanded(state) {
+	expandedColumns.value = toggled(expandedColumns.value, state);
+}
+
+function toggleShowAll(state) {
+	showAllColumns.value = toggled(showAllColumns.value, state);
 }
 
 function onDragStart(event, request) {
@@ -146,7 +154,7 @@ function hasMoves(request) {
 				type="button"
 				class="flex flex-1 flex-col items-center gap-3 py-3 text-gray-700 hover:bg-gray-200/60 rounded-xl"
 				:title="translate('Expand column {0}', [translate(column.state)])"
-				@click="toggleSet(expandedColumns, column.state)"
+				@click="toggleExpanded(column.state)"
 			>
 				<span :class="['h-2.5 w-2.5 rounded-full', column.dot]"></span>
 				<span class="rounded-full border border-gray-200 bg-white px-1.5 text-xs tabular-nums">
@@ -169,7 +177,7 @@ function hasMoves(request) {
 							type="button"
 							class="rounded-md p-1 text-gray-500 hover:bg-gray-200"
 							:title="translate('Collapse column')"
-							@click="toggleSet(expandedColumns, column.state)"
+							@click="toggleExpanded(column.state)"
 						>
 							<ChevronLeft class="h-4 w-4" />
 						</button>
@@ -218,7 +226,7 @@ function hasMoves(request) {
 						v-if="column.hiddenCount"
 						type="button"
 						class="py-1 text-xs text-gray-600 underline hover:text-gray-900"
-						@click="toggleSet(showAllColumns, column.state)"
+						@click="toggleShowAll(column.state)"
 					>
 						{{ translate("Show {0} older", [column.hiddenCount]) }}
 					</button>
