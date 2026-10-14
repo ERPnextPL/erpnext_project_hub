@@ -36,7 +36,7 @@ const CUSTOMER_REQUEST_BOXES = [
 
 // Change Request workflow; "Approved" only lasts until the save that creates the task.
 const CHANGE_REQUEST_BOXES = [
-	{ x: 20, y: 10, tone: "draft", name: "Draft", desc: "created from an accepted request" },
+	{ x: 20, y: 10, tone: "draft", name: "Draft", desc: "specification and order to sign" },
 	{ x: 20, y: 110, tone: "accepted", name: "Approved", desc: "lasts a moment", dashed: true },
 	{ x: 20, y: 210, tone: "analyze", name: "Task Created", desc: "the task is in progress" },
 	{ x: 20, y: 310, tone: "converted", name: "Done", desc: "work finished" },
@@ -266,6 +266,7 @@ onUnmounted(() => {
 						</div>
 						<ul class="list-disc space-y-1 pl-5">
 							<li>{{ translate("Only the manager creates and approves change requests; the team can view them.") }}</li>
+							<li>{{ translate("Draft is the preparation for approval: the specification, the sales order and the order document for the customer to sign. Approve once the customer has signed the order.") }}</li>
 							<li>{{ translate("Approving creates the project task with the approved hours and scope.") }}</li>
 							<li>{{ translate("Finishing the task does not close the change request: mark it done by hand.") }}</li>
 						</ul>

@@ -168,6 +168,18 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 					</div>
 				</dl>
 
+				<section
+					v-if="state === 'Draft'"
+					class="flex flex-col gap-1 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900"
+				>
+					<h3 class="text-xs font-semibold uppercase tracking-wide">{{ translate("Before approval") }}</h3>
+					<ul class="list-disc space-y-0.5 pl-5">
+						<li>{{ translate("specification") }}</li>
+						<li>{{ translate("sales order") }}</li>
+						<li>{{ translate("order document signed by the customer") }}</li>
+					</ul>
+				</section>
+
 				<section v-if="request.task" class="flex flex-col gap-2 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
 					<div class="flex items-center justify-between gap-2">
 						<h3 class="text-xs font-semibold uppercase tracking-wide text-blue-900">{{ translate("Task") }}</h3>
