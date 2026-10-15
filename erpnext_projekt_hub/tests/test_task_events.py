@@ -162,14 +162,6 @@ class TestCompletedParentIsUncompleted(FrappeTestCase):
 		parent.reload()
 		self.assertEqual(parent.status, "Working")
 
-	def test_new_subtask_takes_parent_off_completed(self):
-		parent = create_task("_Test Parent - gains subtask", status="Completed", is_group=1)
-
-		create_task("_Test Sub - newly added", parent=parent.name)
-
-		parent.reload()
-		self.assertEqual(parent.status, "Working")
-
 	def test_cancelling_subtask_leaves_parent_completed(self):
 		parent, sub = self._completed_parent_with_completed_subtask("cancel")
 

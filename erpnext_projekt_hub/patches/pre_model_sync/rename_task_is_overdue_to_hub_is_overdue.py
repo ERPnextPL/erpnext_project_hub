@@ -20,7 +20,8 @@ def execute():
 	if frappe.db.exists("Custom Field", new_name):
 		# Fixture already created the new field; carry the data over and drop the old one.
 		if column_exists and frappe.db.has_column("Task", NEW):
-			frappe.db.sql(f"update `tabTask` set `{NEW}` = `{OLD}`")
+			task = frappe.qb.DocType("Task")
+			frappe.qb.update(task).set(task[NEW], task[OLD]).run()
 		frappe.db.delete("Custom Field", {"name": old_name})
 	else:
 		frappe.db.set_value("Custom Field", old_name, {"fieldname": NEW}, update_modified=False)
