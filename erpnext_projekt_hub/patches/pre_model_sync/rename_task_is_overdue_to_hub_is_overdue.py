@@ -23,9 +23,7 @@ def execute():
 			frappe.db.sql(f"update `tabTask` set `{NEW}` = `{OLD}`")
 		frappe.db.delete("Custom Field", {"name": old_name})
 	else:
-		frappe.db.set_value(
-			"Custom Field", old_name, {"fieldname": NEW}, update_modified=False
-		)
+		frappe.db.set_value("Custom Field", old_name, {"fieldname": NEW}, update_modified=False)
 		frappe.rename_doc("Custom Field", old_name, new_name, force=True)
 
 	if column_exists:

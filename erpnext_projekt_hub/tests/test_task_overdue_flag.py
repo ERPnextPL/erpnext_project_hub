@@ -27,7 +27,10 @@ class TestOverdueFlag(FrappeTestCase):
 		# Insert validation would refuse nothing here, but a direct write mimics
 		# a task whose due date simply passed overnight with the flag still unset.
 		frappe.db.set_value(
-			"Task", task.name, {"exp_end_date": add_days(today(), -3), "hub_is_overdue": 0}, update_modified=False
+			"Task",
+			task.name,
+			{"exp_end_date": add_days(today(), -3), "hub_is_overdue": 0},
+			update_modified=False,
 		)
 
 	def test_scheduler_keeps_pending_review_and_sets_flag(self):
