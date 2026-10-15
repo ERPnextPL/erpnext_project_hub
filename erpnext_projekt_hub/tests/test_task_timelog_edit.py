@@ -77,3 +77,10 @@ class TestTaskTimelogEdit(FrappeTestCase):
 		frappe.set_user(other_user)
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.can_edit, 0)
+
+	def test_submitting_timesheet_keeps_task_status(self):
+		frappe.db.set_value("Task", self.task.name, "status", "Pending Review")
+
+		frappe.get_doc("Timesheet", self.log["timesheet_name"]).submit()
+
+		self.assertEqual(frappe.db.get_value("Task", self.task.name, "status"), "Pending Review")
