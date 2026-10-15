@@ -162,6 +162,12 @@ class TestCompletedParentIsUncompleted(FrappeTestCase):
 		parent.reload()
 		self.assertEqual(parent.status, "Working")
 
+	def test_open_subtask_cannot_be_added_under_completed_parent(self):
+		parent = create_task("_Test Parent - refuses subtask", status="Completed", is_group=1)
+
+		with self.assertRaises(frappe.ValidationError):
+			create_task("_Test Sub - newly added", parent=parent.name)
+
 	def test_cancelling_subtask_leaves_parent_completed(self):
 		parent, sub = self._completed_parent_with_completed_subtask("cancel")
 

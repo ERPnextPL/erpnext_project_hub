@@ -13,24 +13,28 @@ def execute():
 	and the fixture then finds the renamed field instead of creating a second one.
 	"""
 	old_name, new_name = f"Task-{OLD}", f"Task-{NEW}"
-	if not frappe.db.exists("Custom Field", old_name):
+	old_field_exists = frappe.db.exists("Custom Field", old_name)
+	column_exists = frappe.db.has_column("Task", OLD)
+	if not (old_field_exists or column_exists):
 		return
 
-	column_exists = frappe.db.has_column("Task", OLD)
-	if frappe.db.exists("Custom Field", new_name):
-		# Fixture already created the new field; carry the data over and drop the old one.
-		if column_exists and frappe.db.has_column("Task", NEW):
-			task = frappe.qb.DocType("Task")
-			frappe.qb.update(task).set(task[NEW], task[OLD]).run()
-		frappe.db.delete("Custom Field", {"name": old_name})
-	else:
-		frappe.db.set_value("Custom Field", old_name, {"fieldname": NEW}, update_modified=False)
-		frappe.rename_doc("Custom Field", old_name, new_name, force=True)
-
+	# Column first: DDL commits implicitly, so a failure here leaves the Custom Field
+	# untouched and the patch is picked up again on the next run.
 	if column_exists:
 		if frappe.db.has_column("Task", NEW):
+			# sync_all already added the new column; carry over what is still unset.
+			task = frappe.qb.DocType("Task")
+			frappe.qb.update(task).set(task[NEW], task[OLD]).where(task[NEW] == 0).run()
 			frappe.db.sql_ddl(f"alter table `tabTask` drop column `{OLD}`")
 		else:
 			frappe.db.sql_ddl(f"alter table `tabTask` rename column `{OLD}` to `{NEW}`")
+
+	if old_field_exists:
+		if frappe.db.exists("Custom Field", new_name):
+			# Fixture already created the new field.
+			frappe.db.delete("Custom Field", {"name": old_name})
+		else:
+			frappe.db.set_value("Custom Field", old_name, {"fieldname": NEW}, update_modified=False)
+			frappe.rename_doc("Custom Field", old_name, new_name, force=True)
 
 	frappe.clear_cache(doctype="Task")
