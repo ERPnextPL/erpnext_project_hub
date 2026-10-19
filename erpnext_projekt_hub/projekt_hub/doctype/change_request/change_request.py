@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import now_datetime
 
 from erpnext_projekt_hub.request_queue import sync_analysis_assignment
 
@@ -9,11 +10,17 @@ class ChangeRequest(Document):
 	def validate(self):
 		self.validate_project_customer()
 		self.validate_customer_request()
+		self.set_state_changed_on()
 
 	def on_update(self):
 		sync_analysis_assignment(self)
 		if self.workflow_state == "Approved" and not self.task:
 			self.create_project_task()
+
+	def set_state_changed_on(self):
+		"""Remember when the request entered its workflow state (requests board ageing)."""
+		if self.has_value_changed("workflow_state") or not self.state_changed_on:
+			self.state_changed_on = now_datetime()
 
 	def validate_project_customer(self):
 		if not self.project or not self.customer:
@@ -63,6 +70,7 @@ class ChangeRequest(Document):
 			{
 				"task": task.name,
 				"workflow_state": "Task Created",
+				"state_changed_on": now_datetime(),
 			},
 			update_modified=False,
 		)

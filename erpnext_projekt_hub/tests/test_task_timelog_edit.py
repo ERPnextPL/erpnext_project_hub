@@ -37,6 +37,8 @@ class TestTaskTimelogEdit(FrappeTestCase):
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
+		# Every test books the same slot, so a leftover timesheet would overlap the next one.
+		frappe.db.rollback()
 
 	def test_own_draft_entry_is_editable(self):
 		log = get_log(self.task.name, self.log["timelog_name"])
@@ -75,3 +77,10 @@ class TestTaskTimelogEdit(FrappeTestCase):
 		frappe.set_user(other_user)
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.can_edit, 0)
+
+	def test_submitting_timesheet_keeps_task_status(self):
+		frappe.db.set_value("Task", self.task.name, "status", "Pending Review")
+
+		frappe.get_doc("Timesheet", self.log["timesheet_name"]).submit()
+
+		self.assertEqual(frappe.db.get_value("Task", self.task.name, "status"), "Pending Review")

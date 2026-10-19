@@ -141,10 +141,10 @@ def customer_request_workflow():
 				# The analysis is written by whoever takes the request from the
 				# queue, usually a developer without a manager role.
 				"To Analyze": ALL_ROLES,
-				"Quoted": MANAGER_ROLES,
-				"Accepted": MANAGER_ROLES,
-				"Rejected": MANAGER_ROLES,
-				"Converted": MANAGER_ROLES,
+				"Quoted": ALL_ROLES,
+				"Accepted": ALL_ROLES,
+				"Rejected": ALL_ROLES,
+				"Converted": ALL_ROLES,
 			}
 		),
 		"transitions": [

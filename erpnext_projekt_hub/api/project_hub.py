@@ -356,7 +356,9 @@ def get_project_requests(project: str):
 			"requested_by",
 			"notes",
 			"business_value",
+			"analysis",
 			"workflow_state",
+			"state_changed_on",
 			"estimated_hours",
 			"estimated_amount",
 			"currency",
@@ -381,12 +383,14 @@ def get_project_requests(project: str):
 			)
 		)
 	can_create_change_request = frappe.has_permission("Change Request", "create")
+	can_edit_analysis = _can_edit_analysis(ANALYSIS_STATE)
 	for row in customer_requests:
 		row.requested_by_name = employee_names.get(row.requested_by) or row.requested_by
 		row.can_create_change_request = bool(
 			can_create_change_request and row.workflow_state == "Accepted" and not row.change_request
 		)
-	_set_customer_request_actions(customer_requests)
+		row.can_edit_analysis = can_edit_analysis and row.workflow_state == ANALYSIS_STATE
+	_set_workflow_actions("Customer Request", customer_requests, skip_next_states=(CONVERTED_STATE,))
 	change_requests = frappe.get_list(
 		"Change Request",
 		filters={"project": project},
@@ -402,10 +406,15 @@ def get_project_requests(project: str):
 			"quotation",
 			"task",
 			"analyst",
+			"approved_scope",
+			"state_changed_on",
+			"creation",
 			"modified",
 		],
 		order_by="modified desc",
 	)
+	_set_workflow_actions("Change Request", change_requests)
+	_set_change_request_tasks(change_requests)
 	_set_analysts_and_attachments("Customer Request", customer_requests)
 	_set_analysts_and_attachments("Change Request", change_requests)
 
@@ -441,42 +450,91 @@ def _set_analysts_and_attachments(doctype, requests):
 		row.attachments = attachments.get(row.name, [])
 
 
+ANALYSIS_STATE = "To Analyze"
 CONVERTED_STATE = "Converted"
 
 
-def _set_customer_request_actions(customer_requests):
-	"""Attach the workflow actions the current user may take on each request.
+def _set_workflow_actions(doctype, rows, skip_next_states=()):
+	"""Attach the workflow actions the current user may take on each row.
 
 	Mirrors frappe.model.workflow.get_transitions, but reads the workflow once
 	and loads a document only for transitions that carry a condition.
 	"""
 	from frappe.model.workflow import get_workflow_name, is_transition_condition_satisfied
 
-	workflow_name = get_workflow_name("Customer Request")
+	workflow_name = get_workflow_name(doctype)
 	transitions = []
 	if workflow_name:
 		roles = set(frappe.get_roles())
 		workflow = frappe.get_cached_doc("Workflow", workflow_name)
 		transitions = [t for t in workflow.transitions if t.allowed in roles]
 
-	for row in customer_requests:
+	for row in rows:
 		actions = []
 		seen = set()
 		doc = None
 		for transition in transitions:
 			if transition.state != row.workflow_state or transition.action in seen:
 				continue
-			# Converting goes through create_change_request, which also creates
-			# the Change Request; marking it by hand would leave none behind.
-			if transition.next_state == CONVERTED_STATE:
+			# A Customer Request is converted through create_change_request, which
+			# also creates the Change Request; marking it by hand would leave none.
+			if transition.next_state in skip_next_states:
 				continue
 			if transition.condition:
-				doc = doc or frappe.get_doc("Customer Request", row.name)
+				doc = doc or frappe.get_doc(doctype, row.name)
 				if not is_transition_condition_satisfied(transition, doc):
 					continue
 			seen.add(transition.action)
 			actions.append({"action": transition.action, "next_state": transition.next_state})
 		row.actions = actions
+
+
+def _set_change_request_tasks(change_requests):
+	"""Attach the status and progress of the task each Change Request created.
+
+	Read without Task permissions on purpose: whoever may read a change request
+	sees its task's status and progress, and a user without Task access must not
+	lose the whole requests view to a PermissionError.
+	"""
+	task_names = [row.task for row in change_requests if row.task]
+	tasks = {}
+	if task_names:
+		tasks = {
+			task.name: task
+			for task in frappe.get_all(
+				"Task",
+				filters={"name": ["in", task_names]},
+				fields=["name", "subject", "status", "progress"],
+			)
+		}
+
+	for row in change_requests:
+		task = tasks.get(row.task)
+		row.task_subject = task.subject if task else None
+		row.task_status = task.status if task else None
+		row.task_progress = task.progress if task else None
+
+
+def _can_edit_analysis(workflow_state):
+	"""Return True when the current user may write the analysis of a request in this state.
+
+	Only a request waiting for analysis takes its analysis from the Projekt HUB
+	UI, and only from the roles the workflow lets edit that state (Desk applies
+	the same rule to the form).
+	"""
+	from frappe.model.workflow import get_workflow_name
+
+	if workflow_state != ANALYSIS_STATE:
+		return False
+	if not frappe.has_permission("Customer Request", "write"):
+		return False
+
+	workflow_name = get_workflow_name("Customer Request")
+	if not workflow_name:
+		return True
+	workflow = frappe.get_cached_doc("Workflow", workflow_name)
+	editor_roles = {row.allow_edit for row in workflow.states if row.state == workflow_state}
+	return bool(editor_roles & set(frappe.get_roles()))
 
 
 def _is_conversion_action(request, action):
@@ -511,6 +569,79 @@ def apply_customer_request_action(name: str, action: str):
 
 
 @frappe.whitelist(methods=["POST"])
+def update_customer_request_analysis(
+	name: str,
+	analysis: str | None = None,
+	estimated_hours: str | None = None,
+	currency: str | None = None,
+	estimated_amount: str | None = None,
+):
+	"""Save the analysis and estimate of a Customer Request waiting for analysis.
+
+	A field left out (None) keeps its value; an empty string clears it. The
+	quotation is not part of it: it can be linked only once the request is quoted.
+	"""
+	require_project_hub_access()
+	if not name:
+		frappe.throw(_("Customer Request is required"))
+
+	request = frappe.get_doc("Customer Request", name)
+	request.check_permission("write")
+	if not _can_edit_analysis(request.workflow_state):
+		frappe.throw(
+			_("The analysis can only be edited while the request waits for analysis."),
+			frappe.PermissionError,
+		)
+
+	if analysis is not None:
+		request.analysis = analysis
+	for fieldname, value in (("estimated_hours", estimated_hours), ("estimated_amount", estimated_amount)):
+		if value is None:
+			continue
+		number = flt(value)
+		if number < 0:
+			frappe.throw(_("{0} cannot be negative").format(_(request.meta.get_label(fieldname))))
+		request.set(fieldname, number)
+	if currency is not None:
+		request.currency = currency or None
+	if request.estimated_amount and not request.currency:
+		frappe.throw(_("Currency is required when amount is provided"))
+
+	request.save()
+
+	return {
+		"name": request.name,
+		"analysis": request.analysis,
+		"estimated_hours": request.estimated_hours,
+		"currency": request.currency,
+		"estimated_amount": request.estimated_amount,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_change_request_action(name: str, action: str):
+	"""Move a Change Request along its workflow from the Projekt HUB UI.
+
+	Approving it creates the project task, which moves it on to Task Created.
+	"""
+	from frappe.model.workflow import apply_workflow
+
+	require_project_hub_access()
+	if not name or not action:
+		frappe.throw(_("Change Request and action are required"))
+
+	change_request = frappe.get_doc("Change Request", name)
+	change_request.check_permission("write")
+	change_request = apply_workflow(change_request, action)
+
+	return {
+		"name": change_request.name,
+		"workflow_state": change_request.workflow_state,
+		"task": change_request.task,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
 def create_change_request_from_customer_request(name: str):
 	"""Create the Change Request of an accepted Customer Request."""
 	require_project_hub_access()
@@ -539,7 +670,6 @@ def create_customer_request(
 	estimated_hours: str | None = None,
 	currency: str | None = None,
 	estimated_amount: str | None = None,
-	quotation: str | None = None,
 ):
 	"""Create a Customer Request from the Projekt HUB UI."""
 	require_project_hub_access()
@@ -574,7 +704,6 @@ def create_customer_request(
 		"estimated_hours": estimated_hours,
 		"currency": currency,
 		"estimated_amount": estimated_amount,
-		"quotation": quotation,
 	}.items():
 		if value not in (None, ""):
 			request.set(fieldname, value)

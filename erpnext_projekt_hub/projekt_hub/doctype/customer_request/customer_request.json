@@ -10,6 +10,7 @@
   "subject",
   "workflow_state",
   "analyst",
+  "state_changed_on",
   "request_date",
   "source",
   "customer_section",
@@ -57,6 +58,14 @@
    "label": "Assigned Analyst",
    "no_copy": 1,
    "options": "User"
+  },
+  {
+   "description": "When the request entered its current workflow state.",
+   "fieldname": "state_changed_on",
+   "fieldtype": "Datetime",
+   "label": "In State Since",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "default": "Today",
@@ -151,6 +160,7 @@
    "label": "Commercial Documents"
   },
   {
+   "depends_on": "eval:[\"Quoted\", \"Accepted\", \"Rejected\", \"Converted\"].includes(doc.workflow_state) || doc.quotation",
    "fieldname": "quotation",
    "fieldtype": "Link",
    "in_standard_filter": 1,

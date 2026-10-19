@@ -10,6 +10,7 @@
   "subject",
   "workflow_state",
   "analyst",
+  "state_changed_on",
   "customer_request",
   "customer_section",
   "customer",
@@ -52,6 +53,14 @@
    "label": "Assigned Analyst",
    "no_copy": 1,
    "options": "User"
+  },
+  {
+   "description": "When the request entered its current workflow state.",
+   "fieldname": "state_changed_on",
+   "fieldtype": "Datetime",
+   "label": "In State Since",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "customer_request",

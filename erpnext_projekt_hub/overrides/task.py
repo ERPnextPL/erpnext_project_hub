@@ -18,11 +18,11 @@ class HubTask(Task):
 		ERPNext's daily ``set_tasks_as_overdue`` job calls this and, upstream,
 		replaces the status with "Overdue". That throws away where the task
 		really is (e.g. Pending Review), so the Hub keeps the status untouched
-		and records the delay in the separate ``is_overdue`` flag.
+		and records the delay in the separate ``hub_is_overdue`` flag.
 		"""
 		is_overdue = compute_is_overdue(self)
-		if self.get("is_overdue") != is_overdue:
-			self.db_set("is_overdue", is_overdue, update_modified=False)
+		if self.get("hub_is_overdue") != is_overdue:
+			self.db_set("hub_is_overdue", is_overdue, update_modified=False)
 
 
 def compute_is_overdue(doc):
@@ -34,4 +34,4 @@ def compute_is_overdue(doc):
 def set_overdue_flag(doc, method=None):
 	"""Keep the flag in step with the due date on every save, so moving the
 	date into the future (or closing the task) clears it straight away."""
-	doc.is_overdue = compute_is_overdue(doc)
+	doc.hub_is_overdue = compute_is_overdue(doc)
