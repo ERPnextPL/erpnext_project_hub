@@ -47,6 +47,30 @@ export async function apiPost(method, payload = {}) {
 	return parseResponse(response);
 }
 
+// Anyone who can open a request may attach files to it, so the file is uploaded
+// unattached and then linked by request_queue.attach_file, which checks read
+// access instead of the write access Frappe's upload requires.
+export async function uploadRequestAttachment(doctype, name, file) {
+	const formData = new FormData();
+	formData.append("file", file, file.name);
+	formData.append("is_private", 1);
+	formData.append("folder", "Home/Attachments");
+	const response = await fetch("/api/method/upload_file", {
+		method: "POST",
+		headers: {
+			Accept: "application/json",
+			"X-Frappe-CSRF-Token": getCsrfToken(),
+		},
+		body: formData,
+	});
+	const uploaded = await parseResponse(response);
+	return apiPost("erpnext_projekt_hub.request_queue.attach_file", {
+		doctype,
+		name,
+		file_name: uploaded.name,
+	});
+}
+
 export function decodeApiError(error, fallback) {
 	const raw = error?.message || "";
 	if (!raw) return fallback;

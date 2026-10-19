@@ -17,6 +17,7 @@ import {
 	X,
 } from "lucide-vue-next";
 import CustomerRequestModal from "./CustomerRequestModal.vue";
+import RequestAttachments from "./RequestAttachments.vue";
 import { translate } from "../../utils/translation";
 import {
 	CUSTOMER_REQUEST_PIPELINE,
@@ -208,12 +209,19 @@ function setActionError(name, message) {
 
 const currentUser = computed(() => realWindow?.frappe?.session?.user || "");
 
-function isAssignedToMe(request) {
-	return (request.assigned_to || []).some((assignee) => assignee.user === currentUser.value);
+// The workflow state in which each request type waits for analysis (see
+// request_queue.py).
+const ANALYSIS_STATES = {
+	"Customer Request": "To Analyze",
+	"Change Request": "Draft",
+};
+
+function isInAnalysis(doctype, request) {
+	return (request.workflow_state || "Draft") === ANALYSIS_STATES[doctype];
 }
 
-function assigneeNames(request) {
-	return (request.assigned_to || []).map((assignee) => assignee.full_name || assignee.user).join(", ");
+function isAnalyzedByMe(request) {
+	return Boolean(request.analyst) && request.analyst === currentUser.value;
 }
 
 function hasEstimate(request) {
@@ -265,21 +273,21 @@ function createChangeRequest(request) {
 	);
 }
 
-function takeRequest(request) {
+function takeRequest(doctype, request) {
 	return runRequestAction(
 		request,
-		"erpnext_projekt_hub.api.project_hub.take_customer_request",
-		{},
+		"erpnext_projekt_hub.request_queue.take_for_analysis",
+		{ doctype },
 		"",
 		() => translate("You are now analyzing {0}", [request.name])
 	);
 }
 
-function releaseRequest(request) {
+function releaseRequest(doctype, request) {
 	return runRequestAction(
 		request,
-		"erpnext_projekt_hub.api.project_hub.release_customer_request",
-		{},
+		"erpnext_projekt_hub.request_queue.release_analysis",
+		{ doctype },
 		"",
 		() => translate("{0} is back in the analysis queue", [request.name])
 	);
@@ -482,10 +490,10 @@ onMounted(() => {
 										v-if="request.workflow_state === 'To Analyze'"
 										class="mt-1 flex items-center gap-1 text-xs"
 									>
-										<template v-if="request.assigned_to?.length">
+										<template v-if="request.analyst">
 											<UserCheck class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
 											<span class="text-gray-600 dark:text-gray-300">
-												{{ translate("Analyzed by: {0}", [assigneeNames(request)]) }}
+												{{ translate("Analyzed by: {0}", [request.analyst_name]) }}
 											</span>
 										</template>
 										<span v-else class="font-medium text-amber-700 dark:text-amber-400">
@@ -566,7 +574,16 @@ onMounted(() => {
 									{{ translate("Estimated Amount") }}: {{ formatRequestAmount(request, "estimated_amount") }}
 								</span>
 								<span v-if="request.quotation">{{ translate("Quotation") }}: {{ request.quotation }}</span>
+								<span v-if="request.analyst && request.workflow_state !== 'To Analyze'">
+									{{ translate("Assigned Analyst") }}: {{ request.analyst_name }}
+								</span>
 							</div>
+							<RequestAttachments
+								doctype="Customer Request"
+								:name="request.name"
+								:attachments="request.attachments || []"
+								@uploaded="emit('refresh')"
+							/>
 							<div class="flex flex-wrap items-center gap-2">
 								<button
 									type="button"
@@ -597,21 +614,21 @@ onMounted(() => {
 								class="mb-1.5 flex flex-wrap items-center gap-1.5"
 							>
 								<button
-									v-if="!isAssignedToMe(request)"
+									v-if="!request.analyst"
 									type="button"
 									:disabled="Boolean(busyRequest)"
 									class="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-									@click="takeRequest(request)"
+									@click="takeRequest('Customer Request', request)"
 								>
 									<Hand class="h-3.5 w-3.5" />
 									{{ translate("Take for analysis") }}
 								</button>
 								<button
-									v-else
+									v-else-if="isAnalyzedByMe(request)"
 									type="button"
 									:disabled="Boolean(busyRequest)"
 									class="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-									@click="releaseRequest(request)"
+									@click="releaseRequest('Customer Request', request)"
 								>
 									<UserMinus class="h-3.5 w-3.5" />
 									{{ translate("Release") }}
@@ -702,6 +719,49 @@ onMounted(() => {
 								{{ translate(changeRequest.workflow_state || "Draft") }}
 							</span>
 						</div>
+						<div
+							v-if="changeRequest.analyst || isInAnalysis('Change Request', changeRequest)"
+							class="mt-1 flex flex-wrap items-center gap-1.5 text-xs"
+						>
+							<template v-if="changeRequest.analyst">
+								<UserCheck class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+								<span class="text-gray-600 dark:text-gray-300">
+									{{ translate("Analyzed by: {0}", [changeRequest.analyst_name]) }}
+								</span>
+							</template>
+							<span v-else class="font-medium text-amber-700 dark:text-amber-400">
+								{{ translate("Waiting for someone to analyze") }}
+							</span>
+							<template v-if="isInAnalysis('Change Request', changeRequest)">
+								<button
+									v-if="!changeRequest.analyst"
+									type="button"
+									:disabled="Boolean(busyRequest)"
+									class="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+									@click="takeRequest('Change Request', changeRequest)"
+								>
+									<Hand class="h-3.5 w-3.5" />
+									{{ translate("Take for analysis") }}
+								</button>
+								<button
+									v-else-if="isAnalyzedByMe(changeRequest)"
+									type="button"
+									:disabled="Boolean(busyRequest)"
+									class="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+									@click="releaseRequest('Change Request', changeRequest)"
+								>
+									<UserMinus class="h-3.5 w-3.5" />
+									{{ translate("Release") }}
+								</button>
+								<RefreshCw
+									v-if="busyRequest === changeRequest.name"
+									class="h-3.5 w-3.5 animate-spin text-gray-400"
+								/>
+							</template>
+						</div>
+						<p v-if="actionErrors[changeRequest.name]" class="mt-1 text-xs text-red-600 dark:text-red-400">
+							{{ actionErrors[changeRequest.name] }}
+						</p>
 						<button
 							v-if="changeRequest.task"
 							type="button"
@@ -710,6 +770,13 @@ onMounted(() => {
 						>
 							{{ translate("Task") }}: {{ changeRequest.task }}
 						</button>
+						<RequestAttachments
+							class="mt-2"
+							doctype="Change Request"
+							:name="changeRequest.name"
+							:attachments="changeRequest.attachments || []"
+							@uploaded="emit('refresh')"
+						/>
 					</div>
 				</div>
 			</section>

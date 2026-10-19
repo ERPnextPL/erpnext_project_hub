@@ -11,19 +11,34 @@ REQUEST_SHORTCUTS = (
 )
 PROJECT_HUB_SHORTCUT = ("Project Hub", "/project-hub", "Blue")
 
+# "Project Manager" (kierownik projektu) handles requests like "Projects Manager".
+PROJECT_MANAGER_ROLE = "Project Manager"
+MANAGER_ROLES = ("Projects Manager", PROJECT_MANAGER_ROLE, "System Manager")
+ALL_ROLES = ("Projects User", *MANAGER_ROLES)
+
 # Analysis queue: requests waiting for analysis, and those nobody has taken yet.
-# A request taken and then released keeps _assign as "[]", so "unassigned"
-# means no quoted user in _assign rather than an empty field.
+# Whoever takes a request is kept in its `analyst` field (see request_queue.py).
 # Filters use the 4-item form: the workspace widget drops the last filter of a
 # list whose filters have 5 items (frappe.utils.cleanup_filters).
 ANALYSIS_QUEUE_FILTERS = [["Customer Request", "workflow_state", "=", "To Analyze"]]
 UNASSIGNED_ANALYSIS_FILTERS = [
 	*ANALYSIS_QUEUE_FILTERS,
-	["Customer Request", "_assign", "not like", '%"%'],
+	["Customer Request", "analyst", "is", "not set"],
+]
+UNASSIGNED_CHANGE_ANALYSIS_FILTERS = [
+	["Change Request", "workflow_state", "=", "Draft"],
+	["Change Request", "analyst", "is", "not set"],
 ]
 QUEUE_SHORTCUTS = (
 	("Requests to Analyze", "Customer Request", "Orange", ANALYSIS_QUEUE_FILTERS, "{} to analyze"),
 	("Unassigned Analyses", "Customer Request", "Red", UNASSIGNED_ANALYSIS_FILTERS, "{} unassigned"),
+	(
+		"Unassigned Change Requests",
+		"Change Request",
+		"Red",
+		UNASSIGNED_CHANGE_ANALYSIS_FILTERS,
+		"{} unassigned",
+	),
 )
 CONTENT_SHORTCUT_LABELS = (
 	[label for label, _, _ in REQUEST_SHORTCUTS]
@@ -34,6 +49,7 @@ CONTENT_SHORTCUT_LABELS = (
 
 def execute():
 	ensure_task_custom_field()
+	ensure_project_manager_role()
 	ensure_workflow_prerequisites()
 	ensure_workflow("Customer Request Workflow", "Customer Request", customer_request_workflow())
 	ensure_workflow("Change Request Workflow", "Change Request", change_request_workflow())
@@ -64,6 +80,14 @@ def ensure_task_custom_field():
 		},
 		update=True,
 	)
+
+
+def ensure_project_manager_role():
+	"""The workflows name this role; project_control creates it, a plain install may not."""
+	if not frappe.db.exists("Role", PROJECT_MANAGER_ROLE):
+		frappe.get_doc({"doctype": "Role", "role_name": PROJECT_MANAGER_ROLE, "desk_access": 1}).insert(
+			ignore_permissions=True
+		)
 
 
 def ensure_workflow_prerequisites():
@@ -113,34 +137,26 @@ def customer_request_workflow():
 	return {
 		"states": state_rows(
 			{
-				"Draft": ("Projects User", "Projects Manager", "System Manager"),
+				"Draft": ALL_ROLES,
 				# The analysis is written by whoever takes the request from the
-				# queue, usually a developer without the Projects Manager role.
-				"To Analyze": ("Projects User", "Projects Manager", "System Manager"),
-				"Quoted": ("Projects Manager", "System Manager"),
-				"Accepted": ("Projects Manager", "System Manager"),
-				"Rejected": ("Projects Manager", "System Manager"),
-				"Converted": ("Projects Manager", "System Manager"),
+				# queue, usually a developer without a manager role.
+				"To Analyze": ALL_ROLES,
+				"Quoted": MANAGER_ROLES,
+				"Accepted": MANAGER_ROLES,
+				"Rejected": MANAGER_ROLES,
+				"Converted": MANAGER_ROLES,
 			}
 		),
 		"transitions": [
-			transition("Draft", "Submit for Analysis", "To Analyze", "Projects User"),
-			transition("Draft", "Submit for Analysis", "To Analyze", "Projects Manager"),
-			transition("Draft", "Submit for Analysis", "To Analyze", "System Manager"),
-			transition("To Analyze", "Mark Quoted", "Quoted", "Projects Manager"),
-			transition("To Analyze", "Mark Quoted", "Quoted", "System Manager"),
-			transition("To Analyze", "Reject", "Rejected", "Projects Manager"),
-			transition("To Analyze", "Reject", "Rejected", "System Manager"),
-			transition("Quoted", "Accept", "Accepted", "Projects Manager"),
-			transition("Quoted", "Accept", "Accepted", "System Manager"),
-			transition("Quoted", "Reject", "Rejected", "Projects Manager"),
-			transition("Quoted", "Reject", "Rejected", "System Manager"),
+			*transitions("Draft", "Submit for Analysis", "To Analyze", ALL_ROLES),
+			*transitions("To Analyze", "Mark Quoted", "Quoted", MANAGER_ROLES),
+			*transitions("To Analyze", "Reject", "Rejected", MANAGER_ROLES),
+			*transitions("Quoted", "Accept", "Accepted", MANAGER_ROLES),
+			*transitions("Quoted", "Reject", "Rejected", MANAGER_ROLES),
 			# Accepted -> Converted has no transition on purpose: only
 			# CustomerRequest.create_change_request sets it, together with the
 			# Change Request it creates.
-			transition("Rejected", "Submit for Analysis", "To Analyze", "Projects User"),
-			transition("Rejected", "Submit for Analysis", "To Analyze", "Projects Manager"),
-			transition("Rejected", "Submit for Analysis", "To Analyze", "System Manager"),
+			*transitions("Rejected", "Submit for Analysis", "To Analyze", ALL_ROLES),
 		],
 	}
 
@@ -149,20 +165,17 @@ def change_request_workflow():
 	return {
 		"states": state_rows(
 			{
-				"Draft": ("Projects Manager", "System Manager"),
-				"Approved": ("Projects Manager", "System Manager"),
-				"Task Created": ("Projects Manager", "System Manager"),
-				"Done": ("Projects Manager", "System Manager"),
-				"Cancelled": ("Projects Manager", "System Manager"),
+				"Draft": MANAGER_ROLES,
+				"Approved": MANAGER_ROLES,
+				"Task Created": MANAGER_ROLES,
+				"Done": MANAGER_ROLES,
+				"Cancelled": MANAGER_ROLES,
 			}
 		),
 		"transitions": [
-			transition("Draft", "Approve", "Approved", "Projects Manager"),
-			transition("Draft", "Approve", "Approved", "System Manager"),
-			transition("Task Created", "Mark Done", "Done", "Projects Manager"),
-			transition("Task Created", "Mark Done", "Done", "System Manager"),
-			transition("Task Created", "Cancel", "Cancelled", "Projects Manager"),
-			transition("Task Created", "Cancel", "Cancelled", "System Manager"),
+			*transitions("Draft", "Approve", "Approved", MANAGER_ROLES),
+			*transitions("Task Created", "Mark Done", "Done", MANAGER_ROLES),
+			*transitions("Task Created", "Cancel", "Cancelled", MANAGER_ROLES),
 		],
 	}
 
@@ -175,14 +188,17 @@ def state_rows(states_by_role):
 	return rows
 
 
-def transition(state, action, next_state, role):
-	return {
-		"state": state,
-		"action": action,
-		"next_state": next_state,
-		"allowed": role,
-		"allow_self_approval": 1,
-	}
+def transitions(state, action, next_state, roles):
+	return [
+		{
+			"state": state,
+			"action": action,
+			"next_state": next_state,
+			"allowed": role,
+			"allow_self_approval": 1,
+		}
+		for role in roles
+	]
 
 
 def ensure_workflow(workflow_name, document_type, config):

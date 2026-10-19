@@ -1,10 +1,10 @@
 import frappe
 from frappe import _
-from frappe.desk.form.assign_to import close_all_assignments
 from frappe.model.document import Document
 from frappe.utils import strip_html
 
-ANALYSIS_STATE = "To Analyze"
+from erpnext_projekt_hub.request_queue import sync_analysis_assignment
+
 QUOTED_STATE = "Quoted"
 
 
@@ -14,7 +14,7 @@ class CustomerRequest(Document):
 		self.validate_quote_has_estimate()
 
 	def on_update(self):
-		self.close_analysis_assignments()
+		sync_analysis_assignment(self)
 
 	def validate_quote_has_estimate(self):
 		"""A request can only be marked Quoted once its analysis is written."""
@@ -31,16 +31,6 @@ class CustomerRequest(Document):
 				_("Fill in {0} before marking the request as quoted.").format(", ".join(missing)),
 				title=_("Analysis incomplete"),
 			)
-
-	def close_analysis_assignments(self):
-		"""Taking a request from the queue assigns it; leaving analysis ends that."""
-		previous = self.get_doc_before_save()
-		if not previous or previous.workflow_state != ANALYSIS_STATE:
-			return
-		if self.workflow_state == ANALYSIS_STATE:
-			return
-
-		close_all_assignments(self.doctype, self.name, ignore_permissions=True)
 
 	def validate_project_customer(self):
 		if not self.project or not self.customer:

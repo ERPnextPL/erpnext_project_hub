@@ -9,10 +9,9 @@ from erpnext_projekt_hub.api.project_hub import (
 	create_customer_request,
 	get_customer_request_dropdown_options,
 	get_project_requests,
-	release_customer_request,
 	search_requested_by,
-	take_customer_request,
 )
+from erpnext_projekt_hub.request_queue import release_analysis, take_for_analysis
 
 test_ignore = ["Customer", "Project", "Quotation", "Task"]
 
@@ -368,29 +367,29 @@ class TestCustomerRequest(FrappeTestCase):
 		).insert(ignore_permissions=True)
 
 		with self.assertRaises(frappe.ValidationError):
-			take_customer_request(customer_request.name)
+			take_for_analysis("Customer Request", customer_request.name)
 
 		frappe.db.set_value(
 			"Customer Request", customer_request.name, "workflow_state", "To Analyze", update_modified=False
 		)
-		take_customer_request(customer_request.name)
+		take_for_analysis("Customer Request", customer_request.name)
 
 		row = next(
 			row
 			for row in get_project_requests(project)["customer_requests"]
 			if row.name == customer_request.name
 		)
-		self.assertEqual([assignee["user"] for assignee in row.assigned_to], [frappe.session.user])
-		self.assertNotIn("_assign", row)
+		self.assertEqual(row.analyst, frappe.session.user)
+		self.assertTrue(row.analyst_name)
 
-		release_customer_request(customer_request.name)
+		release_analysis("Customer Request", customer_request.name)
 
 		row = next(
 			row
 			for row in get_project_requests(project)["customer_requests"]
 			if row.name == customer_request.name
 		)
-		self.assertEqual(row.assigned_to, [])
+		self.assertFalse(row.analyst)
 
 	def test_create_customer_request_api_uses_project_customer(self):
 		customer = get_or_create_customer()
