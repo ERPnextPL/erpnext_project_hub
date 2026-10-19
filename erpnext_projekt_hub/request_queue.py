@@ -69,7 +69,7 @@ def take_for_analysis(doctype: str, name: str):
 	request.check_permission("read")
 
 	# Two people clicking "Take for analysis" at once must not both get it.
-	frappe.db.sql(f"select name from `tab{request.doctype}` where name = %s for update", request.name)
+	frappe.db.get_value(request.doctype, request.name, "name", for_update=True)
 	request.reload()
 
 	if not is_in_analysis(request):
