@@ -3,7 +3,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from erpnext_projekt_hub.request_queue import sync_analysis_assignment
+from erpnext_projekt_hub.request_queue import sync_analysis_assignment, validate_analyst
 
 
 class ChangeRequest(Document):
@@ -11,6 +11,7 @@ class ChangeRequest(Document):
 		self.validate_project_customer()
 		self.validate_customer_request()
 		self.set_state_changed_on()
+		validate_analyst(self)
 
 	def on_update(self):
 		sync_analysis_assignment(self)

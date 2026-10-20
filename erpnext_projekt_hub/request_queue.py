@@ -3,7 +3,12 @@
 A request waiting for analysis is taken by one person. They are recorded in the
 request's `analyst` field, which is what the queue and the UI read, and get a
 ToDo assignment so the request shows in their To Do list. The assignment closes
-once the request leaves analysis; the field keeps who analyzed it.
+once the request leaves analysis; the field keeps who analyzed it. A request sent
+back to analysis (Rejected -> To Analyze) returns to the queue without an analyst.
+
+Anyone who can read a request may take it, release it and attach files to it:
+analysis is usually done by developers whose role only reads Change Requests.
+Picking someone else as analyst in the form is left to managers.
 """
 
 import frappe
@@ -18,6 +23,8 @@ ANALYSIS_STATES = {
 	"Customer Request": "To Analyze",
 	"Change Request": "Draft",
 }
+# Roles that may set or change the analyst in the form (assign someone else).
+ANALYST_MANAGER_ROLES = ("Projects Manager", "Project Manager", "System Manager")
 
 
 def get_request(doctype, name):
@@ -28,6 +35,26 @@ def get_request(doctype, name):
 
 def is_in_analysis(doc):
 	return doc.workflow_state == ANALYSIS_STATES[doc.doctype]
+
+
+def validate_analyst(doc):
+	"""Called from validate: who may change the analyst, and the queue on re-entry.
+
+	Take/Release write the field with db_set and never reach validate, so a change
+	seen here comes from the form or the REST API.
+	"""
+	previous = doc.get_doc_before_save()
+	# has_value_changed is always True on a new document, so compare explicitly.
+	if (previous.analyst if previous else None) != (doc.analyst or None):
+		if doc.analyst and not frappe.db.get_value("User", doc.analyst, "enabled"):
+			frappe.throw(_("User {0} is disabled.").format(doc.analyst))
+		frappe.only_for(ANALYST_MANAGER_ROLES)
+
+	analysis_state = ANALYSIS_STATES[doc.doctype]
+	if previous and previous.workflow_state != analysis_state and is_in_analysis(doc):
+		# A new round of analysis starts unassigned, so a former analyst who left
+		# or is away does not keep the request out of the queue.
+		doc.analyst = None
 
 
 def sync_analysis_assignment(doc):
@@ -45,7 +72,8 @@ def sync_analysis_assignment(doc):
 		return
 
 	previous_analyst = previous.analyst if previous else None
-	if previous_analyst and previous_analyst != doc.analyst:
+	# Only an assignment of the current analysis round is still open.
+	if was_in_analysis and previous_analyst and previous_analyst != doc.analyst:
 		remove_assignment(doc.doctype, doc.name, previous_analyst)
 	if doc.analyst and (doc.analyst != previous_analyst or not was_in_analysis):
 		assign_analyst(doc, doc.analyst)
@@ -63,10 +91,15 @@ def assign_analyst(doc, user):
 
 
 def lock_request(doctype, name):
-	"""Load a request with its row locked, so concurrent take/release see each other's writes."""
+	"""Load a request with its row locked, so concurrent take/release see each other's writes.
+
+	The reload itself must be the locking read (SELECT ... FOR UPDATE): a plain read
+	after taking the lock would still see the REPEATABLE READ snapshot from before the
+	lock wait, so a second user would miss the first one's claim.
+	"""
 	request = get_request(doctype, name)
 	request.check_permission("read")
-	frappe.db.get_value(request.doctype, request.name, "name", for_update=True)
+	request.flags.for_update = True
 	request.reload()
 	return request
 
@@ -128,7 +161,11 @@ def attach_file(doctype: str, name: str, file_name: str):
 
 	file_doc.attached_to_doctype = request.doctype
 	file_doc.attached_to_name = request.name
+	# File.before_insert checked the limit while the file was not attached yet.
+	file_doc.validate_attachment_limit()
 	file_doc.folder = frappe.db.get_value("File", {"is_attachments_folder": 1}) or file_doc.folder
+	# Without ignore_permissions File.validate demands write permission on the request,
+	# which is what this endpoint deliberately does not require (read is checked above).
 	file_doc.save(ignore_permissions=True)
 	file_doc.create_attachment_record()
 
@@ -141,7 +178,11 @@ def attach_file(doctype: str, name: str, file_name: str):
 
 
 def get_attachments(doctype, names):
-	"""Return {request name: [attachments]} for the given requests."""
+	"""Return {request name: [attachments]} for the given requests.
+
+	Reads File without permission checks, so `names` must come from a permission-aware
+	query of requests the user may read (get_project_requests uses frappe.get_list).
+	"""
 	if not names:
 		return {}
 

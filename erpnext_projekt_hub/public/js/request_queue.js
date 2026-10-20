@@ -6,6 +6,8 @@
 frappe.provide("erpnext_projekt_hub.request_queue");
 
 erpnext_projekt_hub.request_queue.setup = function (frm, analysis_state) {
+	// Only active desk users can analyze a request.
+	frm.set_query("analyst", () => ({ filters: { enabled: 1, user_type: "System User" } }));
 	if (frm.is_new()) {
 		return;
 	}
@@ -56,7 +58,10 @@ function setup_read_only_attachments(frm) {
 		new frappe.ui.FileUploader({
 			folder: "Home/Attachments",
 			on_success(file_doc) {
-				call_queue(frm, "attach_file", { file_name: file_doc.name });
+				call_queue(frm, "attach_file", { file_name: file_doc.name }).catch(() => {
+					// Do not leave the uploaded file behind, unattached.
+					frappe.xcall("frappe.client.delete", { doctype: "File", name: file_doc.name });
+				});
 			},
 		});
 	});

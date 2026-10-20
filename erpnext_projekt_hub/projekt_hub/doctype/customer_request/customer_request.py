@@ -3,7 +3,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, strip_html
 
-from erpnext_projekt_hub.request_queue import sync_analysis_assignment
+from erpnext_projekt_hub.request_queue import sync_analysis_assignment, validate_analyst
 
 QUOTED_STATE = "Quoted"
 
@@ -17,6 +17,7 @@ class CustomerRequest(Document):
 		self.validate_quotation_state()
 		self.validate_quote_has_estimate()
 		self.set_state_changed_on()
+		validate_analyst(self)
 
 	def on_update(self):
 		sync_analysis_assignment(self)

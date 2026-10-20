@@ -642,6 +642,20 @@ def apply_change_request_action(name: str, action: str):
 
 
 @frappe.whitelist(methods=["POST"])
+def take_customer_request(name: str):
+	"""Deprecated: use request_queue.take_for_analysis. Kept for external callers."""
+	require_project_hub_access()
+	return request_queue.take_for_analysis("Customer Request", name)
+
+
+@frappe.whitelist(methods=["POST"])
+def release_customer_request(name: str):
+	"""Deprecated: use request_queue.release_analysis. Kept for external callers."""
+	require_project_hub_access()
+	return request_queue.release_analysis("Customer Request", name)
+
+
+@frappe.whitelist(methods=["POST"])
 def create_change_request_from_customer_request(name: str):
 	"""Create the Change Request of an accepted Customer Request."""
 	require_project_hub_access()
