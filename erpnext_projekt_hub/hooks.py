@@ -53,7 +53,8 @@ web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
 doctype_js = {
 	"Project": "public/js/project.js",
 	"Timesheet": "public/js/timesheet_timer_override.js",
-	"Customer Request": "public/js/customer_request.js",
+	"Customer Request": ["public/js/request_queue.js", "public/js/customer_request.js"],
+	"Change Request": ["public/js/request_queue.js", "public/js/change_request.js"],
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}

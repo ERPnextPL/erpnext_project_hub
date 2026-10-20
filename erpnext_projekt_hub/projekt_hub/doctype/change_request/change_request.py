@@ -3,6 +3,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from erpnext_projekt_hub.request_queue import sync_analysis_assignment
+
 
 class ChangeRequest(Document):
 	def validate(self):
@@ -11,6 +13,7 @@ class ChangeRequest(Document):
 		self.set_state_changed_on()
 
 	def on_update(self):
+		sync_analysis_assignment(self)
 		if self.workflow_state == "Approved" and not self.task:
 			self.create_project_task()
 

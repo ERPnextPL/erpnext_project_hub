@@ -1,10 +1,10 @@
 import frappe
 from frappe import _
-from frappe.desk.form.assign_to import close_all_assignments
 from frappe.model.document import Document
 from frappe.utils import now_datetime, strip_html
 
-ANALYSIS_STATE = "To Analyze"
+from erpnext_projekt_hub.request_queue import sync_analysis_assignment
+
 QUOTED_STATE = "Quoted"
 
 # Quotation can be linked only once the request has been quoted, not during analysis.
@@ -19,7 +19,7 @@ class CustomerRequest(Document):
 		self.set_state_changed_on()
 
 	def on_update(self):
-		self.close_analysis_assignments()
+		sync_analysis_assignment(self)
 
 	def validate_quote_has_estimate(self):
 		"""A request can only be marked Quoted once its analysis is written."""
@@ -41,16 +41,6 @@ class CustomerRequest(Document):
 		"""Remember when the request entered its workflow state (requests board ageing)."""
 		if self.has_value_changed("workflow_state") or not self.state_changed_on:
 			self.state_changed_on = now_datetime()
-
-	def close_analysis_assignments(self):
-		"""Taking a request from the queue assigns it; leaving analysis ends that."""
-		previous = self.get_doc_before_save()
-		if not previous or previous.workflow_state != ANALYSIS_STATE:
-			return
-		if self.workflow_state == ANALYSIS_STATE:
-			return
-
-		close_all_assignments(self.doctype, self.name, ignore_permissions=True)
 
 	def validate_project_customer(self):
 		if not self.project or not self.customer:

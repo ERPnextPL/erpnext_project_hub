@@ -63,14 +63,11 @@ function avatarColor(user) {
 	return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-const assignees = computed(() =>
-	(props.request.assigned_to || []).map((assignee) => ({
-		user: assignee.user,
-		name: assignee.full_name || assignee.user,
-		initials: initials(assignee.full_name || assignee.user),
-		color: avatarColor(assignee.user),
-	}))
-);
+const assignees = computed(() => {
+	const { analyst, analyst_name: name } = props.request;
+	if (!analyst) return [];
+	return [{ user: analyst, name: name || analyst, initials: initials(name || analyst), color: avatarColor(analyst) }];
+});
 
 const days = computed(() => daysInState(props.request, props.now));
 const stale = computed(() => isStaleRequest(props.request, props.now));

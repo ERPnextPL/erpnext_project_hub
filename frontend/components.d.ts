@@ -38,6 +38,7 @@ declare module 'vue' {
     ProjectTeam: typeof import('./src/components/ProjectTeam.vue')['default']
     QuickAddTask: typeof import('./src/components/QuickAddTask.vue')['default']
     QuickFilters: typeof import('./src/components/QuickFilters.vue')['default']
+    RequestAttachments: typeof import('./src/components/requests/RequestAttachments.vue')['default']
     RequestBoardCard: typeof import('./src/components/requests/RequestBoardCard.vue')['default']
     RequestDetailDrawer: typeof import('./src/components/requests/RequestDetailDrawer.vue')['default']
     RequestsGuideModal: typeof import('./src/components/requests/RequestsGuideModal.vue')['default']

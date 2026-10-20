@@ -1,6 +1,5 @@
 import frappe
 from frappe.desk.form.assign_to import add as add_assignment
-from frappe.desk.form.assign_to import remove as remove_assignment
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import (
@@ -10,6 +9,7 @@ from erpnext_projekt_hub.projekt_hub.doctype.customer_request.test_customer_requ
 	create_project,
 	get_or_create_customer,
 )
+from erpnext_projekt_hub.request_queue import release_analysis, take_for_analysis
 
 test_ignore = ["Customer", "Project", "Quotation", "Task"]
 
@@ -80,9 +80,9 @@ class TestCustomerRequestAnalysisQueue(FrappeTestCase):
 		never_taken = create_request_to_analyze(self.project, self.customer, "_Test never taken")
 		taken = create_request_to_analyze(self.project, self.customer, "_Test taken")
 		released = create_request_to_analyze(self.project, self.customer, "_Test released")
-		assign(taken)
-		assign(released)
-		remove_assignment("Customer Request", released.name, "Administrator")
+		take_for_analysis("Customer Request", taken.name)
+		take_for_analysis("Customer Request", released.name)
+		release_analysis("Customer Request", released.name)
 
 		unassigned = frappe.get_list(
 			"Customer Request",

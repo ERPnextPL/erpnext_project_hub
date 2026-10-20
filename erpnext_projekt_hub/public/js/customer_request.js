@@ -1,8 +1,6 @@
 frappe.ui.form.on("Customer Request", {
 	refresh(frm) {
-		if (!frm.is_new() && frm.doc.workflow_state === "To Analyze") {
-			setup_analysis_queue(frm);
-		}
+		erpnext_projekt_hub.request_queue.setup(frm, "To Analyze");
 
 		if (
 			frm.doc.docstatus === 0 &&
@@ -25,41 +23,3 @@ frappe.ui.form.on("Customer Request", {
 		}
 	},
 });
-
-// Requests waiting for analysis form a queue: anyone free takes one with
-// "Take for analysis", and a manager can assign a developer from the
-// "Assigned To" sidebar. The assignment closes once the request leaves analysis.
-function setup_analysis_queue(frm) {
-	const assignees = JSON.parse(frm.doc._assign || "[]");
-
-	if (!assignees.length) {
-		frm.dashboard.set_headline_alert(
-			__("Waiting for someone to analyze. Take it, or assign a developer in the sidebar."),
-			"yellow"
-		);
-	}
-
-	if (assignees.includes(frappe.session.user)) {
-		frm.add_custom_button(__("Release"), () => {
-			frappe
-				.xcall("frappe.desk.form.assign_to.remove", {
-					doctype: frm.doctype,
-					name: frm.docname,
-					assign_to: frappe.session.user,
-				})
-				.then(() => frm.reload_doc());
-		});
-		return;
-	}
-
-	frm.add_custom_button(__("Take for analysis"), () => {
-		frappe
-			.xcall("frappe.desk.form.assign_to.add", {
-				doctype: frm.doctype,
-				name: frm.docname,
-				assign_to: [frappe.session.user],
-				description: frm.doc.subject,
-			})
-			.then(() => frm.reload_doc());
-	}).addClass("btn-primary");
-}

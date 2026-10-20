@@ -573,8 +573,12 @@ onUnmounted(() => {
 			:request="selectedRequest"
 			:project-name="projectId"
 			:busy="busyRequest === selectedRequest.name"
+			:current-user="currentUser"
 			@close="selectedName = ''"
 			@action="handleDrawerAction"
+			@take="takeRequest(selectedRequest, 'Change Request')"
+			@release="releaseRequest(selectedRequest, 'Change Request')"
+			@refresh="refresh"
 			@open-customer-request="openLinked('customer', $event)"
 		/>
 		<RequestDetailDrawer
@@ -590,6 +594,7 @@ onUnmounted(() => {
 			@convert="convertRequest(selectedRequest)"
 			@take="takeRequest(selectedRequest)"
 			@release="releaseRequest(selectedRequest)"
+			@refresh="refresh"
 			@open-change-request="openLinked('change', $event)"
 		/>
 

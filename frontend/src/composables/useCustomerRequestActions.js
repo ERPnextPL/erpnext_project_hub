@@ -22,7 +22,8 @@ export function useCustomerRequestActions(projectId, { refresh, notify }) {
 
 		busyRequest.value = request.name;
 		try {
-			const result = await apiPost(`${API}.${method}`, { name: request.name, ...payload });
+			const path = method.includes(".") ? method : `${API}.${method}`;
+			const result = await apiPost(path, { name: request.name, ...payload });
 			notify?.(success(result), "success");
 			notifyRequestsChanged(toValue(projectId));
 			await refresh?.();
@@ -74,11 +75,12 @@ export function useCustomerRequestActions(projectId, { refresh, notify }) {
 		);
 	}
 
-	function takeRequest(request) {
+	// Customer and change requests share the analysis queue (request_queue.py).
+	function takeRequest(request, doctype = "Customer Request") {
 		return run(
 			request,
-			"take_customer_request",
-			{},
+			"erpnext_projekt_hub.request_queue.take_for_analysis",
+			{ doctype },
 			{
 				success: () => translate("You are now analyzing {0}", [request.name]),
 				failure: translate("Status could not be changed"),
@@ -86,11 +88,11 @@ export function useCustomerRequestActions(projectId, { refresh, notify }) {
 		);
 	}
 
-	function releaseRequest(request) {
+	function releaseRequest(request, doctype = "Customer Request") {
 		return run(
 			request,
-			"release_customer_request",
-			{},
+			"erpnext_projekt_hub.request_queue.release_analysis",
+			{ doctype },
 			{
 				success: () => translate("{0} is back in the analysis queue", [request.name]),
 				failure: translate("Status could not be changed"),

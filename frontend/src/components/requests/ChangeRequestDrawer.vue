@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted } from "vue";
 import dayjs from "dayjs";
-import { Check, ExternalLink, RefreshCw, X } from "lucide-vue-next";
+import { Check, ExternalLink, Hand, RefreshCw, UserMinus, X } from "lucide-vue-next";
 import { translate } from "../../utils/translation";
 import {
 	deskUrl,
@@ -11,6 +11,7 @@ import {
 } from "../../utils/customerRequests";
 import { CHANGE_REQUEST_STATE_ALIASES } from "../../utils/changeRequests";
 import { getStatusLabel as getTaskStatusLabel } from "../../utils/taskStatus";
+import RequestAttachments from "./RequestAttachments.vue";
 
 const props = defineProps({
 	request: {
@@ -25,14 +26,23 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	currentUser: {
+		type: String,
+		default: "",
+	},
 });
 
-const emit = defineEmits(["close", "action", "open-customer-request"]);
+const emit = defineEmits(["close", "action", "take", "release", "refresh", "open-customer-request"]);
 
 const STAGES = ["Draft", "Task Created", "Done"];
 const CANCELLED_STATE = "Cancelled";
 
 const state = computed(() => props.request.workflow_state || "Draft");
+// A change request is analyzed while it is still a draft (see request_queue.py).
+const isAnalysis = computed(() => state.value === "Draft");
+const analyzedByMe = computed(
+	() => Boolean(props.currentUser) && props.request.analyst === props.currentUser
+);
 const stageIndex = computed(() => STAGES.indexOf(CHANGE_REQUEST_STATE_ALIASES[state.value] || state.value));
 const stateSince = computed(() =>
 	props.request.state_changed_on ? dayjs(props.request.state_changed_on).format("DD.MM.YYYY HH:mm") : ""
@@ -144,6 +154,10 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 						<dd class="mt-0.5 text-gray-900">{{ stateSince || "-" }}</dd>
 					</div>
 					<div>
+						<dt class="text-xs text-gray-500">{{ translate("Assigned Analyst") }}</dt>
+						<dd class="mt-0.5 text-gray-900">{{ request.analyst_name || "-" }}</dd>
+					</div>
+					<div>
 						<dt class="text-xs text-gray-500">{{ translate("Approved Hours") }}</dt>
 						<dd class="mt-0.5 text-gray-900">
 							{{ request.approved_hours ? `${formatNumber(request.approved_hours)} h` : "-" }}
@@ -216,10 +230,17 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 					</h3>
 					<p class="whitespace-pre-line leading-relaxed text-gray-800">{{ htmlToText(request.approved_scope) }}</p>
 				</section>
+
+				<RequestAttachments
+					doctype="Change Request"
+					:name="request.name"
+					:attachments="request.attachments || []"
+					@uploaded="emit('refresh')"
+				/>
 			</div>
 
 			<div
-				v-if="request.actions?.length"
+				v-if="request.actions?.length || isAnalysis"
 				class="flex flex-wrap items-center gap-2 border-t border-gray-200 px-5 py-3 sm:px-6"
 			>
 				<button
@@ -238,6 +259,28 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 					<Check v-else class="h-4 w-4" />
 					{{ translate(action.action) }}
 				</button>
+				<template v-if="isAnalysis">
+					<button
+						v-if="!request.analyst"
+						type="button"
+						:disabled="busy"
+						class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+						@click="emit('take')"
+					>
+						<Hand class="h-4 w-4" />
+						{{ translate("Take for analysis") }}
+					</button>
+					<button
+						v-else-if="analyzedByMe"
+						type="button"
+						:disabled="busy"
+						class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+						@click="emit('release')"
+					>
+						<UserMinus class="h-4 w-4" />
+						{{ translate("Release") }}
+					</button>
+				</template>
 			</div>
 		</aside>
 	</div>

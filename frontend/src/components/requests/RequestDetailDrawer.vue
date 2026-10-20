@@ -23,6 +23,7 @@ import {
 	htmlToText,
 	isAssignedTo,
 } from "../../utils/customerRequests";
+import RequestAttachments from "./RequestAttachments.vue";
 
 const props = defineProps({
 	request: {
@@ -52,7 +53,7 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["close", "action", "convert", "take", "release", "open-change-request"]);
+const emit = defineEmits(["close", "action", "convert", "take", "release", "refresh", "open-change-request"]);
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 
@@ -69,9 +70,6 @@ let optionsLoadedFor = "";
 const canEdit = computed(() => Boolean(props.request.can_edit_analysis));
 const isAnalysis = computed(() => props.request.workflow_state === "To Analyze");
 const assignedToMe = computed(() => isAssignedTo(props.request, props.currentUser));
-const assignees = computed(() =>
-	(props.request.assigned_to || []).map((assignee) => assignee.full_name || assignee.user).join(", ")
-);
 const stateIndex = computed(() => CUSTOMER_REQUEST_PIPELINE.indexOf(props.request.workflow_state || "Draft"));
 const requestDate = computed(() =>
 	props.request.request_date ? dayjs(props.request.request_date).format("DD.MM.YYYY") : ""
@@ -310,8 +308,8 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 						</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-gray-500">{{ translate("Assigned To") }}</dt>
-						<dd class="mt-0.5 text-gray-900">{{ assignees || "-" }}</dd>
+						<dt class="text-xs text-gray-500">{{ translate("Assigned Analyst") }}</dt>
+						<dd class="mt-0.5 text-gray-900">{{ request.analyst_name || "-" }}</dd>
 					</div>
 					<div v-if="stateSince">
 						<dt class="text-xs text-gray-500">{{ translate("In State Since") }}</dt>
@@ -430,6 +428,13 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 					</p>
 					<p v-if="estimate" class="font-medium text-gray-900">{{ estimate }}</p>
 				</section>
+
+				<RequestAttachments
+					doctype="Customer Request"
+					:name="request.name"
+					:attachments="request.attachments || []"
+					@uploaded="emit('refresh')"
+				/>
 			</div>
 
 			<div class="flex flex-wrap items-center gap-2 border-t border-gray-200 px-5 py-3 sm:px-6">
@@ -461,7 +466,7 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 				</button>
 				<template v-if="isAnalysis">
 					<button
-						v-if="!assignedToMe"
+						v-if="!request.analyst"
 						type="button"
 						:disabled="busy || saving"
 						class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -471,7 +476,7 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 						{{ translate("Take for analysis") }}
 					</button>
 					<button
-						v-else
+						v-else-if="assignedToMe"
 						type="button"
 						:disabled="busy || saving"
 						class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
