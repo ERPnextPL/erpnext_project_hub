@@ -62,15 +62,20 @@ def assign_analyst(doc, user):
 	)
 
 
+def lock_request(doctype, name):
+	"""Load a request with its row locked, so concurrent take/release see each other's writes."""
+	request = get_request(doctype, name)
+	request.check_permission("read")
+	frappe.db.get_value(request.doctype, request.name, "name", for_update=True)
+	request.reload()
+	return request
+
+
 @frappe.whitelist(methods=["POST"])
 def take_for_analysis(doctype: str, name: str):
 	"""Make the current user the analyst of a request waiting for analysis."""
-	request = get_request(doctype, name)
-	request.check_permission("read")
-
 	# Two people clicking "Take for analysis" at once must not both get it.
-	frappe.db.get_value(request.doctype, request.name, "name", for_update=True)
-	request.reload()
+	request = lock_request(doctype, name)
 
 	if not is_in_analysis(request):
 		frappe.throw(_("Only requests waiting for analysis can be taken."))
@@ -89,8 +94,11 @@ def take_for_analysis(doctype: str, name: str):
 @frappe.whitelist(methods=["POST"])
 def release_analysis(doctype: str, name: str):
 	"""Give a request the current user analyzes back to the analysis queue."""
-	request = get_request(doctype, name)
-	request.check_permission("read")
+	request = lock_request(doctype, name)
+
+	# Once analysis is over the field records who analyzed the request.
+	if not is_in_analysis(request):
+		frappe.throw(_("Only requests waiting for analysis can be released."))
 
 	user = frappe.session.user
 	if request.analyst and request.analyst != user:

@@ -127,6 +127,10 @@ class TestRequestQueue(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value("Customer Request", request.name, "analyst"), "Administrator")
 		self.assertEqual(open_assignees("Customer Request", request.name), [])
 
+		with self.assertRaises(frappe.ValidationError):
+			release_analysis("Customer Request", request.name)
+		self.assertEqual(frappe.db.get_value("Customer Request", request.name, "analyst"), "Administrator")
+
 	def test_change_request_is_taken_while_draft(self):
 		change_request = self.create_change_request("_Test change request analysis")
 

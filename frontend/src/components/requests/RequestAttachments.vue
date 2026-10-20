@@ -32,16 +32,19 @@ async function handleFiles(event) {
 
 	uploading.value = true;
 	errorMessage.value = "";
+	// Files attached before a failing one must still show up.
+	let uploadedAny = false;
 	try {
 		for (const file of files) {
 			await uploadRequestAttachment(props.doctype, props.name, file);
+			uploadedAny = true;
 		}
-		emit("uploaded");
 	} catch (err) {
 		console.error("Failed to attach file:", err);
 		errorMessage.value = decodeApiError(err, translate("Failed to upload file"));
 	} finally {
 		uploading.value = false;
+		if (uploadedAny) emit("uploaded");
 	}
 }
 </script>
