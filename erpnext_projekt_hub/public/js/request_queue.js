@@ -58,10 +58,21 @@ function setup_read_only_attachments(frm) {
 		new frappe.ui.FileUploader({
 			folder: "Home/Attachments",
 			on_success(file_doc) {
-				call_queue(frm, "attach_file", { file_name: file_doc.name }).catch(() => {
-					// Do not leave the uploaded file behind, unattached.
-					frappe.xcall("frappe.client.delete", { doctype: "File", name: file_doc.name });
-				});
+				frappe
+					.xcall("erpnext_projekt_hub.request_queue.attach_file", {
+						doctype: frm.doctype,
+						name: frm.docname,
+						file_name: file_doc.name,
+					})
+					.then(
+						// Only a failed attach leaves an orphan; a failed reload keeps the file.
+						() => frm.reload_doc(),
+						() =>
+							frappe.xcall("frappe.client.delete", {
+								doctype: "File",
+								name: file_doc.name,
+							})
+					);
 			},
 		});
 	});

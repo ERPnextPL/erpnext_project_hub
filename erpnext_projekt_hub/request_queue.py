@@ -44,8 +44,10 @@ def validate_analyst(doc):
 	seen here comes from the form or the REST API.
 	"""
 	previous = doc.get_doc_before_save()
-	# has_value_changed is always True on a new document, so compare explicitly.
-	if (previous.analyst if previous else None) != (doc.analyst or None):
+	# has_value_changed is always True on a new document, and a cleared Link field may
+	# be stored as "" rather than NULL, so compare normalized values explicitly.
+	previous_analyst = (previous.analyst or None) if previous else None
+	if previous_analyst != (doc.analyst or None):
 		if doc.analyst and not frappe.db.get_value("User", doc.analyst, "enabled"):
 			frappe.throw(_("User {0} is disabled.").format(doc.analyst))
 		frappe.only_for(ANALYST_MANAGER_ROLES)

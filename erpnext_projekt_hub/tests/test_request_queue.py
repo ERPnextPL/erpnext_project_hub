@@ -136,6 +136,16 @@ class TestRequestQueue(FrappeTestCase):
 		).insert()
 		self.assertFalse(request.analyst)
 
+	def test_empty_stored_analyst_does_not_block_other_edits(self):
+		request = self.create_customer_request("_Test empty analyst string")
+		frappe.db.set_value("Customer Request", request.name, "analyst", "", update_modified=False)
+
+		frappe.set_user(ANALYST)
+		request = frappe.get_doc("Customer Request", request.name)
+		request.notes = "<p>_Test notes by projects user</p>"
+		request.save()
+		self.assertIn("_Test notes", frappe.db.get_value("Customer Request", request.name, "notes"))
+
 	def test_disabled_user_cannot_be_the_analyst(self):
 		disabled = "request-analyst-disabled@example.com"
 		make_user(disabled, "Projects User")
