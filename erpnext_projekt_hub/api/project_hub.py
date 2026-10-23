@@ -570,9 +570,7 @@ def _parse_estimate(fieldname: str, value):
 
 	if number is None or not isfinite(number):
 		message = (
-			"Enter a valid amount"
-			if fieldname == "estimated_amount"
-			else "Enter a valid number of hours"
+			"Enter a valid amount" if fieldname == "estimated_amount" else "Enter a valid number of hours"
 		)
 		frappe.throw(_(message), frappe.ValidationError)
 	if number < 0:

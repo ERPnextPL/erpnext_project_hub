@@ -167,7 +167,9 @@ class TestCustomerRequestsBoard(FrappeTestCase):
 			update_customer_request_analysis(customer_request.name, estimated_amount="100", currency="")
 
 	def test_update_analysis_rejects_non_numeric_estimates(self):
-		customer_request = create_request_to_analyze(self.project, self.customer, "_Test non numeric estimate")
+		customer_request = create_request_to_analyze(
+			self.project, self.customer, "_Test non numeric estimate"
+		)
 
 		with self.assertRaises(frappe.ValidationError):
 			update_customer_request_analysis(customer_request.name, estimated_hours="abc")
@@ -176,9 +178,7 @@ class TestCustomerRequestsBoard(FrappeTestCase):
 
 	def test_change_request_tasks_read_ignores_task_permissions(self):
 		row = frappe._dict(task="_Test linked task")
-		task = frappe._dict(
-			name="_Test linked task", subject="_Test subject", status="Working", progress=25
-		)
+		task = frappe._dict(name="_Test linked task", subject="_Test subject", status="Working", progress=25)
 
 		with patch("erpnext_projekt_hub.api.project_hub.frappe.get_all", return_value=[task]) as get_all:
 			_set_change_request_tasks([row])
