@@ -57,13 +57,25 @@ const filtersHydrated = ref(false);
 const suppressInitialSync = ref(false);
 const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
 const selectedTaskNames = ref([]);
+const lastSelectedTaskName = ref(null);
 const showBulkEdit = ref(false);
 const bulkEditLoading = ref(false);
 
-function toggleTaskSelection(taskName) {
+function toggleTaskSelection(taskName, event) {
+	const visibleNames = store.tasks.map((task) => task.name);
+	if (event?.shiftKey && lastSelectedTaskName.value) {
+		const start = visibleNames.indexOf(lastSelectedTaskName.value);
+		const end = visibleNames.indexOf(taskName);
+		if (start !== -1 && end !== -1) {
+			const range = visibleNames.slice(Math.min(start, end), Math.max(start, end) + 1);
+			selectedTaskNames.value = [...new Set([...selectedTaskNames.value, ...range])];
+			return;
+		}
+	}
 	selectedTaskNames.value = selectedTaskNames.value.includes(taskName)
 		? selectedTaskNames.value.filter((name) => name !== taskName)
 		: [...selectedTaskNames.value, taskName];
+	lastSelectedTaskName.value = taskName;
 }
 
 function toggleAllTaskSelection({ names, selected }) {

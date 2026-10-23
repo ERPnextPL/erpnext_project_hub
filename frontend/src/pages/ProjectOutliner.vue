@@ -64,10 +64,22 @@ const route = useRoute();
 const store = useTaskStore();
 const { selectedTask } = storeToRefs(store);
 const selectedTaskNames = ref([]);
+const lastSelectedTaskName = ref(null);
 const showBulkEdit = ref(false);
 const bulkEditLoading = ref(false);
-function toggleTaskSelection(name) {
+function toggleTaskSelection(name, event) {
+	const visibleNames = flattenedTasksWithFilters.value.map((task) => task.name);
+	if (event?.shiftKey && lastSelectedTaskName.value) {
+		const start = visibleNames.indexOf(lastSelectedTaskName.value);
+		const end = visibleNames.indexOf(name);
+		if (start !== -1 && end !== -1) {
+			const range = visibleNames.slice(Math.min(start, end), Math.max(start, end) + 1);
+			selectedTaskNames.value = [...new Set([...selectedTaskNames.value, ...range])];
+			return;
+		}
+	}
 	selectedTaskNames.value = selectedTaskNames.value.includes(name) ? selectedTaskNames.value.filter((item) => item !== name) : [...selectedTaskNames.value, name];
+	lastSelectedTaskName.value = name;
 }
 function toggleAllTaskSelection({ names, selected }) {
 	selectedTaskNames.value = selected

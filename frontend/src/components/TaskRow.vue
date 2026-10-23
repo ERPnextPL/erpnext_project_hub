@@ -547,7 +547,7 @@ onUnmounted(() => {
 		<template v-for="columnId in visibleColumns" :key="columnId">
 			<!-- Task name with indent -->
 			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0 overflow-hidden">
-				<input type="checkbox" :checked="props.selected" class="h-4 w-4 flex-shrink-0" @click.stop @change="emit('toggle-select')" />
+				<input type="checkbox" :checked="props.selected" class="h-4 w-4 flex-shrink-0" @click.stop @change="emit('toggle-select', $event)" />
 			<!-- Drag handle -->
 			<div
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"

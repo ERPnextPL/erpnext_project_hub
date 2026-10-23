@@ -239,7 +239,7 @@ function handleSort(column) {
 								"
 								:selected="props.selectedTaskNames.includes(item.task.name)"
 								@toggle-expand="store.toggleExpandParent"
-								@toggle-select="emit('toggle-select', item.task.name)"
+								@toggle-select="emit('toggle-select', item.task.name, $event)"
 								@open-time-log-modal="props.onOpenTimeLogModal"
 							/>
 						</template>
@@ -252,7 +252,7 @@ function handleSort(column) {
 							:key="task.name"
 							:task="task"
 							:selected="props.selectedTaskNames.includes(task.name)"
-							@toggle-select="emit('toggle-select', task.name)"
+							@toggle-select="emit('toggle-select', task.name, $event)"
 						/>
 					</template>
 				</template>

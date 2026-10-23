@@ -189,7 +189,7 @@ onUnmounted(() => {
 			isUpdating && 'opacity-60',
 		]"
 	>
-		<input type="checkbox" :checked="props.selected" class="absolute right-3 top-3" @click.stop @change="emit('toggle-select')" />
+		<input type="checkbox" :checked="props.selected" class="absolute right-3 top-3" @click.stop @change="emit('toggle-select', $event)" />
 		<div class="flex items-start gap-3">
 			<!-- Checkbox -->
 			<button

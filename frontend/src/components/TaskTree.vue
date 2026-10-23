@@ -491,7 +491,7 @@ const sortedTasks = computed(() => {
 							@add-task="handleAddTask"
 							@contextmenu-open="handleContextMenuOpen"
 							@contextmenu-close="handleContextMenuClose"
-							@toggle-select="emit('toggle-select', task.name)"
+							@toggle-select="emit('toggle-select', task.name, $event)"
 						/>
 						<!-- Inline subtask input -->
 						<div
