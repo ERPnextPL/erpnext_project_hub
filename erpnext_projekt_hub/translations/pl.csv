@@ -2,6 +2,7 @@
 "Global default activity type for all projects","Globalny domyślny typ aktywności dla wszystkich projektów"
 "Please enter a valid number of hours","Proszę podać prawidłową liczbę godzin"
 "Cannot add more than 24 hours in one entry","Nie można dodać więcej niż 24 godziny w jednym wpisie"
+"Bulk edit","Zmień masowo"
 "The erpnext app is required to install Projekt HUB. Please install erpnext first.","Aplikacja erpnext jest wymagana do zainstalowania Projekt HUB. Proszę najpierw zainstalować erpnext."
 "Not set","Nie ustawiono"
 "Project dates saved","Zapisano daty projektu"
