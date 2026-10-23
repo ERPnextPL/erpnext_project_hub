@@ -5,6 +5,7 @@ import { X } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { translate } from "../../utils/translation";
 import { REQUEST_SOURCES, apiGet, apiPost, decodeApiError } from "../../utils/customerRequests";
+import DatePickerField from "../DatePickerField.vue";
 
 const props = defineProps({
 	open: {
@@ -296,11 +297,7 @@ onUnmounted(() => {
 								<label class="mb-1 block text-sm font-medium text-gray-700">
 									{{ translate("Request Date") }}
 								</label>
-								<input
-									v-model="createForm.request_date"
-									type="date"
-									class="h-10 w-full rounded-md border border-gray-300 px-3 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-								/>
+				<DatePickerField id="customer-request-date" v-model="createForm.request_date" />
 							</div>
 
 							<div>

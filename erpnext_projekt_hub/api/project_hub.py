@@ -1503,7 +1503,9 @@ def bulk_update_task_fields(task_names, updates):
 			frappe.throw(_("User {0} is disabled").format(assignee))
 		if user_doc[1] != "System User":
 			frappe.throw(_("Only System Users can be assigned to tasks"))
-		if not frappe.db.exists("Has Role", {"parent": assignee, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}):
+		if not frappe.db.exists(
+			"Has Role", {"parent": assignee, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}
+		):
 			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
 
 	tasks = []
