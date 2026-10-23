@@ -14,6 +14,7 @@ declare module 'vue' {
     ChangeRequestDrawer: typeof import('./src/components/requests/ChangeRequestDrawer.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     CustomerRequestModal: typeof import('./src/components/requests/CustomerRequestModal.vue')['default']
+    DatePickerPopover: typeof import('./src/components/DatePickerPopover.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MilestoneDropdown: typeof import('./src/components/MilestoneDropdown.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']

@@ -1024,6 +1024,7 @@ def get_project_tasks(
 			"customer_name": customer_name,
 			"customer_image": customer_image,
 			**customer_contact,
+			"documentation_url": getattr(project_doc, "documentation_url", None),
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -1163,6 +1164,7 @@ def update_project(
 	project: str,
 	expected_start_date: str | None = None,
 	expected_end_date: str | None = None,
+	documentation_url: str | None = None,
 	notes: str | None = None,
 ):
 	require_project_hub_access()
@@ -1181,6 +1183,9 @@ def update_project(
 		expected_start_date = None
 	if expected_end_date == "":
 		expected_end_date = None
+	documentation_url_cleared = documentation_url == ""
+	if documentation_url == "":
+		documentation_url = None
 
 	# Track if user explicitly passed empty string to clear the notes field
 	# (separate "not provided" from "clear")
@@ -1193,6 +1198,8 @@ def update_project(
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
+	if documentation_url is not None or documentation_url_cleared:
+		frappe.db.set_value("Project", project, "documentation_url", documentation_url)
 	if notes is not None or notes_cleared:
 		# Write even if notes is None - this handles explicit clear requests
 		frappe.db.set_value("Project", project, "notes", notes)
@@ -1251,6 +1258,7 @@ def update_project(
 		"customer_name": customer_name,
 		"customer_image": customer_image,
 		**customer_contact,
+		"documentation_url": getattr(project_doc, "documentation_url", None),
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,

@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
+import DatePickerPopover from "../DatePickerPopover.vue";
 import {
 	CheckCircle2,
 	Flag,
@@ -116,6 +117,17 @@ async function toggleComplete(e) {
 	isUpdating.value = true;
 	try {
 		await store.quickUpdateTask(props.task.name, { status: newStatus });
+	} finally {
+		isUpdating.value = false;
+	}
+}
+
+async function updateDueDate(date) {
+	if (date === props.task.exp_end_date) return;
+
+	isUpdating.value = true;
+	try {
+		await store.quickUpdateTask(props.task.name, { exp_end_date: date });
 	} finally {
 		isUpdating.value = false;
 	}
@@ -307,19 +319,32 @@ onUnmounted(() => {
 				</div>
 
 				<!-- Due date -->
-					<div
-						v-if="task.exp_end_date || task.is_overdue"
-						:class="['flex items-center gap-1 mt-2 text-sm', dateClass]"
+					<DatePickerPopover
+						:id="`my-task-mobile-${task.name}`"
+						:model-value="task.exp_end_date || ''"
+						:disabled="isUpdating"
+						@update:model-value="updateDueDate"
 					>
-						<Calendar class="w-3.5 h-3.5" />
-						<span>{{ formattedDate || translate("No deadline") }}</span>
-						<span
-							v-if="task.is_overdue"
-							class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium"
-						>
-							{{ translate("Overdue") }}
-						</span>
-					</div>
+						<template #trigger="{ open }">
+							<div :class="['mt-2 flex items-center gap-1 text-sm', dateClass]">
+								<button
+									type="button"
+									class="flex cursor-pointer items-center gap-1 transition-colors hover:text-gray-900"
+									:disabled="isUpdating"
+									@click.stop="open"
+								>
+									<Calendar class="w-3.5 h-3.5" />
+									<span>{{ formattedDate || translate("No deadline") }}</span>
+								</button>
+								<span
+									v-if="task.is_overdue"
+									class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded font-medium"
+								>
+									{{ translate("Overdue") }}
+								</span>
+							</div>
+						</template>
+					</DatePickerPopover>
 
 					<div
 						v-if="task.progress !== null && task.progress !== undefined"

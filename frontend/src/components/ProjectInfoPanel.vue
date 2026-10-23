@@ -75,6 +75,7 @@ const isSaving = ref(false);
 
 const editableExpectedStart = ref("");
 const editableExpectedEnd = ref("");
+const expectedEndInput = ref(null);
 const editableDocumentationUrl = ref("");
 const editableNotes = ref("");
 
@@ -108,6 +109,17 @@ async function saveDateField(field, value) {
 			editableExpectedEnd.value = props.project.expected_end_date || "";
 		}
 	);
+}
+
+function openExpectedEndPicker() {
+	const input = expectedEndInput.value;
+	if (typeof input?.showPicker === "function") {
+		try {
+			input.showPicker();
+		} catch {
+			// Let the browser handle the native picker when showPicker is unavailable.
+		}
+	}
 }
 
 async function saveProjectField(field, value, successMessage, errorMessage, onError) {
@@ -223,10 +235,12 @@ async function saveNotes() {
 									:class="isOverdue ? 'text-red-600' : 'text-gray-900'"
 								>
 									<input
+										ref="expectedEndInput"
 										v-model="editableExpectedEnd"
 										type="date"
 										class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-										@change="
+										@click="openExpectedEndPicker"
+										@blur="
 											saveDateField('expected_end_date', editableExpectedEnd)
 										"
 										:disabled="isSaving || !canEdit"
