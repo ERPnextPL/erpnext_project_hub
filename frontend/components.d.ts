@@ -10,6 +10,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
     BlockedToggle: typeof import('./src/components/shared/BlockedToggle.vue')['default']
+    BulkTaskEditPanel: typeof import('./src/components/BulkTaskEditPanel.vue')['default']
     ChangeRequestCard: typeof import('./src/components/requests/ChangeRequestCard.vue')['default']
     ChangeRequestDrawer: typeof import('./src/components/requests/ChangeRequestDrawer.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']

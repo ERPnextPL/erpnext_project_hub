@@ -24,8 +24,10 @@ const props = defineProps({
 		type: Object,
 		required: true,
 	},
+	selected: Boolean,
 });
 
+const emit = defineEmits(["toggle-select"]);
 const store = useMyTasksStore();
 const isUpdating = ref(false);
 const showSubtaskForm = ref(false);
@@ -187,6 +189,7 @@ onUnmounted(() => {
 			isUpdating && 'opacity-60',
 		]"
 	>
+		<input type="checkbox" :checked="props.selected" class="absolute right-3 top-3" @click.stop @change="emit('toggle-select')" />
 		<div class="flex items-start gap-3">
 			<!-- Checkbox -->
 			<button

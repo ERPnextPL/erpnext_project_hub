@@ -1471,6 +1471,72 @@ def update_task(task_name: str, **kwargs):
 
 
 @frappe.whitelist()
+def bulk_update_task_fields(task_names, updates):
+	"""Update common fields on multiple tasks in one transaction."""
+	require_project_hub_access()
+
+	task_names = frappe.parse_json(task_names) if isinstance(task_names, str) else task_names
+	updates = frappe.parse_json(updates) if isinstance(updates, str) else updates
+	if not isinstance(task_names, list) or not task_names:
+		frappe.throw(_("At least one task is required"))
+	if not isinstance(updates, dict):
+		frappe.throw(_("Task updates must be an object"))
+
+	task_names = list(dict.fromkeys(task_names))
+	if len(task_names) > 200:
+		frappe.throw(_("You can update up to 200 tasks at a time"))
+
+	allowed_fields = {"priority", "status", "exp_end_date", "expected_time"}
+	field_updates = {key: value for key, value in updates.items() if key in allowed_fields}
+	assignment_action = updates.get("assignment_action")
+	assignee = updates.get("assignee")
+	if not field_updates and assignment_action not in ("set", "clear"):
+		frappe.throw(_("Select at least one change"))
+	if assignment_action == "set" and not assignee:
+		frappe.throw(_("Select a user to assign"))
+
+	if assignment_action == "set":
+		user_doc = frappe.get_value("User", assignee, ["enabled", "user_type"])
+		if not user_doc:
+			frappe.throw(_("User {0} does not exist").format(assignee))
+		if not user_doc[0]:
+			frappe.throw(_("User {0} is disabled").format(assignee))
+		if user_doc[1] != "System User":
+			frappe.throw(_("Only System Users can be assigned to tasks"))
+		if not frappe.db.exists("Has Role", {"parent": assignee, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}):
+			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
+
+	tasks = []
+	for task_name in task_names:
+		task = frappe.get_doc("Task", task_name)
+		task.check_permission("write")
+		if field_updates.get("status") == "Completed":
+			incomplete = _get_incomplete_subtasks(task.name)
+			if incomplete:
+				frappe.throw(
+					_("Task {0} cannot be completed while it has incomplete subtasks").format(task.subject)
+				)
+		for field, value in field_updates.items():
+			task.set(field, value)
+		if field_updates.get("status") == "Completed":
+			task.completed_on = today()
+		elif "status" in field_updates:
+			task.completed_on = None
+		tasks.append(task)
+
+	for task in tasks:
+		task.save()
+
+	if assignment_action:
+		for task in tasks:
+			assign_task(task.name, action="clear")
+			if assignment_action == "set":
+				assign_task(task.name, user=assignee, action="add")
+
+	return {"updated": len(tasks), "task_names": [task.name for task in tasks]}
+
+
+@frappe.whitelist()
 def get_all_projects():
 	"""
 	Get list of all active projects for task project change dropdown.

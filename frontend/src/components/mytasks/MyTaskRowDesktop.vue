@@ -43,9 +43,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	selected: Boolean,
 });
 
-const emit = defineEmits(["open-time-log-modal", "toggle-expand"]);
+const emit = defineEmits(["open-time-log-modal", "toggle-expand", "toggle-select"]);
 
 const store = useMyTasksStore();
 const realWindow = getRealWindow();
@@ -248,6 +249,7 @@ onUnmounted(() => {
 			class="col-span-4 flex items-start gap-3 min-w-0"
 			:title="descriptionPreviewLabel || undefined"
 		>
+			<input type="checkbox" :checked="props.selected" class="mt-1" @click.stop @change="emit('toggle-select')" />
 			<button
 				v-if="props.hierarchyEnabled && props.hasChildren"
 				@click.stop="emit('toggle-expand', task.name)"

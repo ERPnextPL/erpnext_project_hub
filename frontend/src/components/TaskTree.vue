@@ -34,7 +34,9 @@ const props = defineProps({
 		type: Boolean,
 		default: true,
 	},
+	selectedTaskNames: { type: Array, default: () => [] },
 });
+const emit = defineEmits(["toggle-select"]);
 
 const store = useTaskStore();
 const draggedTask = ref(null);
@@ -472,6 +474,7 @@ const sortedTasks = computed(() => {
 							:visible-columns="effectiveVisibleColumns"
 							:grid-template="gridTemplateColumns"
 							:active-context-menu-task-name="activeContextMenuTaskName"
+							:selected="props.selectedTaskNames.includes(task.name)"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"
@@ -479,6 +482,7 @@ const sortedTasks = computed(() => {
 							@add-task="handleAddTask"
 							@contextmenu-open="handleContextMenuOpen"
 							@contextmenu-close="handleContextMenuClose"
+							@toggle-select="emit('toggle-select', task.name)"
 						/>
 						<!-- Inline subtask input -->
 						<div

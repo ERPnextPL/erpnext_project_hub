@@ -24,6 +24,7 @@ import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectRequestsSidebar from "../components/requests/ProjectRequestsSidebar.vue";
+import BulkTaskEditPanel from "../components/BulkTaskEditPanel.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
@@ -62,11 +63,29 @@ const router = useRouter();
 const route = useRoute();
 const store = useTaskStore();
 const { selectedTask } = storeToRefs(store);
+const selectedTaskNames = ref([]);
+const showBulkEdit = ref(false);
+const bulkEditLoading = ref(false);
+function toggleTaskSelection(name) {
+	selectedTaskNames.value = selectedTaskNames.value.includes(name) ? selectedTaskNames.value.filter((item) => item !== name) : [...selectedTaskNames.value, name];
+}
+async function applyBulkEdit(updates) {
+	bulkEditLoading.value = true;
+	try {
+		await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		showBulkEdit.value = false;
+		selectedTaskNames.value = [];
+		await store.fetchTasks(props.projectId, activeFilters.value);
+	} finally {
+		bulkEditLoading.value = false;
+	}
+}
 
 const activeView = ref("list");
 const listMode = ref("milestone");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const milestoneSidebarOpen = ref(false);
+const milestonePanelRef = ref(null);
 const attachmentsSidebarOpen = ref(false);
 const attachmentCount = ref(0);
 const requestsSidebarOpen = ref(false);
@@ -86,6 +105,11 @@ const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
 const draggingGroupKey = ref(null);
 const groupReorderDropIndex = ref(null);
+
+function openMilestoneCreate() {
+	milestoneSidebarOpen.value = true;
+	nextTick(() => milestonePanelRef.value?.openCreateModal());
+}
 
 // FAB – quick task creation
 const fabOpen = ref(false);
@@ -229,7 +253,7 @@ watch(
 );
 
 onMounted(async () => {
-	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities()]);
+	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities(), store.fetchUsers()]);
 	const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
 	suppressSearchSync.value = true;
 	activeFilters.value = restoredFilters;
@@ -732,6 +756,16 @@ const groupedTasksByMilestone = computed(() => {
 								</button>
 
 								<button
+									@click="openMilestoneCreate"
+									class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+									:title="translate('Add milestone')"
+									:aria-label="translate('Add milestone')"
+								>
+									<Plus class="w-4 h-4" />
+									<span class="hidden sm:inline">{{ translate("Add milestone") }}</span>
+								</button>
+
+								<button
 									@click="handleRefresh"
 									:disabled="store.loading"
 									class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
@@ -806,7 +840,7 @@ const groupedTasksByMilestone = computed(() => {
 				<Transition name="filter-panel">
 					<div v-if="milestoneSidebarOpen"
 						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-96 overflow-y-auto">
-						<MilestonePanel :hide-header="true" />
+						<MilestonePanel ref="milestonePanelRef" :hide-header="true" />
 					</div>
 				</Transition>
 
@@ -848,6 +882,7 @@ const groupedTasksByMilestone = computed(() => {
 							<div v-if="listMode === 'milestone'" class="text-[11px] text-gray-500 dark:text-gray-400">
 								{{ translate("Drag milestones by the handle to reorder them.") }}
 							</div>
+							<button v-if="selectedTaskNames.length" @click="showBulkEdit = true" class="ml-auto rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white">{{ translate("Bulk edit") }} ({{ selectedTaskNames.length }})</button>
 						</div>
 					</div>
 
@@ -855,6 +890,8 @@ const groupedTasksByMilestone = computed(() => {
 						v-if="listMode === 'flat'"
 						:tasks="flattenedTasksWithFilters"
 						:project-id="projectId"
+						:selected-task-names="selectedTaskNames"
+						@toggle-select="toggleTaskSelection"
 					/>
 
 					<div v-else-if="!isMobile" class="space-y-4 p-4 sm:p-6">
@@ -920,6 +957,8 @@ const groupedTasksByMilestone = computed(() => {
 							<TaskTree
 								:tasks="group.tasks"
 								:project-id="projectId"
+								:selected-task-names="selectedTaskNames"
+								@toggle-select="toggleTaskSelection"
 								:show-header="false"
 								:show-quick-add="false"
 								:enable-reorder="false"
@@ -1001,6 +1040,7 @@ const groupedTasksByMilestone = computed(() => {
 		</div>
 
 		<BackToDeskButton />
+		<BulkTaskEditPanel :open="showBulkEdit" :selected-count="selectedTaskNames.length" :statuses="store.taskStatuses" :priorities="store.taskPriorities" :users="store.availableUsers" :loading="bulkEditLoading" @close="showBulkEdit = false" @apply="applyBulkEdit" />
 
 		<!-- FAB: quick task creation -->
 		<button

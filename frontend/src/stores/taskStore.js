@@ -422,6 +422,13 @@ async function reorderTask(taskName, newParent, newIdx) {
 		}
 	}
 
+	async function bulkUpdateTaskFields(taskNames, updates) {
+		return apiCall("erpnext_projekt_hub.api.project_hub.bulk_update_task_fields", {
+			task_names: JSON.stringify(taskNames),
+			updates: JSON.stringify(updates),
+		});
+	}
+
 	async function fetchProjectsSettings() {
 		try {
 			const data = await apiCall(
@@ -913,6 +920,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		setSorting,
 		// User assignment
 		fetchUsers,
+		bulkUpdateTaskFields,
 		assignTask,
 		fetchProjectUsers,
 		addProjectUser,

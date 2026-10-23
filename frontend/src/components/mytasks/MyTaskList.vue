@@ -23,7 +23,9 @@ const props = defineProps({
 		type: Function,
 		required: true,
 	},
+	selectedTaskNames: { type: Array, default: () => [] },
 });
+const emit = defineEmits(["toggle-select"]);
 
 const statusOrder = BOARD_STATUSES;
 const statusLabels = Object.fromEntries(
@@ -226,7 +228,9 @@ function handleSort(column) {
 								:is-expanded="
 									store.viewOptions?.showHierarchy && isExpanded(item.task.name)
 								"
+								:selected="props.selectedTaskNames.includes(item.task.name)"
 								@toggle-expand="store.toggleExpandParent"
+								@toggle-select="emit('toggle-select', item.task.name)"
 								@open-time-log-modal="props.onOpenTimeLogModal"
 							/>
 						</template>
@@ -238,6 +242,8 @@ function handleSort(column) {
 							v-for="task in section.tasks"
 							:key="task.name"
 							:task="task"
+							:selected="props.selectedTaskNames.includes(task.name)"
+							@toggle-select="emit('toggle-select', task.name)"
 						/>
 					</template>
 				</template>
