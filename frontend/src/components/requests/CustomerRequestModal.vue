@@ -5,6 +5,7 @@ import { X } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { translate } from "../../utils/translation";
 import { REQUEST_SOURCES, apiGet, apiPost, decodeApiError } from "../../utils/customerRequests";
+import DatePickerField from "../DatePickerField.vue";
 
 const props = defineProps({
 	open: {
@@ -45,7 +46,6 @@ const formErrors = ref({});
 const requestedByOptions = ref([]);
 const requestedByLoading = ref(false);
 const currencyOptions = ref([]);
-const quotationOptions = ref([]);
 const loadingDropdownOptions = ref(false);
 const createForm = ref(emptyForm());
 // Bumped on every open and close: a dropdown response that arrives for an
@@ -65,7 +65,6 @@ function emptyForm() {
 		estimated_hours: "",
 		currency: "",
 		estimated_amount: "",
-		quotation: "",
 	};
 }
 
@@ -81,7 +80,6 @@ function resetCreateForm() {
 	submitError.value = "";
 	requestedByOptions.value = [];
 	currencyOptions.value = [];
-	quotationOptions.value = [];
 }
 
 function closeCreateModal() {
@@ -120,7 +118,6 @@ async function loadRequestedByOptions(query = "") {
 async function loadDropdownOptions() {
 	if (!createForm.value.project) {
 		currencyOptions.value = [];
-		quotationOptions.value = [];
 		return;
 	}
 
@@ -133,12 +130,10 @@ async function loadDropdownOptions() {
 		);
 		if (generation !== loadGeneration) return;
 		currencyOptions.value = result?.currencies || [];
-		quotationOptions.value = result?.quotations || [];
 	} catch (err) {
 		if (generation !== loadGeneration) return;
 		console.error("Failed to fetch customer request dropdown options:", err);
 		currencyOptions.value = [];
-		quotationOptions.value = [];
 	} finally {
 		if (generation === loadGeneration) loadingDropdownOptions.value = false;
 	}
@@ -201,7 +196,6 @@ async function submitCustomerRequest() {
 			estimated_hours: createForm.value.estimated_hours,
 			currency: createForm.value.currency,
 			estimated_amount: createForm.value.estimated_amount,
-			quotation: createForm.value.quotation,
 		});
 		showAlert(translate("Customer request created"), "green");
 		emit("created", result);
@@ -303,11 +297,7 @@ onUnmounted(() => {
 								<label class="mb-1 block text-sm font-medium text-gray-700">
 									{{ translate("Request Date") }}
 								</label>
-								<input
-									v-model="createForm.request_date"
-									type="date"
-									class="h-10 w-full rounded-md border border-gray-300 px-3 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-								/>
+				<DatePickerField id="customer-request-date" v-model="createForm.request_date" />
 							</div>
 
 							<div>
@@ -452,28 +442,6 @@ onUnmounted(() => {
 								</p>
 							</div>
 
-							<div>
-								<label class="mb-1 block text-sm font-medium text-gray-700">
-									{{ translate("Quotation") }}
-								</label>
-								<select
-									v-model="createForm.quotation"
-									class="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-									:disabled="loadingDropdownOptions"
-								>
-									<option value="">
-										{{ loadingDropdownOptions ? translate("Loading...") : translate("Select quotation") }}
-									</option>
-									<option
-										v-for="quotation in quotationOptions"
-										:key="quotation.value"
-										:value="quotation.value"
-									>
-										{{ quotation.label }}
-										{{ quotation.description ? `(${quotation.description})` : "" }}
-									</option>
-								</select>
-							</div>
 						</div>
 					</div>
 

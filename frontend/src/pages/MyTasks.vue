@@ -16,6 +16,7 @@ import {
 	LayoutList,
 	LayoutGrid,
 	Folder,
+	Edit3,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -23,6 +24,7 @@ import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
 import MyTaskList from "../components/mytasks/MyTaskList.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import TimeLogModal from "../components/TimeLogModal.vue";
+import BulkTaskEditPanel from "../components/BulkTaskEditPanel.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -54,6 +56,49 @@ const searchInput = ref("");
 const filtersHydrated = ref(false);
 const suppressInitialSync = ref(false);
 const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
+const selectedTaskNames = ref([]);
+const lastSelectedTaskName = ref(null);
+const showBulkEdit = ref(false);
+const bulkEditLoading = ref(false);
+
+function toggleTaskSelection(taskName, event) {
+	const visibleNames = store.tasks.map((task) => task.name);
+	if (event?.shiftKey && lastSelectedTaskName.value) {
+		const start = visibleNames.indexOf(lastSelectedTaskName.value);
+		const end = visibleNames.indexOf(taskName);
+		if (start !== -1 && end !== -1) {
+			const range = visibleNames.slice(Math.min(start, end), Math.max(start, end) + 1);
+			selectedTaskNames.value = [...new Set([...selectedTaskNames.value, ...range])];
+			return;
+		}
+	}
+	selectedTaskNames.value = selectedTaskNames.value.includes(taskName)
+		? selectedTaskNames.value.filter((name) => name !== taskName)
+		: [...selectedTaskNames.value, taskName];
+	lastSelectedTaskName.value = taskName;
+}
+
+function toggleAllTaskSelection({ names, selected }) {
+	selectedTaskNames.value = selected
+		? [...new Set([...selectedTaskNames.value, ...names])]
+		: selectedTaskNames.value.filter((name) => !names.includes(name));
+}
+
+async function applyBulkEdit(updates) {
+	if (["Completed", "Cancelled"].includes(updates.status) && realWindow?.frappe?.confirm) {
+		const confirmed = await new Promise((resolve) => frappe.confirm(translate("Apply this status to all selected tasks?"), () => resolve(true), () => resolve(false)));
+		if (!confirmed) return;
+	}
+	bulkEditLoading.value = true;
+	try {
+		await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		showBulkEdit.value = false;
+		selectedTaskNames.value = [];
+		await store.fetchTasks();
+	} finally {
+		bulkEditLoading.value = false;
+	}
+}
 
 // Time log modal state
 const showTimeLogModal = ref(false);
@@ -187,6 +232,7 @@ useTaskDeepLink({
 		<div class="bg-white border-b border-gray-200 sticky top-16 z-10">
 			<div class="w-full px-4 sm:px-6 lg:px-8 py-3">
 				<div class="flex flex-col sm:flex-row sm:items-center gap-3">
+						<button v-if="selectedTaskNames.length" @click="showBulkEdit = true" class="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white"><Edit3 class="h-4 w-4" />{{ translate("Bulk edit") }} ({{ selectedTaskNames.length }})</button>
 					<!-- Search -->
 					<div class="relative flex-1 max-w-md">
 						<Search
@@ -376,7 +422,7 @@ useTaskDeepLink({
 			</div>
 
 				<!-- Task list -->
-				<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" />
+			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" :selected-task-names="selectedTaskNames" @toggle-select="toggleTaskSelection" @toggle-all="toggleAllTaskSelection" />
 			</main>
 
 			<!-- Task Detail Panel -->
@@ -399,6 +445,7 @@ useTaskDeepLink({
 			@close="showTimeLogModal = false"
 			@save="handleTimeLogSave"
 		/>
+		<BulkTaskEditPanel :open="showBulkEdit" :selected-count="selectedTaskNames.length" :statuses="store.statuses" :priorities="store.priorities" :users="store.users" :loading="bulkEditLoading" @close="showBulkEdit = false" @apply="applyBulkEdit" />
 
 		<BackToDeskButton />
 	</div>

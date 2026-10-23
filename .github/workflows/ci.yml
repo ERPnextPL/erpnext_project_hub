@@ -39,6 +39,14 @@ jobs:
       - name: Clone
         uses: actions/checkout@v3
 
+      - name: Check build output is not tracked
+        run: |
+          if [ -n "$(git ls-files erpnext_projekt_hub/public/frontend)" ]; then
+            echo "Frontend build output is tracked in git; run: git rm -r --cached erpnext_projekt_hub/public/frontend"
+            git ls-files erpnext_projekt_hub/public/frontend
+            exit 1
+          fi
+
       - name: Find tests
         run: |
           echo "Finding tests"

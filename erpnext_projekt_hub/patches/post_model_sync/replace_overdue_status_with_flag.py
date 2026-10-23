@@ -10,7 +10,7 @@ FALLBACK_STATUS = "Open"
 
 
 def execute():
-	"""Move tasks off the "Overdue" status onto the ``is_overdue`` flag.
+	"""Move tasks off the "Overdue" status onto the ``hub_is_overdue`` flag.
 
 	From now on HubTask.update_status() only sets the flag, but tasks already
 	switched by ERPNext's daily job still carry "Overdue" as their status. The
@@ -22,7 +22,7 @@ def execute():
 		{
 			"Task": [
 				{
-					"fieldname": "is_overdue",
+					"fieldname": "hub_is_overdue",
 					"fieldtype": "Check",
 					"label": "Overdue",
 					"insert_after": "status",
@@ -50,7 +50,7 @@ def execute():
 	)
 	overdue = [t.name for t in tasks if getdate(t.exp_end_date) < today_date]
 	if overdue:
-		frappe.db.set_value("Task", {"name": ["in", overdue]}, "is_overdue", 1, update_modified=False)
+		frappe.db.set_value("Task", {"name": ["in", overdue]}, "hub_is_overdue", 1, update_modified=False)
 
 
 def _status_lookup():

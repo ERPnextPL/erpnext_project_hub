@@ -17,6 +17,14 @@ export function createAppRouter() {
 		// The Requests tab moved into the project view (requests panel); keep old
 		// links from opening a project named "requests".
 		{ path: "/project-hub/requests", redirect: { name: "ProjectList" } },
+		// Requests board of a project, opened in its own window from the project
+		// view. Its static last segment ranks it above the outliner's :taskId.
+		{
+			path: "/project-hub/:projectId/requests-board",
+			name: "ProjectRequestsBoard",
+			component: () => import("./pages/ProjectRequestsBoard.vue"),
+			props: true,
+		},
 		// Project Outliner route (must come last to avoid conflicts)
 		{
 			path: "/project-hub/:projectId/:taskId?",

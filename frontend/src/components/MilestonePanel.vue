@@ -114,6 +114,12 @@ function getMilestoneLabel(milestone) {
 	return milestone.milestone_name || milestone.name || translate("Untitled milestone");
 }
 
+function openCreateModal() {
+	showCreateModal.value = true;
+}
+
+defineExpose({ openCreateModal });
+
 async function handleCreate(data) {
 	try {
 		await store.createMilestone({
@@ -361,7 +367,7 @@ onUnmounted(() => {
 			</div>
 			<div class="flex items-center gap-2">
 				<button
-					@click.stop="showCreateModal = true"
+					@click.stop="openCreateModal"
 					class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400"
 					:title="translate('Add milestone')"
 				>
@@ -528,7 +534,7 @@ onUnmounted(() => {
 				<Diamond class="w-8 h-8 mx-auto mb-2 opacity-30" />
 				<p class="text-sm">{{ translate("No milestones") }}</p>
 				<button
-					@click="showCreateModal = true"
+					@click="openCreateModal"
 					class="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
 				>
 					{{ translate("Create first milestone") }}

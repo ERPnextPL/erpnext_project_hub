@@ -27,7 +27,10 @@ class TestOverdueFlag(FrappeTestCase):
 		# Insert validation would refuse nothing here, but a direct write mimics
 		# a task whose due date simply passed overnight with the flag still unset.
 		frappe.db.set_value(
-			"Task", task.name, {"exp_end_date": add_days(today(), -3), "is_overdue": 0}, update_modified=False
+			"Task",
+			task.name,
+			{"exp_end_date": add_days(today(), -3), "hub_is_overdue": 0},
+			update_modified=False,
 		)
 
 	def test_scheduler_keeps_pending_review_and_sets_flag(self):
@@ -40,7 +43,7 @@ class TestOverdueFlag(FrappeTestCase):
 
 		task.reload()
 		self.assertEqual(task.status, "Pending Review")
-		self.assertEqual(task.is_overdue, 1)
+		self.assertEqual(task.hub_is_overdue, 1)
 
 	def test_scheduler_leaves_completed_task_unflagged(self):
 		task = create_task("_Test Overdue - completed", status="Completed", exp_end_date=add_days(today(), 5))
@@ -50,18 +53,18 @@ class TestOverdueFlag(FrappeTestCase):
 
 		task.reload()
 		self.assertEqual(task.status, "Completed")
-		self.assertEqual(task.is_overdue, 0)
+		self.assertEqual(task.hub_is_overdue, 0)
 
 	def test_moving_due_date_to_future_clears_flag(self):
 		task = create_task(
 			"_Test Overdue - rescheduled", status="Working", exp_end_date=add_days(today(), -2)
 		)
-		self.assertEqual(task.is_overdue, 1)
+		self.assertEqual(task.hub_is_overdue, 1)
 
 		task.exp_end_date = add_days(today(), 4)
 		task.save(ignore_permissions=True)
 
-		self.assertEqual(task.is_overdue, 0)
+		self.assertEqual(task.hub_is_overdue, 0)
 		self.assertEqual(task.status, "Working")
 
 	def test_completing_task_clears_flag(self):
@@ -72,4 +75,4 @@ class TestOverdueFlag(FrappeTestCase):
 		task.status = "Completed"
 		task.save(ignore_permissions=True)
 
-		self.assertEqual(task.is_overdue, 0)
+		self.assertEqual(task.hub_is_overdue, 0)

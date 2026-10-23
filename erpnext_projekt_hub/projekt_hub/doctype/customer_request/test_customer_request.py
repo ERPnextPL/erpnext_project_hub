@@ -138,6 +138,23 @@ class TestCustomerRequest(FrappeTestCase):
 		self.assertEqual(get_all.call_args_list[1].args[0], "Quotation")
 		self.assertNotIn("ignore_permissions", get_all.call_args_list[1].kwargs)
 
+	def test_quotation_cannot_be_linked_before_request_is_quoted(self):
+		for state in ("Draft", "To Analyze"):
+			customer_request = frappe.new_doc("Customer Request")
+			customer_request.workflow_state = state
+			customer_request.quotation = "SAL-QTN-0001"
+
+			with self.assertRaises(frappe.ValidationError):
+				customer_request.validate_quotation_state()
+
+	def test_quotation_can_be_linked_once_request_is_quoted(self):
+		for state in ("Quoted", "Accepted", "Rejected", "Converted"):
+			customer_request = frappe.new_doc("Customer Request")
+			customer_request.workflow_state = state
+			customer_request.quotation = "SAL-QTN-0001"
+
+			customer_request.validate_quotation_state()
+
 	def test_create_change_request_from_accepted_customer_request(self):
 		customer = get_or_create_customer()
 		project = create_project(customer)

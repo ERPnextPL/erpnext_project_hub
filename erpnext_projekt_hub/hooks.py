@@ -144,17 +144,20 @@ has_permission = {
 # ---------------
 # Override standard doctype classes
 
-# HubTask keeps a missed due date from overwriting the task status. Frappe v16
+# HubTask keeps a missed due date from overwriting the task status, and
+# HubTimesheet stops time log approval from rewriting it. Frappe v16
 # can mix it into ERPNext's controller; v15 has no extend_doctype_class hook, so
 # there the class has to be replaced.
 if int(frappe.__version__.split(".")[0]) >= 16:
 	extend_doctype_class = {
 		"Task": ["erpnext_projekt_hub.overrides.task.HubTask"],
+		"Timesheet": ["erpnext_projekt_hub.overrides.timesheet.HubTimesheet"],
 	}
 else:
 	# nosemgrep: frappe-semgrep-rules.rules.override-doctype-class
 	override_doctype_class = {
 		"Task": "erpnext_projekt_hub.overrides.task.HubTask",
+		"Timesheet": "erpnext_projekt_hub.overrides.timesheet.HubTimesheet",
 	}
 
 # Document Events
@@ -286,7 +289,7 @@ fixtures = [
 			[
 				"name",
 				"in",
-				["Task-milestone", "Task-reference_link", "Task-is_overdue", "Task-is_blocked"],
+				["Task-milestone", "Task-reference_link", "Task-hub_is_overdue", "Task-is_blocked"],
 			]
 		],
 	},

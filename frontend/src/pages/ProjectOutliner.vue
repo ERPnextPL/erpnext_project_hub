@@ -6,6 +6,11 @@ import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useProjectRequests } from "../composables/useProjectRequests";
+import {
+	openRequestsBoardFromLink,
+	requestsBoardPath,
+	requestsBoardWindowName,
+} from "../utils/customerRequests";
 import { isMilestoneCompleted } from "../utils/milestone";
 import { ACTIVE_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
@@ -19,12 +24,14 @@ import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectRequestsSidebar from "../components/requests/ProjectRequestsSidebar.vue";
+import BulkTaskEditPanel from "../components/BulkTaskEditPanel.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
 import UserSelect from "../components/UserSelect.vue";
+import DatePickerField from "../components/DatePickerField.vue";
 import {
 	ArrowLeft,
 	Filter,
@@ -39,6 +46,7 @@ import {
 	Diamond,
 	GripVertical,
 	Plus,
+	SquareKanban,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -56,11 +64,46 @@ const router = useRouter();
 const route = useRoute();
 const store = useTaskStore();
 const { selectedTask } = storeToRefs(store);
+const selectedTaskNames = ref([]);
+const lastSelectedTaskName = ref(null);
+const showBulkEdit = ref(false);
+const bulkEditLoading = ref(false);
+function toggleTaskSelection(name, event) {
+	const visibleNames = flattenedTasksWithFilters.value.map((task) => task.name);
+	if (event?.shiftKey && lastSelectedTaskName.value) {
+		const start = visibleNames.indexOf(lastSelectedTaskName.value);
+		const end = visibleNames.indexOf(name);
+		if (start !== -1 && end !== -1) {
+			const range = visibleNames.slice(Math.min(start, end), Math.max(start, end) + 1);
+			selectedTaskNames.value = [...new Set([...selectedTaskNames.value, ...range])];
+			return;
+		}
+	}
+	selectedTaskNames.value = selectedTaskNames.value.includes(name) ? selectedTaskNames.value.filter((item) => item !== name) : [...selectedTaskNames.value, name];
+	lastSelectedTaskName.value = name;
+}
+function toggleAllTaskSelection({ names, selected }) {
+	selectedTaskNames.value = selected
+		? [...new Set([...selectedTaskNames.value, ...names])]
+		: selectedTaskNames.value.filter((name) => !names.includes(name));
+}
+async function applyBulkEdit(updates) {
+	bulkEditLoading.value = true;
+	try {
+		await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		showBulkEdit.value = false;
+		selectedTaskNames.value = [];
+		await store.fetchTasks(props.projectId, activeFilters.value);
+	} finally {
+		bulkEditLoading.value = false;
+	}
+}
 
 const activeView = ref("list");
 const listMode = ref("milestone");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const milestoneSidebarOpen = ref(false);
+const milestonePanelRef = ref(null);
 const attachmentsSidebarOpen = ref(false);
 const attachmentCount = ref(0);
 const requestsSidebarOpen = ref(false);
@@ -80,6 +123,11 @@ const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
 const draggingGroupKey = ref(null);
 const groupReorderDropIndex = ref(null);
+
+function openMilestoneCreate() {
+	milestoneSidebarOpen.value = true;
+	nextTick(() => milestonePanelRef.value?.openCreateModal());
+}
 
 // FAB – quick task creation
 const fabOpen = ref(false);
@@ -223,7 +271,7 @@ watch(
 );
 
 onMounted(async () => {
-	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities()]);
+	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities(), store.fetchUsers()]);
 	const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
 	suppressSearchSync.value = true;
 	activeFilters.value = restoredFilters;
@@ -576,27 +624,38 @@ const groupedTasksByMilestone = computed(() => {
 								{{ attachmentCount }}
 							</span>
 						</button>
-						<button
-							v-if="requestsAvailable"
-							@click="toggleRequestsSidebar"
-							:class="[
-								'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
-								requestsSidebarOpen
-									? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
-									: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
-							]"
-							:title="translate('Customer Requests')"
-						>
-							<ClipboardList class="w-4 h-4" />
-							<span class="hidden sm:inline">{{ translate("Requests") }}</span>
-							<span
-								v-if="openRequestCount > 0"
-								class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-								:title="translate('Active customer requests')"
+						<div v-if="requestsAvailable" class="flex items-stretch">
+							<button
+								@click="toggleRequestsSidebar"
+								:class="[
+									'flex items-center gap-1.5 px-3 py-2 text-sm rounded-l-lg border transition-colors',
+									requestsSidebarOpen
+										? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
+										: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+								]"
+								:title="translate('Customer Requests')"
 							>
-								{{ openRequestCount }}
-							</span>
-						</button>
+								<ClipboardList class="w-4 h-4" />
+								<span class="hidden sm:inline">{{ translate("Requests") }}</span>
+								<span
+									v-if="openRequestCount > 0"
+									class="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+									:title="translate('Active customer requests')"
+								>
+									{{ openRequestCount }}
+								</span>
+							</button>
+							<a
+								:href="requestsBoardPath(projectId)"
+								:target="requestsBoardWindowName(projectId)"
+								class="flex items-center px-2.5 -ml-px rounded-r-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+								:title="translate('Open the requests board in a new window')"
+								:aria-label="translate('Open the requests board in a new window')"
+								@click="openRequestsBoardFromLink($event, projectId)"
+							>
+								<SquareKanban class="w-4 h-4" />
+							</a>
+						</div>
 						<OutlinerNav />
 					</div>
 					</div>
@@ -715,6 +774,16 @@ const groupedTasksByMilestone = computed(() => {
 								</button>
 
 								<button
+									@click="openMilestoneCreate"
+									class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+									:title="translate('Add milestone')"
+									:aria-label="translate('Add milestone')"
+								>
+									<Plus class="w-4 h-4" />
+									<span class="hidden sm:inline">{{ translate("Add milestone") }}</span>
+								</button>
+
+								<button
 									@click="handleRefresh"
 									:disabled="store.loading"
 									class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
@@ -789,7 +858,7 @@ const groupedTasksByMilestone = computed(() => {
 				<Transition name="filter-panel">
 					<div v-if="milestoneSidebarOpen"
 						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-96 overflow-y-auto">
-						<MilestonePanel :hide-header="true" />
+						<MilestonePanel ref="milestonePanelRef" :hide-header="true" />
 					</div>
 				</Transition>
 
@@ -831,6 +900,7 @@ const groupedTasksByMilestone = computed(() => {
 							<div v-if="listMode === 'milestone'" class="text-[11px] text-gray-500 dark:text-gray-400">
 								{{ translate("Drag milestones by the handle to reorder them.") }}
 							</div>
+							<button v-if="selectedTaskNames.length" @click="showBulkEdit = true" class="ml-auto rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white">{{ translate("Bulk edit") }} ({{ selectedTaskNames.length }})</button>
 						</div>
 					</div>
 
@@ -838,6 +908,9 @@ const groupedTasksByMilestone = computed(() => {
 						v-if="listMode === 'flat'"
 						:tasks="flattenedTasksWithFilters"
 						:project-id="projectId"
+						:selected-task-names="selectedTaskNames"
+						@toggle-select="toggleTaskSelection"
+						@toggle-all="toggleAllTaskSelection"
 					/>
 
 					<div v-else-if="!isMobile" class="space-y-4 p-4 sm:p-6">
@@ -903,6 +976,9 @@ const groupedTasksByMilestone = computed(() => {
 							<TaskTree
 								:tasks="group.tasks"
 								:project-id="projectId"
+								:selected-task-names="selectedTaskNames"
+								@toggle-select="toggleTaskSelection"
+								@toggle-all="toggleAllTaskSelection"
 								:show-header="false"
 								:show-quick-add="false"
 								:enable-reorder="false"
@@ -984,6 +1060,7 @@ const groupedTasksByMilestone = computed(() => {
 		</div>
 
 		<BackToDeskButton />
+		<BulkTaskEditPanel :open="showBulkEdit" :selected-count="selectedTaskNames.length" :statuses="store.taskStatuses" :priorities="store.taskPriorities" :users="store.availableUsers" :loading="bulkEditLoading" @close="showBulkEdit = false" @apply="applyBulkEdit" />
 
 		<!-- FAB: quick task creation -->
 		<button
@@ -1093,10 +1170,10 @@ const groupedTasksByMilestone = computed(() => {
 								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
 									{{ translate("Due date") }}
 								</label>
-								<input
+								<DatePickerField
+									id="outliner-fab-due-date"
 									v-model="fabExpEndDate"
-									type="date"
-									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+									button-class="rounded-lg dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
 								/>
 							</div>
 						</div>

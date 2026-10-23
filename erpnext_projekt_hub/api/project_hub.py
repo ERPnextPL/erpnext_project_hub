@@ -3,6 +3,8 @@ Project Outliner API endpoints for task management.
 Provides CRUD operations for tasks in a hierarchical tree view.
 """
 
+from math import isfinite
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
@@ -355,7 +357,9 @@ def get_project_requests(project: str):
 			"requested_by",
 			"notes",
 			"business_value",
+			"analysis",
 			"workflow_state",
+			"state_changed_on",
 			"estimated_hours",
 			"estimated_amount",
 			"currency",
@@ -381,12 +385,14 @@ def get_project_requests(project: str):
 			)
 		)
 	can_create_change_request = frappe.has_permission("Change Request", "create")
+	can_edit_analysis = _can_edit_analysis(ANALYSIS_STATE)
 	for row in customer_requests:
 		row.requested_by_name = employee_names.get(row.requested_by) or row.requested_by
 		row.can_create_change_request = bool(
 			can_create_change_request and row.workflow_state == "Accepted" and not row.change_request
 		)
-	_set_customer_request_actions(customer_requests)
+		row.can_edit_analysis = can_edit_analysis and row.workflow_state == ANALYSIS_STATE
+	_set_workflow_actions("Customer Request", customer_requests, skip_next_states=(CONVERTED_STATE,))
 	change_requests = frappe.get_list(
 		"Change Request",
 		filters={"project": project},
@@ -401,10 +407,15 @@ def get_project_requests(project: str):
 			"currency",
 			"quotation",
 			"task",
+			"approved_scope",
+			"state_changed_on",
+			"creation",
 			"modified",
 		],
 		order_by="modified desc",
 	)
+	_set_workflow_actions("Change Request", change_requests)
+	_set_change_request_tasks(change_requests)
 
 	return {
 		"project": {
@@ -444,42 +455,92 @@ def _set_customer_request_assignees(customer_requests):
 		]
 
 
+ANALYSIS_STATE = "To Analyze"
 CONVERTED_STATE = "Converted"
 
 
-def _set_customer_request_actions(customer_requests):
-	"""Attach the workflow actions the current user may take on each request.
+def _set_workflow_actions(doctype, rows, skip_next_states=()):
+	"""Attach the workflow actions the current user may take on each row.
 
 	Mirrors frappe.model.workflow.get_transitions, but reads the workflow once
 	and loads a document only for transitions that carry a condition.
 	"""
 	from frappe.model.workflow import get_workflow_name, is_transition_condition_satisfied
 
-	workflow_name = get_workflow_name("Customer Request")
+	workflow_name = get_workflow_name(doctype)
 	transitions = []
 	if workflow_name:
 		roles = set(frappe.get_roles())
 		workflow = frappe.get_cached_doc("Workflow", workflow_name)
 		transitions = [t for t in workflow.transitions if t.allowed in roles]
 
-	for row in customer_requests:
+	for row in rows:
 		actions = []
 		seen = set()
 		doc = None
 		for transition in transitions:
 			if transition.state != row.workflow_state or transition.action in seen:
 				continue
-			# Converting goes through create_change_request, which also creates
-			# the Change Request; marking it by hand would leave none behind.
-			if transition.next_state == CONVERTED_STATE:
+			# A Customer Request is converted through create_change_request, which
+			# also creates the Change Request; marking it by hand would leave none.
+			if transition.next_state in skip_next_states:
 				continue
 			if transition.condition:
-				doc = doc or frappe.get_doc("Customer Request", row.name)
+				doc = doc or frappe.get_doc(doctype, row.name)
 				if not is_transition_condition_satisfied(transition, doc):
 					continue
 			seen.add(transition.action)
 			actions.append({"action": transition.action, "next_state": transition.next_state})
 		row.actions = actions
+
+
+def _set_change_request_tasks(change_requests):
+	"""Attach the status and progress of the task each Change Request created.
+
+	Read without Task permissions on purpose: whoever may read a change request
+	sees its task's status and progress, and a user without Task access must not
+	lose the whole requests view to a PermissionError.
+	"""
+	task_names = [row.task for row in change_requests if row.task]
+	tasks = {}
+	if task_names:
+		tasks = {
+			task.name: task
+			for task in frappe.get_all(
+				"Task",
+				filters={"name": ["in", task_names]},
+				fields=["name", "subject", "status", "progress"],
+				ignore_permissions=True,
+			)
+		}
+
+	for row in change_requests:
+		task = tasks.get(row.task)
+		row.task_subject = task.subject if task else None
+		row.task_status = task.status if task else None
+		row.task_progress = task.progress if task else None
+
+
+def _can_edit_analysis(workflow_state):
+	"""Return True when the current user may write the analysis of a request in this state.
+
+	Only a request waiting for analysis takes its analysis from the Projekt HUB
+	UI, and only from the roles the workflow lets edit that state (Desk applies
+	the same rule to the form).
+	"""
+	from frappe.model.workflow import get_workflow_name
+
+	if workflow_state != ANALYSIS_STATE:
+		return False
+	if not frappe.has_permission("Customer Request", "write"):
+		return False
+
+	workflow_name = get_workflow_name("Customer Request")
+	if not workflow_name:
+		return True
+	workflow = frappe.get_cached_doc("Workflow", workflow_name)
+	editor_roles = {row.allow_edit for row in workflow.states if row.state == workflow_state}
+	return bool(editor_roles & set(frappe.get_roles()))
 
 
 def _is_conversion_action(request, action):
@@ -493,6 +554,30 @@ def _is_conversion_action(request, action):
 		t.state == request.workflow_state and t.action == action and t.next_state == CONVERTED_STATE
 		for t in workflow.transitions
 	)
+
+
+def _parse_estimate(fieldname: str, value):
+	"""Return a validated estimate value, preserving empty strings as zero."""
+	if value is None:
+		return None
+	if isinstance(value, str) and not value.strip():
+		return 0
+
+	try:
+		number = float(value)
+	except (TypeError, ValueError):
+		number = None
+
+	if number is None or not isfinite(number):
+		message = (
+			"Enter a valid amount" if fieldname == "estimated_amount" else "Enter a valid number of hours"
+		)
+		frappe.throw(_(message), frappe.ValidationError)
+	if number < 0:
+		label = "Estimated Amount" if fieldname == "estimated_amount" else "Estimated Hours"
+		frappe.throw(_("{0} cannot be negative").format(_(label)), frappe.ValidationError)
+
+	return flt(value)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -511,6 +596,76 @@ def apply_customer_request_action(name: str, action: str):
 	request = apply_workflow(request, action)
 
 	return {"name": request.name, "workflow_state": request.workflow_state}
+
+
+@frappe.whitelist(methods=["POST"])
+def update_customer_request_analysis(
+	name: str,
+	analysis: str | None = None,
+	estimated_hours: str | None = None,
+	currency: str | None = None,
+	estimated_amount: str | None = None,
+):
+	"""Save the analysis and estimate of a Customer Request waiting for analysis.
+
+	A field left out (None) keeps its value; an empty string clears it. The
+	quotation is not part of it: it can be linked only once the request is quoted.
+	"""
+	require_project_hub_access()
+	if not name:
+		frappe.throw(_("Customer Request is required"))
+
+	request = frappe.get_doc("Customer Request", name)
+	request.check_permission("write")
+	if not _can_edit_analysis(request.workflow_state):
+		frappe.throw(
+			_("The analysis can only be edited while the request waits for analysis."),
+			frappe.PermissionError,
+		)
+
+	if analysis is not None:
+		request.analysis = analysis
+	for fieldname, value in (("estimated_hours", estimated_hours), ("estimated_amount", estimated_amount)):
+		if value is None:
+			continue
+		request.set(fieldname, _parse_estimate(fieldname, value))
+	if currency is not None:
+		request.currency = currency or None
+	if request.estimated_amount and not request.currency:
+		frappe.throw(_("Currency is required when amount is provided"))
+
+	request.save()
+
+	return {
+		"name": request.name,
+		"analysis": request.analysis,
+		"estimated_hours": request.estimated_hours,
+		"currency": request.currency,
+		"estimated_amount": request.estimated_amount,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_change_request_action(name: str, action: str):
+	"""Move a Change Request along its workflow from the Projekt HUB UI.
+
+	Approving it creates the project task, which moves it on to Task Created.
+	"""
+	from frappe.model.workflow import apply_workflow
+
+	require_project_hub_access()
+	if not name or not action:
+		frappe.throw(_("Change Request and action are required"))
+
+	change_request = frappe.get_doc("Change Request", name)
+	change_request.check_permission("write")
+	change_request = apply_workflow(change_request, action)
+
+	return {
+		"name": change_request.name,
+		"workflow_state": change_request.workflow_state,
+		"task": change_request.task,
+	}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -577,7 +732,6 @@ def create_customer_request(
 	estimated_hours: str | None = None,
 	currency: str | None = None,
 	estimated_amount: str | None = None,
-	quotation: str | None = None,
 ):
 	"""Create a Customer Request from the Projekt HUB UI."""
 	require_project_hub_access()
@@ -612,7 +766,6 @@ def create_customer_request(
 		"estimated_hours": estimated_hours,
 		"currency": currency,
 		"estimated_amount": estimated_amount,
-		"quotation": quotation,
 	}.items():
 		if value not in (None, ""):
 			request.set(fieldname, value)
@@ -895,6 +1048,7 @@ def get_project_tasks(
 			"customer_name": customer_name,
 			"customer_image": customer_image,
 			**customer_contact,
+			"documentation_url": getattr(project_doc, "documentation_url", None),
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -1034,6 +1188,7 @@ def update_project(
 	project: str,
 	expected_start_date: str | None = None,
 	expected_end_date: str | None = None,
+	documentation_url: str | None = None,
 	notes: str | None = None,
 ):
 	require_project_hub_access()
@@ -1052,6 +1207,9 @@ def update_project(
 		expected_start_date = None
 	if expected_end_date == "":
 		expected_end_date = None
+	documentation_url_cleared = documentation_url == ""
+	if documentation_url == "":
+		documentation_url = None
 
 	# Track if user explicitly passed empty string to clear the notes field
 	# (separate "not provided" from "clear")
@@ -1064,6 +1222,8 @@ def update_project(
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
+	if documentation_url is not None or documentation_url_cleared:
+		frappe.db.set_value("Project", project, "documentation_url", documentation_url)
 	if notes is not None or notes_cleared:
 		# Write even if notes is None - this handles explicit clear requests
 		frappe.db.set_value("Project", project, "notes", notes)
@@ -1122,6 +1282,7 @@ def update_project(
 		"customer_name": customer_name,
 		"customer_image": customer_image,
 		**customer_contact,
+		"documentation_url": getattr(project_doc, "documentation_url", None),
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -1307,6 +1468,74 @@ def update_task(task_name: str, **kwargs):
 		"is_blocked": task.get("is_blocked"),
 		"is_overdue": compute_is_overdue(task),
 	}
+
+
+@frappe.whitelist()
+def bulk_update_task_fields(task_names: list[str] | str, updates: dict | str):
+	"""Update common fields on multiple tasks in one transaction."""
+	require_project_hub_access()
+
+	task_names = frappe.parse_json(task_names) if isinstance(task_names, str) else task_names
+	updates = frappe.parse_json(updates) if isinstance(updates, str) else updates
+	if not isinstance(task_names, list) or not task_names:
+		frappe.throw(_("At least one task is required"))
+	if not isinstance(updates, dict):
+		frappe.throw(_("Task updates must be an object"))
+
+	task_names = list(dict.fromkeys(task_names))
+	if len(task_names) > 200:
+		frappe.throw(_("You can update up to 200 tasks at a time"))
+
+	allowed_fields = {"priority", "status", "exp_end_date", "expected_time"}
+	field_updates = {key: value for key, value in updates.items() if key in allowed_fields}
+	assignment_action = updates.get("assignment_action")
+	assignee = updates.get("assignee")
+	if not field_updates and assignment_action not in ("set", "clear"):
+		frappe.throw(_("Select at least one change"))
+	if assignment_action == "set" and not assignee:
+		frappe.throw(_("Select a user to assign"))
+
+	if assignment_action == "set":
+		user_doc = frappe.get_value("User", assignee, ["enabled", "user_type"])
+		if not user_doc:
+			frappe.throw(_("User {0} does not exist").format(assignee))
+		if not user_doc[0]:
+			frappe.throw(_("User {0} is disabled").format(assignee))
+		if user_doc[1] != "System User":
+			frappe.throw(_("Only System Users can be assigned to tasks"))
+		if not frappe.db.exists(
+			"Has Role", {"parent": assignee, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}
+		):
+			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
+
+	tasks = []
+	for task_name in task_names:
+		task = frappe.get_doc("Task", task_name)
+		task.check_permission("write")
+		if field_updates.get("status") == "Completed":
+			incomplete = _get_incomplete_subtasks(task.name)
+			if incomplete:
+				frappe.throw(
+					_("Task {0} cannot be completed while it has incomplete subtasks").format(task.subject)
+				)
+		for field, value in field_updates.items():
+			task.set(field, value)
+		if field_updates.get("status") == "Completed":
+			task.completed_on = today()
+		elif "status" in field_updates:
+			task.completed_on = None
+		tasks.append(task)
+
+	for task in tasks:
+		task.save()
+
+	if assignment_action:
+		for task in tasks:
+			assign_task(task.name, action="clear")
+			if assignment_action == "set":
+				assign_task(task.name, user=assignee, action="add")
+
+	return {"updated": len(tasks), "task_names": [task.name for task in tasks]}
 
 
 @frappe.whitelist()

@@ -34,7 +34,9 @@ const props = defineProps({
 		type: Boolean,
 		default: true,
 	},
+	selectedTaskNames: { type: Array, default: () => [] },
 });
+const emit = defineEmits(["toggle-select", "toggle-all"]);
 
 const store = useTaskStore();
 const draggedTask = ref(null);
@@ -175,6 +177,14 @@ const gridTemplateColumns = computed(() => {
 	cols.push(COLUMN_WIDTHS.actions);
 	return cols.join(" ");
 });
+
+const visibleTaskNames = computed(() => sortedTasks.value.map((task) => task.name));
+const allVisibleSelected = computed(() => visibleTaskNames.value.length > 0 && visibleTaskNames.value.every((name) => props.selectedTaskNames.includes(name)));
+const someVisibleSelected = computed(() => visibleTaskNames.value.some((name) => props.selectedTaskNames.includes(name)) && !allVisibleSelected.value);
+
+function toggleAllVisible() {
+	emit("toggle-all", { names: visibleTaskNames.value, selected: !allVisibleSelected.value });
+}
 
 let resizeObserver = null;
 
@@ -439,6 +449,7 @@ const sortedTasks = computed(() => {
 					:class="column.id === 'task' ? 'min-w-0' : ''"
 					:style="column.id === 'task' ? { width: '100%' } : {}"
 				>
+					<input v-if="column.id === 'task'" type="checkbox" :checked="allVisibleSelected" :indeterminate="someVisibleSelected" class="mr-1" @click.stop @change="toggleAllVisible" />
 					{{ column.label }}
 					<component v-if="getSortIcon(column.id)" :is="getSortIcon(column.id)" class="w-3 h-3" />
 				</button>
@@ -472,6 +483,7 @@ const sortedTasks = computed(() => {
 							:visible-columns="effectiveVisibleColumns"
 							:grid-template="gridTemplateColumns"
 							:active-context-menu-task-name="activeContextMenuTaskName"
+							:selected="props.selectedTaskNames.includes(task.name)"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"
@@ -479,6 +491,7 @@ const sortedTasks = computed(() => {
 							@add-task="handleAddTask"
 							@contextmenu-open="handleContextMenuOpen"
 							@contextmenu-close="handleContextMenuClose"
+							@toggle-select="emit('toggle-select', task.name, $event)"
 						/>
 						<!-- Inline subtask input -->
 						<div

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import DatePickerField from "./DatePickerField.vue";
 import {
 	Calendar,
 	Clock,
@@ -198,14 +199,11 @@ async function saveNotes() {
 								<div class="text-xs text-gray-500">
 									{{ translate("Planned Start") }}
 								</div>
-								<input
+								<DatePickerField
+									id="project-expected-start"
 									v-model="editableExpectedStart"
-									type="date"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-									@change="
-										saveDateField('expected_start_date', editableExpectedStart)
-									"
 									:disabled="isSaving || !canEdit"
+									@update:model-value="saveDateField('expected_start_date', $event)"
 								/>
 								<div class="text-xs text-gray-400 mt-0.5">
 									{{ formatDate(project.expected_start_date) }}
@@ -222,14 +220,11 @@ async function saveNotes() {
 									class="text-sm font-medium"
 									:class="isOverdue ? 'text-red-600' : 'text-gray-900'"
 								>
-									<input
+									<DatePickerField
+										id="project-expected-end"
 										v-model="editableExpectedEnd"
-										type="date"
-										class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-										@change="
-											saveDateField('expected_end_date', editableExpectedEnd)
-										"
 										:disabled="isSaving || !canEdit"
+										@update:model-value="saveDateField('expected_end_date', $event)"
 									/>
 									<div class="text-xs text-gray-400 mt-0.5">
 										{{ formatDate(project.expected_end_date) }}
