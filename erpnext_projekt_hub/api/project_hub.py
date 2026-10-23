@@ -1471,7 +1471,7 @@ def update_task(task_name: str, **kwargs):
 
 
 @frappe.whitelist()
-def bulk_update_task_fields(task_names, updates):
+def bulk_update_task_fields(task_names: list[str] | str, updates: dict | str):
 	"""Update common fields on multiple tasks in one transaction."""
 	require_project_hub_access()
 
