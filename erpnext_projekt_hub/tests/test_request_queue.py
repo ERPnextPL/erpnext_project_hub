@@ -114,6 +114,59 @@ class TestRequestQueue(FrappeTestCase):
 		request.save()
 		self.assertEqual(open_assignees("Customer Request", request.name), [OTHER_ANALYST])
 
+	def test_only_managers_pick_the_analyst_in_the_form(self):
+		request = self.create_customer_request("_Test analyst picked by non-manager")
+
+		frappe.set_user(ANALYST)
+		request = frappe.get_doc("Customer Request", request.name)
+		request.analyst = OTHER_ANALYST
+		with self.assertRaises(frappe.PermissionError):
+			request.save()
+		self.assertFalse(frappe.db.get_value("Customer Request", request.name, "analyst"))
+
+	def test_non_manager_can_create_a_request_without_analyst(self):
+		frappe.set_user(ANALYST)
+		request = frappe.get_doc(
+			{
+				"doctype": "Customer Request",
+				"customer": self.customer,
+				"project": self.project,
+				"subject": "_Test created by projects user",
+			}
+		).insert()
+		self.assertFalse(request.analyst)
+
+	def test_empty_stored_analyst_does_not_block_other_edits(self):
+		request = self.create_customer_request("_Test empty analyst string")
+		frappe.db.set_value("Customer Request", request.name, "analyst", "", update_modified=False)
+
+		frappe.set_user(ANALYST)
+		request = frappe.get_doc("Customer Request", request.name)
+		request.notes = "<p>_Test notes by projects user</p>"
+		request.save()
+		self.assertIn("_Test notes", frappe.db.get_value("Customer Request", request.name, "notes"))
+
+	def test_disabled_user_cannot_be_the_analyst(self):
+		disabled = "request-analyst-disabled@example.com"
+		make_user(disabled, "Projects User")
+		frappe.db.set_value("User", disabled, "enabled", 0)
+		request = self.create_customer_request("_Test disabled analyst")
+
+		request.analyst = disabled
+		with self.assertRaises(frappe.ValidationError):
+			request.save()
+
+	def test_reentering_analysis_starts_unassigned(self):
+		request = self.create_customer_request("_Test re-analysis", state="Rejected")
+		frappe.db.set_value("Customer Request", request.name, "analyst", ANALYST, update_modified=False)
+
+		request.reload()
+		request.workflow_state = "To Analyze"
+		request.save()
+
+		self.assertFalse(frappe.db.get_value("Customer Request", request.name, "analyst"))
+		self.assertEqual(open_assignees("Customer Request", request.name), [])
+
 	def test_leaving_analysis_keeps_the_analyst(self):
 		request = self.create_customer_request("_Test analyst kept")
 		take_for_analysis("Customer Request", request.name)
