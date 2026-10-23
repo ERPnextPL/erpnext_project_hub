@@ -66,6 +66,12 @@ function toggleTaskSelection(taskName) {
 		: [...selectedTaskNames.value, taskName];
 }
 
+function toggleAllTaskSelection({ names, selected }) {
+	selectedTaskNames.value = selected
+		? [...new Set([...selectedTaskNames.value, ...names])]
+		: selectedTaskNames.value.filter((name) => !names.includes(name));
+}
+
 async function applyBulkEdit(updates) {
 	if (["Completed", "Cancelled"].includes(updates.status) && realWindow?.frappe?.confirm) {
 		const confirmed = await new Promise((resolve) => frappe.confirm(translate("Apply this status to all selected tasks?"), () => resolve(true), () => resolve(false)));
@@ -404,7 +410,7 @@ useTaskDeepLink({
 			</div>
 
 				<!-- Task list -->
-			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" :selected-task-names="selectedTaskNames" @toggle-select="toggleTaskSelection" />
+			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" :selected-task-names="selectedTaskNames" @toggle-select="toggleTaskSelection" @toggle-all="toggleAllTaskSelection" />
 			</main>
 
 			<!-- Task Detail Panel -->

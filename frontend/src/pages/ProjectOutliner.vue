@@ -69,6 +69,11 @@ const bulkEditLoading = ref(false);
 function toggleTaskSelection(name) {
 	selectedTaskNames.value = selectedTaskNames.value.includes(name) ? selectedTaskNames.value.filter((item) => item !== name) : [...selectedTaskNames.value, name];
 }
+function toggleAllTaskSelection({ names, selected }) {
+	selectedTaskNames.value = selected
+		? [...new Set([...selectedTaskNames.value, ...names])]
+		: selectedTaskNames.value.filter((name) => !names.includes(name));
+}
 async function applyBulkEdit(updates) {
 	bulkEditLoading.value = true;
 	try {
@@ -892,6 +897,7 @@ const groupedTasksByMilestone = computed(() => {
 						:project-id="projectId"
 						:selected-task-names="selectedTaskNames"
 						@toggle-select="toggleTaskSelection"
+						@toggle-all="toggleAllTaskSelection"
 					/>
 
 					<div v-else-if="!isMobile" class="space-y-4 p-4 sm:p-6">
@@ -959,6 +965,7 @@ const groupedTasksByMilestone = computed(() => {
 								:project-id="projectId"
 								:selected-task-names="selectedTaskNames"
 								@toggle-select="toggleTaskSelection"
+								@toggle-all="toggleAllTaskSelection"
 								:show-header="false"
 								:show-quick-add="false"
 								:enable-reorder="false"
