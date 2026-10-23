@@ -2,6 +2,7 @@
 import { computed, reactive, watch } from "vue";
 import { X } from "lucide-vue-next";
 import { translate } from "../utils/translation";
+import DatePickerField from "./DatePickerField.vue";
 
 const props = defineProps({
 	open: Boolean,
@@ -62,7 +63,7 @@ function submit() {
 				<label class="text-sm text-gray-700">{{ translate("Assignment") }}<select v-model="form.assignment_action" class="mt-1 w-full rounded border-gray-300"><option value="">{{ translate("Keep unchanged") }}</option><option value="set">{{ translate("Assign to") }}</option><option value="clear">{{ translate("Clear assignment") }}</option></select></label>
 				<label v-if="form.assignment_action === 'set'" class="text-sm text-gray-700">{{ translate("User") }}<select v-model="form.assignee" class="mt-1 w-full rounded border-gray-300"><option value="">{{ translate("Select user") }}</option><option v-for="user in users" :key="user.name" :value="user.name">{{ user.full_name || user.name }}</option></select></label>
 				<label class="text-sm text-gray-700">{{ translate("Due date") }}<select v-model="form.due_date_action" class="mt-1 w-full rounded border-gray-300"><option value="">{{ translate("Keep unchanged") }}</option><option value="set">{{ translate("Set date") }}</option><option value="clear">{{ translate("Clear date") }}</option></select></label>
-				<label v-if="form.due_date_action === 'set'" class="text-sm text-gray-700">{{ translate("Date") }}<input v-model="form.exp_end_date" type="date" class="mt-1 w-full rounded border-gray-300" /></label>
+				<label v-if="form.due_date_action === 'set'" class="text-sm text-gray-700">{{ translate("Date") }}<DatePickerField id="bulk-task-due-date" v-model="form.exp_end_date" /></label>
 				<label class="text-sm text-gray-700">{{ translate("Expected time") }}<select v-model="form.expected_time_action" class="mt-1 w-full rounded border-gray-300"><option value="">{{ translate("Keep unchanged") }}</option><option value="set">{{ translate("Set value") }}</option><option value="clear">{{ translate("Clear value") }}</option></select></label>
 				<label v-if="form.expected_time_action === 'set'" class="text-sm text-gray-700">{{ translate("Hours") }}<input v-model="form.expected_time" type="number" min="0" step="0.25" class="mt-1 w-full rounded border-gray-300" /></label>
 			</div>

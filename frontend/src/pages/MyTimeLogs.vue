@@ -23,6 +23,7 @@ import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { useMyTimeLogsStore } from "../stores/myTimeLogsStore";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
+import DatePickerField from "../components/DatePickerField.vue";
 
 const store = useMyTimeLogsStore();
 const taskStore = useTaskStore();
@@ -884,25 +885,13 @@ async function handleDeleteLog(log) {
 								<label class="text-xs font-medium text-gray-500">
 									{{ translate("Start date") }}
 								</label>
-								<input
-									type="date"
-									:value="store.filters.startDate"
-									@change="updateFilter('startDate', $event.target.value)"
-									placeholder="dd.mm.rrrr (08.01.2026)"
-									class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-								/>
+								<DatePickerField id="timelogs-filter-start" :model-value="store.filters.startDate" @update:model-value="updateFilter('startDate', $event)" />
 							</div>
 							<div>
 								<label class="text-xs font-medium text-gray-500">
 									{{ translate("End date") }}
 								</label>
-								<input
-									type="date"
-									:value="store.filters.endDate"
-									@change="updateFilter('endDate', $event.target.value)"
-									placeholder="dd.mm.rrrr (08.01.2026)"
-									class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-								/>
+								<DatePickerField id="timelogs-filter-end" :model-value="store.filters.endDate" @update:model-value="updateFilter('endDate', $event)" />
 							</div>
 							<div>
 								<label class="text-xs font-medium text-gray-500">

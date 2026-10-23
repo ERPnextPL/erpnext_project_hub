@@ -31,6 +31,7 @@ import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import TimelineView from "../components/TimelineView.vue";
 import UserSelect from "../components/UserSelect.vue";
+import DatePickerField from "../components/DatePickerField.vue";
 import {
 	ArrowLeft,
 	Filter,
@@ -1169,10 +1170,10 @@ const groupedTasksByMilestone = computed(() => {
 								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
 									{{ translate("Due date") }}
 								</label>
-								<input
+								<DatePickerField
+									id="outliner-fab-due-date"
 									v-model="fabExpEndDate"
-									type="date"
-									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+									button-class="rounded-lg dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
 								/>
 							</div>
 						</div>

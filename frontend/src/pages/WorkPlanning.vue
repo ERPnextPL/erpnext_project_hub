@@ -50,12 +50,11 @@
 						</button>
 					</div>
 					<div class="text-sm font-semibold text-gray-900">{{ weekLabel }}</div>
-					<input
-						type="date"
-						:value="store.weekStart"
-						class="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-600 focus:border-violet-500 focus:ring-violet-500"
-						:title="translate('Go to week')"
-						@change="store.goToDate($event.target.value)"
+					<DatePickerField
+						id="work-planning-week-start"
+						:model-value="store.weekStart"
+						button-class="h-9 rounded-md px-2 py-1 text-sm"
+						@update:model-value="store.goToDate"
 					/>
 				</div>
 
@@ -304,6 +303,7 @@ import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import WorkPlanGrid from "../components/work-planning/WorkPlanGrid.vue";
 import WorkPlanEntryModal from "../components/work-planning/WorkPlanEntryModal.vue";
+import DatePickerField from "../components/DatePickerField.vue";
 import {
 	useWorkPlanningStore,
 	formatDay,
