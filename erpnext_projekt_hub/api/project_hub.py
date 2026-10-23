@@ -3,6 +3,8 @@ Project Outliner API endpoints for task management.
 Provides CRUD operations for tasks in a hierarchical tree view.
 """
 
+from math import isfinite
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
@@ -508,6 +510,7 @@ def _set_change_request_tasks(change_requests):
 				"Task",
 				filters={"name": ["in", task_names]},
 				fields=["name", "subject", "status", "progress"],
+				ignore_permissions=True,
 			)
 		}
 
@@ -551,6 +554,32 @@ def _is_conversion_action(request, action):
 		t.state == request.workflow_state and t.action == action and t.next_state == CONVERTED_STATE
 		for t in workflow.transitions
 	)
+
+
+def _parse_estimate(fieldname: str, value):
+	"""Return a validated estimate value, preserving empty strings as zero."""
+	if value is None:
+		return None
+	if isinstance(value, str) and not value.strip():
+		return 0
+
+	try:
+		number = float(value)
+	except (TypeError, ValueError):
+		number = None
+
+	if number is None or not isfinite(number):
+		message = (
+			"Enter a valid amount"
+			if fieldname == "estimated_amount"
+			else "Enter a valid number of hours"
+		)
+		frappe.throw(_(message), frappe.ValidationError)
+	if number < 0:
+		label = "Estimated Amount" if fieldname == "estimated_amount" else "Estimated Hours"
+		frappe.throw(_("{0} cannot be negative").format(_(label)), frappe.ValidationError)
+
+	return flt(value)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -601,10 +630,7 @@ def update_customer_request_analysis(
 	for fieldname, value in (("estimated_hours", estimated_hours), ("estimated_amount", estimated_amount)):
 		if value is None:
 			continue
-		number = flt(value)
-		if number < 0:
-			frappe.throw(_("{0} cannot be negative").format(_(request.meta.get_label(fieldname))))
-		request.set(fieldname, number)
+		request.set(fieldname, _parse_estimate(fieldname, value))
 	if currency is not None:
 		request.currency = currency or None
 	if request.estimated_amount and not request.currency:
