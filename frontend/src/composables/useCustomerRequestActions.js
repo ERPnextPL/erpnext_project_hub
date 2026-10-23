@@ -12,7 +12,8 @@ const API = "erpnext_projekt_hub.api.project_hub";
  *
  * Each call reports through `notify(message, kind)`, tells the other windows
  * about the change and awaits `refresh()`, so the request stays busy until the
- * refetched rows are on screen. Returns true when the change went through.
+ * refetched rows are on screen. Returns the saved API result when the change
+ * went through.
  */
 export function useCustomerRequestActions(projectId, { refresh, notify }) {
 	const busyRequest = ref("");
@@ -27,7 +28,7 @@ export function useCustomerRequestActions(projectId, { refresh, notify }) {
 			notify?.(success(result), "success");
 			notifyRequestsChanged(toValue(projectId));
 			await refresh?.();
-			return true;
+			return result;
 		} catch (err) {
 			console.error(`Customer request ${method} failed:`, err);
 			notify?.(decodeApiError(err, failure), "error");

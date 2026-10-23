@@ -100,6 +100,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	const projects = ref([]);
 	const statuses = ref([]);
 	const priorities = ref([]);
+	const users = ref([]);
 
 	// Optimistic update tracking
 	const pendingUpdates = ref(new Map());
@@ -173,12 +174,14 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 
 	async function fetchMetadata() {
 		try {
-			const [statusData, priorityData] = await Promise.all([
+			const [statusData, priorityData, userData] = await Promise.all([
 				apiCall("erpnext_projekt_hub.api.project_hub.get_task_statuses", {}),
 				apiCall("erpnext_projekt_hub.api.project_hub.get_task_priorities", {}),
+				apiCall("erpnext_projekt_hub.api.project_hub.get_users", {}),
 			]);
 			statuses.value = statusData || [];
 			priorities.value = priorityData || [];
+			users.value = userData || [];
 		} catch (err) {
 			console.error("Failed to fetch metadata:", err);
 			// Fallback values
@@ -225,6 +228,13 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			console.error("Failed to update task:", err);
 			throw err;
 		}
+	}
+
+	async function bulkUpdateTaskFields(taskNames, updates) {
+		return apiCall("erpnext_projekt_hub.api.project_hub.bulk_update_task_fields", {
+			task_names: JSON.stringify(taskNames),
+			updates: JSON.stringify(updates),
+		});
 	}
 
 	async function createTask(taskData) {
@@ -508,6 +518,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		projects,
 		statuses,
 		priorities,
+		users,
 		taskTimelogs,
 		activityTypes,
 		pendingTimelogKeys,
@@ -518,6 +529,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		fetchProjects,
 		fetchMetadata,
 		quickUpdateTask,
+		bulkUpdateTaskFields,
 		createTask,
 		updateTaskFull,
 		getTaskDetail,

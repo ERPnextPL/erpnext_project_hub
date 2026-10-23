@@ -10,10 +10,13 @@ declare module 'vue' {
   export interface GlobalComponents {
     BackToDeskButton: typeof import('./src/components/BackToDeskButton.vue')['default']
     BlockedToggle: typeof import('./src/components/shared/BlockedToggle.vue')['default']
+    BulkTaskEditPanel: typeof import('./src/components/BulkTaskEditPanel.vue')['default']
     ChangeRequestCard: typeof import('./src/components/requests/ChangeRequestCard.vue')['default']
     ChangeRequestDrawer: typeof import('./src/components/requests/ChangeRequestDrawer.vue')['default']
     ColumnSettings: typeof import('./src/components/ColumnSettings.vue')['default']
     CustomerRequestModal: typeof import('./src/components/requests/CustomerRequestModal.vue')['default']
+    DatePickerField: typeof import('./src/components/DatePickerField.vue')['default']
+    DatePickerPopover: typeof import('./src/components/DatePickerPopover.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MilestoneDropdown: typeof import('./src/components/MilestoneDropdown.vue')['default']
     MilestoneModal: typeof import('./src/components/MilestoneModal.vue')['default']

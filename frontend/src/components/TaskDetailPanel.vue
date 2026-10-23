@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import QuickAddTask from "./QuickAddTask.vue";
+import DatePickerField from "./DatePickerField.vue";
 import UserSelect from "./UserSelect.vue";
 import TimeLogModal from "./TimeLogModal.vue?v=20241220-2030";
 import dayjs from "dayjs";
@@ -2265,12 +2266,12 @@ async function deleteAttachment(fileName) {
 										{{ translate("Due date") }}
 									</div>
 									<div class="relative" :class="shortcutHighlight === 'due' ? 'ring-2 ring-blue-400 rounded-xl' : ''">
-										<input
+										<DatePickerField
 											ref="dueInputRef"
+											id="task-detail-due-date"
 											v-model="editableTask.exp_end_date"
-											type="date"
-											@blur="handleActualDateBlur('exp_end_date')"
-											class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											button-class="rounded-xl"
+											@update:model-value="handleActualDateBlur('exp_end_date')"
 										/>
 										<button
 											ref="dueLabelRef"
@@ -2306,11 +2307,11 @@ async function deleteAttachment(fileName) {
 										<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 											{{ translate("Start") }}
 										</div>
-										<input
+										<DatePickerField
+											id="task-detail-start-date"
 											v-model="editableTask.exp_start_date"
-											type="date"
-											@blur="handleActualDateBlur('exp_start_date')"
-											class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											button-class="rounded-xl"
+											@update:model-value="handleActualDateBlur('exp_start_date')"
 										/>
 									</div>
 									<div>
@@ -2332,12 +2333,12 @@ async function deleteAttachment(fileName) {
 									<div class="text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Completed on") }}
 									</div>
-									<input
-										v-model="editableTask.completed_on"
-										type="date"
-										@blur="saveField('completed_on', editableTask.completed_on)"
-										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-									/>
+					<DatePickerField
+						id="task-detail-completed-date"
+						v-model="editableTask.completed_on"
+						button-class="rounded-xl"
+						@update:model-value="saveField('completed_on', editableTask.completed_on)"
+					/>
 								</div>
 								<div v-if="dateValidationError" class="text-xs text-red-600">
 									{{ dateValidationError }}

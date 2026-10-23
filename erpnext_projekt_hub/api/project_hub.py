@@ -3,6 +3,8 @@ Project Outliner API endpoints for task management.
 Provides CRUD operations for tasks in a hierarchical tree view.
 """
 
+from math import isfinite
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
@@ -505,6 +507,7 @@ def _set_change_request_tasks(change_requests):
 				"Task",
 				filters={"name": ["in", task_names]},
 				fields=["name", "subject", "status", "progress"],
+				ignore_permissions=True,
 			)
 		}
 
@@ -548,6 +551,30 @@ def _is_conversion_action(request, action):
 		t.state == request.workflow_state and t.action == action and t.next_state == CONVERTED_STATE
 		for t in workflow.transitions
 	)
+
+
+def _parse_estimate(fieldname: str, value):
+	"""Return a validated estimate value, preserving empty strings as zero."""
+	if value is None:
+		return None
+	if isinstance(value, str) and not value.strip():
+		return 0
+
+	try:
+		number = float(value)
+	except (TypeError, ValueError):
+		number = None
+
+	if number is None or not isfinite(number):
+		message = (
+			"Enter a valid amount" if fieldname == "estimated_amount" else "Enter a valid number of hours"
+		)
+		frappe.throw(_(message), frappe.ValidationError)
+	if number < 0:
+		label = "Estimated Amount" if fieldname == "estimated_amount" else "Estimated Hours"
+		frappe.throw(_("{0} cannot be negative").format(_(label)), frappe.ValidationError)
+
+	return flt(value)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -598,10 +625,7 @@ def update_customer_request_analysis(
 	for fieldname, value in (("estimated_hours", estimated_hours), ("estimated_amount", estimated_amount)):
 		if value is None:
 			continue
-		number = flt(value)
-		if number < 0:
-			frappe.throw(_("{0} cannot be negative").format(_(request.meta.get_label(fieldname))))
-		request.set(fieldname, number)
+		request.set(fieldname, _parse_estimate(fieldname, value))
 	if currency is not None:
 		request.currency = currency or None
 	if request.estimated_amount and not request.currency:
@@ -986,6 +1010,7 @@ def get_project_tasks(
 			"customer_name": customer_name,
 			"customer_image": customer_image,
 			**customer_contact,
+			"documentation_url": getattr(project_doc, "documentation_url", None),
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -1125,6 +1150,7 @@ def update_project(
 	project: str,
 	expected_start_date: str | None = None,
 	expected_end_date: str | None = None,
+	documentation_url: str | None = None,
 	notes: str | None = None,
 ):
 	require_project_hub_access()
@@ -1143,6 +1169,9 @@ def update_project(
 		expected_start_date = None
 	if expected_end_date == "":
 		expected_end_date = None
+	documentation_url_cleared = documentation_url == ""
+	if documentation_url == "":
+		documentation_url = None
 
 	# Track if user explicitly passed empty string to clear the notes field
 	# (separate "not provided" from "clear")
@@ -1155,6 +1184,8 @@ def update_project(
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
+	if documentation_url is not None or documentation_url_cleared:
+		frappe.db.set_value("Project", project, "documentation_url", documentation_url)
 	if notes is not None or notes_cleared:
 		# Write even if notes is None - this handles explicit clear requests
 		frappe.db.set_value("Project", project, "notes", notes)
@@ -1213,6 +1244,7 @@ def update_project(
 		"customer_name": customer_name,
 		"customer_image": customer_image,
 		**customer_contact,
+		"documentation_url": getattr(project_doc, "documentation_url", None),
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -1398,6 +1430,74 @@ def update_task(task_name: str, **kwargs):
 		"is_blocked": task.get("is_blocked"),
 		"is_overdue": compute_is_overdue(task),
 	}
+
+
+@frappe.whitelist()
+def bulk_update_task_fields(task_names: list[str] | str, updates: dict | str):
+	"""Update common fields on multiple tasks in one transaction."""
+	require_project_hub_access()
+
+	task_names = frappe.parse_json(task_names) if isinstance(task_names, str) else task_names
+	updates = frappe.parse_json(updates) if isinstance(updates, str) else updates
+	if not isinstance(task_names, list) or not task_names:
+		frappe.throw(_("At least one task is required"))
+	if not isinstance(updates, dict):
+		frappe.throw(_("Task updates must be an object"))
+
+	task_names = list(dict.fromkeys(task_names))
+	if len(task_names) > 200:
+		frappe.throw(_("You can update up to 200 tasks at a time"))
+
+	allowed_fields = {"priority", "status", "exp_end_date", "expected_time"}
+	field_updates = {key: value for key, value in updates.items() if key in allowed_fields}
+	assignment_action = updates.get("assignment_action")
+	assignee = updates.get("assignee")
+	if not field_updates and assignment_action not in ("set", "clear"):
+		frappe.throw(_("Select at least one change"))
+	if assignment_action == "set" and not assignee:
+		frappe.throw(_("Select a user to assign"))
+
+	if assignment_action == "set":
+		user_doc = frappe.get_value("User", assignee, ["enabled", "user_type"])
+		if not user_doc:
+			frappe.throw(_("User {0} does not exist").format(assignee))
+		if not user_doc[0]:
+			frappe.throw(_("User {0} is disabled").format(assignee))
+		if user_doc[1] != "System User":
+			frappe.throw(_("Only System Users can be assigned to tasks"))
+		if not frappe.db.exists(
+			"Has Role", {"parent": assignee, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}
+		):
+			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
+
+	tasks = []
+	for task_name in task_names:
+		task = frappe.get_doc("Task", task_name)
+		task.check_permission("write")
+		if field_updates.get("status") == "Completed":
+			incomplete = _get_incomplete_subtasks(task.name)
+			if incomplete:
+				frappe.throw(
+					_("Task {0} cannot be completed while it has incomplete subtasks").format(task.subject)
+				)
+		for field, value in field_updates.items():
+			task.set(field, value)
+		if field_updates.get("status") == "Completed":
+			task.completed_on = today()
+		elif "status" in field_updates:
+			task.completed_on = None
+		tasks.append(task)
+
+	for task in tasks:
+		task.save()
+
+	if assignment_action:
+		for task in tasks:
+			assign_task(task.name, action="clear")
+			if assignment_action == "set":
+				assign_task(task.name, user=assignee, action="add")
+
+	return {"updated": len(tasks), "task_names": [task.name for task in tasks]}
 
 
 @frappe.whitelist()

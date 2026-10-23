@@ -1,8 +1,11 @@
+from unittest.mock import patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import get_datetime
 
 from erpnext_projekt_hub.api.project_hub import (
+	_set_change_request_tasks,
 	apply_customer_request_action,
 	create_change_request_from_customer_request,
 	get_project_requests,
@@ -162,6 +165,31 @@ class TestCustomerRequestsBoard(FrappeTestCase):
 			update_customer_request_analysis(customer_request.name, estimated_hours="-1")
 		with self.assertRaises(frappe.ValidationError):
 			update_customer_request_analysis(customer_request.name, estimated_amount="100", currency="")
+
+	def test_update_analysis_rejects_non_numeric_estimates(self):
+		customer_request = create_request_to_analyze(
+			self.project, self.customer, "_Test non numeric estimate"
+		)
+
+		with self.assertRaises(frappe.ValidationError):
+			update_customer_request_analysis(customer_request.name, estimated_hours="abc")
+		with self.assertRaises(frappe.ValidationError):
+			update_customer_request_analysis(customer_request.name, estimated_amount="not-a-number")
+
+	def test_change_request_tasks_read_ignores_task_permissions(self):
+		row = frappe._dict(task="_Test linked task")
+		task = frappe._dict(name="_Test linked task", subject="_Test subject", status="Working", progress=25)
+
+		with patch("erpnext_projekt_hub.api.project_hub.frappe.get_all", return_value=[task]) as get_all:
+			_set_change_request_tasks([row])
+
+		get_all.assert_called_once_with(
+			"Task",
+			filters={"name": ["in", ["_Test linked task"]]},
+			fields=["name", "subject", "status", "progress"],
+			ignore_permissions=True,
+		)
+		self.assertEqual(row.task_status, "Working")
 
 	def test_backfill_takes_last_state_change_from_version_log(self):
 		moved = create_request(self.project, self.customer, "_Test backfill moved")

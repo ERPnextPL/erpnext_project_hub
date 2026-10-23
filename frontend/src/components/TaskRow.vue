@@ -14,6 +14,7 @@ import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import BlockedToggle from "./shared/BlockedToggle.vue";
+import DatePickerPopover from "./DatePickerPopover.vue";
 import {
 	GripVertical,
 	ChevronRight,
@@ -58,6 +59,7 @@ const props = defineProps({
 		type: String,
 		default: null,
 	},
+	selected: Boolean,
 });
 
 const emit = defineEmits([
@@ -68,6 +70,7 @@ const emit = defineEmits([
 	"add-task",
 	"contextmenu-open",
 	"contextmenu-close",
+	"toggle-select",
 ]);
 
 const store = useTaskStore();
@@ -254,10 +257,9 @@ function cancelEditing() {
 	editValue.value = "";
 }
 
-function handleDueDateChange(event) {
-	const value = event.target.value || "";
-	if (value !== (props.task.exp_end_date || "")) {
-		emit("update", props.task.name, { exp_end_date: value });
+function handleDueDateChange(dateStr) {
+	if (dateStr !== (props.task.exp_end_date || "")) {
+		emit("update", props.task.name, { exp_end_date: dateStr });
 	}
 }
 
@@ -545,6 +547,7 @@ onUnmounted(() => {
 		<template v-for="columnId in visibleColumns" :key="columnId">
 			<!-- Task name with indent -->
 			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0 overflow-hidden">
+				<input type="checkbox" :checked="props.selected" class="h-4 w-4 flex-shrink-0" @click.stop @change="emit('toggle-select', $event)" />
 			<!-- Drag handle -->
 			<div
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
@@ -801,40 +804,42 @@ onUnmounted(() => {
 
 		<!-- Due date -->
 		<div v-else-if="columnId === 'due_date'" class="min-w-0">
-			<div class="relative inline-flex items-center">
-				<button
-					v-if="task.exp_end_date"
-					type="button"
-					:class="[
-						'flex items-center gap-1 text-sm',
-						task.is_overdue ? 'text-red-600 font-medium hover:text-red-700' : 'text-gray-600 hover:text-gray-900',
-					]"
-				>
-					<Calendar :class="['w-4 h-4', task.is_overdue ? 'text-red-500' : 'text-gray-400']" />
-					<span>{{ task.exp_end_date }}</span>
-					<span
-						v-if="task.is_overdue"
-						class="ml-1 inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+			<DatePickerPopover
+				:id="`project-task-${task.name}`"
+				:model-value="task.exp_end_date || ''"
+				@update:model-value="handleDueDateChange"
+			>
+				<template #trigger="{ open }">
+					<button
+						v-if="task.exp_end_date"
+						type="button"
+						class="task-date-trigger flex cursor-pointer items-center gap-1 text-sm"
+						:class="
+							task.is_overdue
+								? 'text-red-600 font-medium hover:text-red-700'
+								: 'text-gray-600 hover:text-gray-900'
+						"
+						@click.stop="open"
 					>
-						{{ translate("Overdue") }}
-					</span>
-				</button>
-				<button
-					v-else
-					type="button"
-					class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-				>
-					<Calendar class="w-4 h-4" />
-				</button>
-				<input
-					:value="task.exp_end_date || ''"
-					type="date"
-					class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-					@click.stop
-					@change.stop="handleDueDateChange"
-					aria-label="Edit due date"
-				/>
-			</div>
+						<Calendar :class="['w-4 h-4', task.is_overdue ? 'text-red-500' : 'text-gray-400']" />
+						<span>{{ task.exp_end_date }}</span>
+						<span
+							v-if="task.is_overdue"
+							class="ml-1 inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+						>
+							{{ translate("Overdue") }}
+						</span>
+					</button>
+					<button
+						v-else
+						type="button"
+						class="task-date-trigger cursor-pointer rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+						@click.stop="open"
+					>
+						<Calendar class="w-4 h-4" />
+					</button>
+				</template>
+			</DatePickerPopover>
 		</div>
 
 		<!-- Expected time -->
