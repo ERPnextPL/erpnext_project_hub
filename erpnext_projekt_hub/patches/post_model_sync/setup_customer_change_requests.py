@@ -16,8 +16,8 @@ PROJECT_MANAGER_ROLE = "Project Manager"
 MANAGER_ROLES = ("Projects Manager", PROJECT_MANAGER_ROLE, "System Manager")
 ALL_ROLES = ("Projects User", *MANAGER_ROLES)
 
-# Analysis queue: requests waiting for analysis, and those nobody has taken yet.
-# Whoever takes a request is kept in its `analyst` field (see request_queue.py).
+# Customer Requests wait for analysis; Change Requests wait for a realization
+# assignee. The assigned user is stored separately from the old analysis field.
 # Filters use the 4-item form: the workspace widget drops the last filter of a
 # list whose filters have 5 items (frappe.utils.cleanup_filters).
 ANALYSIS_QUEUE_FILTERS = [["Customer Request", "workflow_state", "=", "To Analyze"]]
@@ -25,9 +25,9 @@ UNASSIGNED_ANALYSIS_FILTERS = [
 	*ANALYSIS_QUEUE_FILTERS,
 	["Customer Request", "analyst", "is", "not set"],
 ]
-UNASSIGNED_CHANGE_ANALYSIS_FILTERS = [
+UNASSIGNED_CHANGE_REQUEST_FILTERS = [
 	["Change Request", "workflow_state", "=", "Draft"],
-	["Change Request", "analyst", "is", "not set"],
+	["Change Request", "realization_assignee", "is", "not set"],
 ]
 QUEUE_SHORTCUTS = (
 	("Requests to Analyze", "Customer Request", "Orange", ANALYSIS_QUEUE_FILTERS, "{} to analyze"),
@@ -36,7 +36,7 @@ QUEUE_SHORTCUTS = (
 		"Unassigned Change Requests",
 		"Change Request",
 		"Red",
-		UNASSIGNED_CHANGE_ANALYSIS_FILTERS,
+		UNASSIGNED_CHANGE_REQUEST_FILTERS,
 		"{} unassigned",
 	),
 )
@@ -120,7 +120,6 @@ def ensure_workflow_prerequisites():
 		"Reject",
 		"Mark Converted",
 		"Approve",
-		"Mark Done",
 		"Cancel",
 	)
 	for action in actions:
@@ -174,7 +173,6 @@ def change_request_workflow():
 		),
 		"transitions": [
 			*transitions("Draft", "Approve", "Approved", MANAGER_ROLES),
-			*transitions("Task Created", "Mark Done", "Done", MANAGER_ROLES),
 			*transitions("Task Created", "Cancel", "Cancelled", MANAGER_ROLES),
 		],
 	}

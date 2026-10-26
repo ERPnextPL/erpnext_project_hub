@@ -7,7 +7,7 @@ const API = "erpnext_projekt_hub.api.project_hub";
 
 /**
  * Changes made from the requests board: customer request workflow actions,
- * conversion, taking/releasing the analysis and saving it, and change request
+ * conversion, taking/releasing requests from their queues, and change request
  * workflow actions.
  *
  * Each call reports through `notify(message, kind)`, tells the other windows
@@ -76,26 +76,38 @@ export function useCustomerRequestActions(projectId, { refresh, notify }) {
 		);
 	}
 
-	// Customer and change requests share the analysis queue (request_queue.py).
 	function takeRequest(request, doctype = "Customer Request") {
+		const isChangeRequest = doctype === "Change Request";
 		return run(
 			request,
-			"erpnext_projekt_hub.request_queue.take_for_analysis",
-			{ doctype },
+			isChangeRequest
+				? "erpnext_projekt_hub.request_queue.take_for_realization"
+				: "erpnext_projekt_hub.request_queue.take_for_analysis",
+			isChangeRequest ? {} : { doctype },
 			{
-				success: () => translate("You are now analyzing {0}", [request.name]),
+				success: () =>
+					translate(isChangeRequest ? "You are now responsible for realizing {0}" : "You are now analyzing {0}", [
+						request.name,
+					]),
 				failure: translate("Status could not be changed"),
 			}
 		);
 	}
 
 	function releaseRequest(request, doctype = "Customer Request") {
+		const isChangeRequest = doctype === "Change Request";
 		return run(
 			request,
-			"erpnext_projekt_hub.request_queue.release_analysis",
-			{ doctype },
+			isChangeRequest
+				? "erpnext_projekt_hub.request_queue.release_realization"
+				: "erpnext_projekt_hub.request_queue.release_analysis",
+			isChangeRequest ? {} : { doctype },
 			{
-				success: () => translate("{0} is back in the analysis queue", [request.name]),
+				success: () =>
+					translate(
+						isChangeRequest ? "{0} is back in the realization queue" : "{0} is back in the analysis queue",
+						[request.name]
+					),
 				failure: translate("Status could not be changed"),
 			}
 		);

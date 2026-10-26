@@ -1,21 +1,31 @@
 import frappe
 from frappe import _
+from frappe.desk.form.assign_to import add as add_assignment
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from erpnext_projekt_hub.request_queue import sync_analysis_assignment
+from erpnext_projekt_hub.request_queue import sync_request_assignment
 
 
 class ChangeRequest(Document):
 	def validate(self):
 		self.validate_project_customer()
 		self.validate_customer_request()
+		self.validate_realization_assignee()
 		self.set_state_changed_on()
 
 	def on_update(self):
-		sync_analysis_assignment(self)
+		sync_request_assignment(self)
 		if self.workflow_state == "Approved" and not self.task:
 			self.create_project_task()
+
+	def validate_realization_assignee(self):
+		if self.workflow_state == "Approved" and not self.realization_assignee:
+			frappe.throw(_("Assign a person for realization before approving the change request."))
+
+		previous = self.get_doc_before_save()
+		if previous and previous.task and self.realization_assignee != previous.realization_assignee:
+			frappe.throw(_("Change the implementer on the linked project task after it has been created."))
 
 	def set_state_changed_on(self):
 		"""Remember when the request entered its workflow state (requests board ageing)."""
@@ -66,6 +76,14 @@ class ChangeRequest(Document):
 			}
 		)
 		task.insert()
+		add_assignment(
+			{
+				"doctype": "Task",
+				"name": task.name,
+				"assign_to": [self.realization_assignee],
+				"description": task.subject,
+			}
+		)
 		self.db_set(
 			{
 				"task": task.name,

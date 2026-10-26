@@ -3,7 +3,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, strip_html
 
-from erpnext_projekt_hub.request_queue import sync_analysis_assignment
+from erpnext_projekt_hub.request_queue import sync_request_assignment
 
 QUOTED_STATE = "Quoted"
 
@@ -19,7 +19,7 @@ class CustomerRequest(Document):
 		self.set_state_changed_on()
 
 	def on_update(self):
-		sync_analysis_assignment(self)
+		sync_request_assignment(self)
 
 	def validate_quote_has_estimate(self):
 		"""A request can only be marked Quoted once its analysis is written."""

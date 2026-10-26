@@ -91,7 +91,8 @@ async function applyBulkEdit(updates) {
 	}
 	bulkEditLoading.value = true;
 	try {
-		await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		const result = await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		if (!result) return;
 		showBulkEdit.value = false;
 		selectedTaskNames.value = [];
 		await store.fetchTasks();

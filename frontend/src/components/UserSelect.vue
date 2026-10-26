@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { User, X, ChevronDown, Check } from "lucide-vue-next";
+import { translate } from "../utils/translation";
 
 const props = defineProps({
 	modelValue: {
-		type: Array,
+		type: [Array, String],
 		default: () => [],
 	},
 	placeholder: {
@@ -46,26 +47,26 @@ const filteredUsers = computed(() => {
 	);
 });
 
-const selectedUsers = computed(() => {
+function assignedUserNames() {
 	if (!props.modelValue) return [];
 	try {
 		const assigns =
 			typeof props.modelValue === "string" ? JSON.parse(props.modelValue) : props.modelValue;
-		return store.availableUsers.filter((u) => assigns.includes(u.name));
+		return Array.isArray(assigns) ? assigns.filter((name) => typeof name === "string") : [];
 	} catch {
 		return [];
 	}
+}
+
+const selectedUsers = computed(() => {
+	const availableUsers = new Map(store.availableUsers.map((user) => [user.name, user]));
+	return assignedUserNames().map(
+		(name) => availableUsers.get(name) || { name, full_name: name, user_image: null }
+	);
 });
 
 function isSelected(user) {
-	if (!props.modelValue) return false;
-	try {
-		const assigns =
-			typeof props.modelValue === "string" ? JSON.parse(props.modelValue) : props.modelValue;
-		return assigns.includes(user.name);
-	} catch {
-		return false;
-	}
+	return assignedUserNames().includes(user.name);
 }
 
 function toggleUser(user) {
@@ -168,7 +169,17 @@ defineExpose({
 					<Check v-if="isSelected(user)" class="w-4 h-4 text-blue-600" />
 				</button>
 				<div v-if="filteredUsers.length === 0" class="px-3 py-2 text-sm text-gray-500">
-					No users found
+					{{
+						store.usersLoading
+							? translate("Loading users...")
+							: store.usersError
+								? translate("Unable to load users.")
+								: store.availableUsers.length === 0
+									? translate(
+											"No assignable users. Add the Projekt HUB User role to an enabled System User."
+										)
+									: translate("No users match your search.")
+					}}
 				</div>
 			</div>
 		</div>

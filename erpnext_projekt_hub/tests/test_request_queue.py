@@ -2,11 +2,20 @@ import frappe
 from frappe.model.workflow import apply_workflow
 from frappe.tests.utils import FrappeTestCase
 
+from erpnext_projekt_hub.patches.post_model_sync.update_change_request_realization_flow import (
+	migrate_draft_change_request_assignees,
+)
 from erpnext_projekt_hub.projekt_hub.doctype.customer_request.test_customer_request import (
 	create_project,
 	get_or_create_customer,
 )
-from erpnext_projekt_hub.request_queue import attach_file, release_analysis, take_for_analysis
+from erpnext_projekt_hub.request_queue import (
+	attach_file,
+	release_analysis,
+	release_realization,
+	take_for_analysis,
+	take_for_realization,
+)
 
 test_ignore = ["Customer", "Project", "Quotation", "Task"]
 
@@ -131,22 +140,42 @@ class TestRequestQueue(FrappeTestCase):
 			release_analysis("Customer Request", request.name)
 		self.assertEqual(frappe.db.get_value("Customer Request", request.name, "analyst"), "Administrator")
 
-	def test_change_request_is_taken_while_draft(self):
-		change_request = self.create_change_request("_Test change request analysis")
+	def test_change_request_is_taken_for_realization_while_draft(self):
+		change_request = self.create_change_request("_Test change request realization")
 
 		frappe.set_user(ANALYST)
-		take_for_analysis("Change Request", change_request.name)
-		self.assertEqual(frappe.db.get_value("Change Request", change_request.name, "analyst"), ANALYST)
+		take_for_realization(change_request.name)
+		self.assertEqual(
+			frappe.db.get_value("Change Request", change_request.name, "realization_assignee"), ANALYST
+		)
 		self.assertEqual(open_assignees("Change Request", change_request.name), [ANALYST])
+		with self.assertRaises(frappe.ValidationError):
+			take_for_analysis("Change Request", change_request.name)
 
 		frappe.set_user("Administrator")
 		change_request.reload()
 		apply_workflow(change_request, "Approve")
 		self.assertEqual(open_assignees("Change Request", change_request.name), [])
+		task = frappe.db.get_value("Change Request", change_request.name, "task")
+		self.assertEqual(open_assignees("Task", task), [ANALYST])
 
 		frappe.set_user(OTHER_ANALYST)
 		with self.assertRaises(frappe.ValidationError):
-			take_for_analysis("Change Request", change_request.name)
+			take_for_realization(change_request.name)
+		with self.assertRaises(frappe.ValidationError):
+			release_realization(change_request.name)
+
+	def test_realization_migration_preserves_existing_draft_assignee(self):
+		change_request = self.create_change_request("_Test change request migration")
+		change_request.analyst = ANALYST
+		change_request.save()
+
+		migrate_draft_change_request_assignees()
+
+		self.assertEqual(
+			frappe.db.get_value("Change Request", change_request.name, "realization_assignee"), ANALYST
+		)
+		self.assertEqual(open_assignees("Change Request", change_request.name), [])
 
 	def test_readers_can_attach_files(self):
 		# Projects User may only read Change Requests, and Quoted Customer Requests

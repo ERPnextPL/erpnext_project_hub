@@ -218,15 +218,15 @@ function setActionError(name, message) {
 
 const currentUser = computed(() => realWindow?.frappe?.session?.user || "");
 
-// The workflow state in which each request type waits for analysis (see
+// The workflow state in which each request type waits for an assignee (see
 // request_queue.py).
-const ANALYSIS_STATES = {
+const QUEUE_STATES = {
 	"Customer Request": "To Analyze",
 	"Change Request": "Draft",
 };
 
-function isInAnalysis(doctype, request) {
-	return (request.workflow_state || "Draft") === ANALYSIS_STATES[doctype];
+function isInQueue(doctype, request) {
+	return (request.workflow_state || "Draft") === QUEUE_STATES[doctype];
 }
 
 function isAnalyzedByMe(request) {
@@ -284,22 +284,35 @@ function createChangeRequest(request) {
 }
 
 function takeRequest(doctype, request) {
+	const isChangeRequest = doctype === "Change Request";
 	return runRequestAction(
 		request,
-		"erpnext_projekt_hub.request_queue.take_for_analysis",
-		{ doctype },
+		isChangeRequest
+			? "erpnext_projekt_hub.request_queue.take_for_realization"
+			: "erpnext_projekt_hub.request_queue.take_for_analysis",
+		isChangeRequest ? {} : { doctype },
 		"",
-		() => translate("You are now analyzing {0}", [request.name])
+		() =>
+			translate(isChangeRequest ? "You are now responsible for realizing {0}" : "You are now analyzing {0}", [
+				request.name,
+			])
 	);
 }
 
 function releaseRequest(doctype, request) {
+	const isChangeRequest = doctype === "Change Request";
 	return runRequestAction(
 		request,
-		"erpnext_projekt_hub.request_queue.release_analysis",
-		{ doctype },
+		isChangeRequest
+			? "erpnext_projekt_hub.request_queue.release_realization"
+			: "erpnext_projekt_hub.request_queue.release_analysis",
+		isChangeRequest ? {} : { doctype },
 		"",
-		() => translate("{0} is back in the analysis queue", [request.name])
+		() =>
+			translate(
+				isChangeRequest ? "{0} is back in the realization queue" : "{0} is back in the analysis queue",
+				[request.name]
+			)
 	);
 }
 
@@ -750,31 +763,31 @@ onMounted(() => {
 							</span>
 						</div>
 						<div
-							v-if="changeRequest.analyst || isInAnalysis('Change Request', changeRequest)"
+							v-if="changeRequest.realization_assignee || isInQueue('Change Request', changeRequest)"
 							class="mt-1 flex flex-wrap items-center gap-1.5 text-xs"
 						>
-							<template v-if="changeRequest.analyst">
+							<template v-if="changeRequest.realization_assignee">
 								<UserCheck class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
 								<span class="text-gray-600 dark:text-gray-300">
-									{{ translate("Analyzed by: {0}", [changeRequest.analyst_name]) }}
+									{{ translate("Assigned to realization: {0}", [changeRequest.realization_assignee_name]) }}
 								</span>
 							</template>
 							<span v-else class="font-medium text-amber-700 dark:text-amber-400">
-								{{ translate("Waiting for someone to analyze") }}
+								{{ translate("Waiting for someone to take this for realization") }}
 							</span>
-							<template v-if="isInAnalysis('Change Request', changeRequest)">
+							<template v-if="isInQueue('Change Request', changeRequest)">
 								<button
-									v-if="!changeRequest.analyst"
+									v-if="!changeRequest.realization_assignee"
 									type="button"
 									:disabled="Boolean(busyRequest)"
 									class="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
 									@click="takeRequest('Change Request', changeRequest)"
 								>
 									<Hand class="h-3.5 w-3.5" />
-									{{ translate("Take for analysis") }}
+									{{ translate("Take for realization") }}
 								</button>
 								<button
-									v-else-if="isAnalyzedByMe(changeRequest)"
+									v-else-if="changeRequest.realization_assignee === currentUser"
 									type="button"
 									:disabled="Boolean(busyRequest)"
 									class="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"

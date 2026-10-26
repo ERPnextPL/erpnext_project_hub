@@ -1,9 +1,8 @@
-"""Analysis queue and attachments shared by Customer Request and Change Request.
+"""Assignment queues and attachments shared by Customer Request and Change Request.
 
-A request waiting for analysis is taken by one person. They are recorded in the
-request's `analyst` field, which is what the queue and the UI read, and get a
-ToDo assignment so the request shows in their To Do list. The assignment closes
-once the request leaves analysis; the field keeps who analyzed it.
+A request waiting for work is taken by one person. They are recorded in the
+request's assignee field and get a ToDo assignment. The assignment closes once
+the request leaves its queue; the field keeps who took it.
 """
 
 import frappe
@@ -13,45 +12,51 @@ from frappe.desk.form.assign_to import close_all_assignments
 from frappe.desk.form.assign_to import remove as remove_assignment
 from frappe.utils import get_fullname
 
-# The workflow state in which each request type waits for analysis.
-ANALYSIS_STATES = {
+# The workflow state in which each request type waits for an assignee.
+QUEUE_STATES = {
 	"Customer Request": "To Analyze",
 	"Change Request": "Draft",
+}
+ASSIGNMENT_FIELDS = {
+	"Customer Request": "analyst",
+	"Change Request": "realization_assignee",
 }
 
 
 def get_request(doctype, name):
-	if doctype not in ANALYSIS_STATES:
+	if doctype not in QUEUE_STATES:
 		frappe.throw(_("{0} is not a request.").format(doctype))
 	return frappe.get_doc(doctype, name)
 
 
-def is_in_analysis(doc):
-	return doc.workflow_state == ANALYSIS_STATES[doc.doctype]
+def is_in_queue(doc):
+	return doc.workflow_state == QUEUE_STATES[doc.doctype]
 
 
-def sync_analysis_assignment(doc):
-	"""Keep the ToDo assignment in step with the analyst field and the workflow state.
+def sync_request_assignment(doc):
+	"""Keep the ToDo assignment in step with the assignee field and workflow state.
 
-	Called from on_update, so it also covers a manager setting the analyst by hand.
+	Called from on_update, so it also covers a manager setting the assignee by hand.
 	"""
 	previous = doc.get_doc_before_save()
-	analysis_state = ANALYSIS_STATES[doc.doctype]
-	was_in_analysis = bool(previous and previous.workflow_state == analysis_state)
+	queue_state = QUEUE_STATES[doc.doctype]
+	was_in_queue = bool(previous and previous.workflow_state == queue_state)
+	fieldname = ASSIGNMENT_FIELDS[doc.doctype]
+	assignee = doc.get(fieldname)
 
-	if not is_in_analysis(doc):
-		if was_in_analysis:
+	if not is_in_queue(doc):
+		if was_in_queue:
 			close_all_assignments(doc.doctype, doc.name, ignore_permissions=True)
 		return
 
-	previous_analyst = previous.analyst if previous else None
-	if previous_analyst and previous_analyst != doc.analyst:
-		remove_assignment(doc.doctype, doc.name, previous_analyst)
-	if doc.analyst and (doc.analyst != previous_analyst or not was_in_analysis):
-		assign_analyst(doc, doc.analyst)
+	previous_assignee = previous.get(fieldname) if previous else None
+	if previous_assignee and previous_assignee != assignee:
+		remove_assignment(doc.doctype, doc.name, previous_assignee)
+	if assignee and (assignee != previous_assignee or not was_in_queue):
+		assign_request(doc, assignee)
 
 
-def assign_analyst(doc, user):
+def assign_request(doc, user):
 	add_assignment(
 		{
 			"doctype": doc.doctype,
@@ -73,39 +78,66 @@ def lock_request(doctype, name):
 
 @frappe.whitelist(methods=["POST"])
 def take_for_analysis(doctype: str, name: str):
-	"""Make the current user the analyst of a request waiting for analysis."""
-	# Two people clicking "Take for analysis" at once must not both get it.
+	"""Make the current user the analyst of a Customer Request waiting for analysis."""
+	if doctype != "Customer Request":
+		frappe.throw(_("Only Customer Requests can be taken for analysis."))
+	return take_request(doctype, name)
+
+
+@frappe.whitelist(methods=["POST"])
+def take_for_realization(name: str):
+	"""Make the current user the assignee of a Change Request waiting for realization."""
+	return take_request("Change Request", name)
+
+
+def take_request(doctype, name):
+	# Two people clicking at once must not both get the same request.
 	request = lock_request(doctype, name)
 
-	if not is_in_analysis(request):
-		frappe.throw(_("Only requests waiting for analysis can be taken."))
+	if not is_in_queue(request):
+		frappe.throw(_("Only requests waiting in their queue can be taken."))
 
+	fieldname = ASSIGNMENT_FIELDS[doctype]
+	assignee = request.get(fieldname)
 	user = frappe.session.user
-	if request.analyst and request.analyst != user:
-		frappe.throw(_("{0} is already analyzing this request.").format(get_fullname(request.analyst)))
+	if assignee and assignee != user:
+		frappe.throw(_("{0} is already assigned to this request.").format(get_fullname(assignee)))
 
-	if request.analyst != user:
-		request.db_set("analyst", user)
-	assign_analyst(request, user)
+	if assignee != user:
+		request.db_set(fieldname, user)
+	assign_request(request, user)
 
-	return {"name": request.name, "analyst": user}
+	return {"name": request.name, "assignee": user}
 
 
 @frappe.whitelist(methods=["POST"])
 def release_analysis(doctype: str, name: str):
 	"""Give a request the current user analyzes back to the analysis queue."""
+	if doctype != "Customer Request":
+		frappe.throw(_("Only Customer Requests can be released from analysis."))
+	return release_request(doctype, name)
+
+
+@frappe.whitelist(methods=["POST"])
+def release_realization(name: str):
+	"""Give a Change Request the current user owns back to the realization queue."""
+	return release_request("Change Request", name)
+
+
+def release_request(doctype, name):
 	request = lock_request(doctype, name)
 
-	# Once analysis is over the field records who analyzed the request.
-	if not is_in_analysis(request):
-		frappe.throw(_("Only requests waiting for analysis can be released."))
+	if not is_in_queue(request):
+		frappe.throw(_("Only requests waiting in their queue can be released."))
 
 	user = frappe.session.user
-	if request.analyst and request.analyst != user:
-		frappe.throw(_("Only the person analyzing the request can release it."))
+	fieldname = ASSIGNMENT_FIELDS[doctype]
+	assignee = request.get(fieldname)
+	if assignee and assignee != user:
+		frappe.throw(_("Only the person assigned to this request can release it."))
 
-	if request.analyst:
-		request.db_set("analyst", None)
+	if assignee:
+		request.db_set(fieldname, None)
 	remove_assignment(request.doctype, request.name, user)
 
 	return {"name": request.name}

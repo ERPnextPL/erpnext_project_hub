@@ -29,6 +29,7 @@ const isManager = ref(false);
 const loading = ref(true);
 const showCompleted = ref(false);
 const showOnHold = ref(false);
+const completedByFilter = ref("");
 
 // View mode: 'grid' | 'list'
 const viewMode = ref("grid");
@@ -103,7 +104,23 @@ function applySearchAndSort(projects) {
 
 const filteredActiveProjects = computed(() => applySearchAndSort(activeProjects.value));
 const filteredOnHoldProjects = computed(() => applySearchAndSort(onHoldProjects.value));
-const filteredCompletedProjects = computed(() => applySearchAndSort(completedProjects.value));
+const completedByUsers = computed(() => {
+	const users = new Map();
+	completedProjects.value.forEach((project) => {
+		(project.completed_by_users || []).forEach((user) => {
+			users.set(user, project.completed_by_user_names?.[user] || user);
+		});
+	});
+	return [...users.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+});
+const filteredCompletedProjects = computed(() => {
+	const projects = completedByFilter.value
+		? completedProjects.value.filter((project) =>
+				project.completed_by_users?.includes(completedByFilter.value)
+			)
+		: completedProjects.value;
+	return applySearchAndSort(projects);
+});
 
 const hasProjects = computed(
 	() =>
@@ -402,7 +419,28 @@ function sortIcon(field) {
 
 					<Transition name="slide-fade">
 						<div v-if="showCompleted">
-							<div v-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+							<div class="mb-4 flex items-center gap-2">
+								<label for="completed-by-filter" class="text-sm text-gray-600 dark:text-gray-300">
+									{{ translate("Tasks completed by") }}
+								</label>
+								<select
+									id="completed-by-filter"
+									v-model="completedByFilter"
+									class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+								>
+									<option value="">{{ translate("All people") }}</option>
+									<option v-for="[user, fullName] in completedByUsers" :key="user" :value="user">
+										{{ fullName }}
+									</option>
+								</select>
+							</div>
+							<p
+								v-if="filteredCompletedProjects.length === 0"
+								class="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+							>
+								{{ translate("No completed projects match this person.") }}
+							</p>
+							<div v-else-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 								<ProjectCard
 									v-for="project in filteredCompletedProjects"
 									:key="project.name"
