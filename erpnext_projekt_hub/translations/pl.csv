@@ -98,6 +98,7 @@
 "Confirm","Potwierdź"
 "Task completion requires the Frappe dialog interface.","Zamknięcie zadania wymaga interfejsu okna dialogowego Frappe."
 "Select which assigned person completed this task.","Wybierz przypisaną osobę, która ukończyła to zadanie."
+"Completion attribution cannot be changed after the task is completed.","Nie można zmienić osoby przypisanej do ukończenia zadania po jego zakończeniu."
 "Completion attribution required","Wymagane wskazanie osoby realizującej"
 "Unable to complete task","Nie można ukończyć zadania"
 "Could not load the task assignees.","Nie udało się pobrać osób przypisanych do zadania."

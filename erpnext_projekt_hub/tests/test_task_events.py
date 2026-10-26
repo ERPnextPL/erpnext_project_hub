@@ -55,6 +55,18 @@ class TestTaskCompletionAttribution(FrappeTestCase):
 			"Closed",
 		)
 
+	def test_completed_by_cannot_be_changed_after_completion(self):
+		task = create_task("_Test Task - immutable completion attribution")
+		task.status = "Completed"
+		task.save(ignore_permissions=True)
+
+		task.completed_by = "Guest"
+		with self.assertRaises(frappe.ValidationError):
+			task.save(ignore_permissions=True)
+
+		task.reload()
+		self.assertEqual(task.completed_by, "Administrator")
+
 	def test_non_assignee_must_select_a_task_assignee(self):
 		from frappe.core.doctype.user_permission.test_user_permission import create_user
 
