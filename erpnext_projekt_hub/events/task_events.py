@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, now_datetime
 
 from erpnext_projekt_hub.events.todo_events import sync_task_todo_dates
 
@@ -35,10 +35,46 @@ def on_task_update(doc, method=None):
 	if doc.has_value_changed("exp_end_date"):
 		sync_task_todo_dates(doc.name, doc.exp_end_date)
 
+	if doc.has_value_changed("status"):
+		sync_change_request_state(doc)
+
 	if doc.flags.ignore_hierarchy_sync:
 		return
 
 	_sync_hierarchy(doc)
+
+
+def sync_change_request_state(task):
+	"""Keep a linked Change Request aligned with completion and reopening of its task."""
+	previous = task.get_doc_before_save()
+	if not previous or not task.change_request:
+		return
+
+	change_request = frappe.db.get_value(
+		"Change Request",
+		task.change_request,
+		["name", "task", "workflow_state"],
+		as_dict=True,
+	)
+	if not change_request or change_request.task != task.name:
+		return
+
+	next_state = None
+	if task.status == "Completed" and change_request.workflow_state == "Task Created":
+		next_state = "Done"
+	elif (
+		previous.status == "Completed"
+		and task.status in REOPENED_STATUSES
+		and change_request.workflow_state == "Done"
+	):
+		next_state = "Task Created"
+
+	if next_state:
+		frappe.db.set_value(
+			"Change Request",
+			change_request.name,
+			{"workflow_state": next_state, "state_changed_on": now_datetime()},
+		)
 
 
 def on_task_trash(doc, method=None):

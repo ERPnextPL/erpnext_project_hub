@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { BOARD_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
+import { promptForCompletionAssignee } from "../utils/taskCompletion";
 
 // Helper to get CSRF token
 function getCsrfToken() {
@@ -191,6 +192,12 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	}
 
 	async function quickUpdateTask(taskName, updates) {
+		if (updates.status === "Completed") {
+			const completedBy = await promptForCompletionAssignee(taskName);
+			if (completedBy === null) return null;
+			if (completedBy) updates = { ...updates, completed_by: completedBy };
+		}
+
 		// Optimistic update
 		const taskIndex = tasks.value.findIndex((t) => t.name === taskName);
 		if (taskIndex === -1) return;
@@ -231,6 +238,15 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	}
 
 	async function bulkUpdateTaskFields(taskNames, updates) {
+		if (updates.status === "Completed") {
+			const completedByByTask = {};
+			for (const taskName of taskNames) {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) completedByByTask[taskName] = completedBy;
+			}
+			updates = { ...updates, completed_by_by_task: completedByByTask };
+		}
 		return apiCall("erpnext_projekt_hub.api.project_hub.bulk_update_task_fields", {
 			task_names: JSON.stringify(taskNames),
 			updates: JSON.stringify(updates),

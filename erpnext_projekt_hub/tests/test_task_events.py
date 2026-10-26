@@ -1,4 +1,5 @@
 import frappe
+from frappe.desk.form.assign_to import add as add_assignment
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import flt
 
@@ -27,6 +28,52 @@ def set_status(task, status):
 	task.status = status
 	task.save(ignore_permissions=True)
 	return task
+
+
+class TestTaskCompletionAttribution(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_single_assignee_is_recorded_and_todo_is_closed(self):
+		task = create_task("_Test Task - completion attribution")
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": ["Administrator"]})
+
+		set_status(task, "Completed")
+
+		task.reload()
+		self.assertEqual(task.completed_by, "Administrator")
+		self.assertEqual(
+			frappe.db.get_value(
+				"ToDo",
+				{
+					"reference_type": "Task",
+					"reference_name": task.name,
+					"allocated_to": "Administrator",
+				},
+				"status",
+			),
+			"Closed",
+		)
+
+	def test_non_assignee_must_select_a_task_assignee(self):
+		from frappe.core.doctype.user_permission.test_user_permission import create_user
+
+		assignee = create_user("task_completion_assignee@example.com", "System Manager")
+		task = create_task("_Test Task - selected completion attribution")
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": ["Administrator", assignee.name]})
+
+		frappe.set_user("Guest")
+		task.status = "Completed"
+		with self.assertRaises(frappe.ValidationError):
+			task.save(ignore_permissions=True)
+
+		task.reload()
+		task.completed_by = assignee.name
+		task.status = "Completed"
+		task.save(ignore_permissions=True)
+
+		task.reload()
+		self.assertEqual(task.completed_by, assignee.name)
 
 
 class TestSubtaskDoesNotDriveParentStatus(FrappeTestCase):

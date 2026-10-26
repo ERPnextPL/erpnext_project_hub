@@ -715,6 +715,14 @@ async function handleStatusSelection(option) {
 
 	try {
 		const data = await store.updateTask(props.task.name, updates);
+		if (!data) {
+			editableTask.value.status = props.task.status;
+			if (updates.completed_on) {
+				editableTask.value.completed_on = props.task.completed_on || "";
+			}
+			statusMenuOpen.value = false;
+			return;
+		}
 		if (data) {
 			Object.assign(editableTask.value, normalizeTaskForEdit(data));
 		}
@@ -2333,12 +2341,16 @@ async function deleteAttachment(fileName) {
 									<div class="text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Completed on") }}
 									</div>
-					<DatePickerField
-						id="task-detail-completed-date"
-						v-model="editableTask.completed_on"
-						button-class="rounded-xl"
-						@update:model-value="saveField('completed_on', editableTask.completed_on)"
-					/>
+									<DatePickerField
+										id="task-detail-completed-date"
+										v-model="editableTask.completed_on"
+										button-class="rounded-xl"
+										@update:model-value="saveField('completed_on', editableTask.completed_on)"
+									/>
+									<div v-if="editableTask.completed_by" class="text-xs text-gray-600">
+										{{ translate("Completed by") }}:
+										{{ editableTask.completed_by_name || editableTask.completed_by }}
+									</div>
 								</div>
 								<div v-if="dateValidationError" class="text-xs text-red-600">
 									{{ dateValidationError }}

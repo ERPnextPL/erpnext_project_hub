@@ -1,7 +1,9 @@
 # Copyright (c) 2024, Krzysztof and contributors
 # For license information, please see license.txt
 
+import frappe
 from erpnext.projects.doctype.task.task import Task
+from frappe import _
 from frappe.utils import getdate, today
 
 # Statuses in which a missed due date no longer matters.
@@ -11,6 +13,35 @@ CLOSED_STATUSES = ("Completed", "Cancelled", "Template")
 class HubTask(Task):
 	"""Task controller tweaks, mixed in via ``extend_doctype_class`` on Frappe v16
 	and installed via ``override_doctype_class`` on v15 (see hooks.py)."""
+
+	def validate_status(self):
+		if self.status == "Completed" and self.status != self.get_db_value("status"):
+			assigned_users = set(
+				frappe.get_all(
+					"ToDo",
+					filters={
+						"reference_type": "Task",
+						"reference_name": self.name,
+						"status": "Open",
+						"allocated_to": ["is", "set"],
+					},
+					pluck="allocated_to",
+				)
+			)
+
+			if len(assigned_users) == 1:
+				self.completed_by = next(iter(assigned_users))
+			elif not assigned_users:
+				self.completed_by = frappe.session.user
+			elif frappe.session.user in assigned_users:
+				self.completed_by = frappe.session.user
+			elif self.completed_by not in assigned_users:
+				frappe.throw(
+					_("Select which assigned person completed this task."),
+					title=_("Completion attribution required"),
+				)
+
+		super().validate_status()
 
 	def update_status(self):
 		"""Flag a missed due date instead of overwriting the status.

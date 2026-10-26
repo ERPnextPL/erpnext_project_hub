@@ -1,36 +1,48 @@
-// Analysis queue and attachments shared by the Customer Request and Change
-// Request forms (see request_queue.py). Requests waiting for analysis are taken
-// with "Take for analysis", which records the user in "Assigned Analyst"; a
-// manager can also pick the analyst in that field. Once someone is assigned
-// the button is gone.
+// Assignment queues and attachments shared by the Customer Request and Change
+// Request forms (see request_queue.py).
 frappe.provide("erpnext_projekt_hub.request_queue");
 
-erpnext_projekt_hub.request_queue.setup = function (frm, analysis_state) {
+erpnext_projekt_hub.request_queue.setup = function (frm, queue_state) {
 	if (frm.is_new()) {
 		return;
 	}
 
-	if (frm.doc.workflow_state === analysis_state) {
-		setup_analysis_queue(frm);
+	if (frm.doc.workflow_state === queue_state) {
+		setup_assignment_queue(frm);
 	}
 	setup_read_only_attachments(frm);
 };
 
-function setup_analysis_queue(frm) {
-	if (!frm.doc.analyst) {
+function setup_assignment_queue(frm) {
+	const isChangeRequest = frm.doctype === "Change Request";
+	const assigneeField = isChangeRequest ? "realization_assignee" : "analyst";
+	if (!frm.doc[assigneeField]) {
 		frm.dashboard.set_headline_alert(
-			__("Waiting for someone to analyze. Take it, or pick the Assigned Analyst."),
+			isChangeRequest
+				? __("Waiting for someone to take this for realization, or assign an implementer.")
+				: __("Waiting for someone to analyze. Take it, or pick the Assigned Analyst."),
 			"yellow"
 		);
-		frm.add_custom_button(__("Take for analysis"), () => {
-			call_queue(frm, "take_for_analysis");
-		}).addClass("btn-primary");
+		frm.add_custom_button(
+			isChangeRequest ? __("Take for realization") : __("Take for analysis"),
+			() => {
+				call_queue(
+					frm,
+					isChangeRequest ? "take_for_realization" : "take_for_analysis",
+					isChangeRequest ? {} : { doctype: frm.doctype }
+				);
+			}
+		).addClass("btn-primary");
 		return;
 	}
 
-	if (frm.doc.analyst === frappe.session.user) {
+	if (frm.doc[assigneeField] === frappe.session.user) {
 		frm.add_custom_button(__("Release"), () => {
-			call_queue(frm, "release_analysis");
+			call_queue(
+				frm,
+				isChangeRequest ? "release_realization" : "release_analysis",
+				isChangeRequest ? {} : { doctype: frm.doctype }
+			);
 		});
 	}
 }
@@ -38,7 +50,6 @@ function setup_analysis_queue(frm) {
 function call_queue(frm, method, args = {}) {
 	return frappe
 		.xcall(`erpnext_projekt_hub.request_queue.${method}`, {
-			doctype: frm.doctype,
 			name: frm.docname,
 			...args,
 		})
@@ -56,7 +67,7 @@ function setup_read_only_attachments(frm) {
 		new frappe.ui.FileUploader({
 			folder: "Home/Attachments",
 			on_success(file_doc) {
-				call_queue(frm, "attach_file", { file_name: file_doc.name });
+				call_queue(frm, "attach_file", { doctype: frm.doctype, file_name: file_doc.name });
 			},
 		});
 	});

@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { GripVertical, RefreshCw } from "lucide-vue-next";
+import { GripVertical, Hand, RefreshCw } from "lucide-vue-next";
 import { translate } from "../../utils/translation";
 import { daysInState, formatNumber } from "../../utils/customerRequests";
 import { isStaleChangeRequest } from "../../utils/changeRequests";
@@ -34,7 +34,7 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["open", "dragstart", "dragend"]);
+const emit = defineEmits(["open", "take", "dragstart", "dragend"]);
 
 const days = computed(() => daysInState(props.request, props.now));
 const stale = computed(() => isStaleChangeRequest(props.request, props.now));
@@ -117,6 +117,20 @@ const progress = computed(() => Math.max(0, Math.min(100, Number(props.request.t
 		</div>
 
 		<div class="flex items-center justify-end">
+			<button
+				v-if="request.workflow_state === 'Draft' && !request.realization_assignee"
+				type="button"
+				:disabled="disabled"
+				class="mr-auto inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+				@click="emit('take')"
+			>
+				<Hand class="h-3.5 w-3.5" />
+				{{ translate("Take for realization") }}
+			</button>
+			<span v-else-if="request.realization_assignee" class="mr-auto text-xs text-gray-500">
+				{{ translate("Assigned Implementer") }}:
+				{{ request.realization_assignee_name || request.realization_assignee }}
+			</span>
 			<span
 				v-if="ageLabel"
 				:class="

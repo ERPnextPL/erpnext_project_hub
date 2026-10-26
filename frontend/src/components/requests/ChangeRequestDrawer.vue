@@ -38,10 +38,10 @@ const STAGES = ["Draft", "Task Created", "Done"];
 const CANCELLED_STATE = "Cancelled";
 
 const state = computed(() => props.request.workflow_state || "Draft");
-// A change request is analyzed while it is still a draft (see request_queue.py).
-const isAnalysis = computed(() => state.value === "Draft");
-const analyzedByMe = computed(
-	() => Boolean(props.currentUser) && props.request.analyst === props.currentUser
+// A realization owner can take a change request while it awaits approval.
+const isAwaitingAssignment = computed(() => state.value === "Draft");
+const assignedToMe = computed(
+	() => Boolean(props.currentUser) && props.request.realization_assignee === props.currentUser
 );
 const stageIndex = computed(() => STAGES.indexOf(CHANGE_REQUEST_STATE_ALIASES[state.value] || state.value));
 const stateSince = computed(() =>
@@ -154,8 +154,8 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 						<dd class="mt-0.5 text-gray-900">{{ stateSince || "-" }}</dd>
 					</div>
 					<div>
-						<dt class="text-xs text-gray-500">{{ translate("Assigned Analyst") }}</dt>
-						<dd class="mt-0.5 text-gray-900">{{ request.analyst_name || "-" }}</dd>
+						<dt class="text-xs text-gray-500">{{ translate("Assigned Implementer") }}</dt>
+						<dd class="mt-0.5 text-gray-900">{{ request.realization_assignee_name || "-" }}</dd>
 					</div>
 					<div>
 						<dt class="text-xs text-gray-500">{{ translate("Approved Hours") }}</dt>
@@ -259,19 +259,19 @@ onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
 					<Check v-else class="h-4 w-4" />
 					{{ translate(action.action) }}
 				</button>
-				<template v-if="isAnalysis">
+				<template v-if="isAwaitingAssignment">
 					<button
-						v-if="!request.analyst"
+						v-if="!request.realization_assignee"
 						type="button"
 						:disabled="busy"
 						class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
 						@click="emit('take')"
 					>
 						<Hand class="h-4 w-4" />
-						{{ translate("Take for analysis") }}
+						{{ translate("Take for realization") }}
 					</button>
 					<button
-						v-else-if="analyzedByMe"
+						v-else-if="assignedToMe"
 						type="button"
 						:disabled="busy"
 						class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
