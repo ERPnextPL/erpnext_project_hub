@@ -418,13 +418,21 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// User assignment functions
 	const availableUsers = ref([]);
+	const usersLoading = ref(false);
+	const usersError = ref(false);
 
 	async function fetchUsers() {
+		if (usersLoading.value) return;
+		usersLoading.value = true;
+		usersError.value = false;
 		try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_users", {});
 			availableUsers.value = data || [];
 		} catch (error) {
 			console.error("Failed to fetch users:", error);
+			usersError.value = true;
+		} finally {
+			usersLoading.value = false;
 		}
 	}
 
@@ -899,6 +907,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 		selectedTask,
 		expandedTasks,
 		availableUsers,
+		usersLoading,
+		usersError,
 		allProjects,
 		taskTimelogs,
 		activityTypes,

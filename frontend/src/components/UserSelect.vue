@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { User, X, ChevronDown, Check } from "lucide-vue-next";
+import { translate } from "../utils/translation";
 
 const props = defineProps({
 	modelValue: {
@@ -168,7 +169,17 @@ defineExpose({
 					<Check v-if="isSelected(user)" class="w-4 h-4 text-blue-600" />
 				</button>
 				<div v-if="filteredUsers.length === 0" class="px-3 py-2 text-sm text-gray-500">
-					No users found
+					{{
+						store.usersLoading
+							? translate("Loading users...")
+							: store.usersError
+								? translate("Unable to load users.")
+								: store.availableUsers.length === 0
+									? translate(
+											"No assignable users. Add the Projekt HUB User role to an enabled System User."
+										)
+									: translate("No users match your search.")
+					}}
 				</div>
 			</div>
 		</div>
