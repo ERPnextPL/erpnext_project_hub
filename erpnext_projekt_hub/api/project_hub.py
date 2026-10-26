@@ -1389,7 +1389,7 @@ def update_task(task_name: str, **kwargs):
 		if incomplete_subtasks:
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
-				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
+				subtask_names += " " + _("and {0} more").format(len(incomplete_subtasks) - 3)
 
 			# Show as info message instead of error
 			frappe.msgprint(
@@ -1670,7 +1670,7 @@ def toggle_task_status(task_name: str):
 		if incomplete_subtasks:
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
-				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
+				subtask_names += " " + _("and {0} more").format(len(incomplete_subtasks) - 3)
 
 			# Show as info message instead of error
 			frappe.msgprint(
@@ -3041,7 +3041,7 @@ def quick_update_task(
 		if incomplete_subtasks:
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
-				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
+				subtask_names += " " + _("and {0} more").format(len(incomplete_subtasks) - 3)
 
 			frappe.msgprint(
 				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(

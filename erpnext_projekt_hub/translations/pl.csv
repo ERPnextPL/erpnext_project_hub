@@ -102,6 +102,8 @@
 "Completion attribution required","Wymagane wskazanie osoby realizującej"
 "Unable to complete task","Nie można ukończyć zadania"
 "Could not load the task assignees.","Nie udało się pobrać osób przypisanych do zadania."
+"Cannot complete task. {0} subtask(s) are not completed: {1}","Nie można ukończyć zadania. Nieukończone podzadania ({0}): {1}"
+"and {0} more","i {0} kolejnych"
 "Completed By","Ukończone przez"
 "Create","Utwórz"
 "Update","Aktualizuj"
