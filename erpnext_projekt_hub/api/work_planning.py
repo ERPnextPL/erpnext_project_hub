@@ -240,9 +240,7 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 		planned_by_project[entry.project] += flt(entry.hours)
 
 	users = (
-		frappe.get_all(
-			"Employee", filters={"name": ("in", employee_names)}, fields=["name", "user_id"]
-		)
+		frappe.get_all("Employee", filters={"name": ("in", employee_names)}, fields=["name", "user_id"])
 		if employee_names
 		else []
 	)
@@ -369,12 +367,16 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 		person["demand_hours"] = round(person["demand_hours"], 2)
 		person["uncovered_hours"] = round(max(person["demand_hours"] - person["planned_hours"], 0), 2)
 		person["free_hours"] = round(max(person["available_hours"] - person["planned_hours"], 0), 2)
-		person["utilization"] = round(
-			person["planned_hours"] / person["available_hours"] * 100, 1
-		) if person["available_hours"] else 0
-		person["forecast_utilization"] = round(
-			person["demand_hours"] / person["available_hours"] * 100, 1
-		) if person["available_hours"] else 0
+		person["utilization"] = (
+			round(person["planned_hours"] / person["available_hours"] * 100, 1)
+			if person["available_hours"]
+			else 0
+		)
+		person["forecast_utilization"] = (
+			round(person["demand_hours"] / person["available_hours"] * 100, 1)
+			if person["available_hours"]
+			else 0
+		)
 		person["tasks"].sort(key=lambda task: (task["due_date"] or "9999-12-31", task["subject"] or ""))
 
 	projects = []
@@ -404,9 +406,7 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 			"uncovered_hours": round(max(demand_hours - planned_hours, 0), 2),
 			"free_hours": round(max(available_hours - planned_hours, 0), 2),
 			"utilization": round(planned_hours / available_hours * 100, 1) if available_hours else 0,
-			"forecast_utilization": round(demand_hours / available_hours * 100, 1)
-			if available_hours
-			else 0,
+			"forecast_utilization": round(demand_hours / available_hours * 100, 1) if available_hours else 0,
 			"undated_backlog_hours": round(undated_backlog, 2),
 		},
 	}
