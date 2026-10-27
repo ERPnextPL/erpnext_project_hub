@@ -296,21 +296,21 @@ function isDescendant(taskName, possibleAncestor) {
 }
 
 function getDropIndex(dropTarget, newParent) {
+	const siblings = store.tasks
+		.filter((task) => task.parent_task === newParent && task.name !== draggedTask.value.name)
+		.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+
 	if (!dropTarget?.task) {
-		return store.tasks
-			.filter((task) => task.parent_task === newParent && task.name !== draggedTask.value.name)
-			.reduce((max, task) => Math.max(max, task.idx || 0), -1) + 1;
+		return siblings.length;
 	}
 
 	if (newParent === dropTarget.task.name) {
-		return (
-			store.tasks
-				.filter((task) => task.parent_task === newParent && task.name !== draggedTask.value.name)
-				.reduce((max, task) => Math.max(max, task.idx || 0), -1) + 1
-		);
+		return siblings.length;
 	}
 
-	return (dropTarget.task.idx || 0) + (dropTarget.insertAfter ? 1 : 0);
+	const targetPosition = siblings.findIndex((task) => task.name === dropTarget.task.name);
+	if (targetPosition < 0) return siblings.length;
+	return targetPosition + (dropTarget.insertAfter ? 1 : 0);
 }
 
 async function handleDragEnd(evt) {

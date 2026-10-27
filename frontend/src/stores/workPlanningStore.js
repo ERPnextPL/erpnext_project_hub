@@ -152,6 +152,7 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 	// week the user has since navigated away from must not overwrite state a
 	// newer, faster request already applied.
 	let fetchRequestId = 0;
+	let forecastRequestId = 0;
 
 	function getDay(employee, date) {
 		return (
@@ -332,19 +333,23 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 	}
 
 	async function fetchForecast() {
+		const requestId = ++forecastRequestId;
 		const { startDate, endDate } = getForecastRange();
 		forecastLoading.value = true;
 		forecastError.value = null;
 		try {
-			forecast.value = await apiCall("get_work_forecast", {
+			const data = await apiCall("get_work_forecast", {
 				start_date: startDate,
 				end_date: endDate,
 				department: department.value || null,
 			});
+			if (requestId !== forecastRequestId) return;
+			forecast.value = data;
 		} catch (err) {
+			if (requestId !== forecastRequestId) return;
 			forecastError.value = err.message || translate("Failed to load the forecast");
 		} finally {
-			forecastLoading.value = false;
+			if (requestId === forecastRequestId) forecastLoading.value = false;
 		}
 	}
 

@@ -195,9 +195,9 @@ def _task_period_demand(task, period_start, period_end, remaining_hours: float) 
 	if task_start > task_end or task_end < period_start or task_start > period_end:
 		return 0.0
 
-	total_days = len(_working_days(task_start, task_end))
 	overlap_start = max(task_start, period_start)
 	overlap_end = min(task_end, period_end)
+	total_days = len(_working_days(overlap_start, task_end))
 	overlap_days = len(_working_days(overlap_start, overlap_end))
 	if not total_days or not overlap_days:
 		return 0.0
@@ -239,29 +239,26 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 		planned_by_employee[entry.employee] += flt(entry.hours)
 		planned_by_project[entry.project] += flt(entry.hours)
 
-	users = (
-		frappe.get_all("Employee", filters={"name": ("in", employee_names)}, fields=["name", "user_id"])
-		if employee_names
-		else []
+	users = frappe.get_all(
+		"Employee",
+		filters={"user_id": ("is", "set")},
+		fields=["name", "user_id"],
 	)
 	user_to_employee = {row.user_id: row.name for row in users if row.user_id}
-	assigned_users = list(user_to_employee)
 	todo_rows = (
 		frappe.get_all(
 			"ToDo",
-			filters={
-				"allocated_to": ("in", assigned_users),
-				"reference_type": "Task",
-				"status": "Open",
-			},
+			filters={"reference_type": "Task", "status": "Open"},
 			fields=["allocated_to", "reference_name"],
 		)
-		if assigned_users
+		if user_to_employee
 		else []
 	)
 	task_employees = defaultdict(set)
 	for row in todo_rows:
-		task_employees[row.reference_name].add(user_to_employee[row.allocated_to])
+		employee = user_to_employee.get(row.allocated_to)
+		if employee:
+			task_employees[row.reference_name].add(employee)
 
 	task_ids = list(task_employees)
 	tasks = (

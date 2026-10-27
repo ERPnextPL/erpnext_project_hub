@@ -1581,12 +1581,8 @@ def reorder_task(
 
 		task.parent_task = parent_task
 
-	# Update idx
-	task.idx = idx
-	task.flags.ignore_recursion_check = True
-	task.save()
-
-	# Reindex siblings to maintain order
+	# Calculate the target among siblings after removing the dragged task. This
+	# keeps a downward move in the same parent from being shifted by one row.
 	siblings = frappe.get_all(
 		"Task",
 		filters={
@@ -1595,12 +1591,16 @@ def reorder_task(
 			"name": ["!=", task_name],
 		},
 		fields=["name", "idx"],
-		order_by="idx",
+		order_by="idx, creation",
 	)
+	target_idx = max(0, min(int(idx), len(siblings)))
+	task.idx = target_idx
+	task.flags.ignore_recursion_check = True
+	task.save()
 
-	# Adjust indices
+	# Reindex siblings to maintain order
 	for i, sibling in enumerate(siblings):
-		new_idx = i if i < idx else i + 1
+		new_idx = i if i < target_idx else i + 1
 		if sibling["idx"] != new_idx:
 			frappe.db.set_value("Task", sibling["name"], "idx", new_idx)
 

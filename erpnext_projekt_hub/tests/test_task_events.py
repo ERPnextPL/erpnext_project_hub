@@ -2,7 +2,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import flt
 
-from erpnext_projekt_hub.api.project_hub import delete_task
+from erpnext_projekt_hub.api.project_hub import delete_task, reorder_task
 from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import (
 	ensure_task_custom_field,
 )
@@ -73,6 +73,29 @@ class TestSubtaskDoesNotDriveParentStatus(FrappeTestCase):
 
 		parent.reload()
 		self.assertEqual(parent.status, "Open")
+
+
+class TestTaskReordering(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_moving_down_keeps_the_same_parent_and_order(self):
+		parent = create_task("_Test Reorder Parent", is_group=1)
+		first = create_task("_Test Reorder First", parent=parent.name)
+		moving = create_task("_Test Reorder Moving", parent=parent.name)
+		last = create_task("_Test Reorder Last", parent=parent.name)
+		for index, task in enumerate((first, moving, last)):
+			frappe.db.set_value("Task", task.name, "idx", index, update_modified=False)
+
+		reorder_task(moving.name, parent.name, 2)
+
+		ordered = frappe.get_all(
+			"Task",
+			filters={"parent_task": parent.name},
+			fields=["name", "idx"],
+			order_by="idx",
+		)
+		self.assertEqual([row.name for row in ordered], [first.name, last.name, moving.name])
 
 
 class TestParentProgressRollup(FrappeTestCase):

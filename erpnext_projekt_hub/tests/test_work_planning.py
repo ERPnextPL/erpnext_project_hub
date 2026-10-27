@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -385,3 +386,50 @@ class TestWorkPlanning(FrappeTestCase):
 			}
 		)
 		self.assertRaises(frappe.DuplicateEntryError, entry.insert)
+
+	def test_remaining_effort_is_allocated_only_to_the_unfinished_schedule(self):
+		task = frappe._dict(exp_start_date=date(2031, 10, 19), exp_end_date=date(2031, 10, 30))
+
+		self.assertEqual(work_planning._task_period_demand(task, date(2031, 10, 26), date(2031, 10, 30), 40), 40)
+
+	def test_shared_task_keeps_all_assignees_in_the_share_denominator(self):
+		other_employee = self.make_other_employee()
+		other_user = frappe.db.get_value("Employee", other_employee, "user_id")
+		task = frappe.get_doc(
+			{
+				"doctype": "Task",
+				"subject": "_Test shared forecast task",
+				"project": self.project,
+				"status": "Open",
+				"expected_time": 40,
+				"exp_start_date": MONDAY,
+				"exp_end_date": MONDAY + timedelta(days=4),
+			}
+		).insert(ignore_permissions=True)
+		for user in (self.as_employee(), other_user):
+			frappe.get_doc(
+				{
+					"doctype": "ToDo",
+					"allocated_to": user,
+					"reference_type": "Task",
+					"reference_name": task.name,
+					"status": "Open",
+				}
+			).insert(ignore_permissions=True)
+
+		all_employees = work_planning._get_employees()
+		visible_employee = next(row for row in all_employees if row.name == self.employee)
+		with patch.object(
+			work_planning,
+			"_get_employees",
+			side_effect=lambda department=None, employee=None: [visible_employee]
+			if department
+			else all_employees,
+		):
+			data = work_planning.get_work_forecast(str(MONDAY), str(MONDAY + timedelta(days=4)))
+			filtered = work_planning.get_work_forecast(
+				str(MONDAY), str(MONDAY + timedelta(days=4)), department="_Test visible department"
+			)
+
+		self.assertEqual(next(row for row in data["employees"] if row["employee"] == self.employee)["demand_hours"], 20)
+		self.assertEqual(filtered["employees"][0]["demand_hours"], 20)
