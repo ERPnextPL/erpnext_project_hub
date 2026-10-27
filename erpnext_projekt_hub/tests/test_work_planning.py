@@ -390,7 +390,9 @@ class TestWorkPlanning(FrappeTestCase):
 	def test_remaining_effort_is_allocated_only_to_the_unfinished_schedule(self):
 		task = frappe._dict(exp_start_date=date(2031, 10, 19), exp_end_date=date(2031, 10, 30))
 
-		self.assertEqual(work_planning._task_period_demand(task, date(2031, 10, 26), date(2031, 10, 30), 40), 40)
+		self.assertEqual(
+			work_planning._task_period_demand(task, date(2031, 10, 26), date(2031, 10, 30), 40), 40
+		)
 
 	def test_shared_task_keeps_all_assignees_in_the_share_denominator(self):
 		other_employee = self.make_other_employee()
@@ -431,5 +433,7 @@ class TestWorkPlanning(FrappeTestCase):
 				str(MONDAY), str(MONDAY + timedelta(days=4)), department="_Test visible department"
 			)
 
-		self.assertEqual(next(row for row in data["employees"] if row["employee"] == self.employee)["demand_hours"], 20)
+		self.assertEqual(
+			next(row for row in data["employees"] if row["employee"] == self.employee)["demand_hours"], 20
+		)
 		self.assertEqual(filtered["employees"][0]["demand_hours"], 20)
