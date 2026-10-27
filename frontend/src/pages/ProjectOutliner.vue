@@ -36,6 +36,7 @@ import {
 	ArrowLeft,
 	Filter,
 	Search,
+	User,
 	X,
 	RefreshCw,
 	LayoutList,
@@ -234,6 +235,18 @@ const activeFilterCount = computed(() => {
 		Boolean(activeFilters.value.search),
 	].filter(Boolean).length;
 });
+
+const activeAssigneeLabel = computed(() => {
+	const user = store.availableUsers.find(
+		(user) => user.name === activeFilters.value.assignee
+	);
+	return user?.full_name || activeFilters.value.assignee;
+});
+
+function clearAssigneeFilter() {
+	activeFilters.value.assignee = null;
+	store.fetchTasks(props.projectId, activeFilters.value);
+}
 
 
 useTaskDeepLink({
@@ -872,6 +885,24 @@ const groupedTasksByMilestone = computed(() => {
 									{{ translate("Timeline") }}
 								</button>
 								</div>
+							</div>
+							<div
+								v-if="activeFilters.assignee"
+								class="mt-2 flex flex-wrap items-center gap-2"
+							>
+								<span class="text-xs text-gray-500 dark:text-gray-400">
+									{{ translate("Active filters") }}:
+								</span>
+								<button
+									type="button"
+									class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+									:aria-label="translate('Remove assignee filter: {0}', [activeAssigneeLabel])"
+									@click="clearAssigneeFilter"
+								>
+									<User class="h-3 w-3" />
+									<span>{{ translate("Assigned to: {0}", [activeAssigneeLabel]) }}</span>
+									<X class="h-3 w-3" />
+								</button>
 							</div>
 						</div>
 					</div>

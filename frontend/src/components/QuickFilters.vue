@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { AlertCircle, User, Flag, Calendar, X } from "lucide-vue-next";
 import { getStatusOption } from "../utils/taskStatus";
+import UserSelect from "./UserSelect.vue";
 
 const props = defineProps({
 	project: {
@@ -144,6 +145,18 @@ function toggleMyTasks() {
 	emitFilters();
 }
 
+function setAssignee(assignee) {
+	activeAssignee.value = assignee;
+	myTasksActive.value = assignee === currentUser.value;
+	emitFilters();
+}
+
+function clearAssignee() {
+	activeAssignee.value = null;
+	myTasksActive.value = false;
+	emitFilters();
+}
+
 function toggleDueToday() {
 	dueTodayActive.value = !dueTodayActive.value;
 	emitFilters();
@@ -219,6 +232,24 @@ function emitFilters() {
 				<Calendar class="w-3 h-3" />
 				{{ translate("Due Today") }}
 			</button>
+		</div>
+
+		<!-- Separator -->
+		<div class="hidden sm:block w-px self-stretch bg-gray-200 dark:bg-gray-700"></div>
+
+		<!-- Assignee -->
+		<div class="flex w-full max-w-full shrink-0 flex-col items-stretch gap-1 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+			<span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+				{{ translate("Assigned user") }}
+			</span>
+			<UserSelect
+				:model-value="activeAssignee ? [activeAssignee] : []"
+				:multiple="false"
+				:placeholder="translate('All users')"
+				class="w-full sm:w-64"
+				@add="setAssignee"
+				@remove="clearAssignee"
+			/>
 		</div>
 
 		<!-- Separator -->

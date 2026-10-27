@@ -119,7 +119,9 @@ defineExpose({
 						class="w-4 h-4 rounded-full"
 					/>
 					<User v-else class="w-3 h-3" />
-					<span class="truncate max-w-[100px]">{{ user.full_name || user.name }}</span>
+					<span class="max-w-[180px] truncate" :title="user.full_name || user.name">
+						{{ user.full_name || user.name }}
+					</span>
 					<button @click.stop="emit('remove', user.name)" class="hover:text-blue-600">
 						<X class="w-3 h-3" />
 					</button>
@@ -140,7 +142,7 @@ defineExpose({
 					ref="searchInputRef"
 					v-model="searchQuery"
 					type="text"
-					placeholder="Search users..."
+					:placeholder="translate('Search users...')"
 					class="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-400"
 					@click.stop
 				/>
