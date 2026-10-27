@@ -1,32 +1,44 @@
 <template>
-	<div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
-		<table class="min-w-full border-separate border-spacing-0 text-sm">
+	<div class="max-h-[calc(100vh-20rem)] overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+		<table class="w-full min-w-full border-separate border-spacing-0 text-sm">
 			<thead>
 				<tr>
 					<th
-						class="sticky left-0 z-10 bg-gray-50 border-b border-gray-200 px-3 sm:px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 w-36 min-w-[9rem] sm:w-56 sm:min-w-[13rem]"
+						class="sticky left-0 top-0 z-30 w-36 min-w-[9rem] border-b border-r border-gray-200 bg-gray-50 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 sm:w-56 sm:min-w-[13rem] sm:px-4"
 					>
 						{{ translate("Employee") }}
 					</th>
 					<th
 						v-for="date in store.visibleDates"
 						:key="date"
-						class="border-b border-l border-gray-200 px-2 py-2 text-left font-normal min-w-[9.5rem]"
-						:class="date === today ? 'bg-violet-50' : 'bg-gray-50'"
+						class="sticky top-0 z-20 min-w-[9.5rem] border-b border-l border-gray-200 px-2 py-2 text-left font-normal"
+						:class="date === today ? 'bg-violet-100' : 'bg-gray-50'"
+						:title="formatDay(date, LONG_DAY)"
 					>
-						<div
-							class="text-xs font-semibold uppercase tracking-wide"
-							:class="date === today ? 'text-violet-700' : 'text-gray-600'"
-						>
-							{{ formatDay(date) }}
+						<div class="flex items-center justify-between gap-2">
+							<div
+								class="text-xs font-semibold uppercase tracking-wide"
+								:class="date === today ? 'text-violet-700' : 'text-gray-600'"
+							>
+								{{ formatDay(date) }}
+							</div>
+							<span
+								v-if="date === today"
+								class="rounded-full bg-violet-600 px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-white"
+							>
+								{{ translate("Today") }}
+							</span>
 						</div>
-						<div class="mt-0.5 text-xs text-gray-500 tabular-nums">
+						<div
+							class="mt-0.5 text-xs tabular-nums"
+							:class="LOAD_TEXT[getLoadState(store.getDayTotals(date).planned, store.getDayTotals(date).available)]"
+						>
 							{{ formatHours(store.getDayTotals(date).planned) }} /
 							{{ formatHours(store.getDayTotals(date).available) }} h
 						</div>
 					</th>
 					<th
-						class="border-b border-l border-gray-200 bg-gray-50 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 min-w-[8.5rem]"
+						class="sticky top-0 z-20 min-w-[8.5rem] border-b border-l border-gray-200 bg-gray-50 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
 					>
 						{{ translate("Week total") }}
 					</th>
@@ -35,7 +47,7 @@
 			<tbody>
 				<tr v-for="employee in store.filteredEmployees" :key="employee.name">
 					<td
-						class="sticky left-0 z-10 bg-white border-b border-gray-100 px-3 sm:px-4 py-3 align-top"
+						class="sticky left-0 z-10 border-b border-r border-gray-100 bg-white px-3 py-3 align-top sm:px-4"
 					>
 						<div class="flex items-center gap-3 min-w-0">
 							<div
@@ -71,6 +83,7 @@
 						<div
 							class="group relative flex h-full min-h-[5.5rem] flex-col gap-1 rounded-md border p-1.5"
 							:class="cellClass(employee.name, date)"
+							:aria-label="cellLabel(employee.name, date)"
 						>
 							<div class="flex items-center justify-between gap-1 text-xs">
 								<span
@@ -222,6 +235,8 @@ const DAY_STATUS_LABELS = {
 	inactive: "Not employed",
 };
 
+const LONG_DAY = { weekday: "long", day: "numeric", month: "long", year: "numeric" };
+
 function load(employee, date) {
 	return getLoadState(store.getPlanned(employee, date), store.getAvailable(employee, date));
 }
@@ -236,7 +251,14 @@ function cellClass(employee, date) {
 	if (load(employee, date) === "over") return "border-red-200 bg-red-50/60";
 	if (day.hours <= 0) return "border-transparent bg-gray-100/70";
 	if (day.status === "leave" || day.status === "holiday") return "border-amber-100 bg-amber-50/50";
+	if (date === today) return "border-violet-200 bg-violet-50/40";
 	return "border-transparent bg-white";
+}
+
+function cellLabel(employee, date) {
+	const planned = formatHours(store.getPlanned(employee, date));
+	const available = formatHours(store.getAvailable(employee, date));
+	return `${formatDay(date, LONG_DAY)}: ${planned} / ${available} h`;
 }
 
 function dayLabel(employee, date) {

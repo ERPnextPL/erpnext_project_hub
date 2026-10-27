@@ -185,12 +185,13 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 
 	const filteredEmployees = computed(() => {
 		const query = search.value.trim().toLowerCase();
-		if (!query) return employees.value;
-		return employees.value.filter((employee) =>
-			[employee.employee_name, employee.name, employee.designation]
+		return employees.value.filter((employee) => {
+			if (department.value && employee.department !== department.value) return false;
+			if (!query) return true;
+			return [employee.employee_name, employee.name, employee.designation]
 				.filter(Boolean)
-				.some((value) => value.toLowerCase().includes(query))
-		);
+				.some((value) => value.toLowerCase().includes(query));
+		});
 	});
 
 	// Weekend days stay hidden unless asked for, or somebody works or is planned on them.
@@ -199,7 +200,7 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 			(date) =>
 				!isWeekend(date) ||
 				showWeekend.value ||
-				employees.value.some(
+				filteredEmployees.value.some(
 					(employee) =>
 						getAvailable(employee.name, date) > 0 ||
 						getEntries(employee.name, date).length > 0
@@ -295,7 +296,6 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 		try {
 			const data = await apiCall("get_work_plan", {
 				week_start: weekStart.value,
-				department: department.value || null,
 			});
 			if (requestId !== fetchRequestId) return; // superseded by a later fetchPlan() call
 
@@ -385,7 +385,8 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 
 	function setDepartment(value) {
 		department.value = value || "";
-		return refreshAfterNavigation();
+		if (viewMode.value === "forecast") return fetchForecast();
+		return Promise.resolve();
 	}
 
 	function setShowWeekend(value) {

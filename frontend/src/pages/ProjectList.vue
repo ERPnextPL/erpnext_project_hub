@@ -148,14 +148,14 @@ function sortIcon(field) {
 		<!-- Header -->
 		<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
 			<div class="w-full px-4 sm:px-6 lg:px-8">
-				<div class="flex items-center justify-between h-16">
-					<div class="flex items-center gap-3">
+				<div class="grid min-h-16 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:gap-3">
+					<div class="order-1 flex items-center gap-3 md:order-none">
 						<Folder class="w-6 h-6 text-blue-600" />
 						<h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
 							{{ translate("Projects") }}
 						</h1>
 					</div>
-					<div class="flex items-center gap-3 sm:gap-4">
+					<div class="order-2 flex w-full justify-end md:order-none md:w-auto">
 						<OutlinerNav />
 					</div>
 				</div>

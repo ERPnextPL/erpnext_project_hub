@@ -555,6 +555,7 @@ onUnmounted(() => {
 
 <template>
 	<div
+		:data-task-name="task.name"
 		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
