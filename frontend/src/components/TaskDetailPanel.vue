@@ -2086,7 +2086,7 @@ async function deleteAttachment(fileName) {
 											:class="['mt-0.5 h-4 w-4 flex-shrink-0', child.status === 'Completed' ? 'text-green-500' : 'text-gray-400']"
 										/>
 										<div class="min-w-0 flex-1">
-											<div :class="child.status === 'Completed' ? 'text-gray-400 line-through' : 'text-gray-800'" class="text-sm font-medium">
+							<div :class="['text-sm font-medium', ['Completed', 'Cancelled'].includes(child.status) ? 'text-gray-400 line-through' : 'text-gray-800']">
 												{{ child.subject }}
 											</div>
 											<div class="mt-1 text-xs text-gray-500">

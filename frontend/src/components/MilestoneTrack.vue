@@ -60,17 +60,20 @@ function healthLabel(h) {
 <template>
 	<div
 		v-if="milestones.length"
-		class="overflow-x-auto border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+		class="overscroll-x-contain overflow-x-auto scroll-smooth border-b border-gray-200 bg-white snap-x snap-mandatory dark:border-gray-700 dark:bg-gray-800"
+		:aria-label="translate('Project milestones')"
 	>
-		<div class="flex items-start px-4 py-3 sm:px-6 lg:px-8" style="min-width: max-content">
+		<div class="flex min-w-max items-start px-4 py-3 sm:px-6 lg:px-8" role="list">
 			<template v-for="(ms, i) in milestones" :key="ms.name">
 				<!-- Node -->
-				<div class="flex flex-col items-center" style="width: 72px">
+				<div class="flex snap-start flex-col items-center" style="width: 96px" role="listitem">
 					<button
-						class="h-8 w-8 flex-shrink-0 rounded-full border-2 flex items-center justify-center transition-all duration-150 focus:outline-none"
+						class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border-2 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
 						:class="isSelected(ms.name) ? 'ring-2 ring-offset-2 ring-blue-400 scale-110' : 'hover:scale-110'"
 						:style="nodeStyle(ms)"
-						:title="`${ms.milestone_name || ms.name} · ${healthLabel(ms.health)}`"
+						:title="`${ms.milestone_name || ms.name} · ${healthLabel(ms.health)} · ${ms.progress || 0}%`"
+						:aria-label="`${ms.milestone_name || ms.name}: ${healthLabel(ms.health)}, ${ms.progress || 0}%`"
+						:aria-pressed="isSelected(ms.name)"
 						@click="toggle(ms.name)"
 					>
 						<Check v-if="ms.health === 'completed'" class="h-3.5 w-3.5" stroke-width="3" />
@@ -80,7 +83,7 @@ function healthLabel(h) {
 					</button>
 
 					<p
-						class="mt-1.5 max-w-[68px] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] font-medium leading-tight"
+						class="mt-1.5 max-w-[92px] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] font-medium leading-tight"
 						:class="isSelected(ms.name) ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'"
 						:title="ms.milestone_name || ms.name"
 					>
@@ -94,8 +97,8 @@ function healthLabel(h) {
 				<!-- Connector line (not after last) -->
 				<div
 					v-if="i < milestones.length - 1"
-					class="mt-[15px] h-0.5 flex-shrink-0"
-					style="width: 20px"
+					class="mt-[17px] h-0.5 flex-shrink-0"
+					style="width: 24px"
 					:style="lineStyle(ms)"
 				></div>
 			</template>

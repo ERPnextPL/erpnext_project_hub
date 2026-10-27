@@ -40,6 +40,11 @@ const emit = defineEmits(["toggle-select", "toggle-all"]);
 
 const store = useTaskStore();
 const draggedTask = ref(null);
+const dragItems = ref([]);
+const dragPointerX = ref(0);
+const dragDropTarget = ref(null);
+const dragDropMode = ref(null);
+const dragDropInsertAfter = ref(false);
 const addingSubtaskTo = ref(null); // Track which task we're adding a subtask to
 const showTimeLogModal = ref(false);
 const selectedTaskForTimeLog = ref(null);
@@ -216,24 +221,139 @@ function focusBottomQuickAdd() {
 }
 
 function handleDragStart(evt) {
-	draggedTask.value = evt.item.__vue__?.task || null;
+	draggedTask.value = dragItems.value[evt.oldIndex] || null;
+	dragPointerX.value = evt.originalEvent?.clientX || 0;
+	dragDropTarget.value = null;
+	dragDropMode.value = null;
 }
 
-function handleDragEnd(evt) {
+function handleDragOver(evt) {
+	dragPointerX.value = evt.clientX;
+}
+
+function handleDragMove(evt) {
+	const target = evt.relatedContext?.element;
+	if (!target || target.name === draggedTask.value?.name) {
+		dragDropTarget.value = null;
+		dragDropMode.value = null;
+		return true;
+	}
+
+	dragDropTarget.value = target;
+	const row = Array.from(taskTreeRef.value?.querySelectorAll(".task-row") || []).find(
+		(element) => element.dataset.taskName === target.name
+	);
+	const clientY = evt.originalEvent?.clientY;
+	if (!row || typeof clientY !== "number") {
+		dragDropMode.value = "child";
+		return true;
+	}
+
+	const rect = row.getBoundingClientRect();
+	const edge = Math.max(12, rect.height * 0.25);
+	dragDropMode.value =
+		clientY <= rect.top + edge || clientY >= rect.bottom - edge ? "reorder" : "child";
+	dragDropInsertAfter.value = clientY >= rect.top + rect.height / 2;
+	return true;
+}
+
+function getDropTarget(newIndex, oldIndex) {
+	const movingDown = newIndex > oldIndex;
+	const nextTask = dragItems.value[newIndex + 1];
+	const previousTask = dragItems.value[newIndex - 1];
+	return {
+		task: movingDown ? nextTask || previousTask : previousTask || nextTask,
+		insertAfter: !nextTask,
+	};
+}
+
+function getDropParent(dropTarget) {
+	if (!dropTarget?.task) return null;
+	if (dragDropMode.value === "child") return dropTarget.task.name;
+	if (dragDropMode.value === "reorder") return dropTarget.task.parent_task || null;
+
+	const containerLeft = taskTreeRef.value?.getBoundingClientRect().left || 0;
+	const indentLevel = dropTarget.task.level || 0;
+	const childIndentStart = containerLeft + 48 + indentLevel * 24;
+	if (dragPointerX.value >= childIndentStart && dropTarget.task.name !== draggedTask.value?.name) {
+		return dropTarget.task.name;
+	}
+
+	return dropTarget.task.parent_task || null;
+}
+
+function isDescendant(taskName, possibleAncestor) {
+	let current = store.tasks.find((task) => task.name === taskName);
+	const visited = new Set();
+
+	while (current?.parent_task && !visited.has(current.parent_task)) {
+		if (current.parent_task === possibleAncestor) return true;
+		visited.add(current.parent_task);
+		current = store.tasks.find((task) => task.name === current.parent_task);
+	}
+
+	return false;
+}
+
+function getDropIndex(dropTarget, newParent) {
+	const siblings = store.tasks
+		.filter((task) => task.parent_task === newParent && task.name !== draggedTask.value.name)
+		.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+
+	if (!dropTarget?.task) {
+		return siblings.length;
+	}
+
+	if (newParent === dropTarget.task.name) {
+		return siblings.length;
+	}
+
+	const targetPosition = siblings.findIndex((task) => task.name === dropTarget.task.name);
+	if (targetPosition < 0) return siblings.length;
+	return targetPosition + (dropTarget.insertAfter ? 1 : 0);
+}
+
+async function handleDragEnd(evt) {
 	if (!draggedTask.value) return;
 
 	const newIndex = evt.newIndex;
 	const oldIndex = evt.oldIndex;
+	const dragged = draggedTask.value;
 
-	if (newIndex !== oldIndex) {
-		// Calculate new parent and idx based on position
-		const targetTask = props.tasks[newIndex];
-		const newParent = targetTask?.parent_task || null;
-
-		store.reorderTask(draggedTask.value.name, newParent, newIndex);
+	if (newIndex === oldIndex) {
+		draggedTask.value = null;
+		dragDropTarget.value = null;
+		dragDropMode.value = null;
+		return;
 	}
 
-	draggedTask.value = null;
+	const dropTarget = dragDropTarget.value
+		? { task: dragDropTarget.value, insertAfter: dragDropInsertAfter.value }
+		: getDropTarget(newIndex, oldIndex);
+	const newParent = getDropParent(dropTarget);
+	if (newParent === dragged.name || isDescendant(newParent, dragged.name)) {
+		draggedTask.value = null;
+		dragDropTarget.value = null;
+		dragDropMode.value = null;
+		return;
+	}
+
+	const newIdx = getDropIndex(dropTarget, newParent);
+	try {
+		await store.reorderTask(dragged.name, newParent, newIdx);
+	} catch (error) {
+		if (!error.alerted && window.frappe) {
+			frappe.show_alert({
+				message: translate("Failed to move task"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		draggedTask.value = null;
+		dragDropTarget.value = null;
+		dragDropMode.value = null;
+		dragItems.value = [...sortedTasks.value];
+	}
 }
 
 const highlightedTasks = ref(new Set());
@@ -428,6 +548,14 @@ const sortedTasks = computed(() => {
 
 	return tasksCopy;
 });
+
+watch(
+	sortedTasks,
+	(tasks) => {
+		if (!draggedTask.value) dragItems.value = [...tasks];
+	},
+	{ immediate: true }
+);
 </script>
 
 <template>
@@ -464,13 +592,14 @@ const sortedTasks = computed(() => {
 		</div>
 
 		<!-- Task rows -->
-		<div v-if="showBody" class="divide-y divide-gray-100 dark:divide-gray-800">
+		<div v-if="showBody" class="divide-y divide-gray-100 dark:divide-gray-800" @dragover="handleDragOver">
 			<draggable
-				:list="sortedTasks"
+				:list="dragItems"
 				item-key="name"
 				handle=".drag-handle"
 				ghost-class="opacity-50"
 				:disabled="!!store.sortBy || !enableReorder"
+				:move="handleDragMove"
 				@start="handleDragStart"
 				@end="handleDragEnd"
 			>

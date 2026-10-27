@@ -2,6 +2,7 @@
 import { ref, onMounted, computed, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { Users, Plus, X, User } from "lucide-vue-next";
+import { translate } from "../utils/translation";
 
 const props = defineProps({
 	projectId: {
@@ -96,10 +97,12 @@ onMounted(() => {
 		<!-- Team button -->
 		<button
 			@click="isOpen = !isOpen"
+			:title="translate('Project Team')"
+			:aria-expanded="isOpen"
 			class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
 		>
 			<Users class="w-4 h-4" />
-			<span>Team</span>
+			<span>{{ translate("Team") }}</span>
 			<span v-if="projectUsers.length > 0" class="text-xs text-gray-500">
 				({{ projectUsers.length }})
 			</span>
@@ -113,7 +116,7 @@ onMounted(() => {
 			<!-- Header -->
 			<div class="px-4 py-3 border-b border-gray-200">
 				<div class="flex items-center justify-between">
-					<h3 class="text-sm font-semibold text-gray-900">Project Team</h3>
+					<h3 class="text-sm font-semibold text-gray-900">{{ translate("Project Team") }}</h3>
 					<button
 						v-if="!isAddingUser"
 						@click.stop="openAddUser"
@@ -131,7 +134,7 @@ onMounted(() => {
 					<input
 						v-model="searchQuery"
 						type="text"
-						placeholder="Search users..."
+						:placeholder="translate('Search users...')"
 						class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-400"
 						@click.stop
 					/>
