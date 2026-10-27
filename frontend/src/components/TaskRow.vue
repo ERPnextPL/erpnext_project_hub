@@ -7,7 +7,7 @@ const openPriorityMenuTask = moduleRef(null);
 </script>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
 import { stripHtmlToText } from "../utils/plainText";
@@ -98,6 +98,8 @@ const isTouchDevice = () => {
 
 // Context menu
 const contextMenuPosition = ref({ x: 0, y: 0 });
+const contextMenuRef = ref(null);
+const contextMenuAnchor = ref({ x: 0, y: 0 });
 const showContextMenu = computed(() => props.activeContextMenuTaskName === props.task.name);
 
 // User assignment dropdown
@@ -397,8 +399,24 @@ function showMenu(e) {
 		return;
 	}
 	e.preventDefault();
+	contextMenuAnchor.value = { x: e.clientX, y: e.clientY };
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
 	emit("contextmenu-open", props.task.name);
+	nextTick(positionContextMenu);
+}
+
+function positionContextMenu() {
+	const menu = contextMenuRef.value;
+	if (!menu) return;
+
+	const margin = 8;
+	const rect = menu.getBoundingClientRect();
+	const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+	const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+	contextMenuPosition.value = {
+		x: Math.min(Math.max(margin, contextMenuAnchor.value.x), maxX),
+		y: Math.min(Math.max(margin, contextMenuAnchor.value.y), maxY),
+	};
 }
 
 async function deleteTask() {
@@ -509,6 +527,10 @@ function handleGlobalClick(event) {
 	}
 }
 
+watch(showContextMenu, (isOpen) => {
+	if (isOpen) nextTick(positionContextMenu);
+});
+
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
 	// The menu is fixed-positioned, so close it instead of letting it drift on scroll
@@ -516,6 +538,7 @@ onMounted(() => {
 	document.addEventListener("scroll", closePriorityDropdown, true);
 	realWindow?.addEventListener?.("resize", closeStatusDropdown);
 	realWindow?.addEventListener?.("resize", closePriorityDropdown);
+	realWindow?.addEventListener?.("resize", positionContextMenu);
 });
 
 onUnmounted(() => {
@@ -524,6 +547,7 @@ onUnmounted(() => {
 	document.removeEventListener("scroll", closePriorityDropdown, true);
 	realWindow?.removeEventListener?.("resize", closeStatusDropdown);
 	realWindow?.removeEventListener?.("resize", closePriorityDropdown);
+	realWindow?.removeEventListener?.("resize", positionContextMenu);
 	closeStatusDropdown();
 	closePriorityDropdown();
 });
@@ -917,7 +941,8 @@ onUnmounted(() => {
 		<Teleport to="body">
 			<div
 				v-if="showContextMenu"
-				class="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
+				ref="contextMenuRef"
+				class="fixed max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
 				:style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
 			>
 				<button

@@ -141,6 +141,11 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 	const search = ref("");
 	const department = ref("");
 	const showWeekend = ref(readShowWeekend());
+	const viewMode = ref("plan");
+	const forecastPeriod = ref("week");
+	const forecast = ref(null);
+	const forecastLoading = ref(false);
+	const forecastError = ref(null);
 
 	const projectsCache = new Map();
 	// Guards fetchPlan() against out-of-order responses: a slow request for a
@@ -313,27 +318,74 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 		}
 	}
 
+	function getForecastRange(period = forecastPeriod.value) {
+		const anchor = parseISODate(weekStart.value);
+		if (period === "month") {
+			const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+			const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+			return { startDate: toISODate(start), endDate: toISODate(end) };
+		}
+
+		const end = new Date(anchor);
+		end.setDate(end.getDate() + 6);
+		return { startDate: weekStart.value, endDate: toISODate(end) };
+	}
+
+	async function fetchForecast() {
+		const { startDate, endDate } = getForecastRange();
+		forecastLoading.value = true;
+		forecastError.value = null;
+		try {
+			forecast.value = await apiCall("get_work_forecast", {
+				start_date: startDate,
+				end_date: endDate,
+				department: department.value || null,
+			});
+		} catch (err) {
+			forecastError.value = err.message || translate("Failed to load the forecast");
+		} finally {
+			forecastLoading.value = false;
+		}
+	}
+
+	function setViewMode(mode) {
+		viewMode.value = mode === "forecast" ? "forecast" : "plan";
+		if (viewMode.value === "forecast") return fetchForecast();
+		return Promise.resolve();
+	}
+
+	function setForecastPeriod(period) {
+		forecastPeriod.value = period === "month" ? "month" : "week";
+		if (viewMode.value === "forecast") return fetchForecast();
+		return Promise.resolve();
+	}
+
+	async function refreshAfterNavigation() {
+		await fetchPlan();
+		if (viewMode.value === "forecast") await fetchForecast();
+	}
+
 	function shiftWeek(weeks) {
 		const monday = parseISODate(weekStart.value);
 		monday.setDate(monday.getDate() + weeks * 7);
 		weekStart.value = toISODate(monday);
-		return fetchPlan();
+		return refreshAfterNavigation();
 	}
 
 	function goToCurrentWeek() {
 		weekStart.value = toISODate(getMonday());
-		return fetchPlan();
+		return refreshAfterNavigation();
 	}
 
 	function goToDate(isoDate) {
 		if (!isoDate) return;
 		weekStart.value = toISODate(getMonday(parseISODate(isoDate)));
-		return fetchPlan();
+		return refreshAfterNavigation();
 	}
 
 	function setDepartment(value) {
 		department.value = value || "";
-		return fetchPlan();
+		return refreshAfterNavigation();
 	}
 
 	function setShowWeekend(value) {
@@ -417,6 +469,11 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 		search,
 		department,
 		showWeekend,
+		viewMode,
+		forecastPeriod,
+		forecast,
+		forecastLoading,
+		forecastError,
 		filteredEmployees,
 		visibleDates,
 		weekTotals,
@@ -429,6 +486,9 @@ export const useWorkPlanningStore = defineStore("workPlanning", () => {
 		getEmployeeWeek,
 		getDayTotals,
 		fetchPlan,
+		fetchForecast,
+		setViewMode,
+		setForecastPeriod,
 		shiftWeek,
 		goToCurrentWeek,
 		goToDate,
