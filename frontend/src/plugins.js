@@ -18,6 +18,7 @@ import * as VueRouter from "vue-router";
 import * as tabRegistry from "./tabRegistry";
 import OutlinerNav from "./components/OutlinerNav.vue";
 import BackToDeskButton from "./components/BackToDeskButton.vue";
+import TaskDetailPanel from "./components/TaskDetailPanel.vue";
 
 function loadAsset(element) {
 	return new Promise((resolve, reject) => {
@@ -55,6 +56,7 @@ export async function loadPlugins() {
 		tabRegistry,
 		OutlinerNav,
 		BackToDeskButton,
+		TaskDetailPanel,
 	};
 
 	await Promise.all(
