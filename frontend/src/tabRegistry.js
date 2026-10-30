@@ -38,6 +38,8 @@ class TabRegistry {
 	 * @param {string} tabConfig.bg - Tailwind background class for active state (plugins: bg-<color>-50)
 	 * @param {Function} tabConfig.component - Vue component lazy loader
 	 * @param {number} [tabConfig.order=50] - Sort order (lower numbers appear first)
+	 * @param {Function} [tabConfig.isVisible] - Returns false when the current user lacks
+	 *   permission for the tab: it is hidden from navigation and its route redirects away.
 	 */
 	registerTab(tabConfig) {
 		if (!tabConfig.key) {
@@ -105,9 +107,20 @@ class TabRegistry {
 	 * Get navigation items (subset of tab data for navigation component)
 	 * @returns {Array} Array of navigation items
 	 */
+	isTabVisible(tab) {
+		if (typeof tab.isVisible !== 'function') return true;
+		try {
+			return tab.isVisible() !== false;
+		} catch (error) {
+			console.error(`Tab isVisible check failed: ${tab.key}`, error);
+			return false;
+		}
+	}
+
 	getNavItems() {
 		const seenRouteNames = new Set();
 		return this.getTabs()
+			.filter((tab) => this.isTabVisible(tab))
 			.filter((tab) => {
 				if (seenRouteNames.has(tab.routeName)) {
 					return false;
@@ -134,6 +147,7 @@ class TabRegistry {
 			path: tab.path,
 			name: tab.routeName,
 			component: tab.component,
+			beforeEnter: () => (this.isTabVisible(tab) ? true : { path: '/project-hub' }),
 		}));
 	}
 
