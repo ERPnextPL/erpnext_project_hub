@@ -6,8 +6,6 @@ import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import DatePickerPopover from "../DatePickerPopover.vue";
-import MilestoneLabel from "../atoms/MilestoneLabel.vue";
-import { getTaskMilestone } from "../../utils/milestone";
 import {
 	CheckCircle2,
 	Flag,
@@ -29,7 +27,6 @@ const props = defineProps({
 	selected: Boolean,
 });
 
-const taskMilestone = computed(() => getTaskMilestone(props.task));
 const emit = defineEmits(["toggle-select"]);
 const store = useMyTasksStore();
 const isUpdating = ref(false);
@@ -290,13 +287,6 @@ onUnmounted(() => {
 						<span class="truncate max-w-[120px]">{{ task.project_name }}</span>
 					</div>
 
-					<MilestoneLabel
-						v-if="taskMilestone"
-						:label="taskMilestone.label"
-						:color="taskMilestone.color"
-						size="xs"
-						class="max-w-[140px]"
-					/>
 
 					<!-- Status badge -->
 					<span

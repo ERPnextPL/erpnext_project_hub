@@ -7,8 +7,6 @@ import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
 import BlockedToggle from "../atoms/BlockedToggle.vue";
-import MilestoneLabel from "../atoms/MilestoneLabel.vue";
-import { getTaskMilestone } from "../../utils/milestone";
 import DatePickerPopover from "../DatePickerPopover.vue";
 import {
 	Clock,
@@ -48,7 +46,6 @@ const props = defineProps({
 	selected: Boolean,
 });
 
-const taskMilestone = computed(() => getTaskMilestone(props.task));
 const emit = defineEmits(["open-time-log-modal", "toggle-expand", "toggle-select"]);
 
 const store = useMyTasksStore();
@@ -341,12 +338,6 @@ onUnmounted(() => {
 				<span class="truncate">{{ task.project_name }}</span>
 			</div>
 			<span v-else class="text-gray-300">—</span>
-			<MilestoneLabel
-				v-if="taskMilestone"
-				:label="taskMilestone.label"
-				:color="taskMilestone.color"
-				size="xs"
-			/>
 		</div>
 
 		<!-- Status -->

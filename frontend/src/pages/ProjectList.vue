@@ -13,6 +13,9 @@ import {
 	ArrowUp,
 	ArrowDown,
 	X,
+	LayoutList,
+	Columns,
+	GanttChart,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -20,6 +23,7 @@ import ProjectCard from "../components/ProjectCard.vue";
 import ProjectListRow from "../components/ProjectListRow.vue";
 import ProjectListHeader from "../components/ProjectListHeader.vue";
 import { translate } from "../utils/translation";
+import { useDefaultProjectView } from "../composables/useDefaultProjectView";
 
 const router = useRouter();
 const activeProjects = ref([]);
@@ -33,6 +37,14 @@ const completedByFilter = ref("");
 
 // View mode: 'grid' | 'list'
 const viewMode = ref("grid");
+
+// Default view used when opening a project
+const { defaultProjectView, setDefaultProjectView } = useDefaultProjectView();
+const projectViewOptions = [
+	{ value: "list", label: () => translate("List"), icon: LayoutList },
+	{ value: "board", label: () => translate("Board"), icon: Columns },
+	{ value: "timeline", label: () => translate("Timeline"), icon: GanttChart },
+];
 
 // Search
 const searchQuery = ref("");
@@ -211,6 +223,36 @@ function sortIcon(field) {
 					>
 						{{ completedProjects.length }} {{ translate("completed") }}
 					</span>
+					<!-- Default project view -->
+					<div
+						class="ml-2 flex items-center gap-1.5"
+						role="radiogroup"
+						:aria-label="translate('Default project view')"
+					>
+						<span class="hidden text-xs text-gray-500 sm:inline dark:text-gray-400">
+							{{ translate("Open projects in") }}:
+						</span>
+						<div class="flex items-center border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+							<button
+								v-for="option in projectViewOptions"
+								:key="option.value"
+								type="button"
+								role="radio"
+								:aria-checked="defaultProjectView === option.value"
+								@click="setDefaultProjectView(option.value)"
+								:class="[
+									'flex items-center gap-1 px-2 py-2 text-xs font-medium transition-colors',
+									defaultProjectView === option.value
+										? 'bg-blue-600 text-white'
+										: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700',
+								]"
+								:title="translate('Default project view') + ': ' + option.label()"
+							>
+								<component :is="option.icon" class="w-4 h-4" />
+								<span class="hidden lg:inline">{{ option.label() }}</span>
+							</button>
+						</div>
+					</div>
 					<!-- View toggle -->
 					<div class="flex items-center border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden ml-2">
 						<button

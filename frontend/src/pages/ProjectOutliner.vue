@@ -6,6 +6,7 @@ import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useProjectRequests } from "../composables/useProjectRequests";
+import { useDefaultProjectView } from "../composables/useDefaultProjectView";
 import {
 	openRequestsBoardFromLink,
 	requestsBoardPath,
@@ -104,7 +105,8 @@ async function applyBulkEdit(updates) {
 	}
 }
 
-const activeView = ref("list");
+const { defaultProjectView } = useDefaultProjectView();
+const activeView = ref(defaultProjectView.value);
 const listMode = ref("milestone");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const milestoneSidebarOpen = ref(false);
