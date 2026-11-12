@@ -34,6 +34,7 @@ import {
 	Upload,
 	Lock,
 	Unlink,
+	Link2,
 } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
@@ -1103,6 +1104,66 @@ const parentTaskInfo = computed(() => {
 	};
 });
 const isUnlinkingParent = ref(false);
+const isLinkingParent = ref(false);
+const selectedParentName = ref("");
+
+// Tasks that can become the parent: same project, open, not the task itself or its descendants
+const parentCandidates = computed(() => {
+	const currentName = props.task.name;
+	const blocked = new Set([currentName]);
+	let grew = true;
+	while (grew) {
+		grew = false;
+		for (const t of store.tasks) {
+			if (t.parent_task && blocked.has(t.parent_task) && !blocked.has(t.name)) {
+				blocked.add(t.name);
+				grew = true;
+			}
+		}
+	}
+	return store.tasks
+		.filter(
+			(t) =>
+				t.project === props.task.project &&
+				!blocked.has(t.name) &&
+				t.status !== "Completed" &&
+				t.status !== "Cancelled"
+		)
+		.sort((a, b) => (a.subject || "").localeCompare(b.subject || ""));
+});
+
+async function linkToParent() {
+	const parentName = selectedParentName.value;
+	if (!parentName || isLinkingParent.value) return;
+	isLinkingParent.value = true;
+	try {
+		const childCount = store.tasks.filter((t) => t.parent_task === parentName).length;
+		await store.reorderTask(props.task.name, parentName, childCount);
+		const updated = store.tasks.find((t) => t.name === props.task.name);
+		if (updated) {
+			const parent = store.tasks.find((t) => t.name === parentName);
+			store.selectTask({
+				...props.task,
+				...updated,
+				parent_task: parentName,
+				parent_subject: parent?.subject || parentName,
+			});
+		}
+		selectedParentName.value = "";
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Task attached to parent"),
+			indicator: "green",
+		});
+	} catch (error) {
+		console.error("Failed to attach task to parent:", error);
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Could not attach task to parent"),
+			indicator: "red",
+		});
+	} finally {
+		isLinkingParent.value = false;
+	}
+}
 
 async function unlinkFromParent() {
 	const parent = parentTaskInfo.value;
@@ -2259,6 +2320,32 @@ async function deleteAttachment(fileName) {
 								<ChevronDown :class="['h-4 w-4 text-gray-400 transition-transform', sectionStates.context ? 'rotate-180' : '']" />
 							</button>
 							<div v-if="sectionStates.context" class="space-y-4 p-4">
+								<div v-if="!parentTaskInfo">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Parent task") }}
+									</div>
+									<div class="flex items-center gap-2">
+										<select
+											v-model="selectedParentName"
+											class="min-w-0 flex-1 rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											:disabled="isLinkingParent"
+										>
+											<option value="">{{ translate("No parent task") }}</option>
+											<option v-for="candidate in parentCandidates" :key="candidate.name" :value="candidate.name">
+												{{ candidate.subject }} ({{ candidate.name }})
+											</option>
+										</select>
+										<button
+											type="button"
+											class="inline-flex shrink-0 items-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+											:disabled="!selectedParentName || isLinkingParent"
+											@click="linkToParent"
+										>
+											<Link2 class="h-4 w-4" />
+											{{ translate("Attach") }}
+										</button>
+									</div>
+								</div>
 								<div v-if="parentTaskInfo">
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Parent task") }}

@@ -47,3 +47,41 @@ class TestTaskDependencies(FrappeTestCase):
 		self.assertCountEqual(tasks[third.name]["depends_on"], [first.name, second.name])
 		self.assertEqual(tasks[first.name]["depends_on"], [])
 		self.assertEqual(tasks[second.name]["depends_on"], [])
+
+
+class TestReorderTaskParent(FrappeTestCase):
+	"""Attaching / detaching a task to a parent through reorder_task."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def _task(self, subject, parent=None):
+		return frappe.get_doc(
+			{"doctype": "Task", "subject": subject, "parent_task": parent}
+		).insert(ignore_permissions=True)
+
+	def test_attach_and_detach(self):
+		from erpnext_projekt_hub.api.project_hub import reorder_task
+
+		parent = self._task("_Test Parent - parent")
+		child = self._task("_Test Parent - child")
+
+		reorder_task(child.name, parent.name, 0)
+		self.assertEqual(frappe.db.get_value("Task", child.name, "parent_task"), parent.name)
+		self.assertEqual(frappe.db.get_value("Task", parent.name, "is_group"), 1)
+
+		reorder_task(child.name, None, 0)
+		self.assertFalse(frappe.db.get_value("Task", child.name, "parent_task"))
+
+	def test_cannot_move_under_own_descendant(self):
+		from erpnext_projekt_hub.api.project_hub import reorder_task
+
+		root = self._task("_Test Parent - root")
+		mid = self._task("_Test Parent - mid", parent=root.name)
+		leaf = self._task("_Test Parent - leaf", parent=mid.name)
+
+		with self.assertRaises(frappe.ValidationError):
+			reorder_task(root.name, leaf.name, 0)
+		with self.assertRaises(frappe.ValidationError):
+			reorder_task(root.name, root.name, 0)
+		self.assertFalse(frappe.db.get_value("Task", root.name, "parent_task"))

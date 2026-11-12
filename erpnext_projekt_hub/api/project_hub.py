@@ -1626,6 +1626,15 @@ def reorder_task(
 	if parent_task != old_parent:
 		# If new parent exists, ensure it's a group
 		if parent_task:
+			# Recursion check is disabled on save below, so guard against cycles here
+			ancestor = parent_task
+			visited = set()
+			while ancestor and ancestor not in visited:
+				if ancestor == task_name:
+					frappe.throw(_("A task cannot be moved under itself or its own subtask"))
+				visited.add(ancestor)
+				ancestor = frappe.db.get_value("Task", ancestor, "parent_task")
+
 			new_parent = frappe.get_doc("Task", parent_task)
 			if new_parent.status in ("Completed", "Cancelled"):
 				frappe.throw(
