@@ -4,6 +4,8 @@ import { useMyTasksStore } from "../../stores/myTasksStore";
 import { ACTIVE_STATUSES, getStatusLabel } from "../../utils/taskStatus";
 import { getRealWindow, translate } from "../../utils/translation";
 import TaskBoard from "../organisms/TaskBoard.vue";
+import KanbanAttentionPanel from "../KanbanAttentionPanel.vue";
+import { useBoardTaskFocus } from "../../composables/useBoardTaskFocus";
 
 /**
  * My Tasks board: the same TaskBoard as in a project, connected to the
@@ -13,6 +15,7 @@ const emit = defineEmits(["log-time"]);
 
 const store = useMyTasksStore();
 const realWindow = getRealWindow();
+const { highlightedTaskName, focusBoardTask } = useBoardTaskFocus();
 
 function notify(message, indicator = "green") {
 	realWindow?.frappe?.show_alert({ message, indicator });
@@ -64,7 +67,8 @@ async function updateTask(task, fields) {
 			])
 		}}
 	</p>
-	<div class="-mx-4 h-[calc(100vh-170px)] min-h-[28rem] sm:-mx-6 lg:-mx-8">
+	<div class="-mx-4 flex h-[calc(100vh-170px)] min-h-[28rem] sm:-mx-6 lg:-mx-8">
+		<div class="h-full min-w-0 flex-1">
 		<TaskBoard
 			:tasks="store.tasks"
 			:statuses="statuses"
@@ -78,6 +82,14 @@ async function updateTask(task, fields) {
 			@open="(task) => store.selectTask(task)"
 			@update="updateTask"
 			@log-time="(task) => emit('log-time', task)"
+		/>
+		</div>
+		<KanbanAttentionPanel
+			class="hidden md:flex"
+			:tasks="store.tasks"
+			:highlighted-task="highlightedTaskName"
+			:exclude="['unassigned']"
+			@focus-task="focusBoardTask"
 		/>
 	</div>
 </template>

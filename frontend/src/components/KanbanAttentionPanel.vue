@@ -7,6 +7,8 @@ import { getStatusLabel } from "../utils/taskStatus";
 const props = defineProps({
 	tasks: { type: Array, required: true },
 	highlightedTask: { type: String, default: null },
+	// Section keys to leave out (e.g. "unassigned" where every task is mine)
+	exclude: { type: Array, default: () => [] },
 });
 const emit = defineEmits(["focus-task"]);
 
@@ -66,7 +68,7 @@ const sections = computed(() => {
 			tasks: open.filter((t) => t.status === "Pending Review"),
 		},
 	];
-	return defs.filter((section) => section.tasks.length > 0);
+	return defs.filter((section) => !props.exclude.includes(section.key) && section.tasks.length > 0);
 });
 
 const total = computed(() => {

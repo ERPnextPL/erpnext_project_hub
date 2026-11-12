@@ -30,6 +30,7 @@ import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
 import KanbanAttentionPanel from "../components/KanbanAttentionPanel.vue";
+import { useBoardTaskFocus } from "../composables/useBoardTaskFocus";
 import TimelineView from "../components/TimelineView.vue";
 import UserSelect from "../components/UserSelect.vue";
 import DatePickerField from "../components/DatePickerField.vue";
@@ -64,22 +65,7 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
-const highlightedTaskName = ref(null);
-let highlightTimer = null;
-
-// Picked in the "Needs attention" panel: scroll the card into view and flash it
-function focusBoardTask(taskName) {
-	highlightedTaskName.value = taskName;
-	const card = document.querySelector(`[data-task="${CSS.escape(taskName)}"]`);
-	card?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-	const flash = ["ring-2", "ring-amber-400", "ring-offset-1"];
-	card?.classList.add(...flash);
-	clearTimeout(highlightTimer);
-	highlightTimer = setTimeout(() => {
-		card?.classList.remove(...flash);
-		highlightedTaskName.value = null;
-	}, 2500);
-}
+const { highlightedTaskName, focusBoardTask } = useBoardTaskFocus();
 const store = useTaskStore();
 const { selectedTask } = storeToRefs(store);
 const selectedTaskNames = ref([]);
