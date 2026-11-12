@@ -44,6 +44,13 @@ const translate = (text) => {
 		: text;
 };
 
+const referenceLinkUrl = computed(() => {
+	const raw = (editableTask.value?.reference_link || "").trim();
+	if (!raw) return "";
+	const withProtocol = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+	return /^https?:\/\//i.test(withProtocol) ? withProtocol : "";
+});
+
 const isTouchDevice = computed(() => {
 	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
 });
@@ -2251,13 +2258,26 @@ async function deleteAttachment(fileName) {
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Reference link") }}
 									</div>
-									<input
-										v-model="editableTask.reference_link"
-										type="url"
-										@blur="saveField('reference_link', editableTask.reference_link)"
-										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-										:placeholder="translate('GitHub branch, documentation, or another URL')"
-									/>
+									<div class="flex items-center gap-2">
+										<input
+											v-model="editableTask.reference_link"
+											type="url"
+											@blur="saveField('reference_link', editableTask.reference_link)"
+											class="min-w-0 flex-1 rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											:placeholder="translate('GitHub branch, documentation, or another URL')"
+										/>
+										<a
+											v-if="referenceLinkUrl"
+											:href="referenceLinkUrl"
+											target="_blank"
+											rel="noopener noreferrer"
+											:title="translate('Open link')"
+											class="inline-flex shrink-0 items-center gap-1 rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+										>
+											{{ translate("Open link") }}
+											<span aria-hidden="true">↗</span>
+										</a>
+									</div>
 								</div>
 							</div>
 						</section>
