@@ -131,8 +131,9 @@ function getTaskBarStyle(task) {
 	const endViewDate = new Date(startDate);
 	endViewDate.setDate(startDate.getDate() + daysToShow.value);
 
-	const taskStart = parseLocalDay(task.exp_start_date);
-	const taskEnd = parseLocalDay(task.exp_end_date);
+	const shown = withPendingDates(task);
+	const taskStart = parseLocalDay(shown.exp_start_date);
+	const taskEnd = parseLocalDay(shown.exp_end_date);
 
 	// If no dates, skip
 	if (!taskStart && !taskEnd) return null;
@@ -177,6 +178,13 @@ function getTaskBarStyle(task) {
 
 // ---- Drag to move / resize ----
 const drag = ref(null);
+// Dates saved optimistically: the bar stays where it was dropped until the API answers
+const pendingDates = ref({});
+
+function withPendingDates(task) {
+	const pending = pendingDates.value[task.name];
+	return pending ? { ...task, ...pending } : task;
+}
 const justDragged = ref(false);
 const DRAG_THRESHOLD_PX = 4;
 
@@ -253,8 +261,8 @@ async function onDragEnd() {
 	const task = props.tasks.find((t) => t.name === d.taskName);
 	if (!task) return;
 
-	let start = parseLocalDay(task.exp_start_date);
-	let end = parseLocalDay(task.exp_end_date);
+	let start = parseLocalDay(withPendingDates(task).exp_start_date);
+	let end = parseLocalDay(withPendingDates(task).exp_end_date);
 	if (!start && !end) return;
 	const hadStart = !!start;
 	const hadEnd = !!end;
@@ -272,10 +280,14 @@ async function onDragEnd() {
 		updates.exp_end_date = formatDay(range.end);
 	}
 
+	pendingDates.value = { ...pendingDates.value, [task.name]: updates };
 	try {
 		await store.updateTask(task.name, updates);
 	} catch (error) {
 		console.error("Failed to update task dates:", error);
+	} finally {
+		const { [task.name]: _done, ...rest } = pendingDates.value;
+		pendingDates.value = rest;
 	}
 }
 
@@ -285,8 +297,9 @@ const arrows = ref([]);
 let resizeObserver = null;
 
 function taskDates(task) {
-	let start = parseLocalDay(task.exp_start_date);
-	let end = parseLocalDay(task.exp_end_date);
+	const shown = withPendingDates(task);
+	let start = parseLocalDay(shown.exp_start_date);
+	let end = parseLocalDay(shown.exp_end_date);
 	if (!start && !end) return null;
 	start = start || end;
 	end = end || start;
@@ -335,7 +348,6 @@ function computeArrows() {
 			result.push({
 				key: `${predName}->${task.name}`,
 				path,
-				tip: `${x2},${y2}`,
 				tipPoints: `${x2},${y2} ${x2 - 6},${y2 - 4} ${x2 - 6},${y2 + 4}`,
 				conflict,
 			});
