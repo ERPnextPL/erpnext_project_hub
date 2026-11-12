@@ -64,10 +64,6 @@ const props = defineProps({
 		default: null,
 	},
 	selected: Boolean,
-	showMilestoneLabel: {
-		type: Boolean,
-		default: true,
-	},
 });
 
 const emit = defineEmits([
@@ -589,13 +585,6 @@ onUnmounted(() => {
 					</Transition>
 				</div>
 
-				<!-- Milestone indicator in grouped view (the group header names it) -->
-				<Diamond
-					v-if="task.milestone && !showMilestoneLabel"
-					class="w-3 h-3 flex-shrink-0"
-					:style="{ color: milestoneColor }"
-					:title="translate('Milestone: ') + task.milestone"
-				/>
 
 				<div class="flex-1 min-w-0">
 					<input
@@ -617,7 +606,7 @@ onUnmounted(() => {
 							{{ task.subject }}
 						</span>
 						<MilestoneLabel
-							v-if="showMilestoneLabel && taskMilestone"
+							v-if="taskMilestone"
 							:label="taskMilestone.label"
 							:color="taskMilestone.color"
 							size="xs"
