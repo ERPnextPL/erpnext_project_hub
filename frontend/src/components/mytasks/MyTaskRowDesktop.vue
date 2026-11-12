@@ -6,7 +6,7 @@ import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
-import BlockedToggle from "../shared/BlockedToggle.vue";
+import BlockedToggle from "../atoms/BlockedToggle.vue";
 import DatePickerPopover from "../DatePickerPopover.vue";
 import {
 	Clock,

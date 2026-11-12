@@ -447,7 +447,7 @@ useTaskDeepLink({
 			</div>
 
 			<!-- Board view -->
-			<MyTaskBoard v-else-if="viewMode === 'board'" />
+			<MyTaskBoard v-else-if="viewMode === 'board'" @log-time="openTimeLogModal" />
 
 			<!-- Task list -->
 			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" :selected-task-names="selectedTaskNames" @toggle-select="toggleTaskSelection" @toggle-all="toggleAllTaskSelection" />

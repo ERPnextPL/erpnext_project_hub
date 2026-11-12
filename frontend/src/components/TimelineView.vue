@@ -4,7 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight, Diamond } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusConfig } from "../utils/taskStatus";
 import { useTaskStore } from "../stores/taskStore";
-import BlockedToggle from "./shared/BlockedToggle.vue";
+import BlockedToggle from "./atoms/BlockedToggle.vue";
 
 const t = translate;
 

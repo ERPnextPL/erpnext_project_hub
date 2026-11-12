@@ -13,7 +13,9 @@ import { getRealWindow, translate } from "../utils/translation";
 import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
-import BlockedToggle from "./shared/BlockedToggle.vue";
+import BlockedToggle from "./atoms/BlockedToggle.vue";
+import { cancelTaskWithSubtasks } from "../utils/taskHierarchy";
+import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
 import DatePickerPopover from "./DatePickerPopover.vue";
 import {
 	GripVertical,
@@ -116,25 +118,12 @@ const canAddSubtask = computed(() => {
 	return isTaskActive(props.task.status);
 });
 
-const assignedUsers = computed(() => {
-	if (!props.task._assign) return [];
-	try {
-		const assigns = JSON.parse(props.task._assign);
-		return Array.isArray(assigns) ? assigns : [];
-	} catch {
-		return [];
-	}
-});
+const assignedUsers = computed(() => parseAssignees(props.task._assign));
 
 const firstAssignee = computed(() => {
 	if (assignedUsers.value.length === 0) return null;
 	const email = assignedUsers.value[0];
-	// Extract name from email (before @)
-	const name = email.split("@")[0];
-	return {
-		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
-	};
+	return { email, displayName: nameFromUserId(email) };
 });
 
 const milestoneColor = computed(() => {
@@ -294,68 +283,18 @@ async function updateStatus(newStatus) {
 	closeStatusDropdown();
 	if (newStatus === props.task.status) return;
 
-	// Special handling for Cancelled status
-	if (newStatus === "Cancelled") {
-		// Check if task has any subtasks
-		const subtasks = store.tasks.filter((t) => t.parent_task === props.task.name);
-		if (subtasks.length > 0) {
-			await handleCancelWithSubtasks();
-			return;
-		}
+	if (newStatus === "Cancelled" && hasChildren.value) {
+		await cancelTaskWithSubtasks(store.tasks, props.task, (name, updates) =>
+			name === props.task.name ? emit("update", name, updates) : store.updateTask(name, updates),
+		{
+			translate,
+			notify: (message, indicator) =>
+				realWindow?.frappe?.show_alert({ message, indicator }),
+		});
+		return;
 	}
 
 	emit("update", props.task.name, { status: newStatus });
-}
-
-async function handleCancelWithSubtasks() {
-	// Count all subtasks recursively
-	const countSubtasks = (taskName) => {
-		let count = 0;
-		store.tasks.forEach((task) => {
-			if (task.parent_task === taskName) {
-				count++;
-				count += countSubtasks(task.name);
-			}
-		});
-		return count;
-	};
-
-	const subtaskCount = countSubtasks(props.task.name);
-
-	// Ask for confirmation
-	const confirmed = confirm(
-		translate(
-			`This task has {subtaskCount} subtasks.\n\n` +
-				`Cancelling this task will also cancel all subtasks.\n\n` +
-				`Do you want to continue?`,
-			{ subtaskCount }
-		)
-	);
-
-	if (!confirmed) return;
-
-	// Cancel the main task
-	emit("update", props.task.name, { status: "Cancelled" });
-
-	// Cancel all subtasks recursively
-	const cancelSubtasks = async (taskName) => {
-		const subtasks = store.tasks.filter((task) => task.parent_task === taskName);
-		for (const subtask of subtasks) {
-			await store.updateTask(subtask.name, { status: "Cancelled" });
-			// Recursively cancel children
-			await cancelSubtasks(subtask.name);
-		}
-	};
-
-	await cancelSubtasks(props.task.name);
-
-	// Show success message
-	if (realWindow?.frappe) {
-		realWindow.frappe.show_alert({
-			message: translate("Task and {subtaskCount} subtasks cancelled", { subtaskCount }),
-			indicator: "orange",
-		});
-	}
 }
 
 function showUserAssignDropdown(e) {

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { Calendar, User, Flag, Lock } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusBadge } from "../utils/taskStatus";
+import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
 
 const props = defineProps({
 	task: {
@@ -44,14 +45,8 @@ const indentStyle = computed(() => {
 });
 
 const assigneeLabel = computed(() => {
-	if (!props.task._assign) return null;
-	try {
-		const assigned = JSON.parse(props.task._assign);
-		if (!Array.isArray(assigned) || assigned.length === 0) return null;
-		return assigned[0].split("@")[0].replace(/[._]/g, " ");
-	} catch {
-		return null;
-	}
+	const [first] = parseAssignees(props.task._assign);
+	return first ? nameFromUserId(first) : null;
 });
 
 const formattedDate = computed(() => {
