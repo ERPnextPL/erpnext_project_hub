@@ -94,6 +94,7 @@ function onContextMenu(event) {
 
 <template>
 	<article
+		:data-task="task.name"
 		role="button"
 		tabindex="0"
 		:aria-label="task.subject"

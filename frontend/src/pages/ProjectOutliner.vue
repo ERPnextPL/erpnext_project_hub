@@ -29,6 +29,7 @@ import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
+import KanbanAttentionPanel from "../components/KanbanAttentionPanel.vue";
 import TimelineView from "../components/TimelineView.vue";
 import UserSelect from "../components/UserSelect.vue";
 import DatePickerField from "../components/DatePickerField.vue";
@@ -63,6 +64,22 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
+const highlightedTaskName = ref(null);
+let highlightTimer = null;
+
+// Picked in the "Needs attention" panel: scroll the card into view and flash it
+function focusBoardTask(taskName) {
+	highlightedTaskName.value = taskName;
+	const card = document.querySelector(`[data-task="${CSS.escape(taskName)}"]`);
+	card?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+	const flash = ["ring-2", "ring-amber-400", "ring-offset-1"];
+	card?.classList.add(...flash);
+	clearTimeout(highlightTimer);
+	highlightTimer = setTimeout(() => {
+		card?.classList.remove(...flash);
+		highlightedTaskName.value = null;
+	}, 2500);
+}
 const store = useTaskStore();
 const { selectedTask } = storeToRefs(store);
 const selectedTaskNames = ref([]);
@@ -1097,12 +1114,19 @@ const groupedTasksByMilestone = computed(() => {
 					</div>
 				</div>
 
-				<div v-else-if="activeView === 'board'" class="h-full">
-					<KanbanBoard
+				<div v-else-if="activeView === 'board'" class="flex h-full min-w-0">
+					<div class="min-w-0 flex-1">
+						<KanbanBoard
+							:tasks="flattenedTasksWithFilters"
+							:project-id="projectId"
+							:visible-statuses="activeFilters.status"
+							@task-click="handleTaskClick"
+						/>
+					</div>
+					<KanbanAttentionPanel
 						:tasks="flattenedTasksWithFilters"
-						:project-id="projectId"
-						:visible-statuses="activeFilters.status"
-						@task-click="handleTaskClick"
+						:highlighted-task="highlightedTaskName"
+						@focus-task="focusBoardTask"
 					/>
 				</div>
 

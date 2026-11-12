@@ -20,6 +20,7 @@ declare module 'vue' {
     DatePickerField: typeof import('./src/components/DatePickerField.vue')['default']
     DatePickerPopover: typeof import('./src/components/DatePickerPopover.vue')['default']
     DueDateBadge: typeof import('./src/components/atoms/DueDateBadge.vue')['default']
+    KanbanAttentionPanel: typeof import('./src/components/KanbanAttentionPanel.vue')['default']
     KanbanBoard: typeof import('./src/components/KanbanBoard.vue')['default']
     MetaBadge: typeof import('./src/components/atoms/MetaBadge.vue')['default']
     MilestoneDropdown: typeof import('./src/components/MilestoneDropdown.vue')['default']
