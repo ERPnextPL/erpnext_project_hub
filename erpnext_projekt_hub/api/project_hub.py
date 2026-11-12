@@ -2969,6 +2969,9 @@ def get_my_tasks(
 			t.modified,
 			t.creation,
 			p.project_name,
+			t.milestone,
+			m.milestone_name,
+			m.color AS milestone_color,
 			(SELECT COUNT(*) FROM `tabTask` c WHERE c.parent_task = t.name) AS subtask_count,
 			(
 				SELECT COUNT(*) FROM `tabTask` c
@@ -2977,6 +2980,7 @@ def get_my_tasks(
 		FROM `tabTask` t
 		LEFT JOIN `tabTask` parent ON t.parent_task = parent.name
 		LEFT JOIN `tabProject` p ON t.project = p.name
+		LEFT JOIN `tabProject Milestone` m ON t.milestone = m.name
 		WHERE """
 		+ where_clause
 		+ """
@@ -3118,6 +3122,13 @@ def _get_task_response(task):
 	if getattr(task, "parent_task", None):
 		parent_subject = frappe.db.get_value("Task", task.parent_task, "subject")
 
+	milestone = task.get("milestone")
+	milestone_info = (
+		frappe.db.get_value("Project Milestone", milestone, ["milestone_name", "color"], as_dict=True)
+		if milestone
+		else None
+	) or {}
+
 	return {
 		"name": task.name,
 		"subject": task.subject,
@@ -3139,6 +3150,9 @@ def _get_task_response(task):
 		"modified": task.modified,
 		"is_overdue": compute_is_overdue(task),
 		"is_blocked": task.get("is_blocked"),
+		"milestone": milestone,
+		"milestone_name": milestone_info.get("milestone_name"),
+		"milestone_color": milestone_info.get("color"),
 		"subtask_count": frappe.db.count("Task", {"parent_task": task.name}),
 		"subtask_done": frappe.db.count("Task", {"parent_task": task.name, "status": "Completed"}),
 	}

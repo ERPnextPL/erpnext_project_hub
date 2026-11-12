@@ -14,6 +14,8 @@ import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import BlockedToggle from "./atoms/BlockedToggle.vue";
+import MilestoneLabel from "./atoms/MilestoneLabel.vue";
+import { getTaskMilestone } from "../utils/milestone";
 import { cancelTaskWithSubtasks } from "../utils/taskHierarchy";
 import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
 import DatePickerPopover from "./DatePickerPopover.vue";
@@ -62,6 +64,10 @@ const props = defineProps({
 		default: null,
 	},
 	selected: Boolean,
+	showMilestoneLabel: {
+		type: Boolean,
+		default: true,
+	},
 });
 
 const emit = defineEmits([
@@ -126,11 +132,8 @@ const firstAssignee = computed(() => {
 	return { email, displayName: nameFromUserId(email) };
 });
 
-const milestoneColor = computed(() => {
-	if (!props.task.milestone) return null;
-	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
-	return milestone?.color || "#3b82f6"; // Default blue if no color set
-});
+const taskMilestone = computed(() => getTaskMilestone(props.task, store.milestones));
+const milestoneColor = computed(() => taskMilestone.value?.color || null);
 
 // Load metadata on mount
 onMounted(() => {
@@ -586,9 +589,9 @@ onUnmounted(() => {
 					</Transition>
 				</div>
 
-				<!-- Milestone indicator (always visible if assigned) -->
+				<!-- Milestone indicator in grouped view (the group header names it) -->
 				<Diamond
-					v-if="task.milestone"
+					v-if="task.milestone && !showMilestoneLabel"
 					class="w-3 h-3 flex-shrink-0"
 					:style="{ color: milestoneColor }"
 					:title="translate('Milestone: ') + task.milestone"
@@ -605,14 +608,22 @@ onUnmounted(() => {
 						@keydown="handleKeydown"
 						@click.stop
 					/>
-					<span
-						v-else
-						@dblclick.stop="startEditing('subject', task.subject)"
-						class="text-sm text-gray-900 truncate block w-full"
-						:class="{ 'font-medium': task.is_group }"
-					>
-						{{ task.subject }}
-					</span>
+					<div v-else class="flex min-w-0 items-center gap-1.5">
+						<span
+							@dblclick.stop="startEditing('subject', task.subject)"
+							class="text-sm text-gray-900 truncate min-w-0"
+							:class="{ 'font-medium': task.is_group }"
+						>
+							{{ task.subject }}
+						</span>
+						<MilestoneLabel
+							v-if="showMilestoneLabel && taskMilestone"
+							:label="taskMilestone.label"
+							:color="taskMilestone.color"
+							size="xs"
+							class="max-w-[10rem] flex-shrink-0"
+						/>
+					</div>
 
 					<div
 						v-if="taskDescription"

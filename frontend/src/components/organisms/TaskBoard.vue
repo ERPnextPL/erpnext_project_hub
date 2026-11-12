@@ -4,6 +4,7 @@ import TaskBoardColumn from "./TaskBoardColumn.vue";
 import TaskQuickMenu from "../molecules/TaskQuickMenu.vue";
 import { BOARD_STATUSES, getStatusConfig, getStatusLabel } from "../../utils/taskStatus";
 import { getSubtaskStats } from "../../utils/taskHierarchy";
+import { getTaskMilestone } from "../../utils/milestone";
 
 /**
  * Trello-like board of tasks, one list per status. Store-agnostic: it receives
@@ -85,9 +86,6 @@ const menu = ref(null); // { task, anchor }
 
 const hierarchy = computed(() => props.allTasks || props.tasks);
 const taskByName = computed(() => new Map(hierarchy.value.map((task) => [task.name, task])));
-const milestoneByName = computed(
-	() => new Map((props.milestones || []).map((milestone) => [milestone.name, milestone]))
-);
 
 const listedStatuses = computed(() => {
 	const selected = props.statuses?.length ? props.statuses : BOARD_STATUSES;
@@ -155,13 +153,10 @@ const columns = computed(() =>
 );
 
 function cardProps(task) {
-	const milestone = task.milestone ? milestoneByName.value.get(task.milestone) : null;
 	const parent = task.parent_task ? taskByName.value.get(task.parent_task) : null;
 	return {
 		users: props.users,
-		milestone: milestone
-			? { label: milestone.milestone_name || milestone.name, color: milestone.color }
-			: null,
+		milestone: getTaskMilestone(task, props.milestones),
 		parentSubject: task.parent_subject || parent?.subject || "",
 		showProject: props.showProject,
 		// Counts sent by the server (My Tasks) cover subtasks that are not loaded.

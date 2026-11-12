@@ -35,6 +35,11 @@ const props = defineProps({
 		default: true,
 	},
 	selectedTaskNames: { type: Array, default: () => [] },
+	// Off where rows are already grouped under their milestone.
+	showMilestoneLabel: {
+		type: Boolean,
+		default: true,
+	},
 });
 const emit = defineEmits(["toggle-select", "toggle-all"]);
 
@@ -613,6 +618,7 @@ watch(
 							:grid-template="gridTemplateColumns"
 							:active-context-menu-task-name="activeContextMenuTaskName"
 							:selected="props.selectedTaskNames.includes(task.name)"
+							:show-milestone-label="showMilestoneLabel"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"

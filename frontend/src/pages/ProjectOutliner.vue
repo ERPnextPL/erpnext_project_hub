@@ -1053,6 +1053,7 @@ const groupedTasksByMilestone = computed(() => {
 								:show-header="false"
 								:show-quick-add="false"
 								:enable-reorder="true"
+								:show-milestone-label="false"
 							/>
 						</section>
 					</div>
