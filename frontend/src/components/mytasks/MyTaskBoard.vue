@@ -111,11 +111,15 @@ async function onDrop(event, status) {
 	const task = store.tasks.find((t) => t.name === name);
 	if (!task || (task.status || "Open") === status) return;
 	try {
-		await store.quickUpdateTask(name, { status });
-		realWindow?.frappe?.show_alert?.({
-			message: translate("Task moved to {0}", [getStatusLabel(status)]),
-			indicator: "green",
-		});
+		const result = await store.quickUpdateTask(name, { status });
+		// The server keeps the old status when the move is refused (e.g. open subtasks)
+		// and null means the user cancelled the completion prompt: no success message then.
+		if (result && result.status === status) {
+			realWindow?.frappe?.show_alert?.({
+				message: translate("Task moved to {0}", [getStatusLabel(status)]),
+				indicator: "green",
+			});
+		}
 	} catch {
 		realWindow?.frappe?.show_alert?.({
 			message: translate("Failed to update task"),
@@ -130,6 +134,13 @@ function setBlocked(task, blocked) {
 </script>
 
 <template>
+	<div>
+	<p
+		v-if="store.total > (store.tasks || []).length"
+		class="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800"
+	>
+		{{ translate("Showing {0} of {1} tasks. Narrow the filters to see the rest.", [store.tasks.length, store.total]) }}
+	</p>
 	<div class="-mx-4 sm:-mx-6 lg:-mx-8 overflow-x-auto pb-4">
 		<div class="flex items-start gap-3 px-4 sm:px-6 lg:px-8 min-w-max">
 			<section
@@ -258,5 +269,6 @@ function setBlocked(task, blocked) {
 				</div>
 			</section>
 		</div>
+	</div>
 	</div>
 </template>
