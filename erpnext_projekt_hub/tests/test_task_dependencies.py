@@ -9,16 +9,27 @@ test_ignore = ["Task"]
 class TestTaskDependencies(FrappeTestCase):
 	"""get_project_tasks exposes Task Depends On rows as `depends_on` for the timeline arrows."""
 
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		frappe.set_user("Administrator")
+		# Project names are unique: create the project once for the whole class.
+		existing = frappe.db.get_value("Project", {"project_name": "_Test Timeline Dependencies"})
+		cls.project = (
+			frappe.get_doc("Project", existing)
+			if existing
+			else frappe.get_doc(
+				{
+					"doctype": "Project",
+					"project_name": "_Test Timeline Dependencies",
+					"status": "Open",
+					"company": frappe.db.get_value("Company", {}, "name"),
+				}
+			).insert(ignore_permissions=True)
+		)
+
 	def setUp(self):
 		frappe.set_user("Administrator")
-		self.project = frappe.get_doc(
-			{
-				"doctype": "Project",
-				"project_name": "_Test Timeline Dependencies",
-				"status": "Open",
-				"company": frappe.db.get_value("Company", {}, "name"),
-			}
-		).insert(ignore_permissions=True)
 
 	def _task(self, subject, depends_on=None):
 		return frappe.get_doc(
@@ -55,9 +66,10 @@ class TestReorderTaskParent(FrappeTestCase):
 	def setUp(self):
 		frappe.set_user("Administrator")
 
-	def _task(self, subject, parent=None):
+	def _task(self, subject, parent=None, is_group=0):
+		# ERPNext only accepts a parent that is a group task.
 		return frappe.get_doc(
-			{"doctype": "Task", "subject": subject, "parent_task": parent}
+			{"doctype": "Task", "subject": subject, "parent_task": parent, "is_group": is_group}
 		).insert(ignore_permissions=True)
 
 	def test_attach_and_detach(self):
@@ -76,8 +88,8 @@ class TestReorderTaskParent(FrappeTestCase):
 	def test_cannot_move_under_own_descendant(self):
 		from erpnext_projekt_hub.api.project_hub import reorder_task
 
-		root = self._task("_Test Parent - root")
-		mid = self._task("_Test Parent - mid", parent=root.name)
+		root = self._task("_Test Parent - root", is_group=1)
+		mid = self._task("_Test Parent - mid", parent=root.name, is_group=1)
 		leaf = self._task("_Test Parent - leaf", parent=mid.name)
 
 		with self.assertRaises(frappe.ValidationError):
@@ -96,9 +108,9 @@ class TestSubtaskCounts(FrappeTestCase):
 	def test_task_response_has_subtask_counts(self):
 		from erpnext_projekt_hub.api.project_hub import _get_task_response
 
-		parent = frappe.get_doc({"doctype": "Task", "subject": "_Test Count - parent"}).insert(
-			ignore_permissions=True
-		)
+		parent = frappe.get_doc(
+			{"doctype": "Task", "subject": "_Test Count - parent", "is_group": 1}
+		).insert(ignore_permissions=True)
 		for subject, status in (("a", "Completed"), ("b", "Open"), ("c", "Completed")):
 			frappe.get_doc(
 				{
