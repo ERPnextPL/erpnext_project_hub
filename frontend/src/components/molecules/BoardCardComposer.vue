@@ -33,6 +33,8 @@ async function start() {
 }
 
 function cancel() {
+	// Keep the composer while a card is being saved: submit() clears the title afterwards.
+	if (saving.value) return;
 	open.value = false;
 	subject.value = "";
 }

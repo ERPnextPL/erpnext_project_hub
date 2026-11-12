@@ -320,10 +320,19 @@ async function handleDragEnd(evt) {
 	const oldIndex = evt.oldIndex;
 	const dragged = draggedTask.value;
 
-	if (newIndex === oldIndex) {
+	// Drop rejected or nothing to save: put the rows back as they were, since
+	// vuedraggable has already reordered dragItems.
+	const cancelDrop = () => {
 		draggedTask.value = null;
 		dragDropTarget.value = null;
 		dragDropMode.value = null;
+		dragItems.value = [...sortedTasks.value];
+	};
+
+	// Same position without a target row: nothing changed. With a target row
+	// (dropped onto another task) the parent may still change.
+	if (newIndex === oldIndex && !dragDropTarget.value) {
+		cancelDrop();
 		return;
 	}
 
@@ -332,9 +341,11 @@ async function handleDragEnd(evt) {
 		: getDropTarget(newIndex, oldIndex);
 	const newParent = getDropParent(dropTarget);
 	if (newParent === dragged.name || isDescendant(newParent, dragged.name)) {
-		draggedTask.value = null;
-		dragDropTarget.value = null;
-		dragDropMode.value = null;
+		cancelDrop();
+		return;
+	}
+	if (newIndex === oldIndex && (newParent || null) === (dragged.parent_task || null)) {
+		cancelDrop();
 		return;
 	}
 

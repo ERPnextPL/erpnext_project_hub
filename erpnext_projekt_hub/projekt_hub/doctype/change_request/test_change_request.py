@@ -97,3 +97,35 @@ class TestChangeRequest(FrappeTestCase):
 		change_request.realization_assignee = None
 		with self.assertRaises(frappe.ValidationError):
 			change_request.save(ignore_permissions=True)
+
+	def test_reopened_task_takes_change_request_back_from_done(self):
+		# Completed -> Cancelled -> Open must still mark the request as in progress.
+		customer = get_or_create_customer()
+		project = create_project(customer)
+		change_request = frappe.get_doc(
+			{
+				"doctype": "Change Request",
+				"customer": customer,
+				"project": project,
+				"subject": "_Test reopened change request task",
+				"approved_scope": "_Test scope",
+				"approved_hours": 2,
+				"realization_assignee": "Administrator",
+			}
+		).insert(ignore_permissions=True)
+		apply_workflow(change_request, "Approve")
+		change_request.reload()
+
+		task = frappe.get_doc("Task", change_request.task)
+		for status in ("Completed", "Cancelled"):
+			task.status = status
+			task.save(ignore_permissions=True)
+		self.assertEqual(
+			frappe.db.get_value("Change Request", change_request.name, "workflow_state"), "Done"
+		)
+
+		task.status = "Open"
+		task.save(ignore_permissions=True)
+		self.assertEqual(
+			frappe.db.get_value("Change Request", change_request.name, "workflow_state"), "Task Created"
+		)

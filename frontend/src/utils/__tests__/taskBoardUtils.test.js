@@ -53,3 +53,39 @@ describe("taskDueDate", () => {
 		expect(getDueState({ exp_end_date: "2026-11-01", status: "Completed" }, now).tone).toBe("done");
 	});
 });
+
+describe("cancelTaskWithSubtasks", () => {
+	it("cancels the task and its open subtasks, keeping finished ones", async () => {
+		globalThis.window = { ...(globalThis.window || {}), confirm: () => true };
+		const { cancelTaskWithSubtasks } = await import("../taskHierarchy");
+		const tasks = [
+			{ name: "A", status: "Open" },
+			{ name: "B", parent_task: "A", status: "Completed" },
+			{ name: "C", parent_task: "A", status: "Working" },
+			{ name: "D", parent_task: "C", status: "Open" },
+		];
+		const updated = [];
+		const done = await cancelTaskWithSubtasks(tasks, tasks[0], async (name, updates) => {
+			updated.push([name, updates.status]);
+		});
+		expect(done).toBe(true);
+		expect(updated).toEqual([
+			["A", "Cancelled"],
+			["C", "Cancelled"],
+			["D", "Cancelled"],
+		]);
+	});
+
+	it("does nothing when the user declines", async () => {
+		globalThis.window = { ...(globalThis.window || {}), confirm: () => false };
+		const { cancelTaskWithSubtasks } = await import("../taskHierarchy");
+		const tasks = [
+			{ name: "A", status: "Open" },
+			{ name: "B", parent_task: "A", status: "Open" },
+		];
+		const updated = [];
+		const done = await cancelTaskWithSubtasks(tasks, tasks[0], async (name) => updated.push(name));
+		expect(done).toBe(false);
+		expect(updated).toEqual([]);
+	});
+});

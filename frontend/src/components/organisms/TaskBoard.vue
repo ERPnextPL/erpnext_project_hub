@@ -138,6 +138,13 @@ const columnStatuses = computed(() => {
 	);
 });
 
+// List a task belongs to. The legacy "Overdue" status has no list of its own
+// (a missed due date is a flag now), so such tasks stay visible under Open.
+function boardStatus(task) {
+	const status = pendingStatus.get(task.name) ?? task.status;
+	return status === "Overdue" ? "Open" : status;
+}
+
 const columns = computed(() =>
 	columnStatuses.value.map((status) => {
 		const config = getStatusConfig(status);
@@ -145,9 +152,7 @@ const columns = computed(() =>
 			status,
 			title: getStatusLabel(status),
 			dot: config.dot,
-			tasks: props.tasks.filter(
-				(task) => (pendingStatus.get(task.name) ?? task.status) === status
-			),
+			tasks: props.tasks.filter((task) => boardStatus(task) === status),
 		};
 	})
 );

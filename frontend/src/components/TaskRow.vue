@@ -283,7 +283,9 @@ async function updateStatus(newStatus) {
 	if (newStatus === props.task.status) return;
 
 	if (newStatus === "Cancelled" && hasChildren.value) {
-		await cancelTaskWithSubtasks(store.tasks, props.task, (name, updates) =>
+		// The list holds only filtered tasks: cascade over the project's full tree.
+		const allTasks = await store.fetchAllProjectTasks(props.task.project);
+		await cancelTaskWithSubtasks(allTasks, props.task, (name, updates) =>
 			name === props.task.name ? emit("update", name, updates) : store.updateTask(name, updates),
 		{
 			translate,

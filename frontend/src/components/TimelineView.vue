@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, onUpdated, nextTick } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, onUpdated, nextTick, watch } from "vue";
 import { Calendar, ChevronLeft, ChevronRight, Diamond } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusConfig } from "../utils/taskStatus";
@@ -286,8 +286,12 @@ async function onDragEnd() {
 	} catch (error) {
 		console.error("Failed to update task dates:", error);
 	} finally {
-		const { [task.name]: _done, ...rest } = pendingDates.value;
-		pendingDates.value = rest;
+		// A newer drag of the same task may have replaced this entry while the
+		// save was running: leave that one in place until its own save returns.
+		if (pendingDates.value[task.name] === updates) {
+			const { [task.name]: _done, ...rest } = pendingDates.value;
+			pendingDates.value = rest;
+		}
 	}
 }
 
@@ -303,7 +307,12 @@ function taskDates(task) {
 	if (!start && !end) return null;
 	start = start || end;
 	end = end || start;
-	return start > end ? { start: end, end: start } : { start, end };
+	if (start > end) [start, end] = [end, start];
+	// While a bar is being dragged, conflicts follow the preview, like its arrows.
+	if (drag.value && drag.value.taskName === task.name && drag.value.moved) {
+		return computeDraggedRange(drag.value, start, end);
+	}
+	return { start, end };
 }
 
 function computeArrows() {
@@ -394,11 +403,16 @@ function handleTaskClick(task) {
 	emit("task-click", task);
 }
 
+// The rows element is re-created when dated tasks reappear after an empty
+// view, so observe whichever element is current.
+watch(rowsRef, (element, previous) => {
+	if (typeof ResizeObserver === "undefined") return;
+	if (!resizeObserver) resizeObserver = new ResizeObserver(scheduleArrows);
+	if (previous) resizeObserver.unobserve(previous);
+	if (element) resizeObserver.observe(element);
+});
+
 onMounted(() => {
-	if (typeof ResizeObserver !== "undefined" && rowsRef.value) {
-		resizeObserver = new ResizeObserver(scheduleArrows);
-		resizeObserver.observe(rowsRef.value);
-	}
 	scheduleArrows();
 	// Start from beginning of current week
 	const today = new Date();

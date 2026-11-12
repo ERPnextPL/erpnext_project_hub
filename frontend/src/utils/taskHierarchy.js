@@ -30,13 +30,16 @@ export function getSubtaskStats(tasks, taskName) {
 }
 
 /**
- * Cancel a task together with all of its subtasks, after asking the user.
+ * Cancel a task together with its open subtasks, after asking the user.
  * `updateTask(name, updates)` applies one change (store action).
  * Returns false when the user declined.
  */
 export async function cancelTaskWithSubtasks(tasks, task, updateTask, { translate, notify } = {}) {
 	const t = translate || ((text) => text);
-	const descendants = getDescendants(tasks, task.name);
+	// Finished subtasks keep their status: only work still open is cancelled.
+	const descendants = getDescendants(tasks, task.name).filter(
+		(subtask) => subtask.status !== "Completed" && subtask.status !== "Cancelled"
+	);
 	const subtaskCount = descendants.length;
 
 	if (subtaskCount > 0) {

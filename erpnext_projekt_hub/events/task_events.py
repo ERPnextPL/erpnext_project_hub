@@ -62,11 +62,9 @@ def sync_change_request_state(task):
 	next_state = None
 	if task.status == "Completed" and change_request.workflow_state == "Task Created":
 		next_state = "Done"
-	elif (
-		previous.status == "Completed"
-		and task.status in REOPENED_STATUSES
-		and change_request.workflow_state == "Done"
-	):
+	elif task.status in REOPENED_STATUSES and change_request.workflow_state == "Done":
+		# Any active status means the work is not done, whichever status the task
+		# came from (e.g. Completed -> Cancelled -> Open).
 		next_state = "Task Created"
 
 	if next_state:

@@ -1173,15 +1173,22 @@ async function linkToParent() {
 	const parentName = selectedParentName.value;
 	if (!parentName || isLinkingParent.value) return;
 	isLinkingParent.value = true;
+	// The selection may change while saving: apply the result only to this task.
+	const taskName = props.task.name;
+	const taskSnapshot = { ...props.task };
 	try {
 		const childCount = projectTasks.value.filter((t) => t.parent_task === parentName).length;
 		const parent = projectTasks.value.find((t) => t.name === parentName);
-		await store.reorderTask(props.task.name, parentName, childCount);
-		parentOverride.value = { name: parentName, subject: parent?.subject || parentName };
-		const updated = usesProjectStore.value && store.tasks.find((t) => t.name === props.task.name);
+		await store.reorderTask(taskName, parentName, childCount);
+		const stillSelected = props.task.name === taskName;
+		if (stillSelected) {
+			parentOverride.value = { name: parentName, subject: parent?.subject || parentName };
+		}
+		const updated =
+			stillSelected && usesProjectStore.value && store.tasks.find((t) => t.name === taskName);
 		if (updated) {
 			store.selectTask({
-				...props.task,
+				...taskSnapshot,
 				...updated,
 				parent_task: parentName,
 				parent_subject: parent?.subject || parentName,
@@ -1213,15 +1220,20 @@ async function unlinkFromParent() {
 	if (!realWindow?.confirm(message)) return;
 
 	isUnlinkingParent.value = true;
+	// The selection may change while saving: apply the result only to this task.
+	const taskName = props.task.name;
+	const taskSnapshot = { ...props.task };
 	try {
 		const topLevelCount = projectTasks.value.filter(
-			(t) => !t.parent_task && t.project === props.task.project && t.name !== props.task.name
+			(t) => !t.parent_task && t.project === taskSnapshot.project && t.name !== taskName
 		).length;
-		await store.reorderTask(props.task.name, null, topLevelCount);
-		parentOverride.value = null;
-		const updated = usesProjectStore.value && store.tasks.find((t) => t.name === props.task.name);
+		await store.reorderTask(taskName, null, topLevelCount);
+		const stillSelected = props.task.name === taskName;
+		if (stillSelected) parentOverride.value = null;
+		const updated =
+			stillSelected && usesProjectStore.value && store.tasks.find((t) => t.name === taskName);
 		if (updated) {
-			store.selectTask({ ...props.task, ...updated, parent_task: null, parent_subject: null });
+			store.selectTask({ ...taskSnapshot, ...updated, parent_task: null, parent_subject: null });
 		}
 		realWindow?.frappe?.show_alert?.({
 			message: translate("Task detached from parent"),

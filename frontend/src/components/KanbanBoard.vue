@@ -42,7 +42,9 @@ function notifyError(error, fallback) {
 async function moveTask(task, status) {
 	try {
 		if (status === "Cancelled") {
-			const done = await cancelTaskWithSubtasks(store.tasks, task, store.updateTask, {
+			// The board holds only filtered tasks: cascade over the full tree.
+			const allTasks = await store.fetchAllProjectTasks(props.projectId);
+			const done = await cancelTaskWithSubtasks(allTasks, task, store.updateTask, {
 				translate,
 				notify,
 			});
@@ -89,11 +91,13 @@ async function assignMe(task) {
 }
 
 async function deleteTask(task) {
-	const message = getDescendants(store.tasks, task.name).length
-		? translate("This task has subtasks. Delete all subtasks as well?")
-		: translate("Delete this task?");
-	if (!realWindow?.confirm(message)) return;
 	try {
+		// Ask about subtasks hidden by the filters too: deleting removes them all.
+		const allTasks = await store.fetchAllProjectTasks(props.projectId);
+		const message = getDescendants(allTasks, task.name).length
+			? translate("This task has subtasks. Delete all subtasks as well?")
+			: translate("Delete this task?");
+		if (!realWindow?.confirm(message)) return;
 		await store.deleteTask(task.name);
 	} catch (error) {
 		notifyError(error, "Failed to delete task");

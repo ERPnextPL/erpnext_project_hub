@@ -363,6 +363,19 @@ async function deleteTask(taskName) {
 	}
 }
 
+/**
+ * Every task of a project, whatever the current filters. `tasks` holds only the
+ * filtered ones, so actions that cascade to subtasks (cancel, delete) read the
+ * full tree from here.
+ */
+async function fetchAllProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		apply_default_status_filter: 0,
+	});
+	return data?.tasks || [];
+}
+
 async function reorderTask(taskName, newParent, newIdx) {
 	try {
 		await apiCall("erpnext_projekt_hub.api.project_hub.reorder_task", {
@@ -941,6 +954,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateProject,
 		deleteTask,
 		reorderTask,
+		fetchAllProjectTasks,
 		toggleExpand,
 		expandAll,
 		collapseAll,
