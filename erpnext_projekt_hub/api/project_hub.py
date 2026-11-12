@@ -2968,7 +2968,12 @@ def get_my_tasks(
 			t.completed_by,
 			t.modified,
 			t.creation,
-			p.project_name
+			p.project_name,
+			(SELECT COUNT(*) FROM `tabTask` c WHERE c.parent_task = t.name) AS subtask_count,
+			(
+				SELECT COUNT(*) FROM `tabTask` c
+				WHERE c.parent_task = t.name AND c.status = 'Completed'
+			) AS subtask_done
 		FROM `tabTask` t
 		LEFT JOIN `tabTask` parent ON t.parent_task = parent.name
 		LEFT JOIN `tabProject` p ON t.project = p.name
@@ -3134,6 +3139,8 @@ def _get_task_response(task):
 		"modified": task.modified,
 		"is_overdue": compute_is_overdue(task),
 		"is_blocked": task.get("is_blocked"),
+		"subtask_count": frappe.db.count("Task", {"parent_task": task.name}),
+		"subtask_done": frappe.db.count("Task", {"parent_task": task.name, "status": "Completed"}),
 	}
 
 

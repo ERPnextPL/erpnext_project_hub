@@ -22,6 +22,7 @@ import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
 import MyTaskList from "../components/mytasks/MyTaskList.vue";
+import MyTaskBoard from "../components/mytasks/MyTaskBoard.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import TimeLogModal from "../components/TimeLogModal.vue";
 import BulkTaskEditPanel from "../components/BulkTaskEditPanel.vue";
@@ -55,7 +56,25 @@ const showFilters = ref(false);
 const searchInput = ref("");
 const filtersHydrated = ref(false);
 const suppressInitialSync = ref(false);
-const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
+// Board is the default view; the last choice is remembered per browser, so anyone
+// who prefers the list simply switches once and keeps it as their default.
+const VIEW_MODE_KEY = "projectHub.myTasks.viewMode";
+function loadViewMode() {
+	try {
+		const saved = localStorage.getItem(VIEW_MODE_KEY);
+		return saved === "list" || saved === "board" ? saved : "board";
+	} catch {
+		return "board";
+	}
+}
+const viewMode = ref(loadViewMode()); // 'board' or 'list'
+watch(viewMode, (value) => {
+	try {
+		localStorage.setItem(VIEW_MODE_KEY, value);
+	} catch {
+		/* storage unavailable */
+	}
+});
 const selectedTaskNames = ref([]);
 const lastSelectedTaskName = ref(null);
 const showBulkEdit = ref(false);
@@ -298,12 +317,29 @@ useTaskDeepLink({
 								></span>
 							</button>
 
-							<!-- View mode toggle (TODO: Kanban) -->
+							<!-- View mode toggle -->
 							<div
-								class="hidden sm:flex items-center border border-gray-300 rounded-lg overflow-hidden"
+								class="flex items-center border border-gray-300 rounded-lg overflow-hidden"
+								role="group"
+								:aria-label="translate('View')"
 							>
 								<button
+									@click="viewMode = 'board'"
+									:aria-pressed="viewMode === 'board'"
+									:class="[
+										'p-2 transition-colors',
+										viewMode === 'board'
+											? 'bg-gray-100 text-gray-900'
+											: 'text-gray-500 hover:bg-gray-50',
+									]"
+									:title="translate('Board view')"
+									:aria-label="translate('Board view')"
+								>
+									<LayoutGrid class="w-4 h-4" />
+								</button>
+								<button
 									@click="viewMode = 'list'"
+									:aria-pressed="viewMode === 'list'"
 									:class="[
 										'p-2 transition-colors',
 										viewMode === 'list'
@@ -311,21 +347,9 @@ useTaskDeepLink({
 											: 'text-gray-500 hover:bg-gray-50',
 									]"
 									:title="translate('List view')"
+									:aria-label="translate('List view')"
 								>
 									<LayoutList class="w-4 h-4" />
-								</button>
-								<button
-									@click="viewMode = 'kanban'"
-									:class="[
-										'p-2 transition-colors',
-										viewMode === 'kanban'
-											? 'bg-gray-100 text-gray-900'
-											: 'text-gray-500 hover:bg-gray-50',
-									]"
-									:title="translate('Kanban view (coming soon)')"
-									disabled
-								>
-									<LayoutGrid class="w-4 h-4 opacity-50" />
 								</button>
 							</div>
 
@@ -422,7 +446,10 @@ useTaskDeepLink({
 					</div>
 			</div>
 
-				<!-- Task list -->
+			<!-- Board view -->
+			<MyTaskBoard v-else-if="viewMode === 'board'" />
+
+			<!-- Task list -->
 			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" :selected-task-names="selectedTaskNames" @toggle-select="toggleTaskSelection" @toggle-all="toggleAllTaskSelection" />
 			</main>
 

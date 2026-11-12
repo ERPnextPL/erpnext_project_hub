@@ -85,3 +85,30 @@ class TestReorderTaskParent(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			reorder_task(root.name, root.name, 0)
 		self.assertFalse(frappe.db.get_value("Task", root.name, "parent_task"))
+
+
+class TestSubtaskCounts(FrappeTestCase):
+	"""The board card of a parent task shows done/total subtasks."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_task_response_has_subtask_counts(self):
+		from erpnext_projekt_hub.api.project_hub import _get_task_response
+
+		parent = frappe.get_doc({"doctype": "Task", "subject": "_Test Count - parent"}).insert(
+			ignore_permissions=True
+		)
+		for subject, status in (("a", "Completed"), ("b", "Open"), ("c", "Completed")):
+			frappe.get_doc(
+				{
+					"doctype": "Task",
+					"subject": f"_Test Count - {subject}",
+					"parent_task": parent.name,
+					"status": status,
+				}
+			).insert(ignore_permissions=True)
+
+		response = _get_task_response(frappe.get_doc("Task", parent.name))
+		self.assertEqual(response["subtask_count"], 3)
+		self.assertEqual(response["subtask_done"], 2)

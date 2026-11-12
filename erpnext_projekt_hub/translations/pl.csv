@@ -853,3 +853,6 @@
 "Task attached to parent","Przypięto zadanie do zadania nadrzędnego"
 "Could not attach task to parent","Nie udało się przypiąć zadania do zadania nadrzędnego"
 "A task cannot be moved under itself or its own subtask","Zadania nie można przenieść pod samo siebie ani pod własne podzadanie"
+"Subtasks","Podzadania"
+"No tasks","Brak zadań"
+"Board view","Widok tablicy"

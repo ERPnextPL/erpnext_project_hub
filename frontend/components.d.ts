@@ -23,6 +23,7 @@ declare module 'vue' {
     MilestonePanel: typeof import('./src/components/MilestonePanel.vue')['default']
     MilestoneSidebar: typeof import('./src/components/MilestoneSidebar.vue')['default']
     MilestoneTrack: typeof import('./src/components/MilestoneTrack.vue')['default']
+    MyTaskBoard: typeof import('./src/components/mytasks/MyTaskBoard.vue')['default']
     MyTaskCardMobile: typeof import('./src/components/mytasks/MyTaskCardMobile.vue')['default']
     MyTaskFilters: typeof import('./src/components/mytasks/MyTaskFilters.vue')['default']
     MyTaskList: typeof import('./src/components/mytasks/MyTaskList.vue')['default']
