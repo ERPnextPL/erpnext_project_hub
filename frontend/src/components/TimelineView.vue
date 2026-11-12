@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, onUpdated, nextTick, watch } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, onUpdated, nextTick, watch, toRaw } from "vue";
 import { Calendar, ChevronLeft, ChevronRight, Diamond } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusConfig } from "../utils/taskStatus";
@@ -288,7 +288,8 @@ async function onDragEnd() {
 	} finally {
 		// A newer drag of the same task may have replaced this entry while the
 		// save was running: leave that one in place until its own save returns.
-		if (pendingDates.value[task.name] === updates) {
+		// pendingDates is deep-reactive: compare the raw object, not its proxy.
+		if (toRaw(pendingDates.value[task.name]) === updates) {
 			const { [task.name]: _done, ...rest } = pendingDates.value;
 			pendingDates.value = rest;
 		}
