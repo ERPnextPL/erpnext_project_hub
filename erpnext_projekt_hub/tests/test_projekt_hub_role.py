@@ -56,3 +56,12 @@ class TestProjektHubRole(FrappeTestCase):
 
 		frappe.set_user(HUB_USER)
 		project_hub.get_users()
+
+	def test_task_completion_assignees_follow_task_permission(self):
+		# The Desk Task form asks for assignees when any Task editor completes a
+		# task, so this endpoint must not require the Projekt HUB role.
+		task = frappe.get_doc({"doctype": "Task", "subject": "_Test completion assignees"}).insert(
+			ignore_permissions=True
+		)
+		frappe.set_user(OTHER_USER)
+		self.assertEqual(project_hub.get_task_completion_assignees(task.name), [])
