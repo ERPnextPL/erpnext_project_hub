@@ -3,13 +3,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { getNavItems, getTabByRouteName } from "../tabRegistry";
+import { getLastProjectLocation } from "../utils/lastProject";
 
 const route = useRoute();
 const router = useRouter();
 
 // Get navigation items from Tab Registry
 // This allows plugins to add additional tabs dynamically
-const navItems = getNavItems();
+const registeredNavItems = getNavItems();
 
 const translate = (text) => {
 	return typeof window !== "undefined" && typeof window.__ === "function"
@@ -56,8 +57,20 @@ const activeKey = computed(() => {
 	return "projects";
 });
 
+// Coming back to Projects from another tab reopens the last project; clicking
+// Projects while already in it still leads to the project list.
+const navItems = computed(() =>
+	registeredNavItems.map((item) => {
+		if (item.key !== "projects" || activeKey.value === "projects") return item;
+		// Re-read on every route change: the location is stored by the router.
+		void route.fullPath;
+		const last = getLastProjectLocation();
+		return last ? { ...item, to: last } : item;
+	})
+);
+
 const activeItem = computed(() => {
-	return navItems.find((item) => item.key === activeKey.value) || navItems[0];
+	return navItems.value.find((item) => item.key === activeKey.value) || navItems.value[0];
 });
 
 function setItemRef(key, el) {
@@ -100,8 +113,12 @@ async function scrollActiveIntoView(behavior = "smooth") {
 	}
 }
 
+function isCurrent(to) {
+	return router.resolve(to).path === route.path;
+}
+
 function handleNavigate(to) {
-	if (route.path !== to) {
+	if (!isCurrent(to)) {
 		router.push(to);
 	} else {
 		scrollActiveIntoView();
@@ -110,7 +127,7 @@ function handleNavigate(to) {
 
 function handleMobileNavigate(to) {
 	mobileMenuOpen.value = false;
-	if (route.path !== to) router.push(to);
+	if (!isCurrent(to)) router.push(to);
 }
 
 function toggleMobileMenu() {
