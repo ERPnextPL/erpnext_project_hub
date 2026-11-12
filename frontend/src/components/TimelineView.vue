@@ -23,7 +23,28 @@ const emit = defineEmits(["task-click"]);
 
 // Timeline state
 const viewStartDate = ref(new Date());
-const daysToShow = ref(30);
+const RANGE_OPTIONS = [7, 14, 30, 90];
+const RANGE_STORAGE_KEY = "projectHub.timeline.daysToShow";
+function loadSavedRange() {
+	try {
+		const saved = Number(localStorage.getItem(RANGE_STORAGE_KEY));
+		return RANGE_OPTIONS.includes(saved) ? saved : 30;
+	} catch {
+		return 30;
+	}
+}
+const daysToShow = ref(loadSavedRange());
+const isCompact = computed(() => daysToShow.value > 45);
+const navigationStep = computed(() => (daysToShow.value >= 90 ? 28 : daysToShow.value >= 30 ? 14 : 7));
+
+function setRange(days) {
+	daysToShow.value = days;
+	try {
+		localStorage.setItem(RANGE_STORAGE_KEY, String(days));
+	} catch {
+		/* storage unavailable */
+	}
+}
 
 // Status colors - resolved from the shared status config
 const statusColors = Object.fromEntries(
@@ -336,13 +357,13 @@ onBeforeUnmount(() => {
 
 function navigatePrev() {
 	const newDate = new Date(viewStartDate.value);
-	newDate.setDate(newDate.getDate() - 7);
+	newDate.setDate(newDate.getDate() - navigationStep.value);
 	viewStartDate.value = newDate;
 }
 
 function navigateNext() {
 	const newDate = new Date(viewStartDate.value);
-	newDate.setDate(newDate.getDate() + 7);
+	newDate.setDate(newDate.getDate() + navigationStep.value);
 	viewStartDate.value = newDate;
 }
 
@@ -390,10 +411,26 @@ onMounted(() => {
 				</span>
 			</div>
 			<div class="flex items-center gap-2">
+				<div class="flex rounded border border-gray-300 dark:border-gray-600 overflow-hidden" role="group" :aria-label="t('Range')">
+					<button
+						v-for="days in RANGE_OPTIONS"
+						:key="days"
+						@click="setRange(days)"
+						:aria-pressed="daysToShow === days"
+						:class="[
+							'px-2 py-1 text-xs font-medium',
+							daysToShow === days
+								? 'bg-blue-600 text-white'
+								: 'text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700',
+						]"
+					>
+						{{ days }}{{ t("d") }}
+					</button>
+				</div>
 				<button
 					@click="navigatePrev"
 					class="p-1.5 rounded hover:bg-gray-200 text-gray-600"
-					:title="t('Previous week')"
+					:title="t('Previous')"
 				>
 					<ChevronLeft class="w-4 h-4" />
 				</button>
@@ -406,7 +443,7 @@ onMounted(() => {
 				<button
 					@click="navigateNext"
 					class="p-1.5 rounded hover:bg-gray-200 text-gray-600"
-					:title="t('Next week')"
+					:title="t('Next')"
 				>
 					<ChevronRight class="w-4 h-4" />
 				</button>
@@ -430,15 +467,17 @@ onMounted(() => {
 							v-for="header in dateHeaders"
 							:key="header.date.toISOString()"
 							:class="[
-								'flex-1 min-w-8 px-1 py-2 text-center border-r border-gray-100 dark:border-gray-800',
+								'flex-1 px-1 py-2 text-center',
+								isCompact ? 'min-w-3 !px-0' : 'min-w-8',
+								' border-r border-gray-100 dark:border-gray-800',
 								header.isWeekend ? 'bg-gray-100 dark:bg-gray-800/70' : 'bg-white dark:bg-gray-900',
 								header.isToday ? 'bg-blue-50 dark:bg-blue-900/40' : '',
 							]"
 						>
-							<div class="text-xs text-gray-500 dark:text-gray-300">{{ header.dayOfWeek }}</div>
+							<div v-if="!isCompact" class="text-xs text-gray-500 dark:text-gray-300">{{ header.dayOfWeek }}</div>
 							<div
 								:class="[
-									'text-sm font-medium',
+									isCompact ? 'text-[9px] font-medium' : 'text-sm font-medium',
 									header.isToday ? 'text-blue-600' : 'text-gray-700 dark:text-gray-200',
 								]"
 							>
