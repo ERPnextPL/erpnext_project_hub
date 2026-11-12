@@ -235,9 +235,11 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 
 	planned_by_employee = defaultdict(float)
 	planned_by_project = defaultdict(float)
+	planned_employees_by_project = defaultdict(set)
 	for entry in entries:
 		planned_by_employee[entry.employee] += flt(entry.hours)
 		planned_by_project[entry.project] += flt(entry.hours)
+		planned_employees_by_project[entry.project].add(entry.employee)
 
 	users = frappe.get_all(
 		"Employee",
@@ -316,7 +318,8 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 			"project_name": project_names.get(project, project),
 			"planned_hours": round(planned_by_project[project], 2),
 			"demand_hours": 0.0,
-			"employees": set(),
+			# People in scope with planned hours here; task demand adds its own below.
+			"employees": set(planned_employees_by_project.get(project, ())),
 		}
 
 	undated_backlog = 0.0
@@ -334,13 +337,13 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 			continue
 		share = period_demand / len(assigned_employee_names) if assigned_employee_names else 0
 		remaining_share = remaining_hours / len(assigned_employee_names)
-		if is_undated:
-			undated_backlog += remaining_hours
-
 		for employee_name in assigned_employee_names:
 			person = people.get(employee_name)
 			if not person:
+				# Assignee outside the selected department / person: not this forecast's work.
 				continue
+			if is_undated:
+				undated_backlog += remaining_share
 			person["demand_hours"] += share
 			person["tasks"].append(
 				{
@@ -358,7 +361,7 @@ def get_work_forecast(start_date: str, end_date: str, department: str | None = N
 			)
 			if task.project in project_summary:
 				project_summary[task.project]["demand_hours"] += share
-				project_summary[task.project]["employees"].update(assigned_employee_names)
+				project_summary[task.project]["employees"].add(employee_name)
 
 	for person in people.values():
 		person["demand_hours"] = round(person["demand_hours"], 2)

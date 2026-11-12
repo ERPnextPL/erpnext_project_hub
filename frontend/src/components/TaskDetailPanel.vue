@@ -1094,10 +1094,47 @@ watch(
 	}
 );
 
+// Tasks of this task's project. In the project view they are the project
+// store's tasks; opened from My Tasks that store holds another project (or
+// none), so the project's tasks are loaded here for the parent picker.
+const loadedProjectTasks = ref([]);
+const usesProjectStore = computed(() => store.project?.name === props.task.project);
+const projectTasks = computed(() =>
+	usesProjectStore.value ? store.tasks : loadedProjectTasks.value
+);
+
+async function loadProjectTasks() {
+	loadedProjectTasks.value = [];
+	if (usesProjectStore.value || !props.task.project || !realWindow?.frappe?.xcall) return;
+	const project = props.task.project;
+	try {
+		const data = await realWindow.frappe.xcall(
+			"erpnext_projekt_hub.api.project_hub.get_project_tasks",
+			{ project }
+		);
+		if (props.task.project === project) loadedProjectTasks.value = data?.tasks || [];
+	} catch (error) {
+		console.error("Failed to load project tasks:", error);
+	}
+}
+
+watch(() => [props.task.project, usesProjectStore.value], loadProjectTasks, { immediate: true });
+
+// Parent set by attach/detach in this panel, until the caller's task catches up.
+// undefined: follow props.task; null: detached; { name, subject }: attached.
+const parentOverride = ref(undefined);
+watch(
+	() => [props.task.name, props.task.parent_task],
+	() => {
+		parentOverride.value = undefined;
+	}
+);
+
 const parentTaskInfo = computed(() => {
+	if (parentOverride.value !== undefined) return parentOverride.value;
 	const parentName = props.task.parent_task;
 	if (!parentName) return null;
-	const found = store.tasks.find((t) => t.name === parentName);
+	const found = projectTasks.value.find((t) => t.name === parentName);
 	return {
 		name: parentName,
 		subject: props.task.parent_subject || found?.subject || parentName,
@@ -1114,14 +1151,14 @@ const parentCandidates = computed(() => {
 	let grew = true;
 	while (grew) {
 		grew = false;
-		for (const t of store.tasks) {
+		for (const t of projectTasks.value) {
 			if (t.parent_task && blocked.has(t.parent_task) && !blocked.has(t.name)) {
 				blocked.add(t.name);
 				grew = true;
 			}
 		}
 	}
-	return store.tasks
+	return projectTasks.value
 		.filter(
 			(t) =>
 				t.project === props.task.project &&
@@ -1137,11 +1174,12 @@ async function linkToParent() {
 	if (!parentName || isLinkingParent.value) return;
 	isLinkingParent.value = true;
 	try {
-		const childCount = store.tasks.filter((t) => t.parent_task === parentName).length;
+		const childCount = projectTasks.value.filter((t) => t.parent_task === parentName).length;
+		const parent = projectTasks.value.find((t) => t.name === parentName);
 		await store.reorderTask(props.task.name, parentName, childCount);
-		const updated = store.tasks.find((t) => t.name === props.task.name);
+		parentOverride.value = { name: parentName, subject: parent?.subject || parentName };
+		const updated = usesProjectStore.value && store.tasks.find((t) => t.name === props.task.name);
 		if (updated) {
-			const parent = store.tasks.find((t) => t.name === parentName);
 			store.selectTask({
 				...props.task,
 				...updated,
@@ -1176,11 +1214,12 @@ async function unlinkFromParent() {
 
 	isUnlinkingParent.value = true;
 	try {
-		const topLevelCount = store.tasks.filter(
+		const topLevelCount = projectTasks.value.filter(
 			(t) => !t.parent_task && t.project === props.task.project && t.name !== props.task.name
 		).length;
 		await store.reorderTask(props.task.name, null, topLevelCount);
-		const updated = store.tasks.find((t) => t.name === props.task.name);
+		parentOverride.value = null;
+		const updated = usesProjectStore.value && store.tasks.find((t) => t.name === props.task.name);
 		if (updated) {
 			store.selectTask({ ...props.task, ...updated, parent_task: null, parent_subject: null });
 		}
@@ -1200,12 +1239,13 @@ async function unlinkFromParent() {
 }
 
 async function navigateToParent() {
-	if (!props.task.parent_task) return;
-	const found = store.tasks.find((t) => t.name === props.task.parent_task);
+	const parentName = parentTaskInfo.value?.name;
+	if (!parentName) return;
+	const found = usesProjectStore.value && store.tasks.find((t) => t.name === parentName);
 	if (found) {
 		store.selectTask(found);
 	} else {
-		const detail = await store.fetchTaskDetail(props.task.parent_task);
+		const detail = await store.fetchTaskDetail(parentName);
 		if (detail) store.selectTask(detail);
 	}
 }
@@ -1722,12 +1762,12 @@ async function deleteAttachment(fileName) {
 				<div class="flex items-start justify-between gap-4">
 					<div class="min-w-0 flex-1">
 						<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-							<template v-if="task.parent_task">
+							<template v-if="parentTaskInfo">
 								<button
 									type="button"
 									class="inline-flex items-center gap-1 rounded px-1 py-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
 									@click="navigateToParent"
-									:title="task.parent_task"
+									:title="parentTaskInfo.name"
 								>
 									{{ parentTaskInfo?.subject }}
 								</button>
