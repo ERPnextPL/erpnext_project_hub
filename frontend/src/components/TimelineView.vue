@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { Calendar, ChevronLeft, ChevronRight, Diamond } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusConfig } from "../utils/taskStatus";
@@ -64,6 +64,37 @@ const dateHeaders = computed(() => {
 	return headers;
 });
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Parse "YYYY-MM-DD[ HH:MM:SS]" as a local calendar day (no timezone shift)
+function parseLocalDay(value) {
+	if (!value) return null;
+	const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+	if (!m) {
+		const d = new Date(value);
+		if (isNaN(d)) return null;
+		d.setHours(0, 0, 0, 0);
+		return d;
+	}
+	return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function formatDay(date) {
+	const mm = String(date.getMonth() + 1).padStart(2, "0");
+	const dd = String(date.getDate()).padStart(2, "0");
+	return `${date.getFullYear()}-${mm}-${dd}`;
+}
+
+function addDays(date, days) {
+	const d = new Date(date);
+	d.setDate(d.getDate() + days);
+	return d;
+}
+
+function dayDiff(a, b) {
+	return Math.round((a - b) / DAY_MS);
+}
+
 function isSameDay(d1, d2) {
 	return (
 		d1.getFullYear() === d2.getFullYear() &&
@@ -79,8 +110,8 @@ function getTaskBarStyle(task) {
 	const endViewDate = new Date(startDate);
 	endViewDate.setDate(startDate.getDate() + daysToShow.value);
 
-	const taskStart = task.exp_start_date ? new Date(task.exp_start_date) : null;
-	const taskEnd = task.exp_end_date ? new Date(task.exp_end_date) : null;
+	const taskStart = parseLocalDay(task.exp_start_date);
+	const taskEnd = parseLocalDay(task.exp_end_date);
 
 	// If no dates, skip
 	if (!taskStart && !taskEnd) return null;
@@ -92,6 +123,13 @@ function getTaskBarStyle(task) {
 	// Ensure start is before end
 	if (effectiveStart > effectiveEnd) {
 		[effectiveStart, effectiveEnd] = [effectiveEnd, effectiveStart];
+	}
+
+	// Live preview while dragging / resizing
+	if (drag.value && drag.value.taskName === task.name && drag.value.moved) {
+		const range = computeDraggedRange(drag.value, effectiveStart, effectiveEnd);
+		effectiveStart = range.start;
+		effectiveEnd = range.end;
 	}
 
 	// Check if task is visible in current view
@@ -116,6 +154,112 @@ function getTaskBarStyle(task) {
 	};
 }
 
+// ---- Drag to move / resize ----
+const drag = ref(null);
+const justDragged = ref(false);
+const DRAG_THRESHOLD_PX = 4;
+
+function computeDraggedRange(d, start, end) {
+	let newStart = start;
+	let newEnd = end;
+	if (d.mode === "move") {
+		newStart = addDays(start, d.deltaDays);
+		newEnd = addDays(end, d.deltaDays);
+	} else if (d.mode === "resize-start") {
+		newStart = addDays(start, d.deltaDays);
+		if (newStart > end) newStart = end;
+	} else if (d.mode === "resize-end") {
+		newEnd = addDays(end, d.deltaDays);
+		if (newEnd < start) newEnd = start;
+	}
+	return { start: newStart, end: newEnd };
+}
+
+function startDrag(event, task, mode) {
+	if (event.button !== undefined && event.button !== 0) return;
+	const area = event.currentTarget.closest("[data-timeline-area]");
+	if (!area) return;
+	const dayWidthPx = area.getBoundingClientRect().width / daysToShow.value;
+	if (!dayWidthPx) return;
+	event.preventDefault();
+	event.stopPropagation();
+
+	drag.value = {
+		taskName: task.name,
+		mode,
+		startX: event.clientX,
+		dayWidthPx,
+		deltaDays: 0,
+		moved: false,
+	};
+	window.addEventListener("pointermove", onDragMove);
+	window.addEventListener("pointerup", onDragEnd);
+	window.addEventListener("pointercancel", cancelDrag);
+}
+
+function onDragMove(event) {
+	const d = drag.value;
+	if (!d) return;
+	const dx = event.clientX - d.startX;
+	if (!d.moved && Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+	d.moved = true;
+	d.deltaDays = Math.round(dx / d.dayWidthPx);
+}
+
+function removeDragListeners() {
+	window.removeEventListener("pointermove", onDragMove);
+	window.removeEventListener("pointerup", onDragEnd);
+	window.removeEventListener("pointercancel", cancelDrag);
+}
+
+function cancelDrag() {
+	removeDragListeners();
+	drag.value = null;
+}
+
+async function onDragEnd() {
+	const d = drag.value;
+	removeDragListeners();
+	if (!d) return;
+	drag.value = null;
+	if (!d.moved) return;
+
+	// Swallow the click that follows a drag so the detail panel does not open
+	justDragged.value = true;
+	setTimeout(() => (justDragged.value = false), 0);
+
+	if (d.deltaDays === 0) return;
+	const task = props.tasks.find((t) => t.name === d.taskName);
+	if (!task) return;
+
+	let start = parseLocalDay(task.exp_start_date);
+	let end = parseLocalDay(task.exp_end_date);
+	if (!start && !end) return;
+	const hadStart = !!start;
+	const hadEnd = !!end;
+	start = start || end;
+	end = end || start;
+	if (start > end) [start, end] = [end, start];
+
+	const range = computeDraggedRange(d, start, end);
+	const updates = {};
+	if (d.mode === "move") {
+		if (hadStart) updates.exp_start_date = formatDay(range.start);
+		if (hadEnd) updates.exp_end_date = formatDay(range.end);
+	} else {
+		updates.exp_start_date = formatDay(range.start);
+		updates.exp_end_date = formatDay(range.end);
+	}
+
+	try {
+		await store.updateTask(task.name, updates);
+	} catch (error) {
+		console.error("Failed to update task dates:", error);
+	}
+}
+
+onBeforeUnmount(removeDragListeners);
+
 function navigatePrev() {
 	const newDate = new Date(viewStartDate.value);
 	newDate.setDate(newDate.getDate() - 7);
@@ -139,6 +283,7 @@ function setBlocked(task, blocked) {
 }
 
 function handleTaskClick(task) {
+	if (justDragged.value) return;
 	emit("task-click", task);
 }
 
@@ -293,7 +438,7 @@ onMounted(() => {
 					</div>
 
 					<!-- Timeline bar area -->
-					<div class="flex-1 relative py-2">
+					<div class="flex-1 relative py-2" data-timeline-area>
 						<!-- Background grid -->
 						<div class="absolute inset-0 flex">
 							<div
@@ -307,25 +452,39 @@ onMounted(() => {
 							></div>
 						</div>
 
-						<!-- Task bar -->
+						<!-- Task bar (drag to move, edges to resize) -->
 						<div
 							v-if="getTaskBarStyle(task)"
 							:style="getTaskBarStyle(task)"
 							:class="[
-								'absolute top-1/2 -translate-y-1/2 h-6 rounded cursor-pointer transition-all',
-								'hover:shadow-md hover:scale-y-110',
+								'absolute top-1/2 -translate-y-1/2 h-6 rounded select-none touch-none',
+								'hover:shadow-md group/bar',
+								drag && drag.taskName === task.name && drag.moved
+									? 'cursor-grabbing shadow-lg ring-2 ring-blue-400 z-10'
+									: 'cursor-grab transition-[box-shadow]',
 								statusColors[task.status] || 'bg-gray-400',
 								'border-l-4',
 								priorityColors[task.priority] || 'border-gray-300',
 							]"
+							@pointerdown="startDrag($event, task, 'move')"
 							@click="handleTaskClick(task)"
 							:title="`${task.subject}\n${task.exp_start_date || ''} - ${
 								task.exp_end_date || ''
 							}`"
 						>
-							<div class="px-2 py-1 text-xs text-white truncate">
+							<div
+								class="absolute left-0 top-0 h-full w-2 cursor-ew-resize rounded-l hover:bg-white/40"
+								@pointerdown="startDrag($event, task, 'resize-start')"
+								@click.stop
+							></div>
+							<div class="px-2 py-1 text-xs text-white truncate pointer-events-none">
 								{{ task.subject }}
 							</div>
+							<div
+								class="absolute right-0 top-0 h-full w-2 cursor-ew-resize rounded-r hover:bg-white/40"
+								@pointerdown="startDrag($event, task, 'resize-end')"
+								@click.stop
+							></div>
 						</div>
 					</div>
 				</div>
