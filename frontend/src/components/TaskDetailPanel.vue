@@ -33,6 +33,7 @@ import {
 	Image,
 	Upload,
 	Lock,
+	Unlink,
 } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
@@ -1092,6 +1093,51 @@ watch(
 	}
 );
 
+const parentTaskInfo = computed(() => {
+	const parentName = props.task.parent_task;
+	if (!parentName) return null;
+	const found = store.tasks.find((t) => t.name === parentName);
+	return {
+		name: parentName,
+		subject: props.task.parent_subject || found?.subject || parentName,
+	};
+});
+const isUnlinkingParent = ref(false);
+
+async function unlinkFromParent() {
+	const parent = parentTaskInfo.value;
+	if (!parent || isUnlinkingParent.value) return;
+	const message = translate("Detach this task from parent task {0}? It will become a top-level task.").replace(
+		"{0}",
+		parent.subject
+	);
+	if (!realWindow?.confirm(message)) return;
+
+	isUnlinkingParent.value = true;
+	try {
+		const topLevelCount = store.tasks.filter(
+			(t) => !t.parent_task && t.project === props.task.project && t.name !== props.task.name
+		).length;
+		await store.reorderTask(props.task.name, null, topLevelCount);
+		const updated = store.tasks.find((t) => t.name === props.task.name);
+		if (updated) {
+			store.selectTask({ ...props.task, ...updated, parent_task: null, parent_subject: null });
+		}
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Task detached from parent"),
+			indicator: "green",
+		});
+	} catch (error) {
+		console.error("Failed to detach task from parent:", error);
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Could not detach task from parent"),
+			indicator: "red",
+		});
+	} finally {
+		isUnlinkingParent.value = false;
+	}
+}
+
 async function navigateToParent() {
 	if (!props.task.parent_task) return;
 	const found = store.tasks.find((t) => t.name === props.task.parent_task);
@@ -1622,7 +1668,7 @@ async function deleteAttachment(fileName) {
 									@click="navigateToParent"
 									:title="task.parent_task"
 								>
-									{{ task.parent_subject || task.parent_task }}
+									{{ parentTaskInfo?.subject }}
 								</button>
 								<ChevronRight class="w-3 h-3 text-gray-400 shrink-0" />
 							</template>
@@ -2213,6 +2259,32 @@ async function deleteAttachment(fileName) {
 								<ChevronDown :class="['h-4 w-4 text-gray-400 transition-transform', sectionStates.context ? 'rotate-180' : '']" />
 							</button>
 							<div v-if="sectionStates.context" class="space-y-4 p-4">
+								<div v-if="parentTaskInfo">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Parent task") }}
+									</div>
+									<div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+										<button
+											type="button"
+											class="min-w-0 flex-1 text-left text-sm font-medium text-blue-600 hover:underline"
+											:title="parentTaskInfo.name"
+											@click="navigateToParent"
+										>
+											<span class="block truncate">{{ parentTaskInfo.subject }}</span>
+											<span class="block text-xs font-normal text-gray-500">{{ parentTaskInfo.name }}</span>
+										</button>
+										<button
+											type="button"
+											class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+											:disabled="isUnlinkingParent"
+											:title="translate('Detach from parent task')"
+											@click="unlinkFromParent"
+										>
+											<Unlink class="h-3.5 w-3.5" />
+											{{ translate("Detach") }}
+										</button>
+									</div>
+								</div>
 								<div>
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Project") }}
