@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { toOpenableUrl } from "../utils/url";
 import DatePickerField from "./DatePickerField.vue";
 import {
 	Calendar,
@@ -69,6 +70,7 @@ const isOverdue = computed(() => {
 
 const isExpanded = ref(false);
 
+const documentationLinkUrl = computed(() => toOpenableUrl(editableDocumentationUrl.value));
 const canEdit = computed(() => !!props.project?.is_manager);
 
 const store = useTaskStore();
@@ -368,14 +370,27 @@ async function saveNotes() {
 								<div class="text-xs text-gray-500">
 									{{ translate("Documentation URL") }}
 								</div>
-								<input
-									v-model="editableDocumentationUrl"
-									type="url"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-									:placeholder="translate('https://docs.example.com')"
-									@blur="saveDocumentationUrl"
-									:disabled="isSaving || !canEdit"
-								/>
+								<div class="mt-1 flex items-center gap-2">
+									<input
+										v-model="editableDocumentationUrl"
+										type="url"
+										class="min-w-0 flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+										:placeholder="translate('https://docs.example.com')"
+										@blur="saveDocumentationUrl"
+										:disabled="isSaving || !canEdit"
+									/>
+									<a
+										v-if="documentationLinkUrl"
+										:href="documentationLinkUrl"
+										target="_blank"
+										rel="noopener noreferrer"
+										:title="translate('Open link')"
+										class="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50"
+									>
+										{{ translate("Open link") }}
+										<span aria-hidden="true">↗</span>
+									</a>
+								</div>
 							</div>
 						</div>
 					</div>

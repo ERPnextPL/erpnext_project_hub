@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import tabRegistry, { getRoutes, getReservedSegments } from "./tabRegistry";
+import { rememberProjectLocation } from "./utils/lastProject";
 
 /**
  * Build the router from the tab registry. Call it only once every tab is
@@ -41,8 +42,15 @@ export function createAppRouter() {
 		},
 	];
 
-	return createRouter({
+	const router = createRouter({
 		history: createWebHistory(),
 		routes,
 	});
+
+	// Projects tab remembers the last opened project (see OutlinerNav).
+	router.afterEach((to, from, failure) => {
+		if (!failure) rememberProjectLocation(to);
+	});
+
+	return router;
 }

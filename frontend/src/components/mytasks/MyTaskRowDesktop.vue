@@ -6,7 +6,9 @@ import { getRealWindow, translate } from "../../utils/translation";
 import { stripHtmlToText } from "../../utils/plainText";
 import { getProgressColorClass } from "../../utils/progressColors";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../../utils/taskStatus";
-import BlockedToggle from "../shared/BlockedToggle.vue";
+import BlockedToggle from "../atoms/BlockedToggle.vue";
+import MilestoneLabel from "../atoms/MilestoneLabel.vue";
+import { getTaskMilestone } from "../../utils/milestone";
 import DatePickerPopover from "../DatePickerPopover.vue";
 import {
 	Clock,
@@ -46,6 +48,7 @@ const props = defineProps({
 	selected: Boolean,
 });
 
+const taskMilestone = computed(() => getTaskMilestone(props.task));
 const emit = defineEmits(["open-time-log-modal", "toggle-expand", "toggle-select"]);
 
 const store = useMyTasksStore();
@@ -329,15 +332,21 @@ onUnmounted(() => {
 		</div>
 
 		<!-- Project -->
-		<div class="col-span-2 flex items-center min-w-0">
+		<div class="col-span-2 flex flex-col items-start justify-center gap-1 min-w-0">
 			<div
 				v-if="task.project_name"
-				class="flex items-center gap-1.5 text-sm text-gray-500 truncate"
+				class="flex max-w-full items-center gap-1.5 text-sm text-gray-500 truncate"
 			>
 				<Folder class="w-3.5 h-3.5 flex-shrink-0" />
 				<span class="truncate">{{ task.project_name }}</span>
 			</div>
 			<span v-else class="text-gray-300">—</span>
+			<MilestoneLabel
+				v-if="taskMilestone"
+				:label="taskMilestone.label"
+				:color="taskMilestone.color"
+				size="xs"
+			/>
 		</div>
 
 		<!-- Status -->

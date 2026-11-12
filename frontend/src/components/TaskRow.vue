@@ -7,13 +7,17 @@ const openPriorityMenuTask = moduleRef(null);
 </script>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
 import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
-import BlockedToggle from "./shared/BlockedToggle.vue";
+import BlockedToggle from "./atoms/BlockedToggle.vue";
+import MilestoneLabel from "./atoms/MilestoneLabel.vue";
+import { getTaskMilestone } from "../utils/milestone";
+import { cancelTaskWithSubtasks } from "../utils/taskHierarchy";
+import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
 import DatePickerPopover from "./DatePickerPopover.vue";
 import {
 	GripVertical,
@@ -98,6 +102,8 @@ const isTouchDevice = () => {
 
 // Context menu
 const contextMenuPosition = ref({ x: 0, y: 0 });
+const contextMenuRef = ref(null);
+const contextMenuAnchor = ref({ x: 0, y: 0 });
 const showContextMenu = computed(() => props.activeContextMenuTaskName === props.task.name);
 
 // User assignment dropdown
@@ -114,32 +120,16 @@ const canAddSubtask = computed(() => {
 	return isTaskActive(props.task.status);
 });
 
-const assignedUsers = computed(() => {
-	if (!props.task._assign) return [];
-	try {
-		const assigns = JSON.parse(props.task._assign);
-		return Array.isArray(assigns) ? assigns : [];
-	} catch {
-		return [];
-	}
-});
+const assignedUsers = computed(() => parseAssignees(props.task._assign));
 
 const firstAssignee = computed(() => {
 	if (assignedUsers.value.length === 0) return null;
 	const email = assignedUsers.value[0];
-	// Extract name from email (before @)
-	const name = email.split("@")[0];
-	return {
-		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
-	};
+	return { email, displayName: nameFromUserId(email) };
 });
 
-const milestoneColor = computed(() => {
-	if (!props.task.milestone) return null;
-	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
-	return milestone?.color || "#3b82f6"; // Default blue if no color set
-});
+const taskMilestone = computed(() => getTaskMilestone(props.task, store.milestones));
+const milestoneColor = computed(() => taskMilestone.value?.color || null);
 
 // Load metadata on mount
 onMounted(() => {
@@ -292,68 +282,20 @@ async function updateStatus(newStatus) {
 	closeStatusDropdown();
 	if (newStatus === props.task.status) return;
 
-	// Special handling for Cancelled status
-	if (newStatus === "Cancelled") {
-		// Check if task has any subtasks
-		const subtasks = store.tasks.filter((t) => t.parent_task === props.task.name);
-		if (subtasks.length > 0) {
-			await handleCancelWithSubtasks();
-			return;
-		}
+	if (newStatus === "Cancelled" && hasChildren.value) {
+		// The list holds only filtered tasks: cascade over the project's full tree.
+		const allTasks = await store.fetchAllProjectTasks(props.task.project);
+		await cancelTaskWithSubtasks(allTasks, props.task, (name, updates) =>
+			name === props.task.name ? emit("update", name, updates) : store.updateTask(name, updates),
+		{
+			translate,
+			notify: (message, indicator) =>
+				realWindow?.frappe?.show_alert({ message, indicator }),
+		});
+		return;
 	}
 
 	emit("update", props.task.name, { status: newStatus });
-}
-
-async function handleCancelWithSubtasks() {
-	// Count all subtasks recursively
-	const countSubtasks = (taskName) => {
-		let count = 0;
-		store.tasks.forEach((task) => {
-			if (task.parent_task === taskName) {
-				count++;
-				count += countSubtasks(task.name);
-			}
-		});
-		return count;
-	};
-
-	const subtaskCount = countSubtasks(props.task.name);
-
-	// Ask for confirmation
-	const confirmed = confirm(
-		translate(
-			`This task has {subtaskCount} subtasks.\n\n` +
-				`Cancelling this task will also cancel all subtasks.\n\n` +
-				`Do you want to continue?`,
-			{ subtaskCount }
-		)
-	);
-
-	if (!confirmed) return;
-
-	// Cancel the main task
-	emit("update", props.task.name, { status: "Cancelled" });
-
-	// Cancel all subtasks recursively
-	const cancelSubtasks = async (taskName) => {
-		const subtasks = store.tasks.filter((task) => task.parent_task === taskName);
-		for (const subtask of subtasks) {
-			await store.updateTask(subtask.name, { status: "Cancelled" });
-			// Recursively cancel children
-			await cancelSubtasks(subtask.name);
-		}
-	};
-
-	await cancelSubtasks(props.task.name);
-
-	// Show success message
-	if (realWindow?.frappe) {
-		realWindow.frappe.show_alert({
-			message: translate("Task and {subtaskCount} subtasks cancelled", { subtaskCount }),
-			indicator: "orange",
-		});
-	}
 }
 
 function showUserAssignDropdown(e) {
@@ -397,8 +339,24 @@ function showMenu(e) {
 		return;
 	}
 	e.preventDefault();
+	contextMenuAnchor.value = { x: e.clientX, y: e.clientY };
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
 	emit("contextmenu-open", props.task.name);
+	nextTick(positionContextMenu);
+}
+
+function positionContextMenu() {
+	const menu = contextMenuRef.value;
+	if (!menu) return;
+
+	const margin = 8;
+	const rect = menu.getBoundingClientRect();
+	const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+	const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+	contextMenuPosition.value = {
+		x: Math.min(Math.max(margin, contextMenuAnchor.value.x), maxX),
+		y: Math.min(Math.max(margin, contextMenuAnchor.value.y), maxY),
+	};
 }
 
 async function deleteTask() {
@@ -509,6 +467,10 @@ function handleGlobalClick(event) {
 	}
 }
 
+watch(showContextMenu, (isOpen) => {
+	if (isOpen) nextTick(positionContextMenu);
+});
+
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
 	// The menu is fixed-positioned, so close it instead of letting it drift on scroll
@@ -516,6 +478,7 @@ onMounted(() => {
 	document.addEventListener("scroll", closePriorityDropdown, true);
 	realWindow?.addEventListener?.("resize", closeStatusDropdown);
 	realWindow?.addEventListener?.("resize", closePriorityDropdown);
+	realWindow?.addEventListener?.("resize", positionContextMenu);
 });
 
 onUnmounted(() => {
@@ -524,6 +487,7 @@ onUnmounted(() => {
 	document.removeEventListener("scroll", closePriorityDropdown, true);
 	realWindow?.removeEventListener?.("resize", closeStatusDropdown);
 	realWindow?.removeEventListener?.("resize", closePriorityDropdown);
+	realWindow?.removeEventListener?.("resize", positionContextMenu);
 	closeStatusDropdown();
 	closePriorityDropdown();
 });
@@ -531,6 +495,7 @@ onUnmounted(() => {
 
 <template>
 	<div
+		:data-task-name="task.name"
 		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
@@ -622,13 +587,6 @@ onUnmounted(() => {
 					</Transition>
 				</div>
 
-				<!-- Milestone indicator (always visible if assigned) -->
-				<Diamond
-					v-if="task.milestone"
-					class="w-3 h-3 flex-shrink-0"
-					:style="{ color: milestoneColor }"
-					:title="translate('Milestone: ') + task.milestone"
-				/>
 
 				<div class="flex-1 min-w-0">
 					<input
@@ -641,14 +599,22 @@ onUnmounted(() => {
 						@keydown="handleKeydown"
 						@click.stop
 					/>
-					<span
-						v-else
-						@dblclick.stop="startEditing('subject', task.subject)"
-						class="text-sm text-gray-900 truncate block w-full"
-						:class="{ 'font-medium': task.is_group }"
-					>
-						{{ task.subject }}
-					</span>
+					<div v-else class="flex min-w-0 items-center gap-1.5">
+						<span
+							@dblclick.stop="startEditing('subject', task.subject)"
+							class="text-sm text-gray-900 truncate min-w-0"
+							:class="{ 'font-medium': task.is_group }"
+						>
+							{{ task.subject }}
+						</span>
+						<MilestoneLabel
+							v-if="taskMilestone"
+							:label="taskMilestone.label"
+							:color="taskMilestone.color"
+							size="xs"
+							class="max-w-[10rem] flex-shrink-0"
+						/>
+					</div>
 
 					<div
 						v-if="taskDescription"
@@ -917,7 +883,8 @@ onUnmounted(() => {
 		<Teleport to="body">
 			<div
 				v-if="showContextMenu"
-				class="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
+				ref="contextMenuRef"
+				class="fixed max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
 				:style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
 			>
 				<button

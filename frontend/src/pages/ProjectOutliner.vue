@@ -29,6 +29,8 @@ import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
+import KanbanAttentionPanel from "../components/KanbanAttentionPanel.vue";
+import { useBoardTaskFocus } from "../composables/useBoardTaskFocus";
 import TimelineView from "../components/TimelineView.vue";
 import UserSelect from "../components/UserSelect.vue";
 import DatePickerField from "../components/DatePickerField.vue";
@@ -36,6 +38,7 @@ import {
 	ArrowLeft,
 	Filter,
 	Search,
+	User,
 	X,
 	RefreshCw,
 	LayoutList,
@@ -62,6 +65,7 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
+const { highlightedTaskName, focusBoardTask } = useBoardTaskFocus();
 const store = useTaskStore();
 const { selectedTask } = storeToRefs(store);
 const selectedTaskNames = ref([]);
@@ -90,7 +94,8 @@ function toggleAllTaskSelection({ names, selected }) {
 async function applyBulkEdit(updates) {
 	bulkEditLoading.value = true;
 	try {
-		await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		const result = await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		if (!result) return;
 		showBulkEdit.value = false;
 		selectedTaskNames.value = [];
 		await store.fetchTasks(props.projectId, activeFilters.value);
@@ -223,6 +228,28 @@ const hasActiveFilters = computed(() => {
 		activeFilters.value.search
 	);
 });
+
+const activeFilterCount = computed(() => {
+	return [
+		activeFilters.value.priority.length > 0,
+		Boolean(activeFilters.value.assignee),
+		activeFilters.value.dueToday,
+		activeFilters.value.overdue,
+		Boolean(activeFilters.value.search),
+	].filter(Boolean).length;
+});
+
+const activeAssigneeLabel = computed(() => {
+	const user = store.availableUsers.find(
+		(user) => user.name === activeFilters.value.assignee
+	);
+	return user?.full_name || activeFilters.value.assignee;
+});
+
+function clearAssigneeFilter() {
+	activeFilters.value.assignee = null;
+	store.fetchTasks(props.projectId, activeFilters.value);
+}
 
 
 useTaskDeepLink({
@@ -572,10 +599,10 @@ const groupedTasksByMilestone = computed(() => {
 	<div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
 		<!-- Header -->
 		<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
-			<div class="px-4 sm:px-6 lg:px-8">
-				<div class="flex flex-wrap items-center justify-between gap-3 min-h-[56px]">
+			<div class="w-full px-4 sm:px-6 lg:px-8">
+				<div class="grid min-h-[56px] grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:gap-3">
 					<!-- Left: Back + Project name -->
-					<div class="flex items-center gap-3">
+					<div class="order-1 flex min-w-0 items-center gap-3 md:order-none">
 						<button
 							@click="goBack"
 							class="p-1.5 -ml-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
@@ -602,18 +629,19 @@ const groupedTasksByMilestone = computed(() => {
 						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Team + Nav -->
-					<div class="flex items-center gap-3 flex-wrap justify-end">
+					<div class="order-2 flex flex-wrap items-center justify-end gap-3 md:order-none md:col-start-2 md:justify-self-end">
 						<ProjectTeam :project-id="projectId" />
 						<button
 							@click="toggleAttachmentsSidebar"
+							:title="translate('Attachments')"
+							:aria-label="translate('Attachments')"
+							:aria-pressed="attachmentsSidebarOpen"
 							:class="[
 								'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
 								attachmentsSidebarOpen
 									? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
 									: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
 							]"
-							:title="translate('Attachments')"
 						>
 							<Paperclip class="w-4 h-4" />
 							<span class="hidden sm:inline">{{ translate("Attachments") }}</span>
@@ -627,13 +655,15 @@ const groupedTasksByMilestone = computed(() => {
 						<div v-if="requestsAvailable" class="flex items-stretch">
 							<button
 								@click="toggleRequestsSidebar"
+								:title="translate('Customer Requests')"
+								:aria-label="translate('Customer Requests')"
+								:aria-pressed="requestsSidebarOpen"
 								:class="[
 									'flex items-center gap-1.5 px-3 py-2 text-sm rounded-l-lg border transition-colors',
 									requestsSidebarOpen
 										? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
 										: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
 								]"
-								:title="translate('Customer Requests')"
 							>
 								<ClipboardList class="w-4 h-4" />
 								<span class="hidden sm:inline">{{ translate("Requests") }}</span>
@@ -697,7 +727,7 @@ const groupedTasksByMilestone = computed(() => {
 				</Transition>
 
 			<!-- Center: Task list -->
-			<main class="flex-1 overflow-y-auto">
+			<main class="mx-auto min-w-0 w-full max-w-[1800px] flex-1 overflow-y-auto">
 				<!-- Project Information Panel -->
 				<ProjectInfoPanel
 					v-if="store.project && !store.loading"
@@ -716,9 +746,9 @@ const groupedTasksByMilestone = computed(() => {
 				<!-- Toolbar: View tabs + Search + Filter + Refresh -->
 				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[57px] z-10">
 					<div class="px-4 sm:px-6 lg:px-8 py-2">
-						<div class="flex flex-col sm:flex-row sm:items-center gap-3">
+						<div class="flex flex-wrap items-center gap-2">
 							<!-- Search -->
-							<div class="relative flex-1 max-w-md">
+							<div class="relative min-w-[min(100%,16rem)] flex-1 basis-full lg:basis-auto lg:max-w-md">
 								<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 								<input
 									v-model="searchInput"
@@ -736,9 +766,11 @@ const groupedTasksByMilestone = computed(() => {
 							</div>
 
 							<!-- Filter toggle + Refresh -->
-							<div class="flex items-center gap-2">
+							<div class="flex items-center gap-1.5">
 								<button
 									@click="sidebarCollapsed = !sidebarCollapsed"
+									:aria-expanded="!sidebarCollapsed"
+									:aria-label="translate('Filters')"
 									:class="[
 										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
 										!sidebarCollapsed || hasActiveFilters
@@ -747,15 +779,19 @@ const groupedTasksByMilestone = computed(() => {
 									]"
 								>
 									<Filter class="w-4 h-4" />
-									<span class="hidden sm:inline">{{ translate("Filters") }}</span>
+									<span>{{ translate("Filters") }}</span>
 									<span
 										v-if="hasActiveFilters"
-										class="w-2 h-2 rounded-full bg-blue-600"
-									></span>
+										class="min-w-5 rounded-full bg-blue-600 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white"
+									>
+										{{ activeFilterCount }}
+									</span>
 								</button>
 
 								<button
 									@click="milestoneSidebarOpen = !milestoneSidebarOpen"
+									:aria-expanded="milestoneSidebarOpen"
+									:aria-label="translate('Milestones')"
 									:class="[
 										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
 										milestoneSidebarOpen
@@ -793,52 +829,90 @@ const groupedTasksByMilestone = computed(() => {
 								</button>
 							</div>
 
-							<MilestoneTrack
-								v-if="store.milestones.length && !store.loading"
-								:milestones="store.milestones"
-							/>
-
-							<!-- View tabs (right-aligned) -->
-							<div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 sm:ml-auto">
+							<!-- View tabs -->
+							<div class="ml-auto flex min-w-0 items-center gap-2">
+								<span class="hidden text-xs font-medium uppercase tracking-wide text-gray-400 lg:inline dark:text-gray-500">
+									{{ translate("View") }}
+								</span>
+								<div
+									class="inline-flex max-w-full overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-800"
+									role="tablist"
+									:aria-label="translate('View')"
+								>
 								<button
+									role="tab"
 									@click="activeView = 'list'"
+									:aria-pressed="activeView === 'list'"
+									:aria-selected="activeView === 'list'"
+									:title="translate('List')"
 									:class="[
-										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										'flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset',
 										activeView === 'list'
-											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+											? 'bg-blue-600 text-white shadow-sm'
+											: 'text-gray-600 hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100',
 									]"
 								>
 									<LayoutList class="w-4 h-4" />
 									{{ translate("List") }}
 								</button>
 								<button
+									role="tab"
 									@click="activeView = 'board'"
+									:aria-pressed="activeView === 'board'"
+									:aria-selected="activeView === 'board'"
+									:title="translate('Board')"
 									:class="[
-										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										'flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset',
 										activeView === 'board'
-											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+											? 'bg-blue-600 text-white shadow-sm'
+											: 'text-gray-600 hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100',
 									]"
 								>
 									<Columns class="w-4 h-4" />
 									{{ translate("Board") }}
 								</button>
 								<button
+									role="tab"
 									@click="activeView = 'timeline'"
+									:aria-pressed="activeView === 'timeline'"
+									:aria-selected="activeView === 'timeline'"
+									:title="translate('Timeline')"
 									:class="[
-										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										'flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset',
 										activeView === 'timeline'
-											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+											? 'bg-blue-600 text-white shadow-sm'
+											: 'text-gray-600 hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100',
 									]"
 								>
 									<GanttChart class="w-4 h-4" />
 									{{ translate("Timeline") }}
 								</button>
+								</div>
+							</div>
+							<div
+								v-if="activeFilters.assignee"
+								class="mt-2 flex flex-wrap items-center gap-2"
+							>
+								<span class="text-xs text-gray-500 dark:text-gray-400">
+									{{ translate("Active filters") }}:
+								</span>
+								<button
+									type="button"
+									class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+									:aria-label="translate('Remove assignee filter: {0}', [activeAssigneeLabel])"
+									@click="clearAssigneeFilter"
+								>
+									<User class="h-3 w-3" />
+									<span>{{ translate("Assigned to: {0}", [activeAssigneeLabel]) }}</span>
+									<X class="h-3 w-3" />
+								</button>
 							</div>
 						</div>
 					</div>
+					<MilestoneTrack
+						v-if="store.milestones.length && !store.loading"
+						:milestones="store.milestones"
+					/>
 				</div>
 
 				<!-- Filters panel (slides down under toolbar) -->
@@ -981,7 +1055,7 @@ const groupedTasksByMilestone = computed(() => {
 								@toggle-all="toggleAllTaskSelection"
 								:show-header="false"
 								:show-quick-add="false"
-								:enable-reorder="false"
+								:enable-reorder="true"
 							/>
 						</section>
 					</div>
@@ -1026,12 +1100,19 @@ const groupedTasksByMilestone = computed(() => {
 					</div>
 				</div>
 
-				<div v-else-if="activeView === 'board'" class="h-full">
-					<KanbanBoard
+				<div v-else-if="activeView === 'board'" class="flex h-full min-w-0">
+					<div class="min-w-0 flex-1">
+						<KanbanBoard
+							:tasks="flattenedTasksWithFilters"
+							:project-id="projectId"
+							:visible-statuses="activeFilters.status"
+							@task-click="handleTaskClick"
+						/>
+					</div>
+					<KanbanAttentionPanel
 						:tasks="flattenedTasksWithFilters"
-						:project-id="projectId"
-						:visible-statuses="activeFilters.status"
-						@task-click="handleTaskClick"
+						:highlighted-task="highlightedTaskName"
+						@focus-task="focusBoardTask"
 					/>
 				</div>
 

@@ -9,6 +9,7 @@
  "field_order": [
   "subject",
   "workflow_state",
+  "analyst",
   "state_changed_on",
   "request_date",
   "source",
@@ -47,6 +48,16 @@
    "label": "Workflow State",
    "options": "Workflow State",
    "read_only": 1
+  },
+  {
+   "description": "Person analyzing the request. Set by \"Take for analysis\"; a manager can pick someone here.",
+   "fieldname": "analyst",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Assigned Analyst",
+   "no_copy": 1,
+   "options": "User"
   },
   {
    "description": "When the request entered its current workflow state.",
@@ -173,7 +184,7 @@
    "link_fieldname": "customer_request"
   }
  ],
- "modified": "2026-10-13 12:00:00.000000",
+ "modified": "2026-10-19 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Projekt HUB",
  "name": "Customer Request",
@@ -201,6 +212,18 @@
    "read": 1,
    "report": 1,
    "role": "Projects Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Project Manager",
    "share": 1,
    "write": 1
   },

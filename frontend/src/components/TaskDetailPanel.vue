@@ -33,9 +33,12 @@ import {
 	Image,
 	Upload,
 	Lock,
+	Unlink,
+	Link2,
 } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
+import { toOpenableUrl } from "../utils/url";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -43,6 +46,8 @@ const translate = (text) => {
 		? realWindow.__(text)
 		: text;
 };
+
+const referenceLinkUrl = computed(() => toOpenableUrl(editableTask.value?.reference_link));
 
 const isTouchDevice = computed(() => {
 	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
@@ -715,6 +720,14 @@ async function handleStatusSelection(option) {
 
 	try {
 		const data = await store.updateTask(props.task.name, updates);
+		if (!data) {
+			editableTask.value.status = props.task.status;
+			if (updates.completed_on) {
+				editableTask.value.completed_on = props.task.completed_on || "";
+			}
+			statusMenuOpen.value = false;
+			return;
+		}
 		if (data) {
 			Object.assign(editableTask.value, normalizeTaskForEdit(data));
 		}
@@ -1081,13 +1094,170 @@ watch(
 	}
 );
 
+// Tasks of this task's project. In the project view they are the project
+// store's tasks; opened from My Tasks that store holds another project (or
+// none), so the project's tasks are loaded here for the parent picker.
+const loadedProjectTasks = ref([]);
+const usesProjectStore = computed(() => store.project?.name === props.task.project);
+const projectTasks = computed(() =>
+	usesProjectStore.value ? store.tasks : loadedProjectTasks.value
+);
+
+async function loadProjectTasks() {
+	loadedProjectTasks.value = [];
+	if (usesProjectStore.value || !props.task.project || !realWindow?.frappe?.xcall) return;
+	const project = props.task.project;
+	try {
+		const data = await realWindow.frappe.xcall(
+			"erpnext_projekt_hub.api.project_hub.get_project_tasks",
+			{ project }
+		);
+		if (props.task.project === project) loadedProjectTasks.value = data?.tasks || [];
+	} catch (error) {
+		console.error("Failed to load project tasks:", error);
+	}
+}
+
+watch(() => [props.task.project, usesProjectStore.value], loadProjectTasks, { immediate: true });
+
+// Parent set by attach/detach in this panel, until the caller's task catches up.
+// undefined: follow props.task; null: detached; { name, subject }: attached.
+const parentOverride = ref(undefined);
+watch(
+	() => [props.task.name, props.task.parent_task],
+	() => {
+		parentOverride.value = undefined;
+	}
+);
+
+const parentTaskInfo = computed(() => {
+	if (parentOverride.value !== undefined) return parentOverride.value;
+	const parentName = props.task.parent_task;
+	if (!parentName) return null;
+	const found = projectTasks.value.find((t) => t.name === parentName);
+	return {
+		name: parentName,
+		subject: props.task.parent_subject || found?.subject || parentName,
+	};
+});
+const isUnlinkingParent = ref(false);
+const isLinkingParent = ref(false);
+const selectedParentName = ref("");
+
+// Tasks that can become the parent: same project, open, not the task itself or its descendants
+const parentCandidates = computed(() => {
+	const currentName = props.task.name;
+	const blocked = new Set([currentName]);
+	let grew = true;
+	while (grew) {
+		grew = false;
+		for (const t of projectTasks.value) {
+			if (t.parent_task && blocked.has(t.parent_task) && !blocked.has(t.name)) {
+				blocked.add(t.name);
+				grew = true;
+			}
+		}
+	}
+	return projectTasks.value
+		.filter(
+			(t) =>
+				t.project === props.task.project &&
+				!blocked.has(t.name) &&
+				t.status !== "Completed" &&
+				t.status !== "Cancelled"
+		)
+		.sort((a, b) => (a.subject || "").localeCompare(b.subject || ""));
+});
+
+async function linkToParent() {
+	const parentName = selectedParentName.value;
+	if (!parentName || isLinkingParent.value) return;
+	isLinkingParent.value = true;
+	// The selection may change while saving: apply the result only to this task.
+	const taskName = props.task.name;
+	const taskSnapshot = { ...props.task };
+	try {
+		const childCount = projectTasks.value.filter((t) => t.parent_task === parentName).length;
+		const parent = projectTasks.value.find((t) => t.name === parentName);
+		await store.reorderTask(taskName, parentName, childCount);
+		const stillSelected = props.task.name === taskName;
+		if (stillSelected) {
+			parentOverride.value = { name: parentName, subject: parent?.subject || parentName };
+		}
+		const updated =
+			stillSelected && usesProjectStore.value && store.tasks.find((t) => t.name === taskName);
+		if (updated) {
+			store.selectTask({
+				...taskSnapshot,
+				...updated,
+				parent_task: parentName,
+				parent_subject: parent?.subject || parentName,
+			});
+		}
+		selectedParentName.value = "";
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Task attached to parent"),
+			indicator: "green",
+		});
+	} catch (error) {
+		console.error("Failed to attach task to parent:", error);
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Could not attach task to parent"),
+			indicator: "red",
+		});
+	} finally {
+		isLinkingParent.value = false;
+	}
+}
+
+async function unlinkFromParent() {
+	const parent = parentTaskInfo.value;
+	if (!parent || isUnlinkingParent.value) return;
+	const message = translate("Detach this task from parent task {0}? It will become a top-level task.").replace(
+		"{0}",
+		parent.subject
+	);
+	if (!realWindow?.confirm(message)) return;
+
+	isUnlinkingParent.value = true;
+	// The selection may change while saving: apply the result only to this task.
+	const taskName = props.task.name;
+	const taskSnapshot = { ...props.task };
+	try {
+		const topLevelCount = projectTasks.value.filter(
+			(t) => !t.parent_task && t.project === taskSnapshot.project && t.name !== taskName
+		).length;
+		await store.reorderTask(taskName, null, topLevelCount);
+		const stillSelected = props.task.name === taskName;
+		if (stillSelected) parentOverride.value = null;
+		const updated =
+			stillSelected && usesProjectStore.value && store.tasks.find((t) => t.name === taskName);
+		if (updated) {
+			store.selectTask({ ...taskSnapshot, ...updated, parent_task: null, parent_subject: null });
+		}
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Task detached from parent"),
+			indicator: "green",
+		});
+	} catch (error) {
+		console.error("Failed to detach task from parent:", error);
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Could not detach task from parent"),
+			indicator: "red",
+		});
+	} finally {
+		isUnlinkingParent.value = false;
+	}
+}
+
 async function navigateToParent() {
-	if (!props.task.parent_task) return;
-	const found = store.tasks.find((t) => t.name === props.task.parent_task);
+	const parentName = parentTaskInfo.value?.name;
+	if (!parentName) return;
+	const found = usesProjectStore.value && store.tasks.find((t) => t.name === parentName);
 	if (found) {
 		store.selectTask(found);
 	} else {
-		const detail = await store.fetchTaskDetail(props.task.parent_task);
+		const detail = await store.fetchTaskDetail(parentName);
 		if (detail) store.selectTask(detail);
 	}
 }
@@ -1604,14 +1774,14 @@ async function deleteAttachment(fileName) {
 				<div class="flex items-start justify-between gap-4">
 					<div class="min-w-0 flex-1">
 						<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-							<template v-if="task.parent_task">
+							<template v-if="parentTaskInfo">
 								<button
 									type="button"
 									class="inline-flex items-center gap-1 rounded px-1 py-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
 									@click="navigateToParent"
-									:title="task.parent_task"
+									:title="parentTaskInfo.name"
 								>
-									{{ task.parent_subject || task.parent_task }}
+									{{ parentTaskInfo?.subject }}
 								</button>
 								<ChevronRight class="w-3 h-3 text-gray-400 shrink-0" />
 							</template>
@@ -2078,7 +2248,7 @@ async function deleteAttachment(fileName) {
 											:class="['mt-0.5 h-4 w-4 flex-shrink-0', child.status === 'Completed' ? 'text-green-500' : 'text-gray-400']"
 										/>
 										<div class="min-w-0 flex-1">
-											<div :class="child.status === 'Completed' ? 'text-gray-400 line-through' : 'text-gray-800'" class="text-sm font-medium">
+							<div :class="['text-sm font-medium', ['Completed', 'Cancelled'].includes(child.status) ? 'text-gray-400 line-through' : 'text-gray-800']">
 												{{ child.subject }}
 											</div>
 											<div class="mt-1 text-xs text-gray-500">
@@ -2202,6 +2372,58 @@ async function deleteAttachment(fileName) {
 								<ChevronDown :class="['h-4 w-4 text-gray-400 transition-transform', sectionStates.context ? 'rotate-180' : '']" />
 							</button>
 							<div v-if="sectionStates.context" class="space-y-4 p-4">
+								<div v-if="!parentTaskInfo">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Parent task") }}
+									</div>
+									<div class="flex items-center gap-2">
+										<select
+											v-model="selectedParentName"
+											class="min-w-0 flex-1 rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											:disabled="isLinkingParent"
+										>
+											<option value="">{{ translate("No parent task") }}</option>
+											<option v-for="candidate in parentCandidates" :key="candidate.name" :value="candidate.name">
+												{{ candidate.subject }} ({{ candidate.name }})
+											</option>
+										</select>
+										<button
+											type="button"
+											class="inline-flex shrink-0 items-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+											:disabled="!selectedParentName || isLinkingParent"
+											@click="linkToParent"
+										>
+											<Link2 class="h-4 w-4" />
+											{{ translate("Attach") }}
+										</button>
+									</div>
+								</div>
+								<div v-if="parentTaskInfo">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Parent task") }}
+									</div>
+									<div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+										<button
+											type="button"
+											class="min-w-0 flex-1 text-left text-sm font-medium text-blue-600 hover:underline"
+											:title="parentTaskInfo.name"
+											@click="navigateToParent"
+										>
+											<span class="block truncate">{{ parentTaskInfo.subject }}</span>
+											<span class="block text-xs font-normal text-gray-500">{{ parentTaskInfo.name }}</span>
+										</button>
+										<button
+											type="button"
+											class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+											:disabled="isUnlinkingParent"
+											:title="translate('Detach from parent task')"
+											@click="unlinkFromParent"
+										>
+											<Unlink class="h-3.5 w-3.5" />
+											{{ translate("Detach") }}
+										</button>
+									</div>
+								</div>
 								<div>
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Project") }}
@@ -2243,13 +2465,26 @@ async function deleteAttachment(fileName) {
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Reference link") }}
 									</div>
-									<input
-										v-model="editableTask.reference_link"
-										type="url"
-										@blur="saveField('reference_link', editableTask.reference_link)"
-										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-										:placeholder="translate('GitHub branch, documentation, or another URL')"
-									/>
+									<div class="flex items-center gap-2">
+										<input
+											v-model="editableTask.reference_link"
+											type="url"
+											@blur="saveField('reference_link', editableTask.reference_link)"
+											class="min-w-0 flex-1 rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											:placeholder="translate('GitHub branch, documentation, or another URL')"
+										/>
+										<a
+											v-if="referenceLinkUrl"
+											:href="referenceLinkUrl"
+											target="_blank"
+											rel="noopener noreferrer"
+											:title="translate('Open link')"
+											class="inline-flex shrink-0 items-center gap-1 rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+										>
+											{{ translate("Open link") }}
+											<span aria-hidden="true">↗</span>
+										</a>
+									</div>
 								</div>
 							</div>
 						</section>
@@ -2333,12 +2568,16 @@ async function deleteAttachment(fileName) {
 									<div class="text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Completed on") }}
 									</div>
-					<DatePickerField
-						id="task-detail-completed-date"
-						v-model="editableTask.completed_on"
-						button-class="rounded-xl"
-						@update:model-value="saveField('completed_on', editableTask.completed_on)"
-					/>
+									<DatePickerField
+										id="task-detail-completed-date"
+										v-model="editableTask.completed_on"
+										button-class="rounded-xl"
+										@update:model-value="saveField('completed_on', editableTask.completed_on)"
+									/>
+									<div v-if="editableTask.completed_by" class="text-xs text-gray-600">
+										{{ translate("Completed by") }}:
+										{{ editableTask.completed_by_name || editableTask.completed_by }}
+									</div>
 								</div>
 								<div v-if="dateValidationError" class="text-xs text-red-600">
 									{{ dateValidationError }}

@@ -16,12 +16,21 @@
 			</div>
 		</header>
 
-		<main class="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+		<main class="mx-auto w-full min-w-0 space-y-4 px-4 py-6 sm:px-6 lg:px-8">
 			<!-- Toolbar -->
 			<div
-				class="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-3 lg:flex-row lg:items-center lg:justify-between"
+				class="sticky top-16 z-10 flex flex-col gap-3 rounded-lg border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur lg:flex-row lg:items-center lg:justify-between"
+				:aria-busy="store.loading"
 			>
-				<div class="flex flex-wrap items-center gap-2">
+				<div class="flex min-w-0 flex-wrap items-center gap-2">
+					<div class="inline-flex rounded-md border border-gray-300 p-0.5">
+						<button type="button" class="rounded px-3 py-1.5 text-sm" :class="store.viewMode === 'plan' ? 'bg-violet-600 text-white' : 'text-gray-600 hover:bg-gray-50'" @click="store.setViewMode('plan')">{{ translate("Plan") }}</button>
+						<button type="button" class="rounded px-3 py-1.5 text-sm" :class="store.viewMode === 'forecast' ? 'bg-violet-600 text-white' : 'text-gray-600 hover:bg-gray-50'" @click="store.setViewMode('forecast')">{{ translate("Forecast") }}</button>
+					</div>
+					<div v-if="store.viewMode === 'forecast'" class="inline-flex rounded-md border border-gray-300 p-0.5">
+						<button type="button" class="rounded px-3 py-1.5 text-sm" :class="store.forecastPeriod === 'week' ? 'bg-gray-100 font-medium text-gray-900' : 'text-gray-600 hover:bg-gray-50'" @click="store.setForecastPeriod('week')">{{ translate("Week") }}</button>
+						<button type="button" class="rounded px-3 py-1.5 text-sm" :class="store.forecastPeriod === 'month' ? 'bg-gray-100 font-medium text-gray-900' : 'text-gray-600 hover:bg-gray-50'" @click="store.setForecastPeriod('month')">{{ translate("Month") }}</button>
+					</div>
 					<div class="inline-flex rounded-md border border-gray-300">
 						<button
 							type="button"
@@ -58,8 +67,8 @@
 					/>
 				</div>
 
-				<div class="flex flex-wrap items-center gap-2">
-					<div class="relative">
+				<div class="flex flex-wrap items-center gap-2 lg:justify-end">
+					<div v-if="store.viewMode === 'plan'" class="relative">
 						<Search class="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
 						<input
 							v-model="store.search"
@@ -71,7 +80,8 @@
 					<select
 						v-if="store.canPlanForOthers && store.departments.length"
 						:value="store.department"
-						class="rounded-md border border-gray-300 py-1.5 pl-2 pr-8 text-sm text-gray-700 focus:border-violet-500 focus:ring-violet-500"
+						:aria-label="translate('All departments')"
+						class="w-44 rounded-md border border-gray-300 py-1.5 pl-2 pr-8 text-sm text-gray-700 focus:border-violet-500 focus:ring-violet-500"
 						@change="store.setDepartment($event.target.value)"
 					>
 						<option value="">{{ translate("All departments") }}</option>
@@ -79,7 +89,18 @@
 							{{ department }}
 						</option>
 					</select>
-					<label class="flex items-center gap-1.5 text-sm text-gray-600">
+					<button
+						v-if="store.search || store.department"
+						type="button"
+						class="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+						:title="translate('Clear')"
+						:aria-label="translate('Clear')"
+						@click="clearFilters"
+					>
+						<X class="h-4 w-4" />
+						{{ translate("Clear") }}
+					</button>
+					<label v-if="store.viewMode === 'plan'" class="flex items-center gap-1.5 text-sm text-gray-600">
 						<input
 							type="checkbox"
 							:checked="store.showWeekend"
@@ -89,7 +110,7 @@
 						{{ translate("Weekend") }}
 					</label>
 					<button
-						v-if="store.canPlan"
+						v-if="store.canPlan && store.viewMode === 'plan'"
 						type="button"
 						class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
 						:disabled="copying || store.loading"
@@ -104,15 +125,15 @@
 						class="rounded-md border border-gray-300 p-1.5 text-gray-600 hover:bg-gray-50"
 						:title="translate('Refresh')"
 						:aria-label="translate('Refresh')"
-						@click="store.fetchPlan()"
+						@click="store.viewMode === 'forecast' ? store.fetchForecast() : store.fetchPlan()"
 					>
-						<RefreshCw class="h-4 w-4" :class="{ 'animate-spin': store.loading }" />
+						<RefreshCw class="h-4 w-4" :class="{ 'animate-spin': store.loading || store.forecastLoading }" />
 					</button>
 				</div>
 			</div>
 
 			<div
-				v-if="store.loaded && !store.canPlanForOthers"
+				v-if="store.viewMode === 'plan' && store.loaded && !store.canPlanForOthers"
 				class="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800"
 			>
 				<Info class="mt-0.5 h-4 w-4 shrink-0" />
@@ -123,6 +144,14 @@
 				}}
 			</div>
 
+			<WorkForecast
+				v-if="store.viewMode === 'forecast'"
+				:forecast="store.forecast"
+				:loading="store.forecastLoading"
+				:error="store.forecastError"
+			/>
+
+			<template v-if="store.viewMode === 'plan'">
 			<!-- Summary -->
 			<div v-if="store.loaded" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 				<div class="rounded-lg border border-gray-200 bg-white px-4 py-3">
@@ -272,6 +301,7 @@
 					</div>
 				</div>
 			</div>
+			</template>
 		</main>
 
 		<WorkPlanEntryModal
@@ -297,12 +327,14 @@ import {
 	Info,
 	RefreshCw,
 	Search,
+	X,
 	Users,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import WorkPlanGrid from "../components/work-planning/WorkPlanGrid.vue";
 import WorkPlanEntryModal from "../components/work-planning/WorkPlanEntryModal.vue";
+import WorkForecast from "../components/work-planning/WorkForecast.vue";
 import DatePickerField from "../components/DatePickerField.vue";
 import {
 	useWorkPlanningStore,
@@ -348,6 +380,11 @@ function openAdd({ employee, date }) {
 
 function openEdit({ employee, date, entry }) {
 	Object.assign(modal, { show: true, employee, date, entry });
+}
+
+function clearFilters() {
+	store.search = "";
+	store.setDepartment("");
 }
 
 async function copyPreviousWeek() {

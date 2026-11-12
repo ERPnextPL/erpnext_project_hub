@@ -3,6 +3,10 @@ import { computed } from "vue";
 import { Calendar, User, Flag, Lock } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusBadge } from "../utils/taskStatus";
+import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
+import { getTaskMilestone } from "../utils/milestone";
+import { useTaskStore } from "../stores/taskStore";
+import MilestoneLabel from "./atoms/MilestoneLabel.vue";
 
 const props = defineProps({
 	task: {
@@ -35,6 +39,9 @@ const priorityLabelMap = {
 	Low: translate("Low"),
 };
 
+const store = useTaskStore();
+const taskMilestone = computed(() => getTaskMilestone(props.task, store.milestones));
+
 const statusInfo = computed(() => statusConfig[props.task.status] || getStatusBadge(props.task.status));
 
 const indentStyle = computed(() => {
@@ -44,14 +51,8 @@ const indentStyle = computed(() => {
 });
 
 const assigneeLabel = computed(() => {
-	if (!props.task._assign) return null;
-	try {
-		const assigned = JSON.parse(props.task._assign);
-		if (!Array.isArray(assigned) || assigned.length === 0) return null;
-		return assigned[0].split("@")[0].replace(/[._]/g, " ");
-	} catch {
-		return null;
-	}
+	const [first] = parseAssignees(props.task._assign);
+	return first ? nameFromUserId(first) : null;
 });
 
 const formattedDate = computed(() => {
@@ -88,6 +89,13 @@ const formattedDate = computed(() => {
 		</div>
 
 		<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
+			<MilestoneLabel
+				v-if="taskMilestone"
+				:label="taskMilestone.label"
+				:color="taskMilestone.color"
+				size="xs"
+				class="max-w-[160px]"
+			/>
 			<span class="inline-flex items-center gap-1">
 				<Calendar class="h-3.5 w-3.5" />
 				{{ formattedDate }}

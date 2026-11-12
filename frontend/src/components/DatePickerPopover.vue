@@ -164,7 +164,7 @@ onUnmounted(() => {
 		<Transition name="fade">
 			<div
 				v-if="isOpen"
-				class="date-picker-popover fixed z-50 w-72 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+				class="date-picker-popover fixed z-[60] w-72 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
 				:style="{
 					left: `${datePickerPosition.left}px`,
 					top: `${datePickerPosition.top}px`,

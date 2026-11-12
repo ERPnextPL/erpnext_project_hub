@@ -23,6 +23,7 @@ def create_change_request(project, customer, subject):
 			"subject": subject,
 			"approved_scope": "_Test approved scope",
 			"approved_hours": 5,
+			"realization_assignee": "Administrator",
 		}
 	).insert(ignore_permissions=True)
 
@@ -41,8 +42,9 @@ class TestChangeRequestsBoard(FrappeTestCase):
 		change_request = create_change_request(self.project, self.customer, "_Test board draft change")
 
 		row = board_row(self.project, change_request.name)
-
 		self.assertEqual(row.actions, [{"action": "Approve", "next_state": "Approved"}])
+		self.assertEqual(row.realization_assignee, "Administrator")
+		self.assertTrue(row.realization_assignee_name)
 		self.assertTrue(row.state_changed_on)
 		self.assertIsNone(row.task_status)
 
@@ -60,13 +62,18 @@ class TestChangeRequestsBoard(FrappeTestCase):
 		self.assertEqual(row.task, result["task"])
 		self.assertEqual(row.task_status, "Open")
 		self.assertGreater(get_datetime(row.state_changed_on), get_datetime(OLD_TIMESTAMP))
-		self.assertCountEqual(
-			[action["action"] for action in row.actions],
-			["Mark Done", "Cancel"],
-		)
+		self.assertEqual([action["action"] for action in row.actions], ["Cancel"])
 
-		apply_change_request_action(change_request.name, "Mark Done")
+		task = frappe.get_doc("Task", result["task"])
+		task.status = "Completed"
+		task.save(ignore_permissions=True)
 		self.assertEqual(frappe.db.get_value("Change Request", change_request.name, "workflow_state"), "Done")
+
+		task.status = "Open"
+		task.save(ignore_permissions=True)
+		self.assertEqual(
+			frappe.db.get_value("Change Request", change_request.name, "workflow_state"), "Task Created"
+		)
 
 	def test_action_outside_the_workflow_is_refused(self):
 		change_request = create_change_request(self.project, self.customer, "_Test board refused")

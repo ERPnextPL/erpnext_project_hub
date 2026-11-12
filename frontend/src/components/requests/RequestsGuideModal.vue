@@ -34,7 +34,7 @@ const CUSTOMER_REQUEST_BOXES = [
 	{ x: 400, y: 210, tone: "rejected", name: "Rejected", desc: "can go back to analysis" },
 ];
 
-// Change Request workflow; "Approved" only lasts until the save that creates the task.
+// "Approved" only lasts until the save that creates and assigns the project task.
 const CHANGE_REQUEST_BOXES = [
 	{ x: 20, y: 10, tone: "draft", name: "Draft", desc: "specification and order to sign" },
 	{ x: 20, y: 110, tone: "accepted", name: "Approved", desc: "lasts a moment", dashed: true },
@@ -217,7 +217,7 @@ onUnmounted(() => {
 								viewBox="0 0 700 365"
 								class="mx-auto block h-auto w-full min-w-[560px] max-w-[640px] text-gray-500 dark:text-gray-400"
 								role="img"
-								:aria-label="translate('Change request stages: Draft, Approved, Task Created, then Done or Cancelled. Approving creates the project task automatically.')"
+								:aria-label="translate('Change request stages: Draft, Approved, Task Created, then Done or Cancelled. Approval creates the assigned project task; task completion closes the request automatically.')"
 							>
 								<defs>
 									<marker id="guide-arrow-chr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -256,8 +256,8 @@ onUnmounted(() => {
 
 									<text x="309" y="226" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("creates") }}</text>
 
-									<text x="134" y="278" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Mark Done") }}</text>
-									<text x="134" y="292" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
+									<text x="134" y="278" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Task completed") }}</text>
+									<text x="134" y="292" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("automatically") }}</text>
 
 									<text x="308" y="290" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Cancel") }}</text>
 									<text x="308" y="304" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
@@ -265,10 +265,10 @@ onUnmounted(() => {
 							</svg>
 						</div>
 						<ul class="list-disc space-y-1 pl-5">
-							<li>{{ translate("Only the manager creates and approves change requests; the team can view them.") }}</li>
-							<li>{{ translate("Draft is the preparation for approval: the specification, the sales order and the order document for the customer to sign. Approve once the customer has signed the order.") }}</li>
-							<li>{{ translate("Approving creates the project task with the approved hours and scope.") }}</li>
-							<li>{{ translate("Finishing the task does not close the change request: mark it done by hand.") }}</li>
+							<li>{{ translate("Only the manager creates and approves change requests; the team can take them for realization.") }}</li>
+							<li>{{ translate("Draft is the preparation for approval: the specification, the sales order and the order document for the customer to sign. Take it for realization to assign the implementer; approve once the customer has signed the order.") }}</li>
+							<li>{{ translate("Take for realization assigns the person who will implement the change; approval creates the project task and assigns it to that person.") }}</li>
+							<li>{{ translate("Completing the project task automatically marks the change request as done. Reopening the task reopens the change request.") }}</li>
 						</ul>
 					</section>
 				</div>

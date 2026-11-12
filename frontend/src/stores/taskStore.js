@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { ACTIVE_STATUSES, BOARD_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
+import { promptForCompletionAssignee } from "../utils/taskCompletion";
+import { translate } from "../utils/translation";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -227,6 +229,11 @@ export const useTaskStore = defineStore("tasks", () => {
 
 async function updateTask(taskName, updates) {
 	try {
+			if (updates.status === "Completed") {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) updates = { ...updates, completed_by: completedBy };
+			}
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_task", {
 				task_name: taskName,
 				...updates,
@@ -260,10 +267,13 @@ async function updateTask(taskName, updates) {
 							.join(", ");
 						const moreCount =
 							incompleteSubtasks.length > 3
-								? ` and ${incompleteSubtasks.length - 3} more`
+								? ` ${translate("and {0} more", [incompleteSubtasks.length - 3])}`
 								: "";
 						frappe.show_alert({
-							message: `Cannot complete task. ${incompleteSubtasks.length} subtask(s) are not completed: ${subtaskNames}${moreCount}`,
+							message: translate(
+								"Cannot complete task. {0} subtask(s) are not completed: {1}",
+								[incompleteSubtasks.length, `${subtaskNames}${moreCount}`]
+							),
 							indicator: "blue",
 						});
 					}
@@ -353,6 +363,19 @@ async function deleteTask(taskName) {
 	}
 }
 
+/**
+ * Every task of a project, whatever the current filters. `tasks` holds only the
+ * filtered ones, so actions that cascade to subtasks (cancel, delete) read the
+ * full tree from here.
+ */
+async function fetchAllProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		apply_default_status_filter: 0,
+	});
+	return data?.tasks || [];
+}
+
 async function reorderTask(taskName, newParent, newIdx) {
 	try {
 		await apiCall("erpnext_projekt_hub.api.project_hub.reorder_task", {
@@ -412,17 +435,34 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// User assignment functions
 	const availableUsers = ref([]);
+	const usersLoading = ref(false);
+	const usersError = ref(false);
 
 	async function fetchUsers() {
+		if (usersLoading.value) return;
+		usersLoading.value = true;
+		usersError.value = false;
 		try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_users", {});
 			availableUsers.value = data || [];
 		} catch (error) {
 			console.error("Failed to fetch users:", error);
+			usersError.value = true;
+		} finally {
+			usersLoading.value = false;
 		}
 	}
 
 	async function bulkUpdateTaskFields(taskNames, updates) {
+		if (updates.status === "Completed") {
+			const completedByByTask = {};
+			for (const taskName of taskNames) {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) completedByByTask[taskName] = completedBy;
+			}
+			updates = { ...updates, completed_by_by_task: completedByByTask };
+		}
 		return apiCall("erpnext_projekt_hub.api.project_hub.bulk_update_task_fields", {
 			task_names: JSON.stringify(taskNames),
 			updates: JSON.stringify(updates),
@@ -884,6 +924,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 		selectedTask,
 		expandedTasks,
 		availableUsers,
+		usersLoading,
+		usersError,
 		allProjects,
 		taskTimelogs,
 		activityTypes,
@@ -912,6 +954,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateProject,
 		deleteTask,
 		reorderTask,
+		fetchAllProjectTasks,
 		toggleExpand,
 		expandAll,
 		collapseAll,
