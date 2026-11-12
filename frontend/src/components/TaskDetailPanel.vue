@@ -36,6 +36,7 @@ import {
 } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
+import { toOpenableUrl } from "../utils/url";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -44,12 +45,7 @@ const translate = (text) => {
 		: text;
 };
 
-const referenceLinkUrl = computed(() => {
-	const raw = (editableTask.value?.reference_link || "").trim();
-	if (!raw) return "";
-	const withProtocol = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
-	return /^https?:\/\//i.test(withProtocol) ? withProtocol : "";
-});
+const referenceLinkUrl = computed(() => toOpenableUrl(editableTask.value?.reference_link));
 
 const isTouchDevice = computed(() => {
 	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
