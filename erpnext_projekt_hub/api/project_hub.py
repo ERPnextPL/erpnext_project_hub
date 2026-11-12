@@ -964,8 +964,21 @@ def get_project_tasks(
 	# Keep tree structure by including missing parents
 	tasks = _include_missing_parents(tasks, project, fields)
 
+	# Attach dependencies (Task Depends On child table) for the timeline view
+	task_names = [t["name"] for t in tasks]
+	depends_map = {}
+	if task_names:
+		for row in frappe.get_all(
+			"Task Depends On",
+			filters={"parent": ["in", task_names], "parenttype": "Task"},
+			fields=["parent", "task"],
+		):
+			if row.task:
+				depends_map.setdefault(row.parent, []).append(row.task)
+
 	for task in tasks:
 		task["is_overdue"] = compute_is_overdue(task)
+		task["depends_on"] = depends_map.get(task["name"], [])
 
 	# Deterministic sort
 	tasks = sorted(

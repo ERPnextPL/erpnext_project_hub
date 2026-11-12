@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, onUpdated, nextTick } from "vue";
 import { Calendar, ChevronLeft, ChevronRight, Diamond } from "lucide-vue-next";
 import { translate } from "../utils/translation";
 import { TASK_STATUSES, getStatusConfig } from "../utils/taskStatus";
@@ -258,7 +258,81 @@ async function onDragEnd() {
 	}
 }
 
-onBeforeUnmount(removeDragListeners);
+// ---- Dependency arrows ----
+const rowsRef = ref(null);
+const arrows = ref([]);
+let resizeObserver = null;
+
+function taskDates(task) {
+	let start = parseLocalDay(task.exp_start_date);
+	let end = parseLocalDay(task.exp_end_date);
+	if (!start && !end) return null;
+	start = start || end;
+	end = end || start;
+	return start > end ? { start: end, end: start } : { start, end };
+}
+
+function computeArrows() {
+	const container = rowsRef.value;
+	if (!container) {
+		if (arrows.value.length) arrows.value = [];
+		return;
+	}
+	const base = container.getBoundingClientRect();
+	const byName = new Map(timelineTasks.value.map((t) => [t.name, t]));
+	const barRect = (name) => {
+		const el = container.querySelector(`[data-bar="${CSS.escape(name)}"]`);
+		if (!el) return null;
+		const r = el.getBoundingClientRect();
+		return {
+			left: r.left - base.left,
+			right: r.right - base.left,
+			midY: r.top - base.top + r.height / 2,
+		};
+	};
+
+	const result = [];
+	for (const task of timelineTasks.value) {
+		for (const predName of task.depends_on || []) {
+			const pred = byName.get(predName);
+			if (!pred) continue;
+			const from = barRect(predName);
+			const to = barRect(task.name);
+			if (!from || !to) continue;
+			const pd = taskDates(pred);
+			const td = taskDates(task);
+			const conflict = !!(pd && td && td.start <= pd.end);
+			const x1 = from.right;
+			const y1 = from.midY;
+			const x2 = to.left;
+			const y2 = to.midY;
+			const mid = Math.max(x1 + 10, Math.min(x2 - 10, (x1 + x2) / 2));
+			const path =
+				x2 >= x1 + 20
+					? `M${x1},${y1} H${mid} V${y2} H${x2 - 5}`
+					: `M${x1},${y1} H${x1 + 10} V${(y1 + y2) / 2} H${x2 - 10} V${y2} H${x2 - 5}`;
+			result.push({
+				key: `${predName}->${task.name}`,
+				path,
+				tip: `${x2},${y2}`,
+				tipPoints: `${x2},${y2} ${x2 - 6},${y2 - 4} ${x2 - 6},${y2 + 4}`,
+				conflict,
+			});
+		}
+	}
+	if (JSON.stringify(result) !== JSON.stringify(arrows.value)) arrows.value = result;
+}
+
+function scheduleArrows() {
+	nextTick(computeArrows);
+}
+
+onUpdated(scheduleArrows);
+
+onBeforeUnmount(() => {
+	removeDragListeners();
+	resizeObserver?.disconnect();
+});
 
 function navigatePrev() {
 	const newDate = new Date(viewStartDate.value);
@@ -288,6 +362,11 @@ function handleTaskClick(task) {
 }
 
 onMounted(() => {
+	if (typeof ResizeObserver !== "undefined" && rowsRef.value) {
+		resizeObserver = new ResizeObserver(scheduleArrows);
+		resizeObserver.observe(rowsRef.value);
+	}
+	scheduleArrows();
 	// Start from beginning of current week
 	const today = new Date();
 	const dayOfWeek = today.getDay();
@@ -387,7 +466,7 @@ onMounted(() => {
 				</div>
 			</div>
 
-			<div v-else>
+			<div v-else ref="rowsRef" class="relative">
 				<div
 					v-for="task in timelineTasks"
 					:key="task.name"
@@ -449,12 +528,19 @@ onMounted(() => {
 									header.isWeekend ? 'bg-gray-50 dark:bg-gray-800/60' : '',
 									header.isToday ? 'bg-blue-50/50 dark:bg-blue-900/30' : '',
 								]"
-							></div>
+							>
+								<div
+									v-if="header.isToday"
+									class="mx-auto h-full w-0.5 bg-red-500/70"
+									:title="t('Today')"
+								></div>
+							</div>
 						</div>
 
 						<!-- Task bar (drag to move, edges to resize) -->
 						<div
 							v-if="getTaskBarStyle(task)"
+							:data-bar="task.name"
 							:style="getTaskBarStyle(task)"
 							:class="[
 								'absolute top-1/2 -translate-y-1/2 h-6 rounded select-none touch-none',
@@ -488,6 +574,13 @@ onMounted(() => {
 						</div>
 					</div>
 				</div>
+				<!-- Dependency arrows -->
+				<svg class="pointer-events-none absolute inset-0 h-full w-full overflow-visible z-20" aria-hidden="true">
+					<g v-for="a in arrows" :key="a.key" :class="a.conflict ? 'text-red-500' : 'text-gray-500 dark:text-gray-300'">
+						<path :d="a.path" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="none" />
+						<polygon :points="a.tipPoints" fill="currentColor" />
+					</g>
+				</svg>
 			</div>
 		</div>
 	</div>
