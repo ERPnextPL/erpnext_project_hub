@@ -192,3 +192,36 @@ export function paletteBaseStyles() {
 		":root.dark": declarations(darkPalette),
 	};
 }
+
+/**
+ * On the live page Frappe's website CSS (Bootstrap 4) loads first, and its
+ * utilities share names with Tailwind's while carrying !important:
+ * .bg-white, .text-white, .border-white and .border (a fixed light gray).
+ * They pin those colours to white in dark mode, so in dark mode these rules
+ * win back with a more specific selector. Light mode is left as it was.
+ */
+export function bootstrapDarkGuards() {
+	const rules = {
+		"html.dark .bg-white": {
+			"background-color": "rgb(var(--hub-bg-white) / var(--tw-bg-opacity, 1)) !important",
+		},
+		"html.dark .text-white": {
+			color: "rgb(var(--hub-fg-white) / var(--tw-text-opacity, 1)) !important",
+		},
+		"html.dark .border-white": {
+			"border-color": "rgb(var(--hub-line-white) / var(--tw-border-opacity, 1)) !important",
+		},
+		"html.dark .border": {
+			"border-color": "rgb(var(--hub-line-gray-200) / var(--tw-border-opacity, 1)) !important",
+		},
+	};
+	// An element with .border plus a palette border colour keeps that colour.
+	for (const hue of HUES) {
+		for (const shade of SHADES) {
+			rules[`html.dark .border.border-${hue}-${shade}`] = {
+				"border-color": `rgb(var(${varName("line", hue, shade)}) / var(--tw-border-opacity, 1)) !important`,
+			};
+		}
+	}
+	return rules;
+}

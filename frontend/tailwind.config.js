@@ -1,5 +1,5 @@
 import plugin from "tailwindcss/plugin";
-import { tailwindColors, paletteBaseStyles } from "./src/theme/palette.js";
+import { tailwindColors, paletteBaseStyles, bootstrapDarkGuards } from "./src/theme/palette.js";
 
 // Palette utilities resolve to CSS variables that switch with the dark theme;
 // see src/theme/palette.js for the roles (bg / fg / line) and how dark values
@@ -46,6 +46,7 @@ export default {
 	plugins: [
 		plugin(({ addBase }) => {
 			addBase(paletteBaseStyles());
+			addBase(bootstrapDarkGuards());
 		}),
 	],
 };
