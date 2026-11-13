@@ -2757,7 +2757,7 @@ async function deleteAttachment(fileName) {
 													<span class="font-semibold text-gray-900">{{ log.hours }} hrs</span>
 													<span class="text-xs text-gray-500">{{ log.activity_type }}</span>
 												</div>
-												<p v-if="log.description" class="mb-1 text-xs text-gray-600">
+												<p v-if="log.description" class="mb-1 text-xs text-gray-600 [overflow-wrap:anywhere]">
 													{{ log.description }}
 												</p>
 												<div class="flex items-center gap-2 text-xs text-gray-500">

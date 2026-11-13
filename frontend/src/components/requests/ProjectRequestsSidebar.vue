@@ -462,7 +462,7 @@ onMounted(() => {
 					@click="statusFilter = filter.key"
 				>
 					{{ translate(filter.label) }}
-					<span class="opacity-75">{{ filterCounts[filter.key] }}</span>
+					<span class="opacity-75 dark:opacity-100">{{ filterCounts[filter.key] }}</span>
 				</button>
 			</div>
 			<div class="relative">

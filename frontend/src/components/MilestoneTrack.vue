@@ -11,10 +11,10 @@ const props = defineProps({
 const store = useTaskStore();
 
 const HEALTH = {
-	completed:   { bg: "#10b981", border: "#10b981", text: "#fff", line: "#10b981" },
-	on_track:    { bg: "#3b82f6", border: "#3b82f6", text: "#fff", line: "#3b82f6" },
-	at_risk:     { bg: "#f59e0b", border: "#f59e0b", text: "#fff", line: "#f59e0b" },
-	overdue:     { bg: "#ef4444", border: "#ef4444", text: "#fff", line: "#ef4444" },
+	completed: { bg: "var(--hub-milestone-done, #10b981)", border: "var(--hub-milestone-done, #10b981)", text: "#fff", line: "var(--hub-milestone-done, #10b981)" },
+	on_track: { bg: "var(--hub-milestone-on-track, #3b82f6)", border: "var(--hub-milestone-on-track, #3b82f6)", text: "#fff", line: "var(--hub-milestone-on-track, #3b82f6)" },
+	at_risk: { bg: "var(--hub-milestone-at-risk, #f59e0b)", border: "var(--hub-milestone-at-risk, #f59e0b)", text: "#fff", line: "var(--hub-milestone-at-risk, #f59e0b)" },
+	overdue: { bg: "var(--hub-milestone-overdue, #ef4444)", border: "var(--hub-milestone-overdue, #ef4444)", text: "#fff", line: "var(--hub-milestone-overdue, #ef4444)" },
 	// Neutral states follow the theme (variables set for html.dark in index.css).
 	no_deadline: {
 		bg: "var(--hub-milestone-idle-bg, #ffffff)",

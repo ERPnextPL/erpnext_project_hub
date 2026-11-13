@@ -34,10 +34,15 @@ const WHITE = "#FFFFFF";
 const BLACK = "#000000";
 
 export const HUES = Object.keys(LIGHT);
+// Tailwind hue names used in the app that frappe-ui's palette lacks: without
+// these, classes like bg-emerald-600 generated no CSS at all (invisible badges).
+export const HUE_ALIASES = { emerald: "green", slate: "gray", indigo: "violet" };
 export const SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900"];
 
-// Contrast targets (WCAG AA is 4.5 for text, 3 for icons/borders; keep a margin).
-const TEXT_TARGET = 4.6;
+// Contrast targets (WCAG AA is 4.5 for text, 3 for icons/borders). The margin
+// covers text the app dims with opacity-75/90 (e.g. completed projects).
+const TEXT_TARGET = 5.0;
+const FILL_TARGET = 5.5;
 // Lightest dark surface ordinary text sits on: bg-gray-200 in dark mode.
 const TEXT_REFERENCE_BG = DARK.gray["600"];
 
@@ -117,7 +122,7 @@ function buildDark() {
 			const line = darkValue(hue, "line", shade);
 
 			// Solid fills (500+) carry text-white, which turns dark in dark mode.
-			if (n >= 500) bg = ensureContrast(bg, DARK_TEXT_ON_FILLS, TEXT_TARGET);
+			if (n >= 500) bg = ensureContrast(bg, DARK_TEXT_ON_FILLS, FILL_TARGET);
 			// Text meant for light surfaces (300+) must read on every dark surface;
 			// text meant for solid fills (50-200) must read on those fills.
 			if (n >= 300) fg = ensureContrast(fg, TEXT_REFERENCE_BG, TEXT_TARGET);
@@ -168,6 +173,7 @@ export function tailwindColors(role) {
 			colors[hue][shade] = `rgb(var(${varName(role, hue, shade)}) / <alpha-value>)`;
 		}
 	}
+	for (const [alias, hue] of Object.entries(HUE_ALIASES)) colors[alias] = colors[hue];
 	colors.white = `rgb(var(${varName(role, "white")}) / <alpha-value>)`;
 	colors.black = `rgb(var(${varName(role, "black")}) / <alpha-value>)`;
 	return colors;
@@ -196,7 +202,8 @@ export function paletteBaseStyles() {
 /**
  * On the live page Frappe's website CSS (Bootstrap 4) loads first, and its
  * utilities share names with Tailwind's while carrying !important:
- * .bg-white, .text-white, .border-white and .border (a fixed light gray).
+ * .bg-white, .text-white and .border-white (`.border` is handled by
+ * scripts/theme-border-guard.js).
  * They pin those colours to white in dark mode, so in dark mode these rules
  * win back with a more specific selector. Light mode is left as it was.
  */
@@ -211,17 +218,6 @@ export function bootstrapDarkGuards() {
 		"html.dark .border-white": {
 			"border-color": "rgb(var(--hub-line-white) / var(--tw-border-opacity, 1)) !important",
 		},
-		"html.dark .border": {
-			"border-color": "rgb(var(--hub-line-gray-200) / var(--tw-border-opacity, 1)) !important",
-		},
 	};
-	// An element with .border plus a palette border colour keeps that colour.
-	for (const hue of HUES) {
-		for (const shade of SHADES) {
-			rules[`html.dark .border.border-${hue}-${shade}`] = {
-				"border-color": `rgb(var(${varName("line", hue, shade)}) / var(--tw-border-opacity, 1)) !important`,
-			};
-		}
-	}
 	return rules;
 }

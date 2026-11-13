@@ -1418,7 +1418,7 @@ async function handleDeleteLog(log) {
 											{{ log.project_name || log.project || translate("No project") }}
 											<span v-if="log.activity_type"> · {{ log.activity_type }}</span>
 										</p>
-										<p v-if="log.description" class="text-xs text-gray-400 mt-0.5 line-clamp-2">
+										<p v-if="log.description" class="text-xs text-gray-400 mt-0.5 line-clamp-2 [overflow-wrap:anywhere]">
 											{{ log.description }}
 										</p>
 									</div>

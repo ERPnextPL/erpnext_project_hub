@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { HUES, SHADES, contrast, darkPalette, lightPalette, tailwindColors, paletteBaseStyles } from "../palette";
+import { HUE_ALIASES, HUES, SHADES, contrast, darkPalette, lightPalette, tailwindColors, paletteBaseStyles } from "../palette";
 
 const DARK_SURFACES = ["white", ...["50", "100", "200"].map((s) => `gray-${s}`)];
 const surface = (key) => (key === "white" ? darkPalette.bg.white : darkPalette.bg.gray[key.split("-")[1]]);
@@ -35,6 +35,11 @@ describe("palette", () => {
 	it("dark surfaces are dark", () => {
 		expect(contrast(darkPalette.bg.white, "#000000")).toBeLessThan(1.5);
 		expect(contrast(darkPalette.bg.gray["50"], "#000000")).toBeLessThan(1.5);
+	});
+
+	it("maps Tailwind hue names missing from frappe-ui onto existing hues", () => {
+		const colors = tailwindColors("fg");
+		for (const [alias, hue] of Object.entries(HUE_ALIASES)) expect(colors[alias]).toEqual(colors[hue]);
 	});
 
 	it("exposes every hue/shade as a CSS variable for light and dark", () => {

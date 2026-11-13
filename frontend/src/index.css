@@ -63,11 +63,48 @@ html.dark {
 	--hub-highlight-border-strong: rgb(var(--hub-line-blue-600));
 	--hub-drop-ghost-bg: rgb(var(--hub-bg-blue-100));
 	--hub-drop-ghost-border: rgb(var(--hub-line-blue-400));
+	/* Health fills carry white text/icons: deeper shades keep >= 4.5:1 on dark. */
+	--hub-milestone-done: #047857;
+	--hub-milestone-on-track: #1d4ed8;
+	--hub-milestone-at-risk: #b45309;
+	--hub-milestone-overdue: #b91c1c;
 	--hub-milestone-idle-bg: rgb(var(--hub-bg-white));
 	--hub-milestone-muted-bg: rgb(var(--hub-bg-gray-100));
 	--hub-milestone-muted-border: rgb(var(--hub-line-gray-400));
 	--hub-milestone-muted-text: rgb(var(--hub-fg-gray-400));
 	--hub-milestone-muted-line: rgb(var(--hub-line-gray-200));
+}
+
+/*
+ * @tailwindcss/forms gives text inputs, selects, textareas and checkboxes a
+ * hard-coded white background. In dark mode use the palette's surface instead;
+ * :where() keeps the specificity of the plugin's own selectors, and @layer base
+ * keeps it below utilities, so bg-* classes on an input still win.
+ */
+@layer base {
+	:where(html.dark)
+		:is(
+			[type="text"],
+			input:where(:not([type])),
+			[type="email"],
+			[type="url"],
+			[type="password"],
+			[type="number"],
+			[type="date"],
+			[type="datetime-local"],
+			[type="month"],
+			[type="search"],
+			[type="tel"],
+			[type="time"],
+			[type="week"],
+			[multiple],
+			textarea,
+			select,
+			[type="checkbox"],
+			[type="radio"]
+		) {
+		background-color: rgb(var(--hub-bg-white));
+	}
 }
 
 /* Task tree specific styles */
