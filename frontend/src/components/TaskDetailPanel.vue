@@ -184,7 +184,20 @@ const isFullscreen = ref(false);
 watch(
 	() => props.task,
 	(newTask) => {
+		const sameTask = newTask?.name === descriptionDraftTask;
+		const keepDescriptionDraft = isEditingDescription.value && sameTask;
+		const draftDescription = editableTask.value.description;
+		if (isEditingDescription.value && !sameTask) {
+			// Switched to another task while editing: persist the draft of the previous one.
+			flushDescriptionAutosave();
+		}
 		editableTask.value = normalizeTaskForEdit(newTask);
+		if (keepDescriptionDraft) {
+			// The task object was refreshed (e.g. after an autosave or another field update);
+			// keep the user's in-progress description instead of wiping it.
+			editableTask.value.description = draftDescription;
+			return;
+		}
 		attachmentsFetched.value = false;
 		attachments.value = [];
 		commentsFetched.value = false;
@@ -411,19 +424,95 @@ async function handleProjectChange() {
 	}
 }
 
+// --- Description autosave ---------------------------------------------------
+// The draft is saved automatically (debounced while typing, immediately on blur,
+// when switching tasks and when the panel closes), so clicking elsewhere never
+// loses text that has already been typed.
+const DESCRIPTION_AUTOSAVE_DELAY = 1000;
+let descriptionAutosaveTimer = null;
+let descriptionDraftTask = null; // task name the draft belongs to
+let descriptionOriginal = ""; // value when editing started (for Cancel)
+let descriptionLastSaved = ""; // last value persisted to the server
+let descriptionSaveChain = Promise.resolve();
+
+function clearDescriptionAutosaveTimer() {
+	if (descriptionAutosaveTimer) {
+		clearTimeout(descriptionAutosaveTimer);
+		descriptionAutosaveTimer = null;
+	}
+}
+
+function persistDescription(taskName, value) {
+	const text = value || "";
+	descriptionSaveChain = descriptionSaveChain.then(async () => {
+		if (!taskName || text === descriptionLastSaved) return;
+		isSaving.value = true;
+		try {
+			await store.updateTask(taskName, { description: text });
+			descriptionLastSaved = text;
+			showAutosaveFeedback();
+		} catch (error) {
+			if (realWindow?.frappe) {
+				realWindow.frappe.show_alert({
+					message: translate("Failed to update field"),
+					indicator: "red",
+				});
+			}
+		} finally {
+			isSaving.value = false;
+		}
+	});
+	return descriptionSaveChain;
+}
+
+function flushDescriptionAutosave() {
+	clearDescriptionAutosaveTimer();
+	if (!descriptionDraftTask) return descriptionSaveChain;
+	return persistDescription(descriptionDraftTask, editableTask.value.description);
+}
+
+function hasUnsavedDescription() {
+	return (
+		isEditingDescription.value &&
+		(editableTask.value.description || "") !== descriptionLastSaved
+	);
+}
+
+watch(
+	() => editableTask.value.description,
+	() => {
+		if (!isEditingDescription.value) return;
+		clearDescriptionAutosaveTimer();
+		descriptionAutosaveTimer = setTimeout(flushDescriptionAutosave, DESCRIPTION_AUTOSAVE_DELAY);
+	}
+);
+
+function handleBeforeUnload(event) {
+	if (!hasUnsavedDescription()) return;
+	flushDescriptionAutosave();
+	event.preventDefault();
+	event.returnValue = "";
+}
+
 function startDescriptionEdit() {
+	descriptionDraftTask = props.task.name;
+	descriptionOriginal = editableTask.value.description || "";
+	descriptionLastSaved = descriptionOriginal;
 	isEditingDescription.value = true;
 	showMarkdownPreview.value = true;
 }
 
-function cancelDescriptionEdit() {
-	editableTask.value.description = props.task.description || "";
+async function cancelDescriptionEdit() {
+	clearDescriptionAutosaveTimer();
+	editableTask.value.description = descriptionOriginal;
+	// Autosave may already have stored part of the draft — restore the original.
+	await persistDescription(descriptionDraftTask, descriptionOriginal);
 	isEditingDescription.value = false;
 	showMarkdownPreview.value = false;
 }
 
 async function saveDescription() {
-	await saveField("description", editableTask.value.description);
+	await flushDescriptionAutosave();
 	isEditingDescription.value = false;
 }
 
@@ -481,7 +570,7 @@ async function handleDescriptionPaste(event) {
 
 		if (markdownItems.length) {
 			insertDescriptionMarkdown(markdownItems.join("\n"), event.target);
-			await saveField("description", editableTask.value.description);
+			await flushDescriptionAutosave();
 			await fetchAttachments();
 		}
 
@@ -1283,6 +1372,7 @@ onMounted(() => {
 	store.fetchAllProjects();
 	document.addEventListener("click", handleDocumentClick);
 	document.addEventListener("keydown", handleGlobalKeydown);
+	window.addEventListener("beforeunload", handleBeforeUnload);
 	if (sectionStates.value.timeLog) {
 		ensureTimeLogsLoaded();
 	}
@@ -1294,6 +1384,10 @@ onMounted(() => {
 	onUnmounted(() => {
 		document.removeEventListener("click", handleDocumentClick);
 		document.removeEventListener("keydown", handleGlobalKeydown);
+		window.removeEventListener("beforeunload", handleBeforeUnload);
+		if (isEditingDescription.value) {
+			flushDescriptionAutosave();
+		}
 		if (autosaveTimer) {
 			clearTimeout(autosaveTimer);
 		}
@@ -2152,6 +2246,7 @@ async function deleteAttachment(fileName) {
 										class="w-full rounded-xl border border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
 										:placeholder="translate('Add description...')"
 										@paste="handleDescriptionPaste"
+										@blur="flushDescriptionAutosave"
 									/>
 									<div
 										v-if="showMarkdownPreview"
