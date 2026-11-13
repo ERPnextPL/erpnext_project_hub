@@ -1,4 +1,5 @@
 <script setup>
+import { applyMoveToLoaded, cardsForStatus } from "../../utils/boardLoadedTasks";
 import { computed, reactive, ref, watch } from "vue";
 import TaskBoardColumn from "./TaskBoardColumn.vue";
 import TaskQuickMenu from "../molecules/TaskQuickMenu.vue";
@@ -173,15 +174,7 @@ function boardStatus(task) {
 }
 
 function tasksForStatus(status) {
-	const tasks = new Map(
-		props.tasks
-			.filter((task) => boardStatus(task) === status)
-			.map((task) => [task.name, task])
-	);
-	for (const task of loadedTasksByStatus.get(status) || []) {
-		if (boardStatus(task) === status) tasks.set(task.name, task);
-	}
-	return [...tasks.values()];
+	return cardsForStatus(props.tasks, loadedTasksByStatus, status, boardStatus);
 }
 
 const columns = computed(() =>
@@ -217,7 +210,10 @@ async function move(task, status) {
 	if (!status || status === (pendingStatus.get(task.name) ?? task.status)) return;
 	pendingStatus.set(task.name, status);
 	try {
-		await props.moveTask(task, status);
+		const result = await props.moveTask(task, status);
+		// A card loaded through loadColumnTasks lives in this board's cache:
+		// give it the saved status, or it falls back to its old list.
+		applyMoveToLoaded(loadedTasksByStatus, task.name, status, result);
 	} catch {
 		// the owner reports the error; the card goes back to its list
 	} finally {

@@ -28,3 +28,5 @@
 26. Touch screens have no hover: controls revealed with `group-hover:opacity-100` must be visible under `pointer: coarse`, and revealing them can expose new too-small targets — re-measure after.
 27. Side panels next to a board (`KanbanAttentionPanel`) are `hidden md:flex`; on a phone they cover the board.
 28. A mobile-only change must not add wrapper elements on desktop: put the condition on each element (v-if) so desktop DOM and the path-keyed desktop compare stay identical.
+29. Records loaded on demand belong in the shared store (a separate collection if they must not widen other views), and every write updates them — a board-local cache drifts from what was saved.
+30. Mocked fetch in unit tests must serialise responses (JSON round trip): shared object references make a missing update look like it worked. Prove a regression test by re-introducing the bug and watching it fail.
