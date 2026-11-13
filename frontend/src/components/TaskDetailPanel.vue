@@ -2775,14 +2775,14 @@ async function deleteAttachment(fileName) {
 											<button
 												v-if="log.can_edit"
 												@click="openEditTimelog(log)"
-												class="rounded-md p-1 text-gray-400 hover:bg-blue-100 hover:text-blue-600"
+												class="hub-tap rounded-md p-1 text-gray-400 hover:bg-blue-100 hover:text-blue-600"
 												:title="translate('Edit time log')"
 											>
 												<Pencil class="h-3.5 w-3.5" />
 											</button>
 											<button
 												@click="handleDeleteTimelog(log.timelog_name)"
-												class="rounded-md p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+												class="hub-tap rounded-md p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
 												:title="translate('Delete time log')"
 											>
 												<Trash2 class="h-3.5 w-3.5" />

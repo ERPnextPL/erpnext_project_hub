@@ -182,7 +182,7 @@ async function saveNotes() {
 			</div>
 			<button
 				type="button"
-				class="p-1 rounded hover:bg-gray-200 transition-colors"
+				class="hub-tap p-1 rounded hover:bg-gray-200 transition-colors"
 				@click.stop="toggleExpand"
 			>
 				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500" />

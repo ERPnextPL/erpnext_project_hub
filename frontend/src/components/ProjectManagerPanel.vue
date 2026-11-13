@@ -173,7 +173,7 @@ const topUserHours = computed(() => {
 					{{ translate("Manager Summary") }}
 				</h3>
 			</div>
-			<button class="p-1 rounded hover:bg-gray-200 transition-colors">
+			<button class="hub-tap p-1 rounded hover:bg-gray-200 transition-colors">
 				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500" />
 				<ChevronDown v-else class="w-4 h-4 text-gray-500" />
 			</button>

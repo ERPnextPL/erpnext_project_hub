@@ -114,7 +114,7 @@ function onContextMenu(event) {
 		<!-- Quick edit (Trello's pencil) -->
 		<button
 			type="button"
-			class="absolute right-1.5 top-1.5 z-10 rounded-md bg-white/90 p-1 text-gray-500 opacity-0 shadow-sm transition-opacity hover:bg-gray-100 hover:text-gray-800 focus:opacity-100 group-hover:opacity-100"
+			class="hub-tap absolute right-1.5 top-1.5 z-10 rounded-md bg-white/90 p-1 text-gray-500 opacity-0 shadow-sm transition-opacity hover:bg-gray-100 hover:text-gray-800 focus:opacity-100 group-hover:opacity-100"
 			:class="menuOpen && 'opacity-100'"
 			:title="translate('Quick actions')"
 			:aria-label="translate('Quick actions')"

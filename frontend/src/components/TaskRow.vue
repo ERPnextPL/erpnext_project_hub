@@ -864,7 +864,7 @@ onUnmounted(() => {
 		<div class="min-w-0 flex items-center justify-end">
 			<button
 				@click.stop="showMenu"
-				class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200"
+				class="hub-tap opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200"
 				:title="translate('More actions')"
 			>
 				<MoreHorizontal class="w-4 h-4 text-gray-500" />

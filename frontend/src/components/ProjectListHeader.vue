@@ -17,7 +17,7 @@ const COLUMNS = [
 </script>
 
 <template>
-	<div class="grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] gap-4 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
+	<div class="grid min-w-[40rem] grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] gap-4 px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
 		<template v-for="col in COLUMNS" :key="col.label">
 			<button
 				v-if="sortable && col.field"

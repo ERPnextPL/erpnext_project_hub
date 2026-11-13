@@ -22,3 +22,6 @@
 20. A list whose API defaults to "open only" must not feed a count for a status it never returns: load that status separately (with its total) or hide the count.
 21. Test data for "latest N" lists must pick items that stay inside the window after the test's own changes.
 22. Iterators (Map.values()) have no .flat()/.map() in browsers → spread into an array first; test boards with parent/child tasks, a flat test set hides code paths like this.
+23. Never set a global min-width on buttons: in a flex row it replaces min-width:auto and lets text buttons shrink below their text. Global touch rules set min-height only; icon-only buttons opt in to 24x24 with `hub-tap`.
+24. Mobile checks must open every view by its mobile controls: a control pushed off-screen (M4) also hides whole views from the audit (projectListRows).
+25. Touch-only CSS goes under `@media (pointer: coarse)` so desktop output stays identical (verified by a desktop before/after compare).

@@ -314,7 +314,7 @@ function emitFilters() {
 			</button>
 			<button
 				@click="$emit('close')"
-				class="p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+				class="hub-tap p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
 				:title="translate('Close filters')"
 			>
 				<X class="w-3.5 h-3.5" />

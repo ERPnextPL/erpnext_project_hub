@@ -23,7 +23,7 @@ const v = computed(() => STATUS_VARIANTS[props.variant]);
 		@keydown.enter="emit('open', project.name)"
 		@keydown.space.prevent="emit('open', project.name)"
 		:class="[
-			'grid grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] gap-4 px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer group transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500',
+			'grid min-w-[40rem] grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))] gap-4 px-4 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer group transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500',
 			v.opacity,
 		]"
 	>

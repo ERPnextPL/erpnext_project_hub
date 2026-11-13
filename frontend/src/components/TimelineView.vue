@@ -75,7 +75,9 @@ const dateHeaders = computed(() => {
 		date.setDate(start.getDate() + i);
 		headers.push({
 			date: date,
-			dayOfWeek: date.toLocaleDateString("pl-PL", { weekday: "short" }),
+			// Two-letter Polish abbreviations: "niedz." / "śr." do not fit a day column.
+			dayOfWeek: ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "So"][date.getDay()],
+			dayName: date.toLocaleDateString("pl-PL", { weekday: "long" }),
 			dayOfMonth: date.getDate(),
 			month: date.toLocaleDateString("pl-PL", { month: "short" }),
 			isWeekend: date.getDay() === 0 || date.getDay() === 6,
@@ -501,7 +503,7 @@ onMounted(() => {
 								header.isToday ? 'bg-blue-50' : '',
 							]"
 						>
-							<div v-if="!isCompact" class="text-xs text-gray-500">{{ header.dayOfWeek }}</div>
+							<div v-if="!isCompact" class="text-xs text-gray-500" :title="header.dayName">{{ header.dayOfWeek }}</div>
 							<div
 								:class="[
 									isCompact ? 'text-[9px] font-medium' : 'text-sm font-medium',

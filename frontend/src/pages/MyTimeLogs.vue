@@ -865,7 +865,7 @@ async function handleDeleteLog(log) {
 							</select>
 							<button
 								@click="toggleSort(sortBy)"
-								class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+								class="hub-tap absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
 							>
 								<ArrowUpDown class="w-4 h-4" />
 							</button>
@@ -1024,7 +1024,7 @@ async function handleDeleteLog(log) {
 					{{ chip.label }}
 					<button
 						type="button"
-						class="flex rounded-full hover:bg-amber-100"
+						class="hub-tap flex rounded-full hover:bg-amber-100"
 						@click="removeFilter(chip.key)"
 					>
 						<X class="w-3 h-3" />
@@ -1239,7 +1239,7 @@ async function handleDeleteLog(log) {
 									</span>
 								</div>
 								<div class="text-xs text-gray-500 mt-1">
-									{{ day.data.logs.length }} {{ translate("entries") }}
+									{{ day.data.logs.length }}<span class="hidden sm:inline"> {{ translate("entries") }}</span>
 								</div>
 							</div>
 						</div>

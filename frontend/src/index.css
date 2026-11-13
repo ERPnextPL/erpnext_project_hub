@@ -107,6 +107,31 @@ html.dark {
 	}
 }
 
+/*
+ * Touch screens (phones, tablets). Desktop layouts are not affected.
+ * - iOS Safari zooms the page into any field whose text is under 16px.
+ * - Tap targets get at least 24px of height (WCAG 2.5.8); one-line text
+ *   buttons and fields were 14-18px high. No global min-width: in a flex row it
+ *   would replace min-width:auto and let text buttons shrink below their text.
+ */
+@media (pointer: coarse) {
+	:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+		font-size: max(16px, 1em) !important;
+	}
+
+	:is(button, a[href], [role="button"], [role="menuitem"], [role="tab"], input:not([type="checkbox"]):not([type="radio"])) {
+		min-height: 24px;
+	}
+
+	/* Icon-only buttons (no text that could be squeezed): full 24x24 target. */
+	.hub-tap {
+		min-width: 24px;
+		min-height: 24px;
+		align-items: center;
+		justify-content: center;
+	}
+}
+
 /* Task tree specific styles */
 .task-row {
 	@apply transition-all duration-150 ease-in-out;

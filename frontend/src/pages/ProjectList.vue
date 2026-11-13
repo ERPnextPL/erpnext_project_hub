@@ -207,7 +207,7 @@ function sortIcon(field) {
 						}}
 					</p>
 				</div>
-				<div class="flex items-center gap-2">
+				<div class="flex flex-wrap items-center gap-2">
 					<span class="px-2 py-1 bg-blue-50 text-blue-700 text-sm rounded-md">
 						{{ activeProjects.length }} {{ translate("active") }}
 					</span>
@@ -225,7 +225,7 @@ function sortIcon(field) {
 					</span>
 					<!-- Default project view -->
 					<div
-						class="ml-2 flex items-center gap-1.5"
+						class="flex items-center gap-1.5 sm:ml-2"
 						role="radiogroup"
 						:aria-label="translate('Default project view')"
 					>
@@ -254,7 +254,7 @@ function sortIcon(field) {
 						</div>
 					</div>
 					<!-- View toggle -->
-					<div class="flex items-center border border-gray-200 rounded-lg overflow-hidden ml-2">
+					<div class="flex items-center border border-gray-200 rounded-lg overflow-hidden sm:ml-2">
 						<button
 							@click="viewMode = 'grid'"
 							:class="[
@@ -390,7 +390,7 @@ function sortIcon(field) {
 							@open="openProject"
 						/>
 					</div>
-					<div v-else class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+					<div v-else class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
 						<ProjectListHeader sortable :sort-icon="sortIcon" :toggle-sort="toggleSort" />
 						<ProjectListRow
 							v-for="project in filteredActiveProjects"
@@ -429,7 +429,7 @@ function sortIcon(field) {
 									@open="openProject"
 								/>
 							</div>
-							<div v-else class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+							<div v-else class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
 								<ProjectListHeader />
 								<ProjectListRow
 									v-for="project in filteredOnHoldProjects"
@@ -491,7 +491,7 @@ function sortIcon(field) {
 									@open="openProject"
 								/>
 							</div>
-							<div v-else class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+							<div v-else class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
 								<ProjectListHeader />
 								<ProjectListRow
 									v-for="project in filteredCompletedProjects"

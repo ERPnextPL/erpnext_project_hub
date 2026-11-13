@@ -368,7 +368,7 @@ onUnmounted(() => {
 			<div class="flex items-center gap-2">
 				<button
 					@click.stop="openCreateModal"
-					class="p-1 rounded hover:bg-gray-200 text-blue-600"
+					class="hub-tap p-1 rounded hover:bg-gray-200 text-blue-600"
 					:title="translate('Add milestone')"
 				>
 					<Plus class="w-4 h-4" />
@@ -462,7 +462,7 @@ onUnmounted(() => {
 					<div class="milestone-menu relative">
 						<button
 							@click="toggleMenu(milestone.name, $event)"
-							class="p-1 rounded hover:bg-gray-200"
+							class="hub-tap p-1 rounded hover:bg-gray-200"
 						>
 							<MoreVertical class="w-3 h-3 text-gray-500" />
 						</button>
