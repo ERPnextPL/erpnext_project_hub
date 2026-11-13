@@ -184,7 +184,22 @@ const isFullscreen = ref(false);
 watch(
 	() => props.task,
 	(newTask) => {
+		const sameTask = Boolean(descriptionSession) && newTask?.name === descriptionSession.task;
+		const keepDescriptionDraft = isEditingDescription.value && sameTask;
+		const draftDescription = editableTask.value.description;
+		if (descriptionSession && !sameTask) {
+			// Switched to another task while editing: persist the draft of the previous one
+			// (editableTask still holds it here) and end that editing session.
+			flushDescriptionAutosave();
+			endDescriptionSession();
+		}
 		editableTask.value = normalizeTaskForEdit(newTask);
+		if (keepDescriptionDraft) {
+			// The task object was refreshed (e.g. after an autosave or another field update);
+			// keep the user's in-progress description instead of wiping it.
+			editableTask.value.description = draftDescription;
+			return;
+		}
 		attachmentsFetched.value = false;
 		attachments.value = [];
 		commentsFetched.value = false;
@@ -411,20 +426,115 @@ async function handleProjectChange() {
 	}
 }
 
+// --- Description autosave ---------------------------------------------------
+// The draft is saved automatically (debounced while typing, immediately on blur,
+// when switching tasks and when the panel closes), so clicking elsewhere never
+// loses text that has already been typed.
+const DESCRIPTION_AUTOSAVE_DELAY = 1000;
+let descriptionAutosaveTimer = null;
+// One editing session per "Edit" click: { task, original, lastSaved }.
+// Save state lives on the session, so a late response for task A can never
+// affect the save state of task B, and a pending timer can never write into
+// a session other than the one it was scheduled for.
+let descriptionSession = null;
+let descriptionSaveChain = Promise.resolve();
+
+function clearDescriptionAutosaveTimer() {
+	if (descriptionAutosaveTimer) {
+		clearTimeout(descriptionAutosaveTimer);
+		descriptionAutosaveTimer = null;
+	}
+}
+
+function endDescriptionSession() {
+	clearDescriptionAutosaveTimer();
+	descriptionSession = null;
+}
+
+function persistDescription(session, value) {
+	const text = value || "";
+	descriptionSaveChain = descriptionSaveChain.then(async () => {
+		if (!session?.task || text === session.lastSaved) return;
+		isSaving.value = true;
+		try {
+			await store.updateTask(session.task, { description: text });
+			session.lastSaved = text;
+			showAutosaveFeedback();
+		} catch (error) {
+			if (realWindow?.frappe) {
+				realWindow.frappe.show_alert({
+					message: translate("Failed to update field"),
+					indicator: "red",
+				});
+			}
+		} finally {
+			isSaving.value = false;
+		}
+	});
+	return descriptionSaveChain;
+}
+
+function flushDescriptionAutosave() {
+	clearDescriptionAutosaveTimer();
+	const session = descriptionSession;
+	// Only save text that belongs to the session's task.
+	if (!session || editableTask.value.name !== session.task) return descriptionSaveChain;
+	return persistDescription(session, editableTask.value.description);
+}
+
+function hasUnsavedDescription() {
+	return (
+		Boolean(descriptionSession) &&
+		editableTask.value.name === descriptionSession.task &&
+		(editableTask.value.description || "") !== descriptionSession.lastSaved
+	);
+}
+
+watch(
+	() => editableTask.value.description,
+	() => {
+		const session = descriptionSession;
+		if (!isEditingDescription.value || !session) return;
+		clearDescriptionAutosaveTimer();
+		descriptionAutosaveTimer = setTimeout(() => {
+			descriptionAutosaveTimer = null;
+			if (descriptionSession === session) flushDescriptionAutosave();
+		}, DESCRIPTION_AUTOSAVE_DELAY);
+	}
+);
+
+function handleBeforeUnload(event) {
+	if (!hasUnsavedDescription()) return;
+	flushDescriptionAutosave();
+	event.preventDefault();
+	event.returnValue = "";
+}
+
 function startDescriptionEdit() {
+	const original = editableTask.value.description || "";
+	descriptionSession = { task: props.task.name, original, lastSaved: original };
 	isEditingDescription.value = true;
 	showMarkdownPreview.value = true;
 }
 
-function cancelDescriptionEdit() {
-	editableTask.value.description = props.task.description || "";
+async function cancelDescriptionEdit() {
+	const session = descriptionSession;
+	// End the session before touching the text so the change below cannot
+	// schedule another autosave.
+	endDescriptionSession();
 	isEditingDescription.value = false;
 	showMarkdownPreview.value = false;
+	if (!session) return;
+	editableTask.value.description = session.original;
+	// Autosave may already have stored part of the draft — restore the original.
+	await persistDescription(session, session.original);
 }
 
 async function saveDescription() {
-	await saveField("description", editableTask.value.description);
+	const pending = flushDescriptionAutosave();
+	endDescriptionSession();
 	isEditingDescription.value = false;
+	await pending;
 }
 
 function getPastedImageFiles(event) {
@@ -481,7 +591,7 @@ async function handleDescriptionPaste(event) {
 
 		if (markdownItems.length) {
 			insertDescriptionMarkdown(markdownItems.join("\n"), event.target);
-			await saveField("description", editableTask.value.description);
+			await flushDescriptionAutosave();
 			await fetchAttachments();
 		}
 
@@ -1283,6 +1393,7 @@ onMounted(() => {
 	store.fetchAllProjects();
 	document.addEventListener("click", handleDocumentClick);
 	document.addEventListener("keydown", handleGlobalKeydown);
+	window.addEventListener("beforeunload", handleBeforeUnload);
 	if (sectionStates.value.timeLog) {
 		ensureTimeLogsLoaded();
 	}
@@ -1294,6 +1405,11 @@ onMounted(() => {
 	onUnmounted(() => {
 		document.removeEventListener("click", handleDocumentClick);
 		document.removeEventListener("keydown", handleGlobalKeydown);
+		window.removeEventListener("beforeunload", handleBeforeUnload);
+		if (descriptionSession) {
+			flushDescriptionAutosave();
+			endDescriptionSession();
+		}
 		if (autosaveTimer) {
 			clearTimeout(autosaveTimer);
 		}
@@ -2152,6 +2268,7 @@ async function deleteAttachment(fileName) {
 										class="w-full rounded-xl border border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
 										:placeholder="translate('Add description...')"
 										@paste="handleDescriptionPaste"
+										@blur="flushDescriptionAutosave"
 									/>
 									<div
 										v-if="showMarkdownPreview"

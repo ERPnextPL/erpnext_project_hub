@@ -1777,8 +1777,12 @@ def get_users():
 
 @frappe.whitelist()
 def get_task_completion_assignees(task_name: str):
-	"""Return active assignees that can be attributed when a task is completed."""
-	require_project_hub_access()
+	"""Return active assignees that can be attributed when a task is completed.
+
+	Also called by the Desk Task form (public/js/task_completion.js), which any
+	Task editor uses, so access follows the Task's own read permission rather
+	than the Projekt HUB role.
+	"""
 	if not task_name:
 		frappe.throw(_("Task name is required"))
 

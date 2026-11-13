@@ -14,7 +14,6 @@ import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
 import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import BlockedToggle from "./atoms/BlockedToggle.vue";
-import MilestoneLabel from "./atoms/MilestoneLabel.vue";
 import { getTaskMilestone } from "../utils/milestone";
 import { cancelTaskWithSubtasks } from "../utils/taskHierarchy";
 import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
@@ -607,13 +606,6 @@ onUnmounted(() => {
 						>
 							{{ task.subject }}
 						</span>
-						<MilestoneLabel
-							v-if="taskMilestone"
-							:label="taskMilestone.label"
-							:color="taskMilestone.color"
-							size="xs"
-							class="max-w-[10rem] flex-shrink-0"
-						/>
 					</div>
 
 					<div
