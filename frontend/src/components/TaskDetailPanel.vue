@@ -184,12 +184,14 @@ const isFullscreen = ref(false);
 watch(
 	() => props.task,
 	(newTask) => {
-		const sameTask = newTask?.name === descriptionDraftTask;
+		const sameTask = Boolean(descriptionSession) && newTask?.name === descriptionSession.task;
 		const keepDescriptionDraft = isEditingDescription.value && sameTask;
 		const draftDescription = editableTask.value.description;
-		if (isEditingDescription.value && !sameTask) {
-			// Switched to another task while editing: persist the draft of the previous one.
+		if (descriptionSession && !sameTask) {
+			// Switched to another task while editing: persist the draft of the previous one
+			// (editableTask still holds it here) and end that editing session.
 			flushDescriptionAutosave();
+			endDescriptionSession();
 		}
 		editableTask.value = normalizeTaskForEdit(newTask);
 		if (keepDescriptionDraft) {
@@ -430,9 +432,11 @@ async function handleProjectChange() {
 // loses text that has already been typed.
 const DESCRIPTION_AUTOSAVE_DELAY = 1000;
 let descriptionAutosaveTimer = null;
-let descriptionDraftTask = null; // task name the draft belongs to
-let descriptionOriginal = ""; // value when editing started (for Cancel)
-let descriptionLastSaved = ""; // last value persisted to the server
+// One editing session per "Edit" click: { task, original, lastSaved }.
+// Save state lives on the session, so a late response for task A can never
+// affect the save state of task B, and a pending timer can never write into
+// a session other than the one it was scheduled for.
+let descriptionSession = null;
 let descriptionSaveChain = Promise.resolve();
 
 function clearDescriptionAutosaveTimer() {
@@ -442,14 +446,19 @@ function clearDescriptionAutosaveTimer() {
 	}
 }
 
-function persistDescription(taskName, value) {
+function endDescriptionSession() {
+	clearDescriptionAutosaveTimer();
+	descriptionSession = null;
+}
+
+function persistDescription(session, value) {
 	const text = value || "";
 	descriptionSaveChain = descriptionSaveChain.then(async () => {
-		if (!taskName || text === descriptionLastSaved) return;
+		if (!session?.task || text === session.lastSaved) return;
 		isSaving.value = true;
 		try {
-			await store.updateTask(taskName, { description: text });
-			descriptionLastSaved = text;
+			await store.updateTask(session.task, { description: text });
+			session.lastSaved = text;
 			showAutosaveFeedback();
 		} catch (error) {
 			if (realWindow?.frappe) {
@@ -467,23 +476,30 @@ function persistDescription(taskName, value) {
 
 function flushDescriptionAutosave() {
 	clearDescriptionAutosaveTimer();
-	if (!descriptionDraftTask) return descriptionSaveChain;
-	return persistDescription(descriptionDraftTask, editableTask.value.description);
+	const session = descriptionSession;
+	// Only save text that belongs to the session's task.
+	if (!session || editableTask.value.name !== session.task) return descriptionSaveChain;
+	return persistDescription(session, editableTask.value.description);
 }
 
 function hasUnsavedDescription() {
 	return (
-		isEditingDescription.value &&
-		(editableTask.value.description || "") !== descriptionLastSaved
+		Boolean(descriptionSession) &&
+		editableTask.value.name === descriptionSession.task &&
+		(editableTask.value.description || "") !== descriptionSession.lastSaved
 	);
 }
 
 watch(
 	() => editableTask.value.description,
 	() => {
-		if (!isEditingDescription.value) return;
+		const session = descriptionSession;
+		if (!isEditingDescription.value || !session) return;
 		clearDescriptionAutosaveTimer();
-		descriptionAutosaveTimer = setTimeout(flushDescriptionAutosave, DESCRIPTION_AUTOSAVE_DELAY);
+		descriptionAutosaveTimer = setTimeout(() => {
+			descriptionAutosaveTimer = null;
+			if (descriptionSession === session) flushDescriptionAutosave();
+		}, DESCRIPTION_AUTOSAVE_DELAY);
 	}
 );
 
@@ -495,25 +511,30 @@ function handleBeforeUnload(event) {
 }
 
 function startDescriptionEdit() {
-	descriptionDraftTask = props.task.name;
-	descriptionOriginal = editableTask.value.description || "";
-	descriptionLastSaved = descriptionOriginal;
+	const original = editableTask.value.description || "";
+	descriptionSession = { task: props.task.name, original, lastSaved: original };
 	isEditingDescription.value = true;
 	showMarkdownPreview.value = true;
 }
 
 async function cancelDescriptionEdit() {
-	clearDescriptionAutosaveTimer();
-	editableTask.value.description = descriptionOriginal;
-	// Autosave may already have stored part of the draft — restore the original.
-	await persistDescription(descriptionDraftTask, descriptionOriginal);
+	const session = descriptionSession;
+	// End the session before touching the text so the change below cannot
+	// schedule another autosave.
+	endDescriptionSession();
 	isEditingDescription.value = false;
 	showMarkdownPreview.value = false;
+	if (!session) return;
+	editableTask.value.description = session.original;
+	// Autosave may already have stored part of the draft — restore the original.
+	await persistDescription(session, session.original);
 }
 
 async function saveDescription() {
-	await flushDescriptionAutosave();
+	const pending = flushDescriptionAutosave();
+	endDescriptionSession();
 	isEditingDescription.value = false;
+	await pending;
 }
 
 function getPastedImageFiles(event) {
@@ -1385,8 +1406,9 @@ onMounted(() => {
 		document.removeEventListener("click", handleDocumentClick);
 		document.removeEventListener("keydown", handleGlobalKeydown);
 		window.removeEventListener("beforeunload", handleBeforeUnload);
-		if (isEditingDescription.value) {
+		if (descriptionSession) {
 			flushDescriptionAutosave();
+			endDescriptionSession();
 		}
 		if (autosaveTimer) {
 			clearTimeout(autosaveTimer);
