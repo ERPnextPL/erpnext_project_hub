@@ -37,9 +37,24 @@ describe("palette", () => {
 		expect(contrast(darkPalette.bg.gray["50"], "#000000")).toBeLessThan(1.5);
 	});
 
-	it("maps Tailwind hue names missing from frappe-ui onto existing hues", () => {
-		const colors = tailwindColors("fg");
-		for (const [alias, hue] of Object.entries(HUE_ALIASES)) expect(colors[alias]).toEqual(colors[hue]);
+	it("light blue fills (500-700) keep white button text >= 4.5:1, ordered for hover", () => {
+		const shades = ["500", "600", "700", "800"].map((s) => lightPalette.bg.blue[s]);
+		for (const hex of shades.slice(0, 3)) expect(contrast(hex, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
+		for (let i = 1; i < shades.length; i++) {
+			expect(contrast(shades[i], "#FFFFFF")).toBeGreaterThan(contrast(shades[i - 1], "#FFFFFF"));
+		}
+		expect(lightPalette.fg.blue["600"]).toBe("#007BE0");
+	});
+
+	it("maps Tailwind hue names missing from frappe-ui onto existing hues, with readable light text", () => {
+		for (const [alias, hue] of Object.entries(HUE_ALIASES)) {
+			expect(tailwindColors("bg")[alias]["100"]).toBe(`rgb(var(--hub-bg-${alias}-100) / <alpha-value>)`);
+			expect(lightPalette.bg[alias]).toEqual(lightPalette.bg[hue]);
+			expect(darkPalette.fg[alias]).toEqual(darkPalette.fg[hue]);
+			for (const shade of ["400", "500", "600", "700", "800", "900"]) {
+				expect(contrast(lightPalette.fg[alias][shade], "#F3F3F3"), `text-${alias}-${shade}`).toBeGreaterThanOrEqual(4.5);
+			}
+		}
 	});
 
 	it("exposes every hue/shade as a CSS variable for light and dark", () => {

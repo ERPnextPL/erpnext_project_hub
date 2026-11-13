@@ -14,3 +14,6 @@
 12. Text dimmed with opacity loses contrast → dark text target 5.0 (fills 5.5), and remove dimming in dark mode where it still fails.
 13. A long unbroken string (URL) in a flex child spills out even with min-w-0 → user-entered text gets `[overflow-wrap:anywhere]`.
 14. A visual check must look at the element's own box, not just the viewport: overflow = scrollWidth > clientWidth with overflow-x visible.
+15. Changing a light-mode colour must be checked per element against the baseline (path-keyed, not HTML-keyed: removed classes change the HTML) — "fixed N" is not enough, also count "added".
+16. Classes that used to generate no CSS made their text inherit a readable colour; when they start working, their text shades must be held to >= 4.5:1 too.
+17. Darkening a button colour must keep the ladder to its hover shade (500 < 600 < 700 < 800).

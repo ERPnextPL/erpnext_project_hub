@@ -36,13 +36,18 @@ const BLACK = "#000000";
 export const HUES = Object.keys(LIGHT);
 // Tailwind hue names used in the app that frappe-ui's palette lacks: without
 // these, classes like bg-emerald-600 generated no CSS at all (invisible badges).
+// They get their own variables: backgrounds and borders copy the target hue, and
+// their text shades are darkened in light mode, because before the alias that
+// text inherited a dark colour and must not become less readable.
 export const HUE_ALIASES = { emerald: "green", slate: "gray", indigo: "violet" };
+const ALL_HUES = () => [...HUES, ...Object.keys(HUE_ALIASES)];
 export const SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900"];
 
 // Contrast targets (WCAG AA is 4.5 for text, 3 for icons/borders). The margin
 // covers text the app dims with opacity-75/90 (e.g. completed projects).
 const TEXT_TARGET = 5.0;
 const FILL_TARGET = 5.5;
+const LIGHT_BLUE_FILL_TARGETS = { 500: 4.6, 600: 5.3, 700: 6.0 };
 // Lightest dark surface ordinary text sits on: bg-gray-200 in dark mode.
 const TEXT_REFERENCE_BG = DARK.gray["600"];
 
@@ -140,6 +145,9 @@ function buildDark() {
 	dark.bg.black = BLACK;
 	dark.fg.black = DARK.gray["50"];
 	dark.line.black = DARK.gray["50"];
+	for (const [alias, hue] of Object.entries(HUE_ALIASES)) {
+		for (const role of Object.keys(dark)) dark[role][alias] = { ...dark[role][hue] };
+	}
 	return dark;
 }
 
@@ -152,6 +160,18 @@ function buildLight() {
 		}
 		light[role].white = WHITE;
 		light[role].black = BLACK;
+	}
+	// Blue fills carry white text on primary buttons, and frappe-ui's blue-500/600
+	// read only 3.5:1 / 4.3:1 against it. Darken just those backgrounds, keeping one
+	// step between a button and its hover shade (bg-blue-600 hover:bg-blue-700).
+	for (const [shade, target] of Object.entries(LIGHT_BLUE_FILL_TARGETS)) {
+		light.bg.blue[shade] = ensureContrast(LIGHT.blue[shade], WHITE, target);
+	}
+	for (const [alias, hue] of Object.entries(HUE_ALIASES)) {
+		for (const role of Object.keys(light)) light[role][alias] = { ...light[role][hue] };
+		for (const shade of SHADES.filter((s) => Number(s) >= 400)) {
+			light.fg[alias][shade] = ensureContrast(LIGHT[hue][shade], LIGHT.gray["100"], TEXT_TARGET - 0.4);
+		}
 	}
 	return light;
 }
@@ -167,13 +187,12 @@ const rgbChannels = (hex) => hexToRgb(hex).join(" ");
 /** Tailwind colour map of one role: { gray: { 50: "rgb(var(--hub-bg-gray-50) / <alpha-value>)" }, white: … } */
 export function tailwindColors(role) {
 	const colors = {};
-	for (const hue of HUES) {
+	for (const hue of ALL_HUES()) {
 		colors[hue] = {};
 		for (const shade of SHADES) {
 			colors[hue][shade] = `rgb(var(${varName(role, hue, shade)}) / <alpha-value>)`;
 		}
 	}
-	for (const [alias, hue] of Object.entries(HUE_ALIASES)) colors[alias] = colors[hue];
 	colors.white = `rgb(var(${varName(role, "white")}) / <alpha-value>)`;
 	colors.black = `rgb(var(${varName(role, "black")}) / <alpha-value>)`;
 	return colors;
@@ -182,7 +201,7 @@ export function tailwindColors(role) {
 function declarations(palette) {
 	const out = {};
 	for (const role of ["bg", "fg", "line"]) {
-		for (const hue of HUES) {
+		for (const hue of ALL_HUES()) {
 			for (const shade of SHADES) out[varName(role, hue, shade)] = rgbChannels(palette[role][hue][shade]);
 		}
 		out[varName(role, "white")] = rgbChannels(palette[role].white);
