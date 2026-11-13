@@ -115,7 +115,7 @@ function promptWithHubDialog(assignees) {
 		const confirmButton = document.createElement("button");
 		confirmButton.type = "button";
 		confirmButton.className =
-			"rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700";
+			"rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800";
 		confirmButton.textContent = translate("Confirm");
 
 		actions.append(cancelButton, confirmButton);
