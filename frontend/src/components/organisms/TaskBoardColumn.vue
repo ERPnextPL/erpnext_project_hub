@@ -84,20 +84,20 @@ const dragOptions = {
 	<!-- Collapsed: vertical bar -->
 	<section
 		v-if="collapsed"
-		class="relative flex w-11 flex-shrink-0 flex-col items-center rounded-xl bg-gray-100 transition-colors dark:bg-gray-800/80"
-		:class="dragging && 'ring-2 ring-inset ring-blue-300 dark:ring-blue-700'"
+		class="relative flex w-11 flex-shrink-0 flex-col items-center rounded-xl bg-gray-100 transition-colors"
+		:class="dragging && 'ring-2 ring-inset ring-blue-300'"
 	>
 		<button
 			type="button"
-			class="flex flex-1 flex-col items-center gap-3 rounded-xl px-1 py-3 text-gray-700 hover:bg-gray-200/70 dark:text-gray-200 dark:hover:bg-gray-700/60"
+			class="flex flex-1 flex-col items-center gap-3 rounded-xl px-1 py-3 text-gray-700 hover:bg-gray-200/70"
 			:title="translate('Expand list')"
 			@click="emit('toggle-collapse')"
 		>
 			<ChevronsLeftRight class="h-4 w-4 text-gray-500" />
 			<span :class="['h-2.5 w-2.5 rounded-full', column.dot]"></span>
 			<span class="text-sm font-semibold [writing-mode:vertical-rl]">{{ column.title }}</span>
-			<span class="rounded-full bg-white px-1.5 text-xs tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-				{{ column.tasks.length }}
+			<span class="rounded-full bg-white px-1.5 text-xs tabular-nums text-gray-600">
+				{{ column.count }}
 			</span>
 		</button>
 		<draggable
@@ -117,20 +117,20 @@ const dragOptions = {
 	<!-- Expanded list -->
 	<section
 		v-else
-		class="flex max-h-full w-72 flex-shrink-0 flex-col rounded-xl bg-gray-100 shadow-sm dark:bg-gray-800/80"
+		class="flex max-h-full w-[min(18rem,calc(100vw-3rem))] flex-shrink-0 flex-col rounded-xl bg-gray-100 shadow-sm"
 	>
 		<header class="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
 			<span :class="['h-2.5 w-2.5 flex-shrink-0 rounded-full', column.dot]"></span>
-			<h3 class="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
+			<h3 class="truncate text-sm font-semibold text-gray-800">
 				{{ column.title }}
 			</h3>
-			<span class="rounded-full bg-white px-1.5 text-xs tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-				{{ column.tasks.length }}
+			<span class="rounded-full bg-white px-1.5 text-xs tabular-nums text-gray-600">
+				{{ column.count }}
 			</span>
 			<span class="flex-1"></span>
 			<button
 				type="button"
-				class="rounded-md p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+				class="rounded-md p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
 				:title="translate('Collapse list')"
 				:aria-label="translate('Collapse list')"
 				@click="emit('toggle-collapse')"
@@ -162,7 +162,7 @@ const dragOptions = {
 			<template #footer>
 				<div
 					v-if="!cards.length"
-					class="rounded-lg border-2 border-dashed border-gray-300 px-2 py-5 text-center text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400"
+					class="rounded-lg border-2 border-dashed border-gray-300 px-2 py-5 text-center text-xs text-gray-500"
 				>
 					{{ dragging ? translate("Drop here") : translate("No tasks") }}
 				</div>
@@ -176,8 +176,8 @@ const dragOptions = {
 <style scoped>
 .board-column-cards :deep(.task-card-ghost) {
 	opacity: 0.35;
-	background: rgb(219 234 254);
-	border: 2px dashed rgb(96 165 250);
+	background: var(--hub-drop-ghost-bg, rgb(219 234 254));
+	border: 2px dashed var(--hub-drop-ghost-border, rgb(96 165 250));
 }
 .board-column-cards :deep(.task-card-ghost > *) {
 	visibility: hidden;

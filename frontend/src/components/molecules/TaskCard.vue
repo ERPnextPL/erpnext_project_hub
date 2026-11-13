@@ -76,8 +76,8 @@ const subtaskText = computed(() => {
 
 const subtaskTone = computed(() =>
 	props.subtaskStats?.total && props.subtaskStats.done === props.subtaskStats.total
-		? "text-green-600 dark:text-green-400"
-		: "text-gray-500 dark:text-gray-400"
+		? "text-green-600"
+		: "text-gray-500"
 );
 
 function setDueDate(value) {
@@ -101,10 +101,10 @@ function onContextMenu(event) {
 		:class="[
 			'task-card group relative cursor-pointer rounded-lg border bg-white p-2.5 text-left shadow-sm transition-all',
 			'hover:border-gray-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
-			'dark:bg-gray-800 dark:hover:border-gray-500',
+			'',
 			task.is_blocked
-				? 'border-red-200 dark:border-red-800'
-				: 'border-gray-200 dark:border-gray-700',
+				? 'border-red-200'
+				: 'border-gray-200',
 			menuOpen && 'ring-2 ring-blue-400',
 		]"
 		@click="emit('open', task)"
@@ -114,7 +114,7 @@ function onContextMenu(event) {
 		<!-- Quick edit (Trello's pencil) -->
 		<button
 			type="button"
-			class="absolute right-1.5 top-1.5 z-10 rounded-md bg-white/90 p-1 text-gray-500 opacity-0 shadow-sm transition-opacity hover:bg-gray-100 hover:text-gray-800 focus:opacity-100 group-hover:opacity-100 dark:bg-gray-700/90 dark:text-gray-300 dark:hover:bg-gray-600"
+			class="hub-tap absolute right-1.5 top-1.5 z-10 rounded-md bg-white/90 p-1 text-gray-500 opacity-0 shadow-sm transition-opacity hover:bg-gray-100 hover:text-gray-800 focus:opacity-100 group-hover:opacity-100"
 			:class="menuOpen && 'opacity-100'"
 			:title="translate('Quick actions')"
 			:aria-label="translate('Quick actions')"
@@ -132,7 +132,7 @@ function onContextMenu(event) {
 		<!-- Parent task -->
 		<div
 			v-if="parentSubject"
-			class="mb-0.5 flex items-center gap-1 pr-6 text-[11px] text-gray-500 dark:text-gray-400"
+			class="mb-0.5 flex items-center gap-1 pr-6 text-[11px] text-gray-500"
 			:title="parentSubject"
 		>
 			<CornerDownRight class="h-3 w-3 flex-shrink-0" />
@@ -144,8 +144,8 @@ function onContextMenu(event) {
 			:class="[
 				'task-card-title break-words pr-6 text-sm leading-snug',
 				isClosed
-					? 'text-gray-500 line-through dark:text-gray-400'
-					: 'text-gray-900 dark:text-gray-100',
+					? 'text-gray-500 line-through'
+					: 'text-gray-900',
 			]"
 		>
 			{{ task.subject }}
@@ -154,7 +154,7 @@ function onContextMenu(event) {
 		<!-- Project (cross-project views) -->
 		<div
 			v-if="showProject && (task.project_name || task.project)"
-			class="mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"
+			class="mt-1 flex items-center gap-1 text-[11px] text-gray-500"
 		>
 			<Folder class="h-3 w-3 flex-shrink-0" />
 			<span class="truncate">{{ task.project_name || task.project }}</span>
@@ -164,7 +164,7 @@ function onContextMenu(event) {
 		<div class="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5" @click.stop>
 			<span
 				v-if="task.is_blocked"
-				class="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300"
+				class="inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700"
 			>
 				<Lock class="h-3 w-3" />
 				{{ translate("Blocked") }}
@@ -181,7 +181,7 @@ function onContextMenu(event) {
 					<button
 						v-else
 						type="button"
-						class="rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-gray-700"
+						class="hub-tap rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 focus:opacity-100 group-hover:opacity-100"
 						:title="translate('Set due date')"
 						:aria-label="translate('Set due date')"
 						@click="open"

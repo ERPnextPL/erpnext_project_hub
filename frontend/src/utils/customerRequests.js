@@ -141,16 +141,16 @@ export const CUSTOMER_REQUEST_PIPELINE = ["Draft", "To Analyze", "Quoted", "Acce
 export const OPEN_CUSTOMER_REQUEST_STATES = ["Draft", "To Analyze", "Quoted", "Accepted"];
 
 const STATE_CLASSES = {
-	Draft: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200",
-	"To Analyze": "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200",
-	Quoted: "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
-	Accepted: "bg-green-50 text-green-700 dark:bg-green-900/40 dark:text-green-200",
-	Converted: "bg-violet-50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200",
-	Rejected: "bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-200",
-	Approved: "bg-green-50 text-green-700 dark:bg-green-900/40 dark:text-green-200",
-	"Task Created": "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200",
-	Done: "bg-green-50 text-green-700 dark:bg-green-900/40 dark:text-green-200",
-	Cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300",
+	Draft: "bg-gray-100 text-gray-700",
+	"To Analyze": "bg-blue-50 text-blue-700",
+	Quoted: "bg-amber-50 text-amber-700",
+	Accepted: "bg-green-50 text-green-700",
+	Converted: "bg-violet-50 text-violet-700",
+	Rejected: "bg-red-50 text-red-700",
+	Approved: "bg-green-50 text-green-700",
+	"Task Created": "bg-blue-50 text-blue-700",
+	Done: "bg-green-50 text-green-700",
+	Cancelled: "bg-gray-100 text-gray-500",
 };
 
 export function getRequestStateClass(state) {

@@ -71,14 +71,14 @@ const barColor = computed(() => {
 	const p = taskPct.value;
 	if (p >= 100) return "bg-green-500";
 	if (p >= 50) return "bg-blue-500";
-	return "bg-gray-400 dark:bg-gray-500";
+	return "bg-gray-400";
 });
 </script>
 
 <template>
 	<div
 		v-if="project"
-		class="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+		class="border-b border-gray-200 bg-white"
 	>
 		<!-- Main strip (always visible) -->
 		<div
@@ -92,7 +92,7 @@ const barColor = computed(() => {
 					<circle
 						cx="16" cy="16" r="13"
 						fill="none"
-						class="stroke-gray-200 dark:stroke-gray-700"
+						class="stroke-gray-200"
 						stroke-width="3"
 					/>
 					<!-- Remaining time arc -->
@@ -115,12 +115,12 @@ const barColor = computed(() => {
 			</div>
 
 			<!-- Divider -->
-			<div class="h-4 w-px flex-shrink-0 bg-gray-200 dark:bg-gray-700"></div>
+			<div class="h-4 w-px flex-shrink-0 bg-gray-200"></div>
 
 			<!-- 2. Task progress bar -->
 			<div class="flex min-w-0 flex-1 items-center gap-2">
 				<div
-					class="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+					class="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200"
 				>
 					<div
 						class="h-full rounded-full transition-all duration-500"
@@ -128,7 +128,7 @@ const barColor = computed(() => {
 						:style="{ width: taskPct + '%' }"
 					></div>
 				</div>
-				<span class="flex-shrink-0 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+				<span class="flex-shrink-0 whitespace-nowrap text-xs text-gray-500">
 					<template v-if="taskTotal > 0">
 						{{ taskDone }}/{{ taskTotal }} &middot; {{ taskPct }}%
 					</template>

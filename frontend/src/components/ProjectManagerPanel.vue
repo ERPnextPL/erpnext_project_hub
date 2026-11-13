@@ -161,21 +161,21 @@ const topUserHours = computed(() => {
 <template>
 	<div
 		v-if="project.is_manager"
-		class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
+		class="bg-white border-b border-gray-200"
 	>
 		<div
-			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
 			@click="toggleExpand"
 		>
 			<div class="flex items-center gap-2">
 				<TrendingUp class="w-4 h-4 text-indigo-500" />
-				<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+				<h3 class="text-sm font-semibold text-gray-700">
 					{{ translate("Manager Summary") }}
 				</h3>
 			</div>
-			<button class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-				<ChevronDown v-else class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+			<button class="hub-tap p-1 rounded hover:bg-gray-200 transition-colors">
+				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500" />
+				<ChevronDown v-else class="w-4 h-4 text-gray-500" />
 			</button>
 		</div>
 
@@ -192,14 +192,14 @@ const topUserHours = computed(() => {
 
 				<template v-else-if="financials">
 					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-						<div class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2">
-							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+						<div class="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-2">
+							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
 								<Clock class="w-3.5 h-3.5" />
 								{{ translate("Hours") }}
 							</div>
 							<div class="flex items-end gap-2">
 								<span
-									class="text-2xl font-bold text-gray-900 dark:text-gray-100"
+									class="text-2xl font-bold text-gray-900"
 									:title="translate('Estimated hours summed from all tasks in this project')"
 								>
 									{{ formatHours(financials.estimated_hours) }}
@@ -217,7 +217,7 @@ const topUserHours = computed(() => {
 							</div>
 
 							<div v-if="hasBudgetHoursData">
-								<div class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+								<div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
 									<div
 										class="h-full rounded-full transition-all duration-500"
 										:class="getProgressBarClass(estimatedVsAvailablePct)"
@@ -261,15 +261,15 @@ const topUserHours = computed(() => {
 
 						<div
 							v-if="hasFinancialData"
-							class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2"
+							class="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-2"
 						>
-							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
 								<TrendingUp class="w-3.5 h-3.5" />
 								{{ translate("Budget Usage") }}
 							</div>
 							<div class="flex items-end gap-2">
 								<span
-									class="text-2xl font-bold text-gray-900 dark:text-gray-100"
+									class="text-2xl font-bold text-gray-900"
 									:title="translate('Percentage of the project cost budget still remaining')"
 								>
 									{{ budgetRemainingPct ?? 0 }}%
@@ -297,7 +297,7 @@ const topUserHours = computed(() => {
 									</span>
 								</div>
 								<div
-									class="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden cursor-help"
+									class="w-full h-2 bg-gray-200 rounded-full overflow-hidden cursor-help"
 									:title="financials.budget_hours_progress + '% ' + translate('of the project budget has been used')"
 								>
 									<div
@@ -329,10 +329,10 @@ const topUserHours = computed(() => {
 
 						<div
 							v-if="financials.hours_per_user && financials.hours_per_user.length > 0"
-							class="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-4 space-y-2"
+							class="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-2"
 							:class="hasFinancialData ? '' : 'sm:col-span-2 lg:col-span-2'"
 						>
-							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+							<div class="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
 								<Users class="w-3.5 h-3.5" />
 								{{ translate("Hours by Team Member") }}
 							</div>
@@ -342,18 +342,18 @@ const topUserHours = computed(() => {
 									:key="row.user"
 									class="flex items-center gap-2 text-sm"
 								>
-									<div class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
-										<span class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-300">
+									<div class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+										<span class="text-[10px] font-semibold text-indigo-600">
 											{{ (row.label || row.user).slice(0, 2).toUpperCase() }}
 										</span>
 									</div>
 									<div class="flex-1 min-w-0">
 										<div class="flex items-center justify-between mb-0.5">
-											<span class="text-xs text-gray-700 dark:text-gray-300 truncate max-w-[120px]" :title="row.label">
+											<span class="text-xs text-gray-700 truncate max-w-[120px]" :title="row.label">
 												{{ row.label }}
 											</span>
 											<span
-												class="text-xs font-semibold text-gray-700 dark:text-gray-300 ml-2 flex-shrink-0"
+												class="text-xs font-semibold text-gray-700 ml-2 flex-shrink-0"
 												:title="translate('Total submitted and draft timesheet hours for this team member')"
 											>
 												{{ formatHours(row.total) }}
@@ -369,7 +369,7 @@ const topUserHours = computed(() => {
 										</div>
 										<div
 											v-if="financials.total_hours > 0"
-											class="w-full h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden"
+											class="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden"
 										>
 											<div
 												class="h-full rounded-full transition-all duration-500"

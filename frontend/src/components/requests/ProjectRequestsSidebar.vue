@@ -197,17 +197,17 @@ async function submitQuickRequest() {
 
 function pipelineStepClass(request, step) {
 	const state = request.workflow_state || "Draft";
-	if (state === "Rejected") return "bg-gray-200 dark:bg-gray-600";
+	if (state === "Rejected") return "bg-gray-200";
 	const current = CUSTOMER_REQUEST_PIPELINE.indexOf(state);
 	const index = CUSTOMER_REQUEST_PIPELINE.indexOf(step);
 	if (index < current) return "bg-green-500";
-	if (index === current) return "bg-green-600 ring-2 ring-green-200 dark:ring-green-900";
-	return "bg-gray-200 dark:bg-gray-600";
+	if (index === current) return "bg-green-600 ring-2 ring-green-200";
+	return "bg-gray-200";
 }
 
 function actionButtonClass(action) {
 	if (action.next_state === "Rejected") {
-		return "border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/30";
+		return "border border-red-200 text-red-700 hover:bg-red-50";
 	}
 	return "bg-green-600 text-white hover:bg-green-700";
 }
@@ -344,21 +344,21 @@ onMounted(() => {
 </script>
 
 <template>
-	<aside class="h-full w-[440px] max-w-[92vw] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
-		<header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+	<aside class="h-full w-[440px] max-w-[92vw] bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+		<header class="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-2">
 			<div class="flex items-center gap-2 min-w-0">
 				<ClipboardList class="w-4 h-4 text-green-600 flex-shrink-0" />
 				<div class="min-w-0">
-					<div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+					<div class="text-sm font-semibold text-gray-900">
 						{{ translate("Customer Requests") }}
 					</div>
-					<div class="text-xs text-gray-500 dark:text-gray-400">
+					<div class="text-xs text-gray-500">
 						{{ translate("{0} active of {1}", [openCount, customerRequests.length]) }}
 					</div>
 				</div>
 				<button
 					type="button"
-					class="p-1 rounded-full text-gray-400 hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-700 dark:hover:text-blue-400"
+					class="p-1 rounded-full text-gray-400 hover:bg-gray-100 hover:text-blue-600"
 					:title="translate('How requests work')"
 					:aria-label="translate('How requests work')"
 					@click="showGuide = true"
@@ -379,7 +379,7 @@ onMounted(() => {
 				</a>
 				<button
 					type="button"
-					class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+					class="p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
 					:title="translate('Refresh')"
 					:disabled="loading"
 					@click="emit('refresh')"
@@ -388,7 +388,7 @@ onMounted(() => {
 				</button>
 				<button
 					type="button"
-					class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+					class="p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
 					@click="emit('close')"
 				>
 					<X class="w-4 h-4" />
@@ -397,10 +397,10 @@ onMounted(() => {
 		</header>
 
 		<!-- Quick add: subject + source, Enter saves a Draft request -->
-		<div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 space-y-2">
+		<div class="px-4 py-3 border-b border-gray-200 bg-gray-50 space-y-2">
 			<div
 				v-if="!hasCustomer"
-				class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+				class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
 			>
 				{{ translate("Project must have a customer") }}
 			</div>
@@ -411,7 +411,7 @@ onMounted(() => {
 					type="text"
 					:disabled="!hasCustomer || quickCreating"
 					:placeholder="translate('New customer request – type and press Enter')"
-					class="min-w-0 flex-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100 dark:focus:ring-green-900/40 disabled:opacity-60"
+					class="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100 disabled:opacity-60"
 					@input="quickError = ''"
 				/>
 				<button
@@ -427,7 +427,7 @@ onMounted(() => {
 				<select
 					v-model="quickSource"
 					:disabled="!hasCustomer"
-					class="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-xs text-gray-700 dark:text-gray-200"
+					class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700"
 				>
 					<option value="">{{ translate("Select source") }}</option>
 					<option v-for="source in REQUEST_SOURCES" :key="source" :value="source">
@@ -437,17 +437,17 @@ onMounted(() => {
 				<button
 					type="button"
 					:disabled="!hasCustomer"
-					class="text-xs font-medium text-green-700 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+					class="text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-50"
 					@click="openFullForm"
 				>
 					{{ translate("Full form with details") }} →
 				</button>
 			</div>
-			<p v-if="quickError" class="text-xs text-red-600 dark:text-red-400">{{ quickError }}</p>
+			<p v-if="quickError" class="text-xs text-red-600">{{ quickError }}</p>
 		</div>
 
 		<!-- Filters -->
-		<div class="px-4 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2">
+		<div class="px-4 py-2 border-b border-gray-200 space-y-2">
 			<div class="flex items-center gap-1">
 				<button
 					v-for="filter in STATUS_FILTERS"
@@ -457,12 +457,12 @@ onMounted(() => {
 						'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
 						statusFilter === filter.key
 							? 'bg-green-600 text-white'
-							: 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600',
+							: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
 					]"
 					@click="statusFilter = filter.key"
 				>
 					{{ translate(filter.label) }}
-					<span class="opacity-75">{{ filterCounts[filter.key] }}</span>
+					<span class="opacity-75 dark:opacity-100">{{ filterCounts[filter.key] }}</span>
 				</button>
 			</div>
 			<div class="relative">
@@ -471,7 +471,7 @@ onMounted(() => {
 					v-model="searchQuery"
 					type="text"
 					:placeholder="translate('Search requests...')"
-					class="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+					class="w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 py-1.5 text-sm text-gray-900"
 				/>
 			</div>
 		</div>
@@ -479,7 +479,7 @@ onMounted(() => {
 		<div class="flex-1 overflow-y-auto p-4 pb-24 space-y-5">
 			<div
 				v-if="error"
-				class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200"
+				class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
 			>
 				{{ error }}
 			</div>
@@ -490,7 +490,7 @@ onMounted(() => {
 
 			<div
 				v-else-if="groupedRequests.length === 0"
-				class="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
+				class="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500"
 			>
 				{{ customerRequests.length === 0 ? translate("No requests for this project") : translate("No requests match the filters") }}
 			</div>
@@ -507,7 +507,7 @@ onMounted(() => {
 					<article
 						v-for="request in group.requests"
 						:key="request.name"
-						class="rounded-xl border border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-700 transition-colors"
+						class="rounded-xl border border-gray-200 hover:border-green-300 transition-colors"
 					>
 						<button
 							type="button"
@@ -520,10 +520,10 @@ onMounted(() => {
 									class="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400"
 								/>
 								<div class="min-w-0 flex-1">
-									<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+									<div class="text-sm font-medium text-gray-900">
 										{{ request.subject }}
 									</div>
-									<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+									<div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
 										<span>{{ request.name }}</span>
 										<span v-if="request.request_date">· {{ formatDate(request.request_date) }}</span>
 										<span v-if="request.source">· {{ translate(request.source) }}</span>
@@ -534,30 +534,30 @@ onMounted(() => {
 										class="mt-1 flex items-center gap-1 text-xs"
 									>
 										<template v-if="request.analyst">
-											<UserCheck class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-											<span class="text-gray-600 dark:text-gray-300">
+											<UserCheck class="h-3.5 w-3.5 text-blue-600" />
+											<span class="text-gray-600">
 												{{ translate("Analyzed by: {0}", [request.analyst_name]) }}
 											</span>
 										</template>
-										<span v-else class="font-medium text-amber-700 dark:text-amber-400">
+										<span v-else class="font-medium text-amber-700">
 											{{ translate("Waiting for someone to analyze") }}
 										</span>
 									</div>
 									<div
 										v-if="!expanded.has(request.name) && hasEstimate(request)"
-										class="mt-1 flex flex-wrap gap-x-2 text-xs font-medium text-gray-700 dark:text-gray-200"
+										class="mt-1 flex flex-wrap gap-x-2 text-xs font-medium text-gray-700"
 									>
 										<span v-if="request.estimated_hours">{{ request.estimated_hours }} h</span>
 										<span v-if="request.estimated_amount">
 											· {{ formatRequestAmount(request, "estimated_amount") }}
 										</span>
-										<span v-if="request.quotation" class="font-normal text-gray-500 dark:text-gray-400">
+										<span v-if="request.quotation" class="font-normal text-gray-500">
 											· {{ request.quotation }}
 										</span>
 									</div>
 									<p
 										v-if="!expanded.has(request.name) && request.notes"
-										class="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2"
+										class="mt-1 text-xs text-gray-500 line-clamp-2"
 									>
 										{{ stripHtml(request.notes) }}
 									</p>
@@ -567,7 +567,7 @@ onMounted(() => {
 
 						<div
 							v-if="expanded.has(request.name)"
-							class="border-t border-gray-100 dark:border-gray-700 px-3 py-3 space-y-3 text-sm"
+							class="border-t border-gray-100 px-3 py-3 space-y-3 text-sm"
 						>
 							<div>
 								<div class="flex items-center gap-1" :title="translate(request.workflow_state || 'Draft')">
@@ -581,14 +581,14 @@ onMounted(() => {
 									<span
 										v-for="step in CUSTOMER_REQUEST_PIPELINE"
 										:key="step"
-										:class="{ 'font-semibold text-green-700 dark:text-green-400': step === (request.workflow_state || 'Draft') }"
+										:class="{ 'font-semibold text-green-700': step === (request.workflow_state || 'Draft') }"
 									>
 										{{ translate(step) }}
 									</span>
 								</div>
 								<div
 									v-if="request.workflow_state === 'Rejected'"
-									class="mt-1 text-xs font-medium text-red-600 dark:text-red-400"
+									class="mt-1 text-xs font-medium text-red-600"
 								>
 									{{ translate("Rejected") }}
 								</div>
@@ -597,7 +597,7 @@ onMounted(() => {
 								<div class="text-xs font-medium uppercase tracking-wide text-gray-400">
 									{{ translate("Notes") }}
 								</div>
-								<p class="mt-1 whitespace-pre-line text-gray-700 dark:text-gray-200">
+								<p class="mt-1 whitespace-pre-line text-gray-700">
 									{{ htmlToText(request.notes) }}
 								</p>
 							</div>
@@ -605,11 +605,11 @@ onMounted(() => {
 								<div class="text-xs font-medium uppercase tracking-wide text-gray-400">
 									{{ translate("Business Value") }}
 								</div>
-								<p class="mt-1 whitespace-pre-line text-gray-700 dark:text-gray-200">
+								<p class="mt-1 whitespace-pre-line text-gray-700">
 									{{ htmlToText(request.business_value) }}
 								</p>
 							</div>
-							<div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+							<div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
 								<span v-if="request.estimated_hours">
 									{{ translate("Estimated Hours") }}: {{ request.estimated_hours }}h
 								</span>
@@ -630,7 +630,7 @@ onMounted(() => {
 							<div class="flex flex-wrap items-center gap-2">
 								<button
 									type="button"
-									class="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+									class="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
 									@click="openInDesk('Customer Request', request.name)"
 								>
 									<ExternalLink class="h-3.5 w-3.5" />
@@ -639,7 +639,7 @@ onMounted(() => {
 								<button
 									v-if="request.change_request"
 									type="button"
-									class="inline-flex items-center gap-1 rounded-md border border-violet-200 dark:border-violet-800 px-2 py-1 text-xs text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30"
+									class="inline-flex items-center gap-1 rounded-md border border-violet-200 px-2 py-1 text-xs text-violet-700 hover:bg-violet-50"
 									@click="openInDesk('Change Request', request.change_request)"
 								>
 									<GitPullRequestArrow class="h-3.5 w-3.5" />
@@ -650,7 +650,7 @@ onMounted(() => {
 
 						<div
 							v-if="request.workflow_state === 'To Analyze' || request.actions?.length || request.can_create_change_request || actionErrors[request.name]"
-							class="border-t border-gray-100 dark:border-gray-700 px-3 py-2"
+							class="border-t border-gray-100 px-3 py-2"
 						>
 							<div
 								v-if="request.workflow_state === 'To Analyze'"
@@ -670,7 +670,7 @@ onMounted(() => {
 									v-else-if="isAnalyzedByMe(request)"
 									type="button"
 									:disabled="Boolean(busyRequest)"
-									class="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+									class="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
 									@click="releaseRequest('Customer Request', request)"
 								>
 									<UserMinus class="h-3.5 w-3.5" />
@@ -678,7 +678,7 @@ onMounted(() => {
 								</button>
 								<button
 									type="button"
-									class="inline-flex items-center gap-1 rounded-md border border-blue-200 dark:border-blue-800 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+									class="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
 									@click="openInDesk('Customer Request', request.name)"
 								>
 									<ExternalLink class="h-3.5 w-3.5" />
@@ -717,7 +717,7 @@ onMounted(() => {
 									class="h-3.5 w-3.5 animate-spin text-gray-400"
 								/>
 							</div>
-							<p v-if="actionErrors[request.name]" class="mt-1 text-xs text-red-600 dark:text-red-400">
+							<p v-if="actionErrors[request.name]" class="mt-1 text-xs text-red-600">
 								{{ actionErrors[request.name] }}
 							</p>
 						</div>
@@ -725,10 +725,10 @@ onMounted(() => {
 				</div>
 			</section>
 
-			<section v-if="changeRequests.length > 0" class="border-t border-gray-200 dark:border-gray-700 pt-4">
+			<section v-if="changeRequests.length > 0" class="border-t border-gray-200 pt-4">
 				<button
 					type="button"
-					class="mb-2 flex w-full items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+					class="mb-2 flex w-full items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
 					@click="changeRequestsOpen = !changeRequestsOpen"
 				>
 					<component :is="changeRequestsOpen ? ChevronDown : ChevronRight" class="h-4 w-4" />
@@ -739,7 +739,7 @@ onMounted(() => {
 					<div
 						v-for="changeRequest in changeRequests"
 						:key="changeRequest.name"
-						class="rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5"
+						class="rounded-xl border border-gray-200 px-3 py-2.5"
 					>
 						<div class="flex items-start justify-between gap-2">
 							<button
@@ -747,10 +747,10 @@ onMounted(() => {
 								class="min-w-0 text-left"
 								@click="openInDesk('Change Request', changeRequest.name)"
 							>
-								<div class="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-green-700 dark:hover:text-green-300">
+								<div class="text-sm font-medium text-gray-900 hover:text-green-700">
 									{{ changeRequest.subject }}
 								</div>
-								<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+								<div class="mt-0.5 text-xs text-gray-500">
 									{{ changeRequest.name }}
 									<span v-if="changeRequest.approved_hours">· {{ changeRequest.approved_hours }}h</span>
 									<span v-if="changeRequest.approved_amount">
@@ -767,12 +767,12 @@ onMounted(() => {
 							class="mt-1 flex flex-wrap items-center gap-1.5 text-xs"
 						>
 							<template v-if="changeRequest.realization_assignee">
-								<UserCheck class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-								<span class="text-gray-600 dark:text-gray-300">
+								<UserCheck class="h-3.5 w-3.5 text-blue-600" />
+								<span class="text-gray-600">
 									{{ translate("Assigned to realization: {0}", [changeRequest.realization_assignee_name]) }}
 								</span>
 							</template>
-							<span v-else class="font-medium text-amber-700 dark:text-amber-400">
+							<span v-else class="font-medium text-amber-700">
 								{{ translate("Waiting for someone to take this for realization") }}
 							</span>
 							<template v-if="isInQueue('Change Request', changeRequest)">
@@ -790,7 +790,7 @@ onMounted(() => {
 									v-else-if="changeRequest.realization_assignee === currentUser"
 									type="button"
 									:disabled="Boolean(busyRequest)"
-									class="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+									class="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
 									@click="releaseRequest('Change Request', changeRequest)"
 								>
 									<UserMinus class="h-3.5 w-3.5" />
@@ -802,13 +802,13 @@ onMounted(() => {
 								/>
 							</template>
 						</div>
-						<p v-if="actionErrors[changeRequest.name]" class="mt-1 text-xs text-red-600 dark:text-red-400">
+						<p v-if="actionErrors[changeRequest.name]" class="mt-1 text-xs text-red-600">
 							{{ actionErrors[changeRequest.name] }}
 						</p>
 						<button
 							v-if="changeRequest.task"
 							type="button"
-							class="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-50 dark:bg-blue-900/30 px-2 py-1 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+							class="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"
 							@click="emit('open-task', changeRequest.task)"
 						>
 							{{ translate("Task") }}: {{ changeRequest.task }}

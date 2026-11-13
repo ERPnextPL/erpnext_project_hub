@@ -8,6 +8,15 @@
 {% endblock %}
 
 {% block head_include %}
+<script>
+	// Apply the stored theme before first paint (see frontend/src/composables/useDarkMode.js).
+	try {
+		if (localStorage.getItem("project-hub-theme") === "dark") {
+			document.documentElement.classList.add("dark");
+			document.documentElement.setAttribute("data-theme", "dark");
+		}
+	} catch (e) {}
+</script>
 <link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css?v={{ asset_version }}">
 <link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css?v={{ asset_version }}">
 {% endblock %}

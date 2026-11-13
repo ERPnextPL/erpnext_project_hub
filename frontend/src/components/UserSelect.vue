@@ -122,7 +122,7 @@ defineExpose({
 					<span class="max-w-[180px] truncate" :title="user.full_name || user.name">
 						{{ user.full_name || user.name }}
 					</span>
-					<button @click.stop="emit('remove', user.name)" class="hover:text-blue-600">
+					<button @click.stop="emit('remove', user.name)" class="hub-tap hover:text-blue-600">
 						<X class="w-3 h-3" />
 					</button>
 				</span>

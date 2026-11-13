@@ -75,7 +75,9 @@ const dateHeaders = computed(() => {
 		date.setDate(start.getDate() + i);
 		headers.push({
 			date: date,
-			dayOfWeek: date.toLocaleDateString("pl-PL", { weekday: "short" }),
+			// Two-letter Polish abbreviations: "niedz." / "śr." do not fit a day column.
+			dayOfWeek: ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "So"][date.getDay()],
+			dayName: date.toLocaleDateString("pl-PL", { weekday: "long" }),
 			dayOfMonth: date.getDate(),
 			month: date.toLocaleDateString("pl-PL", { month: "short" }),
 			isWeekend: date.getDay() === 0 || date.getDay() === 6,
@@ -425,20 +427,20 @@ onMounted(() => {
 </script>
 
 <template>
-	<div class="timeline-view h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+	<div class="timeline-view h-full flex flex-col bg-white text-gray-900">
 		<!-- Header with navigation -->
 		<div
-			class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+			class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50"
 		>
 			<div class="flex items-center gap-2">
 				<Calendar class="w-5 h-5 text-blue-600" />
-				<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">{{ t("Timeline") }}</h3>
-				<span class="text-xs text-gray-500 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
+				<h3 class="text-sm font-semibold text-gray-700">{{ t("Timeline") }}</h3>
+				<span class="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
 					{{ timelineTasks.length }} {{ t("tasks with dates") }}
 				</span>
 			</div>
 			<div class="flex items-center gap-2">
-				<div class="flex rounded border border-gray-300 dark:border-gray-600 overflow-hidden" role="group" :aria-label="t('Range')">
+				<div class="flex rounded border border-gray-300 overflow-hidden" role="group" :aria-label="t('Range')">
 					<button
 						v-for="days in RANGE_OPTIONS"
 						:key="days"
@@ -448,7 +450,7 @@ onMounted(() => {
 							'px-2 py-1 text-xs font-medium',
 							daysToShow === days
 								? 'bg-blue-600 text-white'
-								: 'text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700',
+								: 'text-gray-600 hover:bg-gray-200',
 						]"
 					>
 						{{ days }}{{ t("d") }}
@@ -480,11 +482,11 @@ onMounted(() => {
 		<!-- Timeline content -->
 		<div class="flex-1 overflow-auto">
 			<!-- Date headers -->
-			<div class="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+			<div class="sticky top-0 z-10 bg-white border-b border-gray-200">
 				<div class="flex">
 					<!-- Task name column header -->
-					<div class="w-64 flex-shrink-0 px-4 py-2 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-						<span class="text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{
+					<div class="w-64 flex-shrink-0 px-4 py-2 border-r border-gray-200 bg-gray-50">
+						<span class="text-xs font-medium text-gray-500 uppercase">{{
 							t("Task")
 						}}</span>
 					</div>
@@ -496,21 +498,21 @@ onMounted(() => {
 							:class="[
 								'flex-1 px-1 py-2 text-center',
 								isCompact ? 'min-w-3 !px-0' : 'min-w-8',
-								' border-r border-gray-100 dark:border-gray-800',
-								header.isWeekend ? 'bg-gray-100 dark:bg-gray-800/70' : 'bg-white dark:bg-gray-900',
-								header.isToday ? 'bg-blue-50 dark:bg-blue-900/40' : '',
+								' border-r border-gray-100',
+								header.isWeekend ? 'bg-gray-100' : 'bg-white',
+								header.isToday ? 'bg-blue-50' : '',
 							]"
 						>
-							<div v-if="!isCompact" class="text-xs text-gray-500 dark:text-gray-300">{{ header.dayOfWeek }}</div>
+							<div v-if="!isCompact" class="text-xs text-gray-500" :title="header.dayName">{{ header.dayOfWeek }}</div>
 							<div
 								:class="[
 									isCompact ? 'text-[9px] font-medium' : 'text-sm font-medium',
-									header.isToday ? 'text-blue-600' : 'text-gray-700 dark:text-gray-200',
+									header.isToday ? 'text-blue-600' : 'text-gray-700',
 								]"
 							>
 								{{ header.dayOfMonth }}
 							</div>
-							<div v-if="header.dayOfMonth === 1" class="text-xs text-gray-400 dark:text-gray-400">
+							<div v-if="header.dayOfMonth === 1" class="text-xs text-gray-400">
 								{{ header.month }}
 							</div>
 						</div>
@@ -521,12 +523,12 @@ onMounted(() => {
 			<!-- Task rows -->
 			<div
 				v-if="timelineTasks.length === 0"
-				class="flex items-center justify-center py-12 text-gray-500 dark:text-gray-300"
+				class="flex items-center justify-center py-12 text-gray-500"
 			>
 				<div class="text-center">
-					<Calendar class="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+					<Calendar class="w-12 h-12 mx-auto mb-3 text-gray-300" />
 					<p class="text-sm">{{ t("No tasks with dates to display") }}</p>
-					<p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+					<p class="text-xs text-gray-400 mt-1">
 						{{ t("Add start or end dates to tasks") }}
 					</p>
 				</div>
@@ -536,11 +538,11 @@ onMounted(() => {
 				<div
 					v-for="task in timelineTasks"
 					:key="task.name"
-					class="flex hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800 group"
+					class="flex hover:bg-gray-50 border-b border-gray-100 group"
 				>
 					<!-- Task name -->
 					<div
-						class="w-64 flex-shrink-0 px-4 py-3 border-r border-gray-200 dark:border-gray-800 cursor-pointer"
+						class="w-64 flex-shrink-0 px-4 py-3 border-r border-gray-200 cursor-pointer"
 						@click="handleTaskClick(task)"
 					>
 						<div class="flex items-center gap-2">
@@ -548,7 +550,7 @@ onMounted(() => {
 								v-if="task.milestone"
 								class="w-3 h-3 flex-shrink-0 text-amber-500"
 							/>
-							<span class="text-sm text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 flex-1 min-w-0">
+							<span class="text-sm text-gray-900 truncate group-hover:text-blue-600 flex-1 min-w-0">
 								{{ task.subject }}
 							</span>
 							<BlockedToggle
@@ -568,15 +570,15 @@ onMounted(() => {
 							>
 								{{ task.status }}
 							</span>
-							<span v-if="task.exp_start_date" class="text-xs text-gray-400 dark:text-gray-400">
+							<span v-if="task.exp_start_date" class="text-xs text-gray-400">
 								{{ task.exp_start_date }}
 							</span>
 							<span
 								v-if="task.exp_start_date && task.exp_end_date"
-								class="text-xs text-gray-400 dark:text-gray-400"
+								class="text-xs text-gray-400"
 								>→</span
 							>
-							<span v-if="task.exp_end_date" class="text-xs text-gray-400 dark:text-gray-400">
+							<span v-if="task.exp_end_date" class="text-xs text-gray-400">
 								{{ task.exp_end_date }}
 							</span>
 						</div>
@@ -590,9 +592,9 @@ onMounted(() => {
 								v-for="header in dateHeaders"
 								:key="'bg-' + header.date.toISOString()"
 								:class="[
-									'flex-1 border-r border-gray-100 dark:border-gray-800',
-									header.isWeekend ? 'bg-gray-50 dark:bg-gray-800/60' : '',
-									header.isToday ? 'bg-blue-50/50 dark:bg-blue-900/30' : '',
+									'flex-1 border-r border-gray-100',
+									header.isWeekend ? 'bg-gray-50' : '',
+									header.isToday ? 'bg-blue-50/50' : '',
 								]"
 							>
 								<div
@@ -642,7 +644,7 @@ onMounted(() => {
 				</div>
 				<!-- Dependency arrows -->
 				<svg class="pointer-events-none absolute inset-0 h-full w-full overflow-visible z-20" aria-hidden="true">
-					<g v-for="a in arrows" :key="a.key" :class="a.conflict ? 'text-red-500' : 'text-gray-500 dark:text-gray-300'">
+					<g v-for="a in arrows" :key="a.key" :class="a.conflict ? 'text-red-500' : 'text-gray-500'">
 						<path :d="a.path" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="none" />
 						<polygon :points="a.tipPoints" fill="currentColor" />
 					</g>

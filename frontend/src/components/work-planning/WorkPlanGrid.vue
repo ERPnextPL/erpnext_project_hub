@@ -105,7 +105,7 @@
 											store.getAvailable(employee.name, date) <= 0)
 									"
 									type="button"
-									class="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white hover:text-violet-600 focus:opacity-100 group-hover:opacity-100"
+									class="hub-tap rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-white hover:text-violet-600 focus:opacity-100 group-hover:opacity-100"
 									:title="translate('Plan work')"
 									:aria-label="translate('Plan work')"
 									@click="emit('add', { employee, date })"

@@ -67,7 +67,7 @@ function onBlur() {
 				rows="2"
 				:placeholder="translate(placeholder)"
 				:disabled="saving"
-				class="block w-full resize-none rounded-lg border-0 bg-white p-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700"
+				class="block w-full resize-none rounded-lg border-0 bg-white p-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500"
 				@keydown.enter.exact.prevent="submit"
 				@keydown.esc.prevent="cancel"
 				@blur="onBlur"
@@ -83,7 +83,7 @@ function onBlur() {
 				</button>
 				<button
 					type="button"
-					class="rounded-md p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+					class="rounded-md p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
 					:aria-label="translate('Cancel')"
 					@mousedown.prevent
 					@click="cancel"
@@ -95,7 +95,7 @@ function onBlur() {
 		<button
 			v-else
 			type="button"
-			class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-100"
+			class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-200/70 hover:text-gray-900"
 			@click="start"
 		>
 			<Plus class="h-4 w-4" />

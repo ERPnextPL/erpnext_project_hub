@@ -14,13 +14,13 @@ const emit = defineEmits(["close"]);
 
 // Box colours per workflow state, matching the state pills of the panel.
 const STATE_BOX = {
-	draft: "fill-gray-50 stroke-gray-400 dark:fill-gray-800 dark:stroke-gray-500",
-	analyze: "fill-blue-50 stroke-blue-500 dark:fill-blue-900/40 dark:stroke-blue-400",
-	quoted: "fill-amber-50 stroke-amber-500 dark:fill-amber-900/30 dark:stroke-amber-400",
-	accepted: "fill-green-50 stroke-green-600 dark:fill-green-900/30 dark:stroke-green-400",
-	converted: "fill-violet-50 stroke-violet-500 dark:fill-violet-900/30 dark:stroke-violet-400",
-	rejected: "fill-red-50 stroke-red-500 dark:fill-red-900/30 dark:stroke-red-400",
-	neutral: "fill-white stroke-gray-300 dark:fill-gray-800 dark:stroke-gray-600",
+	draft: "fill-gray-50 stroke-gray-400",
+	analyze: "fill-blue-50 stroke-blue-500",
+	quoted: "fill-amber-50 stroke-amber-500",
+	accepted: "fill-green-50 stroke-green-600",
+	converted: "fill-violet-50 stroke-violet-500",
+	rejected: "fill-red-50 stroke-red-500",
+	neutral: "fill-white stroke-gray-300",
 };
 
 // Customer Request workflow, drawn top to bottom (see the Customer Request
@@ -45,10 +45,10 @@ const CHANGE_REQUEST_BOXES = [
 ];
 
 const OVERVIEW_STEPS = [
-	{ name: "Customer", desc: "meeting, email, call", tone: "border-gray-300 dark:border-gray-600" },
-	{ name: "Customer Request", desc: "what the customer asks for", tone: "border-blue-400 dark:border-blue-500" },
-	{ name: "Change Request", desc: "what we approved", tone: "border-violet-400 dark:border-violet-500" },
-	{ name: "Project task", desc: "the team's work", tone: "border-green-500 dark:border-green-500" },
+	{ name: "Customer", desc: "meeting, email, call", tone: "border-gray-300" },
+	{ name: "Customer Request", desc: "what the customer asks for", tone: "border-blue-400" },
+	{ name: "Change Request", desc: "what we approved", tone: "border-violet-400" },
+	{ name: "Project task", desc: "the team's work", tone: "border-green-500" },
 ];
 const OVERVIEW_LINKS = ["the team records it", "after acceptance", "on approval"];
 
@@ -89,23 +89,23 @@ onUnmounted(() => {
 			@click.self="close"
 		>
 			<div
-				class="mx-auto flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-gray-900 shadow-xl"
+				class="mx-auto flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
 				role="dialog"
 				aria-modal="true"
 				aria-labelledby="requests-guide-title"
 			>
-				<div class="flex items-start justify-between gap-4 border-b border-gray-100 dark:border-gray-800 px-5 py-4">
+				<div class="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
 					<div>
-						<h3 id="requests-guide-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+						<h3 id="requests-guide-title" class="text-lg font-semibold text-gray-900">
 							{{ translate("How requests work") }}
 						</h3>
-						<p class="text-sm text-gray-500 dark:text-gray-400">
+						<p class="text-sm text-gray-500">
 							{{ translate("team = Projects User, manager = Projects Manager") }}
 						</p>
 					</div>
 					<button
 						type="button"
-						class="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+						class="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
 						:title="translate('Close')"
 						@click="close"
 					>
@@ -113,7 +113,7 @@ onUnmounted(() => {
 					</button>
 				</div>
 
-				<div class="space-y-8 px-5 py-5 text-sm text-gray-700 dark:text-gray-300">
+				<div class="space-y-8 px-5 py-5 text-sm text-gray-700">
 					<!-- Overview: request -> change request -> task -->
 					<section class="space-y-3">
 						<p>
@@ -123,16 +123,16 @@ onUnmounted(() => {
 							<template v-for="(step, index) in OVERVIEW_STEPS" :key="step.name">
 								<div
 									:class="[
-										'min-w-0 flex-1 rounded-lg border-2 bg-white dark:bg-gray-800 px-3 py-2 text-center',
+										'min-w-0 flex-1 rounded-lg border-2 bg-white px-3 py-2 text-center',
 										step.tone,
 									]"
 								>
-									<div class="font-semibold text-gray-900 dark:text-gray-100">{{ translate(step.name) }}</div>
-									<div class="text-xs text-gray-500 dark:text-gray-400">{{ translate(step.desc) }}</div>
+									<div class="font-semibold text-gray-900">{{ translate(step.name) }}</div>
+									<div class="text-xs text-gray-500">{{ translate(step.desc) }}</div>
 								</div>
 								<div
 									v-if="index < OVERVIEW_LINKS.length"
-									class="flex flex-row items-center justify-center gap-1 text-xs text-gray-500 dark:text-gray-400 md:w-24 md:flex-col md:gap-0"
+									class="flex flex-row items-center justify-center gap-1 text-xs text-gray-500 md:w-24 md:flex-col md:gap-0"
 								>
 									<ArrowRight class="h-4 w-4 rotate-90 md:rotate-0" />
 									<span class="text-center">{{ translate(OVERVIEW_LINKS[index]) }}</span>
@@ -143,13 +143,13 @@ onUnmounted(() => {
 
 					<!-- Customer Request workflow -->
 					<section class="space-y-3">
-						<h4 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+						<h4 class="text-base font-semibold text-gray-900">
 							{{ translate("Customer request stages") }}
 						</h4>
-						<div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+						<div class="overflow-x-auto rounded-lg border border-gray-200 p-3">
 							<svg
 								viewBox="0 0 700 465"
-								class="mx-auto block h-auto w-full min-w-[560px] max-w-[640px] text-gray-500 dark:text-gray-400"
+								class="mx-auto block h-auto w-full min-w-[560px] max-w-[640px] text-gray-500"
 								role="img"
 								:aria-label="translate('Customer request stages: Draft, To Analyze, Quoted, Accepted and Converted. A request can be rejected during analysis or after the quote, and a rejected request can go back to analysis.')"
 							>
@@ -161,8 +161,8 @@ onUnmounted(() => {
 
 								<g v-for="box in CUSTOMER_REQUEST_BOXES" :key="box.name">
 									<rect :x="box.x" :y="box.y" width="200" height="44" rx="8" stroke-width="1.5" :class="STATE_BOX[box.tone]" />
-									<text :x="box.x + 100" :y="box.y + 19" text-anchor="middle" class="fill-gray-900 dark:fill-gray-100 text-[13px] font-semibold">{{ translate(box.name) }}</text>
-									<text :x="box.x + 100" :y="box.y + 35" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate(box.desc) }}</text>
+									<text :x="box.x + 100" :y="box.y + 19" text-anchor="middle" class="fill-gray-900 text-[13px] font-semibold">{{ translate(box.name) }}</text>
+									<text :x="box.x + 100" :y="box.y + 35" text-anchor="middle" class="fill-gray-500 text-[11px]">{{ translate(box.desc) }}</text>
 								</g>
 
 								<g fill="none" stroke="currentColor" stroke-width="1.5">
@@ -176,27 +176,27 @@ onUnmounted(() => {
 								</g>
 
 								<g class="text-[12px]">
-									<text x="134" y="78" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Submit for Analysis") }}</text>
-									<text x="134" y="92" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("team") }}</text>
+									<text x="134" y="78" class="fill-gray-900 font-semibold">{{ translate("Submit for Analysis") }}</text>
+									<text x="134" y="92" class="fill-gray-500 text-[11px]">{{ translate("team") }}</text>
 
-									<text x="134" y="170" class="fill-blue-600 dark:fill-blue-400 text-[11px] font-semibold">{{ translate("needs analysis and hours") }}</text>
-									<text x="134" y="184" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Mark Quoted") }}</text>
-									<text x="134" y="198" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
+									<text x="134" y="170" class="fill-blue-600 text-[11px] font-semibold">{{ translate("needs analysis and hours") }}</text>
+									<text x="134" y="184" class="fill-gray-900 font-semibold">{{ translate("Mark Quoted") }}</text>
+									<text x="134" y="198" class="fill-gray-500 text-[11px]">{{ translate("manager") }}</text>
 
-									<text x="134" y="278" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Accept") }}</text>
-									<text x="134" y="292" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager, after the customer decides") }}</text>
+									<text x="134" y="278" class="fill-gray-900 font-semibold">{{ translate("Accept") }}</text>
+									<text x="134" y="292" class="fill-gray-500 text-[11px]">{{ translate("manager, after the customer decides") }}</text>
 
-									<text x="134" y="378" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Create Change Request") }}</text>
-									<text x="134" y="392" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
+									<text x="134" y="378" class="fill-gray-900 font-semibold">{{ translate("Create Change Request") }}</text>
+									<text x="134" y="392" class="fill-gray-500 text-[11px]">{{ translate("manager") }}</text>
 
-									<text x="478" y="172" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Reject") }}</text>
-									<text x="478" y="186" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
+									<text x="478" y="172" class="fill-gray-900 font-semibold">{{ translate("Reject") }}</text>
+									<text x="478" y="186" class="fill-gray-500 text-[11px]">{{ translate("manager") }}</text>
 
-									<text x="309" y="226" text-anchor="middle" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Reject") }}</text>
-									<text x="309" y="248" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
+									<text x="309" y="226" text-anchor="middle" class="fill-gray-900 font-semibold">{{ translate("Reject") }}</text>
+									<text x="309" y="248" text-anchor="middle" class="fill-gray-500 text-[11px]">{{ translate("manager") }}</text>
 
-									<text x="568" y="160" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Submit for Analysis") }}</text>
-									<text x="568" y="174" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("team") }}</text>
+									<text x="568" y="160" class="fill-gray-900 font-semibold">{{ translate("Submit for Analysis") }}</text>
+									<text x="568" y="174" class="fill-gray-500 text-[11px]">{{ translate("team") }}</text>
 								</g>
 							</svg>
 						</div>
@@ -209,13 +209,13 @@ onUnmounted(() => {
 
 					<!-- Change Request workflow -->
 					<section class="space-y-3">
-						<h4 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+						<h4 class="text-base font-semibold text-gray-900">
 							{{ translate("Change request stages") }}
 						</h4>
-						<div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+						<div class="overflow-x-auto rounded-lg border border-gray-200 p-3">
 							<svg
 								viewBox="0 0 700 365"
-								class="mx-auto block h-auto w-full min-w-[560px] max-w-[640px] text-gray-500 dark:text-gray-400"
+								class="mx-auto block h-auto w-full min-w-[560px] max-w-[640px] text-gray-500"
 								role="img"
 								:aria-label="translate('Change request stages: Draft, Approved, Task Created, then Done or Cancelled. Approval creates the assigned project task; task completion closes the request automatically.')"
 							>
@@ -236,8 +236,8 @@ onUnmounted(() => {
 										:stroke-dasharray="box.dashed ? '5 4' : null"
 										:class="STATE_BOX[box.tone]"
 									/>
-									<text :x="box.x + 100" :y="box.y + 19" text-anchor="middle" class="fill-gray-900 dark:fill-gray-100 text-[13px] font-semibold">{{ translate(box.name) }}</text>
-									<text :x="box.x + 100" :y="box.y + 35" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate(box.desc) }}</text>
+									<text :x="box.x + 100" :y="box.y + 19" text-anchor="middle" class="fill-gray-900 text-[13px] font-semibold">{{ translate(box.name) }}</text>
+									<text :x="box.x + 100" :y="box.y + 35" text-anchor="middle" class="fill-gray-500 text-[11px]">{{ translate(box.desc) }}</text>
 								</g>
 
 								<g fill="none" stroke="currentColor" stroke-width="1.5">
@@ -249,18 +249,18 @@ onUnmounted(() => {
 								</g>
 
 								<g class="text-[12px]">
-									<text x="134" y="78" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Approve") }}</text>
-									<text x="134" y="92" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
+									<text x="134" y="78" class="fill-gray-900 font-semibold">{{ translate("Approve") }}</text>
+									<text x="134" y="92" class="fill-gray-500 text-[11px]">{{ translate("manager") }}</text>
 
-									<text x="134" y="184" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("automatically on save") }}</text>
+									<text x="134" y="184" class="fill-gray-900 font-semibold">{{ translate("automatically on save") }}</text>
 
-									<text x="309" y="226" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("creates") }}</text>
+									<text x="309" y="226" text-anchor="middle" class="fill-gray-500 text-[11px]">{{ translate("creates") }}</text>
 
-									<text x="134" y="278" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Task completed") }}</text>
-									<text x="134" y="292" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("automatically") }}</text>
+									<text x="134" y="278" class="fill-gray-900 font-semibold">{{ translate("Task completed") }}</text>
+									<text x="134" y="292" class="fill-gray-500 text-[11px]">{{ translate("automatically") }}</text>
 
-									<text x="308" y="290" class="fill-gray-900 dark:fill-gray-100 font-semibold">{{ translate("Cancel") }}</text>
-									<text x="308" y="304" class="fill-gray-500 dark:fill-gray-400 text-[11px]">{{ translate("manager") }}</text>
+									<text x="308" y="290" class="fill-gray-900 font-semibold">{{ translate("Cancel") }}</text>
+									<text x="308" y="304" class="fill-gray-500 text-[11px]">{{ translate("manager") }}</text>
 								</g>
 							</svg>
 						</div>

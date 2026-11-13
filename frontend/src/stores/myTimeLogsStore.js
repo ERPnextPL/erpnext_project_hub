@@ -153,6 +153,21 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 		return data;
 	}
 
+	async function createTimelog(timelog) {
+		return apiCall("erpnext_projekt_hub.api.project_hub.create_timelog", timelog);
+	}
+
+	// Open tasks assigned to the current user, for picking where to log time.
+	async function fetchAssignableTasks(search = "") {
+		const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", {
+			search: search || null,
+			sort_by: "modified",
+			sort_order: "desc",
+			limit: 50,
+		});
+		return data?.tasks || [];
+	}
+
 	async function deleteTimelog(timelogName) {
 		try {
 			await apiCall("erpnext_projekt_hub.api.project_hub.delete_timelog", {
@@ -179,6 +194,8 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 		setFilter,
 		resetFilters,
 		updateTimelog,
+		createTimelog,
+		fetchAssignableTasks,
 		deleteTimelog,
 	};
 });

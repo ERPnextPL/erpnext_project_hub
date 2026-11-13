@@ -173,14 +173,14 @@ function sortIcon(field) {
 </script>
 
 <template>
-	<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+	<div class="min-h-screen bg-gray-50">
 		<!-- Header -->
-		<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
+		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
 			<div class="w-full px-4 sm:px-6 lg:px-8">
 				<div class="grid min-h-16 grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:gap-3">
 					<div class="order-1 flex items-center gap-3 md:order-none">
 						<Folder class="w-6 h-6 text-blue-600" />
-						<h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+						<h1 class="text-xl font-semibold text-gray-900">
 							{{ translate("Projects") }}
 						</h1>
 					</div>
@@ -196,10 +196,10 @@ function sortIcon(field) {
 			<!-- Top bar: title + counters + view toggle -->
 			<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+					<h2 class="text-lg font-medium text-gray-900">
 						{{ isManager ? translate("All projects") : translate("My projects") }}
 					</h2>
-					<p class="text-sm text-gray-500 dark:text-gray-400">
+					<p class="text-sm text-gray-500">
 						{{
 							isManager
 								? translate("Manage all projects")
@@ -207,32 +207,32 @@ function sortIcon(field) {
 						}}
 					</p>
 				</div>
-				<div class="flex items-center gap-2">
-					<span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm rounded-md">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="px-2 py-1 bg-blue-50 text-blue-700 text-sm rounded-md">
 						{{ activeProjects.length }} {{ translate("active") }}
 					</span>
 					<span
 						v-if="onHoldProjects.length > 0"
-						class="px-2 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm rounded-md"
+						class="px-2 py-1 bg-amber-50 text-amber-700 text-sm rounded-md"
 					>
 						{{ onHoldProjects.length }} {{ translate("on hold") }}
 					</span>
 					<span
 						v-if="completedProjects.length > 0"
-						class="px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-md"
+						class="px-2 py-1 bg-green-50 text-green-700 text-sm rounded-md"
 					>
 						{{ completedProjects.length }} {{ translate("completed") }}
 					</span>
 					<!-- Default project view -->
 					<div
-						class="ml-2 flex items-center gap-1.5"
+						class="flex items-center gap-1.5 sm:ml-2"
 						role="radiogroup"
 						:aria-label="translate('Default project view')"
 					>
-						<span class="hidden text-xs text-gray-500 sm:inline dark:text-gray-400">
+						<span class="hidden text-xs text-gray-500 sm:inline">
 							{{ translate("Open projects in") }}:
 						</span>
-						<div class="flex items-center border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+						<div class="flex items-center border border-gray-200 rounded-lg overflow-hidden">
 							<button
 								v-for="option in projectViewOptions"
 								:key="option.value"
@@ -244,7 +244,7 @@ function sortIcon(field) {
 									'flex items-center gap-1 px-2 py-2 text-xs font-medium transition-colors',
 									defaultProjectView === option.value
 										? 'bg-blue-600 text-white'
-										: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700',
+										: 'text-gray-500 hover:bg-gray-100',
 								]"
 								:title="translate('Default project view') + ': ' + option.label()"
 							>
@@ -254,14 +254,14 @@ function sortIcon(field) {
 						</div>
 					</div>
 					<!-- View toggle -->
-					<div class="flex items-center border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden ml-2">
+					<div class="flex items-center border border-gray-200 rounded-lg overflow-hidden sm:ml-2">
 						<button
 							@click="viewMode = 'grid'"
 							:class="[
 								'p-2 transition-colors',
 								viewMode === 'grid'
 									? 'bg-blue-600 text-white'
-									: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700',
+									: 'text-gray-500 hover:bg-gray-100',
 							]"
 							:title="translate('Grid view')"
 						>
@@ -273,7 +273,7 @@ function sortIcon(field) {
 								'p-2 transition-colors',
 								viewMode === 'list'
 									? 'bg-blue-600 text-white'
-									: 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700',
+									: 'text-gray-500 hover:bg-gray-100',
 							]"
 							:title="translate('List view')"
 						>
@@ -292,12 +292,12 @@ function sortIcon(field) {
 						v-model="searchQuery"
 						type="text"
 						:placeholder="translate('Search projects...')"
-						class="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+						class="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 					/>
 					<button
 						v-if="searchQuery"
 						@click="searchQuery = ''"
-						class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+						class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
 					>
 						<X class="w-3.5 h-3.5" />
 					</button>
@@ -305,7 +305,7 @@ function sortIcon(field) {
 
 				<!-- Sort buttons (list view) / Sort dropdown area -->
 				<div class="flex items-center gap-2 flex-wrap">
-					<span class="text-xs text-gray-500 dark:text-gray-400">{{ translate("Sort by") }}:</span>
+					<span class="text-xs text-gray-500">{{ translate("Sort by") }}:</span>
 					<div class="flex items-center gap-1">
 						<button
 							v-for="opt in SORT_OPTIONS"
@@ -314,8 +314,8 @@ function sortIcon(field) {
 							:class="[
 								'flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border transition-colors',
 								sortField === opt.value
-									? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
-									: 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
+									? 'bg-blue-50 border-blue-300 text-blue-700'
+									: 'border-gray-200 text-gray-600 hover:bg-gray-50',
 							]"
 						>
 							{{ opt.label }}
@@ -324,7 +324,7 @@ function sortIcon(field) {
 						<button
 							v-if="sortField"
 							@click="clearSort"
-							class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded"
+							class="p-1.5 text-gray-400 hover:text-gray-600 rounded"
 							:title="translate('Clear sort')"
 						>
 							<X class="w-3.5 h-3.5" />
@@ -341,13 +341,13 @@ function sortIcon(field) {
 			<!-- Empty state (no projects at all) -->
 			<div
 				v-else-if="!hasProjects"
-				class="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+				class="text-center py-12 bg-white rounded-lg border border-gray-200"
 			>
 				<Folder class="w-12 h-12 text-gray-400 mx-auto mb-4" />
-				<h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+				<h3 class="text-lg font-medium text-gray-900 mb-2">
 					{{ translate("No projects found") }}
 				</h3>
-				<p class="text-gray-500 dark:text-gray-400">
+				<p class="text-gray-500">
 					{{
 						isManager
 							? translate("Create a project in ERPNext to get started.")
@@ -359,15 +359,15 @@ function sortIcon(field) {
 			<!-- No search results -->
 			<div
 				v-else-if="!hasResults"
-				class="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+				class="text-center py-12 bg-white rounded-lg border border-gray-200"
 			>
-				<Search class="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-				<p class="text-gray-500 dark:text-gray-400">
+				<Search class="w-10 h-10 text-gray-300 mx-auto mb-3" />
+				<p class="text-gray-500">
 					{{ translate("No projects match") }} „{{ searchQuery }}"
 				</p>
 				<button
 					@click="searchQuery = ''"
-					class="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+					class="mt-2 text-sm text-blue-600 hover:underline"
 				>
 					{{ translate("Clear search") }}
 				</button>
@@ -376,7 +376,7 @@ function sortIcon(field) {
 			<div v-else>
 				<!-- ─── ACTIVE PROJECTS ─────────────────────────────────── -->
 				<section v-if="filteredActiveProjects.length > 0" class="mb-8">
-					<h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+					<h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
 						<Folder class="w-4 h-4" />
 						{{ translate("Active projects") }} ({{ filteredActiveProjects.length }})
 					</h3>
@@ -390,7 +390,7 @@ function sortIcon(field) {
 							@open="openProject"
 						/>
 					</div>
-					<div v-else class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+					<div v-else class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
 						<ProjectListHeader sortable :sort-icon="sortIcon" :toggle-sort="toggleSort" />
 						<ProjectListRow
 							v-for="project in filteredActiveProjects"
@@ -406,13 +406,13 @@ function sortIcon(field) {
 				<section v-if="onHoldProjects.length > 0" class="mb-8">
 					<button
 						@click="showOnHold = !showOnHold"
-						class="w-full flex items-center justify-between py-3 px-4 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-lg transition-colors mb-4"
+						class="w-full flex items-center justify-between py-3 px-4 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors mb-4"
 					>
-						<div class="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+						<div class="flex items-center gap-2 text-sm font-semibold text-amber-700">
 							<PauseCircle class="w-4 h-4" />
 							<span>{{ translate("On hold projects") }} ({{ filteredOnHoldProjects.length }})</span>
 						</div>
-						<div class="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+						<div class="flex items-center gap-2 text-amber-600">
 							<span class="text-xs">{{ showOnHold ? translate("Hide") : translate("Show") }}</span>
 							<ChevronDown class="w-4 h-4 transition-transform duration-200" :class="showOnHold ? 'rotate-180' : ''" />
 						</div>
@@ -429,7 +429,7 @@ function sortIcon(field) {
 									@open="openProject"
 								/>
 							</div>
-							<div v-else class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+							<div v-else class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
 								<ProjectListHeader />
 								<ProjectListRow
 									v-for="project in filteredOnHoldProjects"
@@ -447,13 +447,13 @@ function sortIcon(field) {
 				<section v-if="completedProjects.length > 0">
 					<button
 						@click="showCompleted = !showCompleted"
-						class="w-full flex items-center justify-between py-3 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors mb-4"
+						class="w-full flex items-center justify-between py-3 px-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors mb-4"
 					>
-						<div class="flex items-center gap-2 text-sm font-semibold text-gray-600 dark:text-gray-300">
+						<div class="flex items-center gap-2 text-sm font-semibold text-gray-600">
 							<Archive class="w-4 h-4" />
 							<span>{{ translate("Completed projects") }} ({{ filteredCompletedProjects.length }})</span>
 						</div>
-						<div class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+						<div class="flex items-center gap-2 text-gray-500">
 							<span class="text-xs">{{ showCompleted ? translate("Hide") : translate("Show") }}</span>
 							<ChevronDown class="w-4 h-4 transition-transform duration-200" :class="showCompleted ? 'rotate-180' : ''" />
 						</div>
@@ -462,13 +462,13 @@ function sortIcon(field) {
 					<Transition name="slide-fade">
 						<div v-if="showCompleted">
 							<div class="mb-4 flex items-center gap-2">
-								<label for="completed-by-filter" class="text-sm text-gray-600 dark:text-gray-300">
+								<label for="completed-by-filter" class="text-sm text-gray-600">
 									{{ translate("Tasks completed by") }}
 								</label>
 								<select
 									id="completed-by-filter"
 									v-model="completedByFilter"
-									class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+									class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
 								>
 									<option value="">{{ translate("All people") }}</option>
 									<option v-for="[user, fullName] in completedByUsers" :key="user" :value="user">
@@ -478,7 +478,7 @@ function sortIcon(field) {
 							</div>
 							<p
 								v-if="filteredCompletedProjects.length === 0"
-								class="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+								class="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500"
 							>
 								{{ translate("No completed projects match this person.") }}
 							</p>
@@ -491,7 +491,7 @@ function sortIcon(field) {
 									@open="openProject"
 								/>
 							</div>
-							<div v-else class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+							<div v-else class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
 								<ProjectListHeader />
 								<ProjectListRow
 									v-for="project in filteredCompletedProjects"

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { getStatusLabel } from "../utils/taskStatus";
 import { cancelTaskWithSubtasks, getDescendants } from "../utils/taskHierarchy";
@@ -71,6 +71,26 @@ async function createTask({ subject, status }) {
 	}
 }
 
+// Completed tasks are loaded into the store (store.boardExtraTasks), so moving
+// or editing one updates the record the board shows.
+async function loadColumnTasks(status) {
+	if (status !== "Completed") return [];
+	try {
+		await store.fetchCompletedProjectTasks(props.projectId);
+	} catch (error) {
+		notifyError(error, "Failed to fetch completed tasks");
+	}
+	return [];
+}
+
+function withExtras(list) {
+	const names = new Set(list.map((task) => task.name));
+	return [...list, ...store.boardExtraTasks.filter((task) => !names.has(task.name))];
+}
+
+const boardTasks = computed(() => withExtras(props.tasks));
+const hierarchyTasks = computed(() => withExtras(store.tasks));
+
 async function updateTask(task, fields) {
 	try {
 		await store.updateTask(task.name, fields);
@@ -118,12 +138,14 @@ async function saveTimeLog(timelogData) {
 <template>
 	<div class="h-[calc(100vh-180px)] min-h-[28rem]">
 		<TaskBoard
-			:tasks="tasks"
-			:all-tasks="store.tasks"
+			:tasks="boardTasks"
+			:all-tasks="hierarchyTasks"
 			:statuses="visibleStatuses || []"
 			:users="store.availableUsers"
 			:milestones="store.milestones"
 			:priorities="store.taskPriorities.length ? store.taskPriorities : undefined"
+			:column-counts="{ Completed: store.project?.completed_tasks }"
+			:load-column-tasks="loadColumnTasks"
 			:move-task="moveTask"
 			:create-task="createTask"
 			:storage-key="`projekt-hub:board-collapsed:${projectId}`"

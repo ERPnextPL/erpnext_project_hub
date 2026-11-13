@@ -22,7 +22,7 @@ const percent = computed(() => {
 
 <template>
 	<div
-		:class="['w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700', height]"
+		:class="['w-full overflow-hidden rounded-full bg-gray-100', height]"
 		role="progressbar"
 		:aria-valuenow="percent"
 		aria-valuemin="0"

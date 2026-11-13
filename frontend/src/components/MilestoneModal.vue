@@ -125,7 +125,7 @@ function handleSave() {
 							</div>
 							<button
 								@click="$emit('close')"
-								class="text-gray-400 hover:text-gray-600 transition-colors"
+								class="hub-tap text-gray-400 hover:text-gray-600 transition-colors"
 							>
 								<X class="w-5 h-5" />
 							</button>

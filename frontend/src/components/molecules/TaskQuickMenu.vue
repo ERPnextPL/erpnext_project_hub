@@ -123,11 +123,11 @@ onUnmounted(() => {
 		<div
 			ref="menuRef"
 			role="menu"
-			class="fixed z-50 max-h-[calc(100vh-16px)] w-60 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1.5 text-sm shadow-xl dark:border-gray-700 dark:bg-gray-800"
+			class="fixed z-50 max-h-[calc(100vh-16px)] w-60 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1.5 text-sm shadow-xl"
 			:style="{ left: position.left + 'px', top: position.top + 'px' }"
 			@click.stop
 		>
-			<div class="truncate px-3 pb-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+			<div class="truncate px-3 pb-1.5 text-xs font-semibold text-gray-500">
 				{{ task.subject }}
 			</div>
 
@@ -164,8 +164,8 @@ onUnmounted(() => {
 							'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs',
 							PRIORITY_TONES[priority] || 'text-gray-600',
 							priority === task.priority
-								? 'border-current bg-gray-50 font-semibold dark:bg-gray-700'
-								: 'border-gray-200 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700',
+								? 'border-current bg-gray-50 font-semibold'
+								: 'border-gray-200 hover:bg-gray-50',
 						]"
 						@click="act('priority', priority)"
 					>
@@ -175,7 +175,7 @@ onUnmounted(() => {
 				</div>
 			</template>
 
-			<hr class="my-1.5 border-gray-100 dark:border-gray-700" />
+			<hr class="my-1.5 border-gray-100" />
 
 			<button v-if="canAssignMe" type="button" role="menuitem" class="menu-item" @click="act('assign-me', task)">
 				<UserPlus class="h-4 w-4" />
@@ -194,11 +194,11 @@ onUnmounted(() => {
 				{{ translate("Open in Desk") }}
 			</button>
 			<template v-if="canDelete">
-				<hr class="my-1.5 border-gray-100 dark:border-gray-700" />
+				<hr class="my-1.5 border-gray-100" />
 				<button
 					type="button"
 					role="menuitem"
-					class="menu-item text-red-600 hover:!bg-red-50 dark:text-red-400 dark:hover:!bg-red-900/30"
+					class="menu-item text-red-600 hover:!bg-red-50"
 					@click="act('delete', task)"
 				>
 					<Trash2 class="h-4 w-4" />
@@ -211,9 +211,9 @@ onUnmounted(() => {
 
 <style scoped>
 .menu-item {
-	@apply flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700;
+	@apply flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100;
 }
 .menu-section {
-	@apply px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500;
+	@apply px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400;
 }
 </style>

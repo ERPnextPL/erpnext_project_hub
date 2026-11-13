@@ -91,7 +91,16 @@ export const useTaskStore = defineStore("tasks", () => {
 
 	// State
 	const tasks = ref([]);
+	// Tasks loaded on demand for the board (its "Completed" list) that the
+	// filtered `tasks` list does not hold. Kept apart so the list view is not
+	// affected, but every write below updates them too (see patchBoardExtraTask).
+	const boardExtraTasks = ref([]);
 	const project = ref(null);
+
+	function patchBoardExtraTask(taskName, patch) {
+		const index = boardExtraTasks.value.findIndex((t) => t.name === taskName);
+		if (index !== -1) boardExtraTasks.value[index] = { ...boardExtraTasks.value[index], ...patch };
+	}
 	const loading = ref(false);
 	const selectedTask = ref(null);
 	const expandedTasks = ref(new Set());
@@ -195,6 +204,11 @@ export const useTaskStore = defineStore("tasks", () => {
 			if (data) {
 				tasks.value = data.tasks || [];
 				project.value = data.project || null;
+				// The fresh list now holds some extras, and another project none.
+				const fetched = new Set(tasks.value.map((t) => t.name));
+				boardExtraTasks.value = boardExtraTasks.value.filter(
+					(t) => t.project === projectId && !fetched.has(t.name)
+				);
 				// Expand all by default
 				tasks.value.forEach((t) => {
 					if (t.is_group) expandedTasks.value.add(t.name);
@@ -285,6 +299,7 @@ async function updateTask(taskName, updates) {
 				if (index !== -1) {
 					tasks.value[index] = { ...tasks.value[index], ...data };
 				}
+				patchBoardExtraTask(taskName, data);
 				if (selectedTask.value?.name === taskName) {
 					selectedTask.value = { ...selectedTask.value, ...data };
 				}
@@ -353,6 +368,7 @@ async function deleteTask(taskName) {
 			task_name: taskName,
 		});
 		tasks.value = tasks.value.filter((t) => t.name !== taskName);
+		boardExtraTasks.value = boardExtraTasks.value.filter((t) => t.name !== taskName);
 		// Refresh project to update percent_complete
 		if (project.value) {
 			await refreshProject();
@@ -374,6 +390,19 @@ async function fetchAllProjectTasks(projectId) {
 		apply_default_status_filter: 0,
 	});
 	return data?.tasks || [];
+}
+
+async function fetchCompletedProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		status: "Completed",
+		apply_default_status_filter: 0,
+	});
+	const completed = (data?.tasks || []).filter((task) => task.status === "Completed");
+	// Keep them in the store (not only in the board) so updates reach them.
+	const listed = new Set(tasks.value.map((t) => t.name));
+	boardExtraTasks.value = completed.filter((task) => !listed.has(task.name));
+	return completed;
 }
 
 async function reorderTask(taskName, newParent, newIdx) {
@@ -496,6 +525,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 				if (index !== -1) {
 					tasks.value[index]._assign = data._assign;
 				}
+				patchBoardExtraTask(taskName, { _assign: data._assign });
 				// Update selected task if it's the same
 				if (selectedTask.value?.name === taskName) {
 					selectedTask.value._assign = data._assign;
@@ -919,6 +949,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	return {
 		// State
 		tasks,
+		boardExtraTasks,
 		project,
 		loading,
 		selectedTask,
@@ -955,6 +986,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		deleteTask,
 		reorderTask,
 		fetchAllProjectTasks,
+		fetchCompletedProjectTasks,
 		toggleExpand,
 		expandAll,
 		collapseAll,

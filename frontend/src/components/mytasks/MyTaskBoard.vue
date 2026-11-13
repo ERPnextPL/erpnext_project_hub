@@ -26,6 +26,18 @@ const statuses = computed(() =>
 	store.filters.status.length ? store.filters.status : ACTIVE_STATUSES
 );
 
+// "Completed" shows how many tasks the user has completed, whatever the filters.
+const columnCounts = computed(() =>
+	store.completedTotal == null ? {} : { Completed: store.completedTotal }
+);
+
+// Opening the collapsed "Completed" list adds the Completed status filter, so
+// its cards come with the regular task list.
+async function loadColumnTasks(status) {
+	if (status === "Completed") await store.showCompleted();
+	return [];
+}
+
 // New cards need a project: offered only while the list is narrowed to one.
 const canCreate = computed(() => Boolean(store.filters.project));
 
@@ -71,6 +83,8 @@ async function updateTask(task, fields) {
 		<div class="h-full min-w-0 flex-1">
 		<TaskBoard
 			:tasks="store.tasks"
+			:column-counts="columnCounts"
+			:load-column-tasks="loadColumnTasks"
 			:statuses="statuses"
 			:users="store.users"
 			:priorities="store.priorities.length ? store.priorities : undefined"
