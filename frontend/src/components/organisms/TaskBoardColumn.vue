@@ -97,7 +97,7 @@ const dragOptions = {
 			<span :class="['h-2.5 w-2.5 rounded-full', column.dot]"></span>
 			<span class="text-sm font-semibold [writing-mode:vertical-rl]">{{ column.title }}</span>
 			<span class="rounded-full bg-white px-1.5 text-xs tabular-nums text-gray-600">
-				{{ column.tasks.length }}
+				{{ column.count }}
 			</span>
 		</button>
 		<draggable
@@ -125,7 +125,7 @@ const dragOptions = {
 				{{ column.title }}
 			</h3>
 			<span class="rounded-full bg-white px-1.5 text-xs tabular-nums text-gray-600">
-				{{ column.tasks.length }}
+				{{ column.count }}
 			</span>
 			<span class="flex-1"></span>
 			<button

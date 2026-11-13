@@ -71,6 +71,16 @@ async function createTask({ subject, status }) {
 	}
 }
 
+async function loadColumnTasks(status) {
+	if (status !== "Completed") return [];
+	try {
+		return await store.fetchCompletedProjectTasks(props.projectId);
+	} catch (error) {
+		notifyError(error, "Failed to fetch completed tasks");
+		return [];
+	}
+}
+
 async function updateTask(task, fields) {
 	try {
 		await store.updateTask(task.name, fields);
@@ -124,6 +134,8 @@ async function saveTimeLog(timelogData) {
 			:users="store.availableUsers"
 			:milestones="store.milestones"
 			:priorities="store.taskPriorities.length ? store.taskPriorities : undefined"
+			:column-counts="{ Completed: store.project?.completed_tasks }"
+			:load-column-tasks="loadColumnTasks"
 			:move-task="moveTask"
 			:create-task="createTask"
 			:storage-key="`projekt-hub:board-collapsed:${projectId}`"

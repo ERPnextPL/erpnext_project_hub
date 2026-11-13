@@ -376,6 +376,15 @@ async function fetchAllProjectTasks(projectId) {
 	return data?.tasks || [];
 }
 
+async function fetchCompletedProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		status: "Completed",
+		apply_default_status_filter: 0,
+	});
+	return (data?.tasks || []).filter((task) => task.status === "Completed");
+}
+
 async function reorderTask(taskName, newParent, newIdx) {
 	try {
 		await apiCall("erpnext_projekt_hub.api.project_hub.reorder_task", {
@@ -955,6 +964,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		deleteTask,
 		reorderTask,
 		fetchAllProjectTasks,
+		fetchCompletedProjectTasks,
 		toggleExpand,
 		expandAll,
 		collapseAll,

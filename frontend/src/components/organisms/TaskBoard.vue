@@ -75,16 +75,31 @@ const props = defineProps({
 		type: String,
 		default: "",
 	},
+	// Optional lazy loader for columns that are hidden by the current filters.
+	loadColumnTasks: {
+		type: Function,
+		default: null,
+	},
+	// Counts can come from the server even when a column's cards are not loaded.
+	columnCounts: {
+		type: Object,
+		default: () => ({}),
+	},
 });
 
 const emit = defineEmits(["open", "update", "assign-me", "log-time", "delete"]);
 
 // Status shown for a card while its move is being saved.
 const pendingStatus = reactive(new Map());
+const loadedTasksByStatus = reactive(new Map());
+const loadingColumns = reactive(new Set());
 const dragging = ref(false);
 const menu = ref(null); // { task, anchor }
 
-const hierarchy = computed(() => props.allTasks || props.tasks);
+const hierarchy = computed(() => {
+	const tasks = [...(props.allTasks || props.tasks), ...loadedTasksByStatus.values().flat()];
+	return [...new Map(tasks.map((task) => [task.name, task])).values()];
+});
 const taskByName = computed(() => new Map(hierarchy.value.map((task) => [task.name, task])));
 
 const listedStatuses = computed(() => {
@@ -120,13 +135,25 @@ function isCollapsed(status) {
 	return !listedStatuses.value.includes(status);
 }
 
-function toggleCollapse(status) {
+async function toggleCollapse(status) {
 	const next = new Set(
 		userCollapsed.value ||
 			BOARD_STATUSES.filter((value) => !listedStatuses.value.includes(value))
 	);
-	if (next.has(status)) next.delete(status);
-	else next.add(status);
+	if (next.has(status)) {
+		if (props.loadColumnTasks && !loadingColumns.has(status)) {
+			loadingColumns.add(status);
+			try {
+				const tasks = await props.loadColumnTasks(status);
+				loadedTasksByStatus.set(status, Array.isArray(tasks) ? tasks : []);
+			} finally {
+				loadingColumns.delete(status);
+			}
+		}
+		next.delete(status);
+	} else {
+		next.add(status);
+	}
 	userCollapsed.value = next;
 }
 
@@ -145,6 +172,18 @@ function boardStatus(task) {
 	return status === "Overdue" ? "Open" : status;
 }
 
+function tasksForStatus(status) {
+	const tasks = new Map(
+		props.tasks
+			.filter((task) => boardStatus(task) === status)
+			.map((task) => [task.name, task])
+	);
+	for (const task of loadedTasksByStatus.get(status) || []) {
+		if (boardStatus(task) === status) tasks.set(task.name, task);
+	}
+	return [...tasks.values()];
+}
+
 const columns = computed(() =>
 	columnStatuses.value.map((status) => {
 		const config = getStatusConfig(status);
@@ -152,7 +191,8 @@ const columns = computed(() =>
 			status,
 			title: getStatusLabel(status),
 			dot: config.dot,
-			tasks: props.tasks.filter((task) => boardStatus(task) === status),
+			tasks: tasksForStatus(status),
+			count: props.columnCounts[status] ?? tasksForStatus(status).length,
 		};
 	})
 );
