@@ -78,12 +78,12 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	const loading = ref(false);
 	const error = ref(null);
 	const total = ref(0);
-	// Without a status filter get_my_tasks returns only open tasks, so the
-	// board's "Completed" list is fed separately: the latest completed tasks
-	// and their total count (null while a status filter already covers them).
-	const completedTasks = ref([]);
+	// Number of the user's completed tasks, shown on the board's "Completed"
+	// list whatever the filters are (null until loaded). The cards themselves
+	// come with the "Completed" status filter (see showCompleted).
 	const completedTotal = ref(null);
-	const COMPLETED_LIMIT = 50;
+	// Statuses never selected by showCompleted.
+	const NOT_SHOWN_WITH_COMPLETED = ["Cancelled", "Template"];
 	const selectedTask = ref(null);
 	const inlineDropdown = ref(null); // { taskName: string, type: 'status' | 'priority' }
 	const viewOptions = ref({
@@ -155,7 +155,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 
 			const [data] = await Promise.all([
 				apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params),
-				fetchCompletedTasks(),
+				fetchCompletedCount(),
 			]);
 
 			if (data) {
@@ -200,30 +200,33 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		}
 	}
 
-	async function fetchCompletedTasks() {
-		if (filters.value.status.length > 0) {
-			completedTasks.value = [];
-			completedTotal.value = null;
-			return;
-		}
-		const params = {
-			status: "Completed",
-			sort_by: "modified",
-			sort_order: "desc",
-			limit: COMPLETED_LIMIT,
-		};
-		if (filters.value.priority.length > 0) params.priority = filters.value.priority.join(",");
-		if (filters.value.project) params.project = filters.value.project;
-		if (filters.value.search) params.search = filters.value.search;
+	async function fetchCompletedCount() {
 		try {
-			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params);
-			completedTasks.value = data?.tasks || [];
-			completedTotal.value = data?.total ?? completedTasks.value.length;
+			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", {
+				status: "Completed",
+				limit: 1,
+			});
+			completedTotal.value = Number(data?.total ?? 0);
 		} catch (err) {
-			console.error("Failed to fetch completed tasks:", err);
-			completedTasks.value = [];
+			console.error("Failed to count completed tasks:", err);
 			completedTotal.value = null;
 		}
+	}
+
+	// Add "Completed" to the status filter. Without any status filter (only open
+	// tasks listed) select every status except Cancelled and Template instead.
+	function showCompleted() {
+		const selected = filters.value.status;
+		if (selected.includes("Completed")) return;
+		if (selected.length) {
+			filters.value.status = [...selected, "Completed"];
+		} else {
+			const all = statuses.value.length ? statuses.value : BOARD_STATUSES;
+			const next = all.filter((status) => !NOT_SHOWN_WITH_COMPLETED.includes(status));
+			if (!next.includes("Completed")) next.push("Completed");
+			filters.value.status = next;
+		}
+		return fetchTasks();
 	}
 
 	async function quickUpdateTask(taskName, updates) {
@@ -233,14 +236,6 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			if (completedBy) updates = { ...updates, completed_by: completedBy };
 		}
 
-		// A card dragged out of the board's "Completed" list lives in
-		// completedTasks: move it into the main list before updating it.
-		if (!tasks.value.some((t) => t.name === taskName)) {
-			const completed = completedTasks.value.find((t) => t.name === taskName);
-			if (!completed) return;
-			completedTasks.value = completedTasks.value.filter((t) => t.name !== taskName);
-			tasks.value.push(completed);
-		}
 		const touchesCompleted =
 			updates.status !== undefined &&
 			(updates.status === "Completed" ||
@@ -273,7 +268,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			}
 
 			pendingUpdates.value.delete(taskName);
-			if (touchesCompleted) fetchCompletedTasks();
+			if (touchesCompleted) fetchCompletedCount();
 			return data;
 		} catch (err) {
 			// Rollback on error
@@ -587,13 +582,13 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		taskTimelogs,
 		activityTypes,
 		pendingTimelogKeys,
-		completedTasks,
 		completedTotal,
 		// Computed
 		hasActiveFilters,
 		// Actions
 		fetchTasks,
-		fetchCompletedTasks,
+		fetchCompletedCount,
+		showCompleted,
 		fetchProjects,
 		fetchMetadata,
 		quickUpdateTask,
