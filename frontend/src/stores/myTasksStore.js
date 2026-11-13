@@ -78,6 +78,12 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	const loading = ref(false);
 	const error = ref(null);
 	const total = ref(0);
+	// Without a status filter get_my_tasks returns only open tasks, so the
+	// board's "Completed" list is fed separately: the latest completed tasks
+	// and their total count (null while a status filter already covers them).
+	const completedTasks = ref([]);
+	const completedTotal = ref(null);
+	const COMPLETED_LIMIT = 50;
 	const selectedTask = ref(null);
 	const inlineDropdown = ref(null); // { taskName: string, type: 'status' | 'priority' }
 	const viewOptions = ref({
@@ -147,7 +153,10 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 				params.sort_order = filters.value.sortOrder;
 			}
 
-			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params);
+			const [data] = await Promise.all([
+				apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params),
+				fetchCompletedTasks(),
+			]);
 
 			if (data) {
 				tasks.value = data.tasks || [];
@@ -191,12 +200,51 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		}
 	}
 
+	async function fetchCompletedTasks() {
+		if (filters.value.status.length > 0) {
+			completedTasks.value = [];
+			completedTotal.value = null;
+			return;
+		}
+		const params = {
+			status: "Completed",
+			sort_by: "modified",
+			sort_order: "desc",
+			limit: COMPLETED_LIMIT,
+		};
+		if (filters.value.priority.length > 0) params.priority = filters.value.priority.join(",");
+		if (filters.value.project) params.project = filters.value.project;
+		if (filters.value.search) params.search = filters.value.search;
+		try {
+			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params);
+			completedTasks.value = data?.tasks || [];
+			completedTotal.value = data?.total ?? completedTasks.value.length;
+		} catch (err) {
+			console.error("Failed to fetch completed tasks:", err);
+			completedTasks.value = [];
+			completedTotal.value = null;
+		}
+	}
+
 	async function quickUpdateTask(taskName, updates) {
 		if (updates.status === "Completed") {
 			const completedBy = await promptForCompletionAssignee(taskName);
 			if (completedBy === null) return null;
 			if (completedBy) updates = { ...updates, completed_by: completedBy };
 		}
+
+		// A card dragged out of the board's "Completed" list lives in
+		// completedTasks: move it into the main list before updating it.
+		if (!tasks.value.some((t) => t.name === taskName)) {
+			const completed = completedTasks.value.find((t) => t.name === taskName);
+			if (!completed) return;
+			completedTasks.value = completedTasks.value.filter((t) => t.name !== taskName);
+			tasks.value.push(completed);
+		}
+		const touchesCompleted =
+			updates.status !== undefined &&
+			(updates.status === "Completed" ||
+				tasks.value.find((t) => t.name === taskName)?.status === "Completed");
 
 		// Optimistic update
 		const taskIndex = tasks.value.findIndex((t) => t.name === taskName);
@@ -225,6 +273,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			}
 
 			pendingUpdates.value.delete(taskName);
+			if (touchesCompleted) fetchCompletedTasks();
 			return data;
 		} catch (err) {
 			// Rollback on error
@@ -538,10 +587,13 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		taskTimelogs,
 		activityTypes,
 		pendingTimelogKeys,
+		completedTasks,
+		completedTotal,
 		// Computed
 		hasActiveFilters,
 		// Actions
 		fetchTasks,
+		fetchCompletedTasks,
 		fetchProjects,
 		fetchMetadata,
 		quickUpdateTask,

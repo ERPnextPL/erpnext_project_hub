@@ -19,3 +19,5 @@
 17. Darkening a button colour must keep the ladder to its hover shade (500 < 600 < 700 < 800).
 18. A modal that sets "saving" before emitting must give the parent a way to undo it on failure (here: a callback as the event's second argument), or a failed request leaves the form stuck.
 19. frappe-ui's light gray-600 (#7C7C7C) is 4.2:1 on white → new secondary text uses gray-700, icons gray-600 (3:1).
+20. A list whose API defaults to "open only" must not feed a count for a status it never returns: load that status separately (with its total) or hide the count.
+21. Test data for "latest N" lists must pick items that stay inside the window after the test's own changes.

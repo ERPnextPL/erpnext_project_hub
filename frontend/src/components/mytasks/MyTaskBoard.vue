@@ -26,6 +26,20 @@ const statuses = computed(() =>
 	store.filters.status.length ? store.filters.status : ACTIVE_STATUSES
 );
 
+// Open tasks plus the separately loaded completed ones (a card completed in this
+// session can be in both until the completed list reloads).
+const boardTasks = computed(() => {
+	const names = new Set(store.tasks.map((task) => task.name));
+	return [...store.tasks, ...store.completedTasks.filter((task) => !names.has(task.name))];
+});
+
+// "Completed" counts every completed task, not just the loaded cards.
+const columnCounts = computed(() => {
+	if (store.completedTotal == null) return {};
+	const loaded = boardTasks.value.filter((task) => task.status === "Completed").length;
+	return { Completed: Math.max(store.completedTotal, loaded) };
+});
+
 // New cards need a project: offered only while the list is narrowed to one.
 const canCreate = computed(() => Boolean(store.filters.project));
 
@@ -70,7 +84,8 @@ async function updateTask(task, fields) {
 	<div class="-mx-4 flex h-[calc(100vh-170px)] min-h-[28rem] sm:-mx-6 lg:-mx-8">
 		<div class="h-full min-w-0 flex-1">
 		<TaskBoard
-			:tasks="store.tasks"
+			:tasks="boardTasks"
+			:column-counts="columnCounts"
 			:statuses="statuses"
 			:users="store.users"
 			:priorities="store.priorities.length ? store.priorities : undefined"
