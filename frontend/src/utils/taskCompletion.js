@@ -77,22 +77,22 @@ function promptWithHubDialog(assignees) {
 		overlay.setAttribute("role", "presentation");
 
 		const dialog = document.createElement("div");
-		dialog.className = "w-full max-w-md rounded-xl bg-white p-5 shadow-xl dark:bg-gray-800";
+		dialog.className = "w-full max-w-md rounded-xl bg-white p-5 shadow-xl";
 		dialog.setAttribute("role", "dialog");
 		dialog.setAttribute("aria-modal", "true");
 
 		const title = document.createElement("h2");
-		title.className = "mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100";
+		title.className = "mb-4 text-lg font-semibold text-gray-900";
 		title.textContent = translate("Who completed this task?");
 		dialog.setAttribute("aria-label", title.textContent);
 
 		const label = document.createElement("label");
-		label.className = "mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300";
+		label.className = "mb-1 block text-sm font-medium text-gray-700";
 		label.textContent = translate("Completed by");
 
 		const select = document.createElement("select");
 		select.className =
-			"w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100";
+			"w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900";
 		assignees.forEach((assignee) => {
 			const option = document.createElement("option");
 			option.value = assignee.user;
@@ -109,7 +109,7 @@ function promptWithHubDialog(assignees) {
 		const cancelButton = document.createElement("button");
 		cancelButton.type = "button";
 		cancelButton.className =
-			"rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700";
+			"rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50";
 		cancelButton.textContent = translate("Cancel");
 
 		const confirmButton = document.createElement("button");

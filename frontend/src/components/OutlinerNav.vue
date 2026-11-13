@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
 	<div v-if="isMobile" ref="mobileMenuRef" class="relative min-w-0">
 		<button
 			type="button"
-			class="flex h-10 max-w-[min(70vw,240px)] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+			class="flex h-10 max-w-[min(70vw,240px)] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
 			:aria-label="translate('Open navigation')"
 			:aria-expanded="mobileMenuOpen"
 			@click.stop="toggleMobileMenu"
@@ -210,7 +210,7 @@ onBeforeUnmount(() => {
 
 		<div
 			v-if="mobileMenuOpen"
-			class="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+			class="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl"
 		>
 			<RouterLink
 				v-for="item in navItems"
@@ -221,7 +221,7 @@ onBeforeUnmount(() => {
 				:class="
 					activeKey === item.key
 						? `${item.bg} ${item.color}`
-						: 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+						: 'text-gray-600 hover:bg-gray-100'
 				"
 				@click.prevent="handleMobileNavigate(item.to)"
 			>
@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
 
 	<nav
 		v-else
-		class="flex w-fit min-w-0 max-w-full items-center gap-1 rounded-2xl border border-gray-200/80 bg-white/90 p-1 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/90"
+		class="flex w-fit min-w-0 max-w-full items-center gap-1 rounded-2xl border border-gray-200/80 bg-white/90 p-1 shadow-sm backdrop-blur"
 		:aria-label="translate('Main navigation')"
 	>
 		<button
@@ -243,7 +243,7 @@ onBeforeUnmount(() => {
 			:title="translate('Scroll left')"
 			:aria-label="translate('Scroll left')"
 			:disabled="!canScrollLeft"
-			class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+			class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-30"
 			@click="scrollNav('left')"
 		>
 			<ChevronLeft class="h-4 w-4" />
@@ -264,8 +264,8 @@ onBeforeUnmount(() => {
 					class="group flex h-9 flex-shrink-0 items-center gap-2 rounded-xl px-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
 					:class="
 						activeKey === item.key
-							? `${item.bg} ${item.color} shadow-sm dark:bg-opacity-20`
-							: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100'
+							? `${item.bg} ${item.color} shadow-sm`
+							: 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
 					"
 					:ref="(el) => setItemRef(item.key, el)"
 					@click.prevent="handleNavigate(item.to)"
@@ -281,7 +281,7 @@ onBeforeUnmount(() => {
 			:title="translate('Scroll right')"
 			:aria-label="translate('Scroll right')"
 			:disabled="!canScrollRight"
-			class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+			class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:pointer-events-none disabled:opacity-30"
 			@click="scrollNav('right')"
 		>
 			<ChevronRight class="h-4 w-4" />

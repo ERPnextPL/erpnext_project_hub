@@ -495,14 +495,14 @@ onUnmounted(() => {
 <template>
 	<div
 		:data-task-name="task.name"
-		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
+		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
 			level === 0
-				? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'
+				? 'bg-white hover:bg-gray-50 border-transparent'
 				: level === 1
-				? 'bg-gray-50/50 dark:bg-gray-800/80 hover:bg-gray-100/50 dark:hover:bg-gray-700/80 border-blue-200/40 dark:border-blue-500/30'
-				: 'bg-gray-100/30 dark:bg-gray-800/60 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 border-blue-300/30 dark:border-blue-500/30',
+				? 'bg-gray-50/50 hover:bg-gray-100/50 border-blue-200/40'
+				: 'bg-gray-100/30 hover:bg-gray-100/60 border-blue-300/30',
 		]"
 		:style="{ gridTemplateColumns: gridTemplate }"
 		@click="handleRowClick"
@@ -523,7 +523,7 @@ onUnmounted(() => {
 			<!-- Indent spacer with tree lines -->
 			<div v-for="i in level" :key="i" class="w-6 flex-shrink-0 relative">
 				<!-- Vertical line -->
-				<div class="absolute left-3 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-600"></div>
+				<div class="absolute left-3 top-0 bottom-0 w-px bg-gray-200"></div>
 			</div>
 
 			<!-- Expand/collapse toggle or connector -->
@@ -532,19 +532,19 @@ onUnmounted(() => {
 				:class="level > 0 ? 'w-6' : 'w-5'"
 			>
 				<!-- Horizontal connector line for subtasks -->
-				<div v-if="level > 0" class="absolute left-0 top-1/2 w-3 h-px bg-gray-200 dark:bg-gray-600"></div>
+				<div v-if="level > 0" class="absolute left-0 top-1/2 w-3 h-px bg-gray-200"></div>
 
 				<button
 					v-if="hasChildren"
 					@click.stop="toggleExpand"
-					class="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0 bg-white dark:bg-gray-900 relative z-10"
+					class="p-0.5 rounded hover:bg-gray-200 flex-shrink-0 bg-white relative z-10"
 				>
-					<ChevronDown v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-300" />
-					<ChevronRight v-else class="w-4 h-4 text-gray-500 dark:text-gray-300" />
+					<ChevronDown v-if="isExpanded" class="w-4 h-4 text-gray-500" />
+					<ChevronRight v-else class="w-4 h-4 text-gray-500" />
 				</button>
 				<div
 					v-else-if="level > 0"
-					class="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-500 relative z-10"
+					class="w-2 h-2 rounded-full bg-gray-300 relative z-10"
 				></div>
 			</div>
 
@@ -660,7 +660,7 @@ onUnmounted(() => {
 				<Transition name="fade">
 					<div
 						v-if="showStatusDropdown"
-						class="task-status-menu fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
+						class="task-status-menu fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]"
 						:style="{
 							left: statusDropdownPosition.x + 'px',
 							top: statusDropdownPosition.y + 'px',
@@ -672,8 +672,8 @@ onUnmounted(() => {
 							:key="status"
 							@click="updateStatus(status)"
 							:class="[
-								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700',
-								task.status === status && 'bg-gray-50 dark:bg-gray-700',
+								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left text-gray-700 hover:bg-gray-50',
+								task.status === status && 'bg-gray-50',
 							]"
 						>
 							<component :is="config.icon" :class="['w-4 h-4', config.class]" />
@@ -834,7 +834,7 @@ onUnmounted(() => {
 				<Transition name="fade">
 					<div
 						v-if="showPriorityDropdown"
-						class="task-priority-menu fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
+						class="task-priority-menu fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]"
 						:style="{
 							left: priorityDropdownPosition.x + 'px',
 							top: priorityDropdownPosition.y + 'px',
@@ -846,9 +846,9 @@ onUnmounted(() => {
 							:key="priority"
 							@click="updatePriority(priority)"
 							:class="[
-								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-700',
+								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-gray-50',
 								config.class,
-								task.priority === priority && 'bg-gray-50 dark:bg-gray-700',
+								task.priority === priority && 'bg-gray-50',
 							]"
 						>
 							<Flag class="w-3.5 h-3.5" />
@@ -963,12 +963,12 @@ onUnmounted(() => {
 @keyframes pulse-highlight {
 	0%,
 	100% {
-		background-color: rgb(239 246 255); /* blue-50 */
-		border-left-color: rgb(59 130 246); /* blue-500 */
+		background-color: var(--hub-highlight-bg, rgb(239 246 255)); /* blue-50 */
+		border-left-color: var(--hub-highlight-border, rgb(59 130 246)); /* blue-500 */
 	}
 	50% {
-		background-color: rgb(219 234 254); /* blue-100 */
-		border-left-color: rgb(37 99 235); /* blue-600 */
+		background-color: var(--hub-highlight-bg-strong, rgb(219 234 254)); /* blue-100 */
+		border-left-color: var(--hub-highlight-border-strong, rgb(37 99 235)); /* blue-600 */
 	}
 }
 

@@ -48,14 +48,14 @@ const title = computed(() => assignees.value.map((user) => user.fullName).join("
 		/>
 		<span
 			v-if="hiddenCount"
-			class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-200 px-1 text-[10px] font-semibold text-gray-700 ring-2 ring-white dark:bg-gray-600 dark:text-gray-100 dark:ring-gray-800"
+			class="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-200 px-1 text-[10px] font-semibold text-gray-700 ring-2 ring-white"
 		>
 			+{{ hiddenCount }}
 		</span>
 	</div>
 	<span
 		v-else-if="showEmpty"
-		class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400 dark:border-gray-600"
+		class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400"
 		:title="translate('Unassigned')"
 	>
 		<User class="h-3 w-3" />

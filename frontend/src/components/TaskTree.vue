@@ -574,17 +574,17 @@ watch(
 		<!-- Table header -->
 		<div
 			v-if="showHeader"
-			class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
+			class="sticky top-0 bg-gray-50 border-b border-gray-200 z-10"
 		>
 			<div
-				class="grid gap-2 px-4 py-2 items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+				class="grid gap-2 px-4 py-2 items-center text-xs font-medium text-gray-500 uppercase tracking-wider"
 				:style="{ gridTemplateColumns: gridTemplateColumns }"
 			>
 				<button
 					v-for="column in visibleColumnConfigs"
 					:key="column.id"
 					@click="column.sortable ? handleSort(column.id) : null"
-					class="text-left hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center gap-1"
+					class="text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 					:class="column.id === 'task' ? 'min-w-0' : ''"
 					:style="column.id === 'task' ? { width: '100%' } : {}"
 				>
@@ -603,7 +603,7 @@ watch(
 		</div>
 
 		<!-- Task rows -->
-		<div v-if="showBody" class="divide-y divide-gray-100 dark:divide-gray-800" @dragover="handleDragOver">
+		<div v-if="showBody" class="divide-y divide-gray-100" @dragover="handleDragOver">
 			<draggable
 				:list="dragItems"
 				item-key="name"
@@ -636,7 +636,7 @@ watch(
 						<!-- Inline subtask input -->
 						<div
 							v-if="addingSubtaskTo === task.name"
-							class="bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-400 dark:border-blue-500/60"
+							class="bg-blue-50 border-l-2 border-blue-400"
 						>
 							<QuickAddTask
 								:project-id="projectId"
@@ -655,7 +655,7 @@ watch(
 		<!-- Quick add at bottom -->
 		<div
 			v-if="showQuickAdd && showBody"
-			class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+			class="task-tree-bottom-quickadd border-t border-gray-200 bg-white"
 		>
 			<QuickAddTask
 				:project-id="projectId"

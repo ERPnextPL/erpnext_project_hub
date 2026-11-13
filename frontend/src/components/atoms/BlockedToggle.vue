@@ -35,8 +35,8 @@ const title = computed(() =>
 		:class="[
 			'inline-flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 transition-colors',
 			isBlocked
-				? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800'
-				: 'opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700',
+				? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200'
+				: 'opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-red-600 hover:bg-gray-100',
 		]"
 	>
 		<Lock class="w-3.5 h-3.5" />

@@ -164,7 +164,7 @@ onUnmounted(() => {
 		<Transition name="fade">
 			<div
 				v-if="isOpen"
-				class="date-picker-popover fixed z-[60] w-72 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+				class="date-picker-popover fixed z-[60] w-72 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl"
 				:style="{
 					left: `${datePickerPosition.left}px`,
 					top: `${datePickerPosition.top}px`,
@@ -174,18 +174,18 @@ onUnmounted(() => {
 				<div class="flex items-center justify-between px-1 pb-3">
 					<button
 						type="button"
-						class="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+						class="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
 						:title="translate('Previous month')"
 						@click="changePickerMonth(-1)"
 					>
 						<ChevronLeft class="h-4 w-4" />
 					</button>
-					<strong class="text-sm font-semibold capitalize text-gray-900 dark:text-gray-100">
+					<strong class="text-sm font-semibold capitalize text-gray-900">
 						{{ pickerMonthLabel }}
 					</strong>
 					<button
 						type="button"
-						class="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+						class="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
 						:title="translate('Next month')"
 						@click="changePickerMonth(1)"
 					>
@@ -197,7 +197,7 @@ onUnmounted(() => {
 					<span
 						v-for="weekday in weekdayLabels"
 						:key="weekday"
-						class="py-1 text-center text-[10px] font-semibold uppercase text-gray-400 dark:text-gray-500"
+						class="py-1 text-center text-[10px] font-semibold uppercase text-gray-400"
 					>
 						{{ weekday }}
 					</span>
@@ -211,13 +211,13 @@ onUnmounted(() => {
 						:class="[
 							'h-8 rounded-lg text-xs font-medium transition-colors',
 							day.isCurrentMonth
-								? 'text-gray-700 hover:bg-blue-50 dark:text-gray-200 dark:hover:bg-blue-950'
-								: 'text-gray-300 hover:bg-gray-50 dark:text-gray-600 dark:hover:bg-gray-800',
+								? 'text-gray-700 hover:bg-blue-50'
+								: 'text-gray-300 hover:bg-gray-50',
 							isToday(day.dateStr) && !isSelectedDate(day.dateStr)
 								? 'ring-1 ring-blue-500 ring-inset'
 								: '',
 							isSelectedDate(day.dateStr)
-								? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+								? 'bg-blue-600 text-white hover:bg-blue-700'
 								: '',
 						]"
 						:aria-label="day.dateStr"
@@ -227,17 +227,17 @@ onUnmounted(() => {
 					</button>
 				</div>
 
-				<div class="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-800">
+				<div class="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
 					<button
 						type="button"
-						class="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+						class="text-xs font-medium text-blue-600 hover:text-blue-700"
 						@click="selectToday"
 					>
 						{{ translate("Today") }}
 					</button>
 					<button
 						type="button"
-						class="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+						class="text-xs text-gray-500 hover:text-gray-800"
 						@click="clearDate"
 					>
 						{{ translate("Clear") }}

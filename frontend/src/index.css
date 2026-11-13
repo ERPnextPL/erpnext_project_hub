@@ -12,8 +12,62 @@ html.dark {
 }
 
 html.dark body {
-	background: #0f172a;
-	color: #e5e7eb;
+	background: rgb(var(--hub-bg-white));
+	color: rgb(var(--hub-fg-gray-900));
+}
+
+/*
+ * Frappe's website shell around the SPA (Standard Navbar / Footer of
+ * templates/web.html) is styled by the site's Bootstrap theme, which has no dark
+ * variant. This stylesheet only loads on /project-hub, so it is safe to darken
+ * that chrome here.
+ */
+html.dark .navbar,
+html.dark .web-footer,
+html.dark .page-footer {
+	background-color: rgb(var(--hub-bg-white)) !important;
+	border-color: rgb(var(--hub-line-gray-200)) !important;
+	color: rgb(var(--hub-fg-gray-700));
+}
+
+html.dark .navbar .navbar-brand,
+html.dark .navbar .nav-link,
+html.dark .web-footer a,
+html.dark .web-footer .footer-link {
+	color: rgb(var(--hub-fg-gray-700)) !important;
+}
+
+html.dark .navbar .dropdown-menu {
+	background-color: rgb(var(--hub-bg-white));
+	border-color: rgb(var(--hub-line-gray-200));
+}
+
+html.dark .navbar .dropdown-item {
+	color: rgb(var(--hub-fg-gray-700));
+}
+
+html.dark .navbar .dropdown-item:hover,
+html.dark .navbar .dropdown-item:focus {
+	background-color: rgb(var(--hub-bg-gray-100));
+	color: rgb(var(--hub-fg-gray-900));
+}
+
+/*
+ * Colours hard-coded in component <style> blocks and inline styles read these
+ * variables with their light value as fallback, so light mode is unchanged.
+ */
+html.dark {
+	--hub-highlight-bg: rgb(var(--hub-bg-blue-50));
+	--hub-highlight-bg-strong: rgb(var(--hub-bg-blue-100));
+	--hub-highlight-border: rgb(var(--hub-line-blue-500));
+	--hub-highlight-border-strong: rgb(var(--hub-line-blue-600));
+	--hub-drop-ghost-bg: rgb(var(--hub-bg-blue-100));
+	--hub-drop-ghost-border: rgb(var(--hub-line-blue-400));
+	--hub-milestone-idle-bg: rgb(var(--hub-bg-white));
+	--hub-milestone-muted-bg: rgb(var(--hub-bg-gray-100));
+	--hub-milestone-muted-border: rgb(var(--hub-line-gray-400));
+	--hub-milestone-muted-text: rgb(var(--hub-fg-gray-400));
+	--hub-milestone-muted-line: rgb(var(--hub-line-gray-200));
 }
 
 /* Task tree specific styles */
@@ -22,7 +76,7 @@ html.dark body {
 }
 
 .task-row:hover {
-	@apply bg-gray-50 dark:bg-gray-800;
+	@apply bg-gray-50;
 }
 
 .task-row.dragging {

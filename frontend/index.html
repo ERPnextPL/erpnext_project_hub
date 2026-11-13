@@ -6,6 +6,15 @@
 		<title>Project Outliner | Projekt HUB</title>
 		<link rel="icon" type="image/svg+xml" href="/assets/erpnext_projekt_hub/frontend/favicon.svg?v=20241220-2030" />
 		<script>
+			// Apply the stored theme before first paint (see src/composables/useDarkMode.js).
+			try {
+				if (localStorage.getItem("project-hub-theme") === "dark") {
+					document.documentElement.classList.add("dark");
+					document.documentElement.setAttribute("data-theme", "dark");
+				}
+			} catch (e) {}
+		</script>
+		<script>
 			window.csrf_token = '{{ csrf_token }}';
 		</script>
 		{{ include_script("frappe-web.bundle.js?v=20241220-2030") }}

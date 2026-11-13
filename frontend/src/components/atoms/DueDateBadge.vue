@@ -25,8 +25,8 @@ const TONE_CLASSES = {
 	done: "bg-green-600 text-white",
 	overdue: "bg-red-600 text-white",
 	today: "bg-amber-500 text-white",
-	soon: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-	normal: "text-gray-600 dark:text-gray-300",
+	soon: "bg-amber-100 text-amber-800",
+	normal: "text-gray-600",
 };
 
 const toneClass = computed(() => TONE_CLASSES[state.value.tone] || TONE_CLASSES.normal);

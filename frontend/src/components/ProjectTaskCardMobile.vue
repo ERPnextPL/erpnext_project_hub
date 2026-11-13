@@ -61,16 +61,16 @@ const formattedDate = computed(() => {
 <template>
 	<button
 		type="button"
-		class="block w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-colors active:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:active:bg-gray-700"
+		class="block w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-colors active:bg-gray-50"
 		:style="indentStyle"
 		@click="$emit('click', task)"
 	>
 		<div class="flex items-start justify-between gap-3">
 			<div class="min-w-0 flex-1">
-				<div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+				<div class="truncate text-sm font-medium text-gray-900">
 					{{ task.subject }}
 				</div>
-				<div v-if="task.description" class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
+				<div v-if="task.description" class="mt-1 line-clamp-2 text-xs text-gray-500">
 					{{ task.description }}
 				</div>
 			</div>
@@ -85,7 +85,7 @@ const formattedDate = computed(() => {
 			</span>
 		</div>
 
-		<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
+		<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-gray-500">
 			<span class="inline-flex items-center gap-1">
 				<Calendar class="h-3.5 w-3.5" />
 				{{ formattedDate }}
