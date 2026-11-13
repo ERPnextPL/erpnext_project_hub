@@ -17,6 +17,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	CheckCircle,
+	Plus,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -24,6 +25,8 @@ import { useMyTimeLogsStore } from "../stores/myTimeLogsStore";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
 import DatePickerField from "../components/DatePickerField.vue";
+import TimeLogModal from "../components/TimeLogModal.vue";
+import TimeLogTaskPicker from "../components/mytimelogs/TimeLogTaskPicker.vue";
 
 const store = useMyTimeLogsStore();
 const taskStore = useTaskStore();
@@ -32,6 +35,34 @@ const realWindow = getRealWindow();
 const showFilters = ref(false);
 const searchInput = ref("");
 const editModalOpen = ref(false);
+
+// "Add time" (FAB): pick a task, then the same time entry modal as on tasks.
+const taskPickerOpen = ref(false);
+const timeLogTask = ref(null);
+
+function openAddTime() {
+	timeLogTask.value = null;
+	taskPickerOpen.value = true;
+}
+
+function onTaskPicked(task) {
+	taskPickerOpen.value = false;
+	timeLogTask.value = task;
+}
+
+async function handleAddTimeSave(timelogData, reenableForm) {
+	try {
+		await store.createTimelog(timelogData);
+		timeLogTask.value = null;
+		showAlert(translate("Time entry saved"), "green");
+		await store.fetchLogs();
+	} catch (error) {
+		// apiCall already shows the server's message; keep the form for a retry.
+		console.error("Failed to save time entry:", error);
+		showAlert(translate("Failed to save time entry"), "red");
+		reenableForm?.();
+	}
+}
 const savingEdit = ref(false);
 const editForm = ref({
 	timelog_name: "",
@@ -1640,6 +1671,33 @@ async function handleDeleteLog(log) {
 		</Transition>
 
 		<BackToDeskButton />
+
+		<!-- FAB: add a time entry (same as the "Add task" button of the project view) -->
+		<button
+			type="button"
+			class="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-blue-300"
+			:title="translate('Add time')"
+			:aria-label="translate('Add time')"
+			@click="openAddTime"
+		>
+			<Plus class="h-6 w-6" />
+		</button>
+
+		<TimeLogTaskPicker
+			v-if="taskPickerOpen"
+			:recent-logs="store.timelogs"
+			:fetch-tasks="store.fetchAssignableTasks"
+			@select="onTaskPicked"
+			@close="taskPickerOpen = false"
+		/>
+
+		<TimeLogModal
+			v-if="timeLogTask"
+			:task="timeLogTask"
+			:show="!!timeLogTask"
+			@close="timeLogTask = null"
+			@save="handleAddTimeSave"
+		/>
 	</div>
 </template>
 

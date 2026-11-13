@@ -315,6 +315,7 @@ function handleSave() {
 	calculateToTime();
 
 	isSaving.value = true;
+	// Second argument: lets the parent re-enable the form when saving fails.
 	emit("save", {
 		...(props.timelog ? { timelog_name: props.timelog.timelog_name } : {}),
 		task: props.task.name,
@@ -324,6 +325,8 @@ function handleSave() {
 		from_time: toFrappeDateTime(formData.value.from_time),
 		to_time: toFrappeDateTime(formData.value.to_time),
 		is_billable: formData.value.is_billable ? 1 : 0,
+	}, () => {
+		isSaving.value = false;
 	});
 }
 

@@ -67,6 +67,7 @@ declare module 'vue' {
     ThemeToggle: typeof import('./src/components/ThemeToggle.vue')['default']
     TimelineView: typeof import('./src/components/TimelineView.vue')['default']
     TimeLogModal: typeof import('./src/components/TimeLogModal.vue')['default']
+    TimeLogTaskPicker: typeof import('./src/components/mytimelogs/TimeLogTaskPicker.vue')['default']
     UserAvatar: typeof import('./src/components/atoms/UserAvatar.vue')['default']
     UserSelect: typeof import('./src/components/UserSelect.vue')['default']
     WorkForecast: typeof import('./src/components/work-planning/WorkForecast.vue')['default']

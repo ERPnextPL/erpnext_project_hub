@@ -17,3 +17,5 @@
 15. Changing a light-mode colour must be checked per element against the baseline (path-keyed, not HTML-keyed: removed classes change the HTML) — "fixed N" is not enough, also count "added".
 16. Classes that used to generate no CSS made their text inherit a readable colour; when they start working, their text shades must be held to >= 4.5:1 too.
 17. Darkening a button colour must keep the ladder to its hover shade (500 < 600 < 700 < 800).
+18. A modal that sets "saving" before emitting must give the parent a way to undo it on failure (here: a callback as the event's second argument), or a failed request leaves the form stuck.
+19. frappe-ui's light gray-600 (#7C7C7C) is 4.2:1 on white → new secondary text uses gray-700, icons gray-600 (3:1).
