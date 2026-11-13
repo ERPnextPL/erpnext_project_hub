@@ -51,6 +51,7 @@ import {
 	GripVertical,
 	Plus,
 	SquareKanban,
+	ChevronDown,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -128,6 +129,13 @@ const filtersHydrated = ref(false);
 const suppressSearchSync = ref(false);
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
+
+// Phones: project information, manager summary, status strip and milestone
+// track sit behind one "Project details" toggle (closed by default) so the
+// task list/board starts near the top of the screen.
+const isPhone = computed(() => width.value < 768);
+const projectDetailsOpen = ref(false);
+const showProjectDetails = computed(() => !isPhone.value || projectDetailsOpen.value);
 const draggingGroupKey = ref(null);
 const groupReorderDropIndex = ref(null);
 
@@ -730,18 +738,31 @@ const groupedTasksByMilestone = computed(() => {
 
 			<!-- Center: Task list -->
 			<main class="mx-auto min-w-0 w-full max-w-[1800px] flex-1 overflow-y-auto">
-				<!-- Project Information Panel -->
+				<button
+					v-if="isPhone && store.project && !store.loading"
+					type="button"
+					class="flex w-full min-w-0 items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700"
+					:aria-expanded="projectDetailsOpen"
+					@click="projectDetailsOpen = !projectDetailsOpen"
+				>
+					<span class="truncate">{{ translate("Project details") }}</span>
+					<ChevronDown
+						class="h-4 w-4 flex-shrink-0 text-gray-600 transition-transform"
+						:class="projectDetailsOpen && 'rotate-180'"
+					/>
+				</button>
+				<!-- Project Information Panel (no wrapper: desktop DOM stays as it was) -->
 				<ProjectInfoPanel
-					v-if="store.project && !store.loading"
+					v-if="showProjectDetails && store.project && !store.loading"
 					:project="store.project"
 				/>
 				<ProjectManagerPanel
-					v-if="store.project && !store.loading && store.project.is_manager"
+					v-if="showProjectDetails && store.project && !store.loading && store.project.is_manager"
 					:project="store.project"
 				/>
 
 				<ProjectStatusStrip
-					v-if="store.project && !store.loading"
+					v-if="showProjectDetails && store.project && !store.loading"
 					:project="store.project"
 				/>
 
@@ -912,7 +933,7 @@ const groupedTasksByMilestone = computed(() => {
 						</div>
 					</div>
 					<MilestoneTrack
-						v-if="store.milestones.length && !store.loading"
+						v-if="store.milestones.length && !store.loading && showProjectDetails"
 						:milestones="store.milestones"
 					/>
 				</div>

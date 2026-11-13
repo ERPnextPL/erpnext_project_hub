@@ -27,3 +27,4 @@
 25. Touch-only CSS goes under `@media (pointer: coarse)` so desktop output stays identical (verified by a desktop before/after compare).
 26. Touch screens have no hover: controls revealed with `group-hover:opacity-100` must be visible under `pointer: coarse`, and revealing them can expose new too-small targets — re-measure after.
 27. Side panels next to a board (`KanbanAttentionPanel`) are `hidden md:flex`; on a phone they cover the board.
+28. A mobile-only change must not add wrapper elements on desktop: put the condition on each element (v-if) so desktop DOM and the path-keyed desktop compare stay identical.
