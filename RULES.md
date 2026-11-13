@@ -21,3 +21,4 @@
 19. frappe-ui's light gray-600 (#7C7C7C) is 4.2:1 on white → new secondary text uses gray-700, icons gray-600 (3:1).
 20. A list whose API defaults to "open only" must not feed a count for a status it never returns: load that status separately (with its total) or hide the count.
 21. Test data for "latest N" lists must pick items that stay inside the window after the test's own changes.
+22. Iterators (Map.values()) have no .flat()/.map() in browsers → spread into an array first; test boards with parent/child tasks, a flat test set hides code paths like this.

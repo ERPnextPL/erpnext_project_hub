@@ -97,7 +97,7 @@ const dragging = ref(false);
 const menu = ref(null); // { task, anchor }
 
 const hierarchy = computed(() => {
-	const tasks = [...(props.allTasks || props.tasks), ...loadedTasksByStatus.values().flat()];
+	const tasks = [...(props.allTasks || props.tasks), ...[...loadedTasksByStatus.values()].flat()];
 	return [...new Map(tasks.map((task) => [task.name, task])).values()];
 });
 const taskByName = computed(() => new Map(hierarchy.value.map((task) => [task.name, task])));
