@@ -1111,7 +1111,9 @@ const groupedTasksByMilestone = computed(() => {
 							@task-click="handleTaskClick"
 						/>
 					</div>
+					<!-- Phones: the panel would cover the board (as on My Tasks). -->
 					<KanbanAttentionPanel
+						class="hidden md:flex"
 						:tasks="flattenedTasksWithFilters"
 						:highlighted-task="highlightedTaskName"
 						@focus-task="focusBoardTask"

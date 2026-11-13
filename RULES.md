@@ -25,3 +25,5 @@
 23. Never set a global min-width on buttons: in a flex row it replaces min-width:auto and lets text buttons shrink below their text. Global touch rules set min-height only; icon-only buttons opt in to 24x24 with `hub-tap`.
 24. Mobile checks must open every view by its mobile controls: a control pushed off-screen (M4) also hides whole views from the audit (projectListRows).
 25. Touch-only CSS goes under `@media (pointer: coarse)` so desktop output stays identical (verified by a desktop before/after compare).
+26. Touch screens have no hover: controls revealed with `group-hover:opacity-100` must be visible under `pointer: coarse`, and revealing them can expose new too-small targets — re-measure after.
+27. Side panels next to a board (`KanbanAttentionPanel`) are `hidden md:flex`; on a phone they cover the board.

@@ -2174,7 +2174,7 @@ async function deleteAttachment(fileName) {
 												<button
 													type="button"
 													@click.stop="deleteAttachment(file.name)"
-													class="absolute right-0.5 top-0.5 rounded-full bg-white/90 p-0.5 text-gray-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+													class="hub-tap absolute right-0.5 top-0.5 rounded-full bg-white/90 p-0.5 text-gray-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
 													:title="translate('Delete attachment')"
 												>
 													<Trash2 class="h-2.5 w-2.5" />
@@ -2376,7 +2376,7 @@ async function deleteAttachment(fileName) {
 											<ExternalLink class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
 											<button
 												@click.stop="deleteSubtask(child.name)"
-												class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+												class="hub-tap mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
 												:title="translate('Delete subtask')"
 											>
 												<Trash2 class="h-3.5 w-3.5" />

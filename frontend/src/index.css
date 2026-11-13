@@ -123,6 +123,21 @@ html.dark {
 		min-height: 24px;
 	}
 
+	/* Task boards: swipe snaps to a list instead of stopping halfway. */
+	.task-board {
+		scroll-snap-type: x mandatory;
+		scroll-padding-inline: 1rem;
+	}
+
+	.task-board > div > section {
+		scroll-snap-align: start;
+	}
+
+	/* No hover on touch: controls revealed on hover are always shown. */
+	.group-hover\:opacity-100 {
+		opacity: 1;
+	}
+
 	/* Icon-only buttons (no text that could be squeezed): full 24x24 target. */
 	.hub-tap {
 		min-width: 24px;

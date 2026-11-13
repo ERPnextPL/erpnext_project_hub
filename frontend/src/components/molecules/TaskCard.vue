@@ -181,7 +181,7 @@ function onContextMenu(event) {
 					<button
 						v-else
 						type="button"
-						class="rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 focus:opacity-100 group-hover:opacity-100"
+						class="hub-tap rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 focus:opacity-100 group-hover:opacity-100"
 						:title="translate('Set due date')"
 						:aria-label="translate('Set due date')"
 						@click="open"

@@ -117,7 +117,7 @@ const dragOptions = {
 	<!-- Expanded list -->
 	<section
 		v-else
-		class="flex max-h-full w-72 flex-shrink-0 flex-col rounded-xl bg-gray-100 shadow-sm"
+		class="flex max-h-full w-[min(18rem,calc(100vw-3rem))] flex-shrink-0 flex-col rounded-xl bg-gray-100 shadow-sm"
 	>
 		<header class="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
 			<span :class="['h-2.5 w-2.5 flex-shrink-0 rounded-full', column.dot]"></span>
