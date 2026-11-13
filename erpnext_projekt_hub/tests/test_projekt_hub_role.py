@@ -6,6 +6,7 @@ from erpnext_projekt_hub.api import project_hub
 
 HUB_USER = "_test_projekt_hub_member@example.com"
 OTHER_USER = "_test_projekt_hub_outsider@example.com"
+SYSTEM_MANAGER = "_test_projekt_hub_sysmanager@example.com"
 
 
 class TestProjektHubRole(FrappeTestCase):
@@ -14,6 +15,7 @@ class TestProjektHubRole(FrappeTestCase):
 		ensure_projekt_hub_role()
 		self.make_user(HUB_USER, "Projects User", PROJEKT_HUB_ROLE)
 		self.make_user(OTHER_USER, "Projects User")
+		self.make_user(SYSTEM_MANAGER, "System Manager")
 
 	def tearDown(self):
 		frappe.set_user("Administrator")
@@ -28,7 +30,7 @@ class TestProjektHubRole(FrappeTestCase):
 					"first_name": email.split("@")[0],
 					"send_welcome_email": 0,
 				}
-			).insert(ignore_permissions=True)
+			).insert()
 		user = frappe.get_doc("User", email)
 		user.add_roles(*roles)
 
@@ -63,3 +65,11 @@ class TestProjektHubRole(FrappeTestCase):
 		task = frappe.get_doc({"doctype": "Task", "subject": "_Test completion assignees"}).insert()
 		frappe.set_user(OTHER_USER)
 		self.assertEqual(project_hub.get_task_completion_assignees(task.name), [])
+
+	def test_system_manager_can_create_users(self):
+		# Test users are created without ignore_permissions, so the fixtures (and
+		# real admins) rely on System Manager being allowed to create users.
+		frappe.set_user(SYSTEM_MANAGER)
+		email = f"_test_projekt_hub_{frappe.generate_hash(length=8)}@example.com"
+		self.make_user(email, "Projects User")
+		self.assertTrue(frappe.db.exists("User", email))
