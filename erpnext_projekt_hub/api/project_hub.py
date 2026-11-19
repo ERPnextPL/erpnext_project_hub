@@ -3,6 +3,8 @@ Project Outliner API endpoints for task management.
 Provides CRUD operations for tasks in a hierarchical tree view.
 """
 
+from math import isfinite
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
@@ -100,7 +102,7 @@ def get_projects():
 	"""
 	Get list of projects based on user role:
 	- Projects Manager / System Manager: sees all projects (except Cancelled)
-	- Projects User: sees only projects where they have tasks assigned or are project members
+	- Projects User: sees projects with assigned tasks, completed tasks they handled, or membership
 
 	Returns projects grouped by status (active vs on hold vs completed).
 	"""
@@ -137,15 +139,15 @@ def get_projects():
 	else:
 		# Regular users - get projects where they have tasks or are members
 
-		# 1. Get projects where user has assigned tasks
+		# Include projects where completed assignments have already been closed.
 		projects_with_tasks = frappe.db.sql(
 			"""
 			SELECT DISTINCT t.project
 			FROM `tabTask` t
 			WHERE t.project IS NOT NULL
-			AND t._assign LIKE %s
+			AND (t._assign LIKE %s OR t.completed_by = %s)
 		""",
-			(f"%{user}%",),
+			(f"%{user}%", user),
 			as_dict=True,
 		)
 
@@ -211,14 +213,44 @@ def get_projects():
 		)
 		customer_data = {r["name"]: {"customer_name": r["customer_name"], "image": r["image"]} for r in rows}
 
+	project_names = [project["name"] for project in projects]
+	completion_users_by_project = {}
+	completion_user_names = {}
+	if project_names:
+		completion_rows = frappe.get_all(
+			"Task",
+			filters={
+				"project": ["in", project_names],
+				"status": "Completed",
+				"completed_by": ["is", "set"],
+			},
+			fields=["project", "completed_by"],
+		)
+		completion_user_emails = list({row.completed_by for row in completion_rows})
+		if completion_user_emails:
+			completion_user_names = {
+				row.name: row.full_name
+				for row in frappe.get_all(
+					"User",
+					filters={"name": ["in", completion_user_emails]},
+					fields=["name", "full_name"],
+				)
+			}
+		for row in completion_rows:
+			completion_users_by_project.setdefault(row.project, set()).add(row.completed_by)
+
 	# Add task count, user's task count, assigned users count, and next milestone for each project
 	for project in projects:
+		project["completed_by_users"] = sorted(completion_users_by_project.get(project["name"], set()))
 		project["project_manager_name"] = manager_names.get(
 			project.get("project_manager"), project.get("project_manager")
 		)
 		cdata = customer_data.get(project.get("customer"), {})
 		project["customer_name"] = cdata.get("customer_name")
 		project["customer_image"] = cdata.get("image")
+		project["completed_by_user_names"] = {
+			user: completion_user_names.get(user, user) for user in project["completed_by_users"]
+		}
 		project["task_count"] = frappe.db.count(
 			"Task", {"project": project["name"], "status": ["!=", "Cancelled"]}
 		)
@@ -405,7 +437,7 @@ def get_project_requests(project: str):
 			"currency",
 			"quotation",
 			"task",
-			"analyst",
+			"realization_assignee",
 			"approved_scope",
 			"state_changed_on",
 			"creation",
@@ -430,14 +462,16 @@ def get_project_requests(project: str):
 
 
 def _set_analysts_and_attachments(doctype, requests):
-	"""Add the analyst's full name and the attachments to each request row."""
-	analysts = list({row.analyst for row in requests if row.analyst})
+	"""Add the request assignee's full name and its attachments to each row."""
+	fieldname = "analyst" if doctype == "Customer Request" else "realization_assignee"
+	name_field = "analyst_name" if doctype == "Customer Request" else "realization_assignee_name"
+	assignees = list({row.get(fieldname) for row in requests if row.get(fieldname)})
 	full_names = {}
-	if analysts:
+	if assignees:
 		full_names = dict(
 			frappe.get_all(
 				"User",
-				filters={"name": ["in", analysts]},
+				filters={"name": ["in", assignees]},
 				fields=["name", "full_name"],
 				as_list=True,
 				ignore_permissions=True,
@@ -446,7 +480,8 @@ def _set_analysts_and_attachments(doctype, requests):
 
 	attachments = request_queue.get_attachments(doctype, [row.name for row in requests])
 	for row in requests:
-		row.analyst_name = full_names.get(row.analyst) or row.analyst
+		assignee = row.get(fieldname)
+		row[name_field] = full_names.get(assignee) or assignee
 		row.attachments = attachments.get(row.name, [])
 
 
@@ -505,6 +540,7 @@ def _set_change_request_tasks(change_requests):
 				"Task",
 				filters={"name": ["in", task_names]},
 				fields=["name", "subject", "status", "progress"],
+				ignore_permissions=True,
 			)
 		}
 
@@ -548,6 +584,30 @@ def _is_conversion_action(request, action):
 		t.state == request.workflow_state and t.action == action and t.next_state == CONVERTED_STATE
 		for t in workflow.transitions
 	)
+
+
+def _parse_estimate(fieldname: str, value):
+	"""Return a validated estimate value, preserving empty strings as zero."""
+	if value is None:
+		return None
+	if isinstance(value, str) and not value.strip():
+		return 0
+
+	try:
+		number = float(value)
+	except (TypeError, ValueError):
+		number = None
+
+	if number is None or not isfinite(number):
+		message = (
+			"Enter a valid amount" if fieldname == "estimated_amount" else "Enter a valid number of hours"
+		)
+		frappe.throw(_(message), frappe.ValidationError)
+	if number < 0:
+		label = "Estimated Amount" if fieldname == "estimated_amount" else "Estimated Hours"
+		frappe.throw(_("{0} cannot be negative").format(_(label)), frappe.ValidationError)
+
+	return flt(value)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -598,10 +658,7 @@ def update_customer_request_analysis(
 	for fieldname, value in (("estimated_hours", estimated_hours), ("estimated_amount", estimated_amount)):
 		if value is None:
 			continue
-		number = flt(value)
-		if number < 0:
-			frappe.throw(_("{0} cannot be negative").format(_(request.meta.get_label(fieldname))))
-		request.set(fieldname, number)
+		request.set(fieldname, _parse_estimate(fieldname, value))
 	if currency is not None:
 		request.currency = currency or None
 	if request.estimated_amount and not request.currency:
@@ -866,6 +923,7 @@ def get_project_tasks(
 		"modified",
 		"project",
 		"is_blocked",
+		"completed_by",
 	]
 
 	task_filters = {"project": project}
@@ -920,8 +978,21 @@ def get_project_tasks(
 	# Keep tree structure by including missing parents
 	tasks = _include_missing_parents(tasks, project, fields)
 
+	# Attach dependencies (Task Depends On child table) for the timeline view
+	task_names = [t["name"] for t in tasks]
+	depends_map = {}
+	if task_names:
+		for row in frappe.get_all(
+			"Task Depends On",
+			filters={"parent": ["in", task_names], "parenttype": "Task"},
+			fields=["parent", "task"],
+		):
+			if row.task:
+				depends_map.setdefault(row.parent, []).append(row.task)
+
 	for task in tasks:
 		task["is_overdue"] = compute_is_overdue(task)
+		task["depends_on"] = depends_map.get(task["name"], [])
 
 	# Deterministic sort
 	tasks = sorted(
@@ -1000,6 +1071,7 @@ def get_project_tasks(
 			"customer_name": customer_name,
 			"customer_image": customer_image,
 			**customer_contact,
+			"documentation_url": getattr(project_doc, "documentation_url", None),
 			"notes": getattr(project_doc, "notes", None),
 			"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 			"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -1139,6 +1211,7 @@ def update_project(
 	project: str,
 	expected_start_date: str | None = None,
 	expected_end_date: str | None = None,
+	documentation_url: str | None = None,
 	notes: str | None = None,
 ):
 	require_project_hub_access()
@@ -1157,6 +1230,9 @@ def update_project(
 		expected_start_date = None
 	if expected_end_date == "":
 		expected_end_date = None
+	documentation_url_cleared = documentation_url == ""
+	if documentation_url == "":
+		documentation_url = None
 
 	# Track if user explicitly passed empty string to clear the notes field
 	# (separate "not provided" from "clear")
@@ -1169,6 +1245,8 @@ def update_project(
 		frappe.db.set_value("Project", project, "expected_start_date", expected_start_date)
 	if expected_end_date is not None:
 		frappe.db.set_value("Project", project, "expected_end_date", expected_end_date)
+	if documentation_url is not None or documentation_url_cleared:
+		frappe.db.set_value("Project", project, "documentation_url", documentation_url)
 	if notes is not None or notes_cleared:
 		# Write even if notes is None - this handles explicit clear requests
 		frappe.db.set_value("Project", project, "notes", notes)
@@ -1227,6 +1305,7 @@ def update_project(
 		"customer_name": customer_name,
 		"customer_image": customer_image,
 		**customer_contact,
+		"documentation_url": getattr(project_doc, "documentation_url", None),
 		"notes": getattr(project_doc, "notes", None),
 		"total_hours": total_hours[0].get("total_hours", 0) if total_hours else 0,
 		"estimated_hours": estimated_hours[0].get("estimated_hours", 0) if estimated_hours else 0,
@@ -1328,6 +1407,8 @@ def update_task(task_name: str, **kwargs):
 		frappe.throw(_("Task name is required"))
 
 	task = frappe.get_doc("Task", task_name)
+	if kwargs.get("status") == "Completed" and kwargs.get("completed_by"):
+		task.completed_by = kwargs["completed_by"]
 
 	# Check if trying to set status to Completed
 	if kwargs.get("status") == "Completed":
@@ -1335,7 +1416,7 @@ def update_task(task_name: str, **kwargs):
 		if incomplete_subtasks:
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
-				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
+				subtask_names += " " + _("and {0} more").format(len(incomplete_subtasks) - 3)
 
 			# Show as info message instead of error
 			frappe.msgprint(
@@ -1409,9 +1490,86 @@ def update_task(task_name: str, **kwargs):
 		"project": task.project,
 		"expected_time": getattr(task, "expected_time", None),
 		"completed_on": task.completed_on,
+		"completed_by": task.completed_by,
+		"completed_by_name": (
+			frappe.db.get_value("User", task.completed_by, "full_name") if task.completed_by else None
+		),
 		"is_blocked": task.get("is_blocked"),
 		"is_overdue": compute_is_overdue(task),
 	}
+
+
+@frappe.whitelist()
+def bulk_update_task_fields(task_names: list[str] | str, updates: dict | str):
+	"""Update common fields on multiple tasks in one transaction."""
+	require_project_hub_access()
+
+	task_names = frappe.parse_json(task_names) if isinstance(task_names, str) else task_names
+	updates = frappe.parse_json(updates) if isinstance(updates, str) else updates
+	if not isinstance(task_names, list) or not task_names:
+		frappe.throw(_("At least one task is required"))
+	if not isinstance(updates, dict):
+		frappe.throw(_("Task updates must be an object"))
+
+	task_names = list(dict.fromkeys(task_names))
+	if len(task_names) > 200:
+		frappe.throw(_("You can update up to 200 tasks at a time"))
+
+	allowed_fields = {"priority", "status", "exp_end_date", "expected_time"}
+	field_updates = {key: value for key, value in updates.items() if key in allowed_fields}
+	assignment_action = updates.get("assignment_action")
+	assignee = updates.get("assignee")
+	completed_by_by_task = updates.get("completed_by_by_task", {})
+	if not isinstance(completed_by_by_task, dict):
+		frappe.throw(_("Completion attribution must be an object"))
+	if not field_updates and assignment_action not in ("set", "clear"):
+		frappe.throw(_("Select at least one change"))
+	if assignment_action == "set" and not assignee:
+		frappe.throw(_("Select a user to assign"))
+
+	if assignment_action == "set":
+		user_doc = frappe.get_value("User", assignee, ["enabled", "user_type"])
+		if not user_doc:
+			frappe.throw(_("User {0} does not exist").format(assignee))
+		if not user_doc[0]:
+			frappe.throw(_("User {0} is disabled").format(assignee))
+		if user_doc[1] != "System User":
+			frappe.throw(_("Only System Users can be assigned to tasks"))
+		if not frappe.db.exists(
+			"Has Role", {"parent": assignee, "role": PROJEKT_HUB_ROLE, "parenttype": "User"}
+		):
+			frappe.throw(_("Only users with the {0} role can be assigned to tasks").format(PROJEKT_HUB_ROLE))
+
+	tasks = []
+	for task_name in task_names:
+		task = frappe.get_doc("Task", task_name)
+		task.check_permission("write")
+		if field_updates.get("status") == "Completed":
+			incomplete = _get_incomplete_subtasks(task.name)
+			if incomplete:
+				frappe.throw(
+					_("Task {0} cannot be completed while it has incomplete subtasks").format(task.subject)
+				)
+		for field, value in field_updates.items():
+			task.set(field, value)
+		if field_updates.get("status") == "Completed":
+			task.completed_on = today()
+			if completed_by_by_task.get(task.name):
+				task.completed_by = completed_by_by_task[task.name]
+		elif "status" in field_updates:
+			task.completed_on = None
+		tasks.append(task)
+
+	for task in tasks:
+		task.save()
+
+	if assignment_action:
+		for task in tasks:
+			assign_task(task.name, action="clear")
+			if assignment_action == "set":
+				assign_task(task.name, user=assignee, action="add")
+
+	return {"updated": len(tasks), "task_names": [task.name for task in tasks]}
 
 
 @frappe.whitelist()
@@ -1482,6 +1640,15 @@ def reorder_task(
 	if parent_task != old_parent:
 		# If new parent exists, ensure it's a group
 		if parent_task:
+			# Recursion check is disabled on save below, so guard against cycles here
+			ancestor = parent_task
+			visited = set()
+			while ancestor and ancestor not in visited:
+				if ancestor == task_name:
+					frappe.throw(_("A task cannot be moved under itself or its own subtask"))
+				visited.add(ancestor)
+				ancestor = frappe.db.get_value("Task", ancestor, "parent_task")
+
 			new_parent = frappe.get_doc("Task", parent_task)
 			if new_parent.status in ("Completed", "Cancelled"):
 				frappe.throw(
@@ -1495,12 +1662,8 @@ def reorder_task(
 
 		task.parent_task = parent_task
 
-	# Update idx
-	task.idx = idx
-	task.flags.ignore_recursion_check = True
-	task.save()
-
-	# Reindex siblings to maintain order
+	# Calculate the target among siblings after removing the dragged task. This
+	# keeps a downward move in the same parent from being shifted by one row.
 	siblings = frappe.get_all(
 		"Task",
 		filters={
@@ -1509,12 +1672,16 @@ def reorder_task(
 			"name": ["!=", task_name],
 		},
 		fields=["name", "idx"],
-		order_by="idx",
+		order_by="idx, creation",
 	)
+	target_idx = max(0, min(int(idx), len(siblings)))
+	task.idx = target_idx
+	task.flags.ignore_recursion_check = True
+	task.save()
 
-	# Adjust indices
+	# Reindex siblings to maintain order
 	for i, sibling in enumerate(siblings):
-		new_idx = i if i < idx else i + 1
+		new_idx = i if i < target_idx else i + 1
 		if sibling["idx"] != new_idx:
 			frappe.db.set_value("Task", sibling["name"], "idx", new_idx)
 
@@ -1539,7 +1706,7 @@ def toggle_task_status(task_name: str):
 		if incomplete_subtasks:
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
-				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
+				subtask_names += " " + _("and {0} more").format(len(incomplete_subtasks) - 3)
 
 			# Show as info message instead of error
 			frappe.msgprint(
@@ -1620,6 +1787,42 @@ def get_users():
 		fields=["name", "full_name", "user_image"],
 		order_by="full_name",
 	)
+
+
+@frappe.whitelist()
+def get_task_completion_assignees(task_name: str):
+	"""Return active assignees that can be attributed when a task is completed.
+
+	Also called by the Desk Task form (public/js/task_completion.js), which any
+	Task editor uses, so access follows the Task's own read permission rather
+	than the Projekt HUB role.
+	"""
+	if not task_name:
+		frappe.throw(_("Task name is required"))
+
+	task = frappe.get_doc("Task", task_name)
+	task.check_permission("read")
+	assigned_users = frappe.get_all(
+		"ToDo",
+		filters={
+			"reference_type": "Task",
+			"reference_name": task_name,
+			"status": "Open",
+			"allocated_to": ["is", "set"],
+		},
+		pluck="allocated_to",
+	)
+	assigned_users = sorted(set(assigned_users))
+	if not assigned_users:
+		return []
+
+	users = frappe.get_all(
+		"User",
+		filters={"name": ["in", assigned_users]},
+		fields=["name", "full_name"],
+	)
+	user_names = {user.name: user.full_name for user in users}
+	return [{"user": user, "full_name": user_names.get(user) or user} for user in assigned_users]
 
 
 @frappe.whitelist()
@@ -2780,12 +2983,22 @@ def get_my_tasks(
 			t.expected_time,
 			t.is_blocked,
 			t._assign,
+			t.completed_by,
 			t.modified,
 			t.creation,
-			p.project_name
+			p.project_name,
+			t.milestone,
+			m.milestone_name,
+			m.color AS milestone_color,
+			(SELECT COUNT(*) FROM `tabTask` c WHERE c.parent_task = t.name) AS subtask_count,
+			(
+				SELECT COUNT(*) FROM `tabTask` c
+				WHERE c.parent_task = t.name AND c.status = 'Completed'
+			) AS subtask_done
 		FROM `tabTask` t
 		LEFT JOIN `tabTask` parent ON t.parent_task = parent.name
 		LEFT JOIN `tabProject` p ON t.project = p.name
+		LEFT JOIN `tabProject Milestone` m ON t.milestone = m.name
 		WHERE """
 		+ where_clause
 		+ """
@@ -2858,6 +3071,7 @@ def quick_update_task(
 	priority: str | None = None,
 	exp_end_date: str | None = None,
 	is_blocked: int | None = None,
+	completed_by: str | None = None,
 ):
 	"""
 	Quick update for task status, priority, due date, or the blocked flag.
@@ -2876,7 +3090,7 @@ def quick_update_task(
 		if incomplete_subtasks:
 			subtask_names = ", ".join([s["subject"] for s in incomplete_subtasks[:3]])
 			if len(incomplete_subtasks) > 3:
-				subtask_names += f" and {len(incomplete_subtasks) - 3} more"
+				subtask_names += " " + _("and {0} more").format(len(incomplete_subtasks) - 3)
 
 			frappe.msgprint(
 				_("Cannot complete task. {0} subtask(s) are not completed: {1}").format(
@@ -2893,6 +3107,8 @@ def quick_update_task(
 		task.status = status
 		if status == "Completed":
 			task.progress = 100
+			if completed_by:
+				task.completed_by = completed_by
 
 	if priority is not None:
 		task.priority = priority
@@ -2916,9 +3132,20 @@ def _get_task_response(task):
 	if task.project:
 		project_name = frappe.db.get_value("Project", task.project, "project_name")
 
+	completed_by_name = None
+	if task.completed_by:
+		completed_by_name = frappe.db.get_value("User", task.completed_by, "full_name")
+
 	parent_subject = None
 	if getattr(task, "parent_task", None):
 		parent_subject = frappe.db.get_value("Task", task.parent_task, "subject")
+
+	milestone = task.get("milestone")
+	milestone_info = (
+		frappe.db.get_value("Project Milestone", milestone, ["milestone_name", "color"], as_dict=True)
+		if milestone
+		else None
+	) or {}
 
 	return {
 		"name": task.name,
@@ -2936,9 +3163,16 @@ def _get_task_response(task):
 		"progress": task.progress,
 		"expected_time": getattr(task, "expected_time", None),
 		"_assign": task._assign,
+		"completed_by": task.completed_by,
+		"completed_by_name": completed_by_name or task.completed_by,
 		"modified": task.modified,
 		"is_overdue": compute_is_overdue(task),
 		"is_blocked": task.get("is_blocked"),
+		"milestone": milestone,
+		"milestone_name": milestone_info.get("milestone_name"),
+		"milestone_color": milestone_info.get("color"),
+		"subtask_count": frappe.db.count("Task", {"parent_task": task.name}),
+		"subtask_done": frappe.db.count("Task", {"parent_task": task.name, "status": "Completed"}),
 	}
 
 

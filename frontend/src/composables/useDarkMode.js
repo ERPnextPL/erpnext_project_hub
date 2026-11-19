@@ -1,49 +1,70 @@
-import { ref, watch, onMounted } from 'vue';
+import { ref } from "vue";
+
+/**
+ * Light / dark theme of Projekt HUB.
+ *
+ * The choice is stored per browser under THEME_KEY ("light" | "dark"; light when
+ * nothing is stored). Dark mode sets `class="dark"` on <html>, which switches the
+ * palette variables (src/theme/palette.js), and `data-theme="dark"`, which
+ * switches frappe-ui's own components. project-hub.html / index.html apply the
+ * stored theme before the app mounts so pages never flash light.
+ */
+export const THEME_KEY = "project-hub-theme";
+export const THEMES = ["light", "dark"];
 
 const isDark = ref(false);
-const THEME_KEY = 'project-hub-theme';
+let storageListenerInstalled = false;
+
+function readStoredTheme() {
+	try {
+		const stored = window.localStorage.getItem(THEME_KEY);
+		return THEMES.includes(stored) ? stored : null;
+	} catch {
+		return null;
+	}
+}
+
+function writeStoredTheme(theme) {
+	try {
+		window.localStorage.setItem(THEME_KEY, theme);
+	} catch {
+		// Private mode / blocked storage: the theme still applies to this page.
+	}
+}
+
+export function applyTheme(theme) {
+	const dark = theme === "dark";
+	const root = document.documentElement;
+	root.classList.toggle("dark", dark);
+	root.setAttribute("data-theme", dark ? "dark" : "light");
+	isDark.value = dark;
+}
+
+// Other windows of the app (e.g. the requests board opened in its own window)
+// follow a change made in this one.
+function onStorage(event) {
+	if (event.key !== THEME_KEY) return;
+	applyTheme(THEMES.includes(event.newValue) ? event.newValue : "light");
+}
 
 export function useDarkMode() {
-	// Initialize theme
 	function initTheme() {
-		// Force light theme and clear stored preference
-		localStorage.removeItem(THEME_KEY);
-		isDark.value = false;
-		applyTheme();
+		applyTheme(readStoredTheme() || "light");
+		if (!storageListenerInstalled && typeof window !== "undefined") {
+			window.addEventListener("storage", onStorage);
+			storageListenerInstalled = true;
+		}
 	}
 
-	// Apply theme to document
-	function applyTheme() {
-		// Dark mode disabled: always ensure light classes
-		document.documentElement.classList.remove('dark');
-	}
-
-	// Toggle theme
-	function toggleTheme() {
-		// No-op, keep light theme
-		isDark.value = false;
-		localStorage.removeItem(THEME_KEY);
-		applyTheme();
-	}
-
-	// Set specific theme
 	function setTheme(theme) {
-		isDark.value = false;
-		localStorage.removeItem(THEME_KEY);
-		applyTheme();
+		const next = THEMES.includes(theme) ? theme : "light";
+		writeStoredTheme(next);
+		applyTheme(next);
 	}
 
-	// Listen for system theme changes
-	function listenToSystemTheme() {
-		// Dark mode disabled; no listeners required
-		return () => {};
+	function toggleTheme() {
+		setTheme(isDark.value ? "light" : "dark");
 	}
 
-	return {
-		isDark,
-		toggleTheme,
-		setTheme,
-		initTheme,
-		listenToSystemTheme,
-	};
+	return { isDark, initTheme, setTheme, toggleTheme };
 }

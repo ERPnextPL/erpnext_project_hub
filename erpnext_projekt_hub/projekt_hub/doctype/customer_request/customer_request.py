@@ -20,7 +20,7 @@ class CustomerRequest(Document):
 		validate_analyst(self)
 
 	def on_update(self):
-		sync_analysis_assignment(self)
+		sync_request_assignment(self)
 
 	def validate_quote_has_estimate(self):
 		"""A request can only be marked Quoted once its analysis is written."""

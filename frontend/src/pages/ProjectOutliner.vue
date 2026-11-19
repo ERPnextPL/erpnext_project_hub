@@ -6,6 +6,7 @@ import { useDebounceFn, useWindowSize } from "@vueuse/core";
 import { useTaskStore } from "../stores/taskStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useProjectRequests } from "../composables/useProjectRequests";
+import { useDefaultProjectView } from "../composables/useDefaultProjectView";
 import {
 	openRequestsBoardFromLink,
 	requestsBoardPath,
@@ -24,16 +25,21 @@ import MilestonePanel from "../components/MilestonePanel.vue";
 import ProjectInfoPanel from "../components/ProjectInfoPanel.vue";
 import ProjectAttachmentsSidebar from "../components/ProjectAttachmentsSidebar.vue";
 import ProjectRequestsSidebar from "../components/requests/ProjectRequestsSidebar.vue";
+import BulkTaskEditPanel from "../components/BulkTaskEditPanel.vue";
 import ProjectManagerPanel from "../components/ProjectManagerPanel.vue";
 import MilestoneTrack from "../components/MilestoneTrack.vue";
 import ProjectStatusStrip from "../components/ProjectStatusStrip.vue";
 import KanbanBoard from "../components/KanbanBoard.vue";
+import KanbanAttentionPanel from "../components/KanbanAttentionPanel.vue";
+import { useBoardTaskFocus } from "../composables/useBoardTaskFocus";
 import TimelineView from "../components/TimelineView.vue";
 import UserSelect from "../components/UserSelect.vue";
+import DatePickerField from "../components/DatePickerField.vue";
 import {
 	ArrowLeft,
 	Filter,
 	Search,
+	User,
 	X,
 	RefreshCw,
 	LayoutList,
@@ -45,6 +51,7 @@ import {
 	GripVertical,
 	Plus,
 	SquareKanban,
+	ChevronDown,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -60,13 +67,51 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
+const { highlightedTaskName, focusBoardTask } = useBoardTaskFocus();
 const store = useTaskStore();
 const { selectedTask } = storeToRefs(store);
+const selectedTaskNames = ref([]);
+const lastSelectedTaskName = ref(null);
+const showBulkEdit = ref(false);
+const bulkEditLoading = ref(false);
+function toggleTaskSelection(name, event) {
+	const visibleNames = flattenedTasksWithFilters.value.map((task) => task.name);
+	if (event?.shiftKey && lastSelectedTaskName.value) {
+		const start = visibleNames.indexOf(lastSelectedTaskName.value);
+		const end = visibleNames.indexOf(name);
+		if (start !== -1 && end !== -1) {
+			const range = visibleNames.slice(Math.min(start, end), Math.max(start, end) + 1);
+			selectedTaskNames.value = [...new Set([...selectedTaskNames.value, ...range])];
+			return;
+		}
+	}
+	selectedTaskNames.value = selectedTaskNames.value.includes(name) ? selectedTaskNames.value.filter((item) => item !== name) : [...selectedTaskNames.value, name];
+	lastSelectedTaskName.value = name;
+}
+function toggleAllTaskSelection({ names, selected }) {
+	selectedTaskNames.value = selected
+		? [...new Set([...selectedTaskNames.value, ...names])]
+		: selectedTaskNames.value.filter((name) => !names.includes(name));
+}
+async function applyBulkEdit(updates) {
+	bulkEditLoading.value = true;
+	try {
+		const result = await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		if (!result) return;
+		showBulkEdit.value = false;
+		selectedTaskNames.value = [];
+		await store.fetchTasks(props.projectId, activeFilters.value);
+	} finally {
+		bulkEditLoading.value = false;
+	}
+}
 
-const activeView = ref("list");
+const { defaultProjectView } = useDefaultProjectView();
+const activeView = ref(defaultProjectView.value);
 const listMode = ref("milestone");
 const sidebarCollapsed = ref(true); // Domyślnie zwinięty
 const milestoneSidebarOpen = ref(false);
+const milestonePanelRef = ref(null);
 const attachmentsSidebarOpen = ref(false);
 const attachmentCount = ref(0);
 const requestsSidebarOpen = ref(false);
@@ -84,8 +129,20 @@ const filtersHydrated = ref(false);
 const suppressSearchSync = ref(false);
 const { width } = useWindowSize();
 const isMobile = computed(() => width.value < 1024);
+
+// Phones: project information, manager summary, status strip and milestone
+// track sit behind one "Project details" toggle (closed by default) so the
+// task list/board starts near the top of the screen.
+const isPhone = computed(() => width.value < 768);
+const projectDetailsOpen = ref(false);
+const showProjectDetails = computed(() => !isPhone.value || projectDetailsOpen.value);
 const draggingGroupKey = ref(null);
 const groupReorderDropIndex = ref(null);
+
+function openMilestoneCreate() {
+	milestoneSidebarOpen.value = true;
+	nextTick(() => milestonePanelRef.value?.openCreateModal());
+}
 
 // FAB – quick task creation
 const fabOpen = ref(false);
@@ -182,6 +239,28 @@ const hasActiveFilters = computed(() => {
 	);
 });
 
+const activeFilterCount = computed(() => {
+	return [
+		activeFilters.value.priority.length > 0,
+		Boolean(activeFilters.value.assignee),
+		activeFilters.value.dueToday,
+		activeFilters.value.overdue,
+		Boolean(activeFilters.value.search),
+	].filter(Boolean).length;
+});
+
+const activeAssigneeLabel = computed(() => {
+	const user = store.availableUsers.find(
+		(user) => user.name === activeFilters.value.assignee
+	);
+	return user?.full_name || activeFilters.value.assignee;
+});
+
+function clearAssigneeFilter() {
+	activeFilters.value.assignee = null;
+	store.fetchTasks(props.projectId, activeFilters.value);
+}
+
 
 useTaskDeepLink({
 	route,
@@ -229,7 +308,7 @@ watch(
 );
 
 onMounted(async () => {
-	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities()]);
+	await Promise.all([store.fetchTaskStatuses(), store.fetchTaskPriorities(), store.fetchUsers()]);
 	const restoredFilters = readFilters(route, FILTER_DEFAULTS, FILTER_SANITIZERS);
 	suppressSearchSync.value = true;
 	activeFilters.value = restoredFilters;
@@ -527,16 +606,16 @@ const groupedTasksByMilestone = computed(() => {
 </script>
 
 <template>
-	<div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+	<div class="min-h-screen bg-gray-50 flex flex-col">
 		<!-- Header -->
-		<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20">
-			<div class="px-4 sm:px-6 lg:px-8">
-				<div class="flex flex-wrap items-center justify-between gap-3 min-h-[56px]">
+		<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+			<div class="w-full px-4 sm:px-6 lg:px-8">
+				<div class="grid min-h-[56px] grid-cols-1 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:gap-3">
 					<!-- Left: Back + Project name -->
-					<div class="flex items-center gap-3">
+					<div class="order-1 flex min-w-0 items-center gap-3 md:order-none">
 						<button
 							@click="goBack"
-							class="p-1.5 -ml-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+							class="p-1.5 -ml-1.5 rounded-md hover:bg-gray-100 text-gray-500"
 						>
 							<ArrowLeft class="w-5 h-5" />
 						</button>
@@ -545,9 +624,9 @@ const groupedTasksByMilestone = computed(() => {
 								v-if="store.project.customer_image"
 								:src="store.project.customer_image"
 								:alt="store.project.customer_name"
-								class="w-7 h-7 rounded object-contain border border-gray-200 dark:border-gray-600 bg-white flex-shrink-0"
+								class="w-7 h-7 rounded object-contain border border-gray-200 bg-white flex-shrink-0"
 							/>
-							<h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+							<h1 class="text-lg font-semibold text-gray-900">
 								{{ store.project.project_name }}
 							</h1>
 							<span
@@ -557,21 +636,22 @@ const groupedTasksByMilestone = computed(() => {
 								{{ translate(store.project.status) }}
 							</span>
 						</div>
-						<div v-else class="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+						<div v-else class="h-5 w-40 bg-gray-200 rounded animate-pulse"></div>
 					</div>
 
-					<!-- Right: Team + Nav -->
-					<div class="flex items-center gap-3 flex-wrap justify-end">
+					<div class="order-2 flex flex-wrap items-center justify-end gap-3 md:order-none md:col-start-2 md:justify-self-end">
 						<ProjectTeam :project-id="projectId" />
 						<button
 							@click="toggleAttachmentsSidebar"
+							:title="translate('Attachments')"
+							:aria-label="translate('Attachments')"
+							:aria-pressed="attachmentsSidebarOpen"
 							:class="[
 								'flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors',
 								attachmentsSidebarOpen
-									? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-									: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+									? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+									: 'border-gray-300 text-gray-700 hover:bg-gray-50',
 							]"
-							:title="translate('Attachments')"
 						>
 							<Paperclip class="w-4 h-4" />
 							<span class="hidden sm:inline">{{ translate("Attachments") }}</span>
@@ -585,13 +665,15 @@ const groupedTasksByMilestone = computed(() => {
 						<div v-if="requestsAvailable" class="flex items-stretch">
 							<button
 								@click="toggleRequestsSidebar"
+								:title="translate('Customer Requests')"
+								:aria-label="translate('Customer Requests')"
+								:aria-pressed="requestsSidebarOpen"
 								:class="[
 									'flex items-center gap-1.5 px-3 py-2 text-sm rounded-l-lg border transition-colors',
 									requestsSidebarOpen
-										? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300'
-										: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+										? 'bg-green-50 border-green-200 text-green-700'
+										: 'border-gray-300 text-gray-700 hover:bg-gray-50',
 								]"
-								:title="translate('Customer Requests')"
 							>
 								<ClipboardList class="w-4 h-4" />
 								<span class="hidden sm:inline">{{ translate("Requests") }}</span>
@@ -606,7 +688,7 @@ const groupedTasksByMilestone = computed(() => {
 							<a
 								:href="requestsBoardPath(projectId)"
 								:target="requestsBoardWindowName(projectId)"
-								class="flex items-center px-2.5 -ml-px rounded-r-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+								class="flex items-center px-2.5 -ml-px rounded-r-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
 								:title="translate('Open the requests board in a new window')"
 								:aria-label="translate('Open the requests board in a new window')"
 								@click="openRequestsBoardFromLink($event, projectId)"
@@ -655,34 +737,47 @@ const groupedTasksByMilestone = computed(() => {
 				</Transition>
 
 			<!-- Center: Task list -->
-			<main class="flex-1 overflow-y-auto">
-				<!-- Project Information Panel -->
+			<main class="mx-auto min-w-0 w-full max-w-[1800px] flex-1 overflow-y-auto">
+				<button
+					v-if="isPhone && store.project && !store.loading"
+					type="button"
+					class="flex w-full min-w-0 items-center justify-between gap-2 border-b border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700"
+					:aria-expanded="projectDetailsOpen"
+					@click="projectDetailsOpen = !projectDetailsOpen"
+				>
+					<span class="truncate">{{ translate("Project details") }}</span>
+					<ChevronDown
+						class="h-4 w-4 flex-shrink-0 text-gray-600 transition-transform"
+						:class="projectDetailsOpen && 'rotate-180'"
+					/>
+				</button>
+				<!-- Project Information Panel (no wrapper: desktop DOM stays as it was) -->
 				<ProjectInfoPanel
-					v-if="store.project && !store.loading"
+					v-if="showProjectDetails && store.project && !store.loading"
 					:project="store.project"
 				/>
 				<ProjectManagerPanel
-					v-if="store.project && !store.loading && store.project.is_manager"
+					v-if="showProjectDetails && store.project && !store.loading && store.project.is_manager"
 					:project="store.project"
 				/>
 
 				<ProjectStatusStrip
-					v-if="store.project && !store.loading"
+					v-if="showProjectDetails && store.project && !store.loading"
 					:project="store.project"
 				/>
 
 				<!-- Toolbar: View tabs + Search + Filter + Refresh -->
-				<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-[57px] z-10">
+				<div class="bg-white border-b border-gray-200 sticky top-[57px] z-10">
 					<div class="px-4 sm:px-6 lg:px-8 py-2">
-						<div class="flex flex-col sm:flex-row sm:items-center gap-3">
+						<div class="flex flex-wrap items-center gap-2">
 							<!-- Search -->
-							<div class="relative flex-1 max-w-md">
+							<div class="relative min-w-[min(100%,16rem)] flex-1 basis-full lg:basis-auto lg:max-w-md">
 								<Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 								<input
 									v-model="searchInput"
 									type="text"
 									:placeholder="translate('Search tasks...')"
-									class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+									class="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 								/>
 								<button
 									v-if="searchInput"
@@ -694,31 +789,37 @@ const groupedTasksByMilestone = computed(() => {
 							</div>
 
 							<!-- Filter toggle + Refresh -->
-							<div class="flex items-center gap-2">
+							<div class="flex items-center gap-1.5">
 								<button
 									@click="sidebarCollapsed = !sidebarCollapsed"
+									:aria-expanded="!sidebarCollapsed"
+									:aria-label="translate('Filters')"
 									:class="[
 										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
 										!sidebarCollapsed || hasActiveFilters
-											? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-											: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+											? 'bg-blue-50 border-blue-200 text-blue-700'
+											: 'border-gray-300 text-gray-700 hover:bg-gray-50',
 									]"
 								>
 									<Filter class="w-4 h-4" />
-									<span class="hidden sm:inline">{{ translate("Filters") }}</span>
+									<span>{{ translate("Filters") }}</span>
 									<span
 										v-if="hasActiveFilters"
-										class="w-2 h-2 rounded-full bg-blue-600"
-									></span>
+										class="min-w-5 rounded-full bg-blue-600 px-1.5 py-0.5 text-center text-[10px] font-semibold text-white"
+									>
+										{{ activeFilterCount }}
+									</span>
 								</button>
 
 								<button
 									@click="milestoneSidebarOpen = !milestoneSidebarOpen"
+									:aria-expanded="milestoneSidebarOpen"
+									:aria-label="translate('Milestones')"
 									:class="[
 										'flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors',
 										milestoneSidebarOpen
-											? 'bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300'
-											: 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700',
+											? 'bg-purple-50 border-purple-200 text-purple-700'
+											: 'border-gray-300 text-gray-700 hover:bg-gray-50',
 									]"
 									:title="translate('Milestones')"
 								>
@@ -732,67 +833,115 @@ const groupedTasksByMilestone = computed(() => {
 								</button>
 
 								<button
+									@click="openMilestoneCreate"
+									class="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors"
+									:title="translate('Add milestone')"
+									:aria-label="translate('Add milestone')"
+								>
+									<Plus class="w-4 h-4" />
+									<span class="hidden sm:inline">{{ translate("Add milestone") }}</span>
+								</button>
+
+								<button
 									@click="handleRefresh"
 									:disabled="store.loading"
-									class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+									class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
 									:title="translate('Refresh')"
 								>
 									<RefreshCw :class="['w-4 h-4', store.loading && 'animate-spin']" />
 								</button>
 							</div>
 
-							<MilestoneTrack
-								v-if="store.milestones.length && !store.loading"
-								:milestones="store.milestones"
-							/>
-
-							<!-- View tabs (right-aligned) -->
-							<div class="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 sm:ml-auto">
+							<!-- View tabs -->
+							<div class="ml-auto flex min-w-0 items-center gap-2">
+								<span class="hidden text-xs font-medium uppercase tracking-wide text-gray-400 lg:inline">
+									{{ translate("View") }}
+								</span>
+								<div
+									class="inline-flex max-w-full overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-1"
+									role="tablist"
+									:aria-label="translate('View')"
+								>
 								<button
+									role="tab"
 									@click="activeView = 'list'"
+									:aria-pressed="activeView === 'list'"
+									:aria-selected="activeView === 'list'"
+									:title="translate('List')"
 									:class="[
-										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										'flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset',
 										activeView === 'list'
-											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+											? 'bg-blue-600 text-white shadow-sm'
+											: 'text-gray-600 hover:bg-white hover:text-gray-900',
 									]"
 								>
 									<LayoutList class="w-4 h-4" />
 									{{ translate("List") }}
 								</button>
 								<button
+									role="tab"
 									@click="activeView = 'board'"
+									:aria-pressed="activeView === 'board'"
+									:aria-selected="activeView === 'board'"
+									:title="translate('Board')"
 									:class="[
-										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										'flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset',
 										activeView === 'board'
-											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+											? 'bg-blue-600 text-white shadow-sm'
+											: 'text-gray-600 hover:bg-white hover:text-gray-900',
 									]"
 								>
 									<Columns class="w-4 h-4" />
 									{{ translate("Board") }}
 								</button>
 								<button
+									role="tab"
 									@click="activeView = 'timeline'"
+									:aria-pressed="activeView === 'timeline'"
+									:aria-selected="activeView === 'timeline'"
+									:title="translate('Timeline')"
 									:class="[
-										'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+										'flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset',
 										activeView === 'timeline'
-											? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-											: 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100',
+											? 'bg-blue-600 text-white shadow-sm'
+											: 'text-gray-600 hover:bg-white hover:text-gray-900',
 									]"
 								>
 									<GanttChart class="w-4 h-4" />
 									{{ translate("Timeline") }}
 								</button>
+								</div>
+							</div>
+							<div
+								v-if="activeFilters.assignee"
+								class="mt-2 flex flex-wrap items-center gap-2"
+							>
+								<span class="text-xs text-gray-500">
+									{{ translate("Active filters") }}:
+								</span>
+								<button
+									type="button"
+									class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-100"
+									:aria-label="translate('Remove assignee filter: {0}', [activeAssigneeLabel])"
+									@click="clearAssigneeFilter"
+								>
+									<User class="h-3 w-3" />
+									<span>{{ translate("Assigned to: {0}", [activeAssigneeLabel]) }}</span>
+									<X class="h-3 w-3" />
+								</button>
 							</div>
 						</div>
 					</div>
+					<MilestoneTrack
+						v-if="store.milestones.length && !store.loading && showProjectDetails"
+						:milestones="store.milestones"
+					/>
 				</div>
 
 				<!-- Filters panel (slides down under toolbar) -->
 				<Transition name="filter-panel">
 					<div v-if="!sidebarCollapsed"
-						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+						class="border-b border-gray-200 bg-white">
 						<QuickFilters
 							:project="store.project"
 							:initial-filters="activeFilters"
@@ -805,8 +954,8 @@ const groupedTasksByMilestone = computed(() => {
 				<!-- Milestones panel (slides down under toolbar) -->
 				<Transition name="filter-panel">
 					<div v-if="milestoneSidebarOpen"
-						class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 max-h-96 overflow-y-auto">
-						<MilestonePanel :hide-header="true" />
+						class="border-b border-gray-200 bg-white max-h-96 overflow-y-auto">
+						<MilestonePanel ref="milestonePanelRef" :hide-header="true" />
 					</div>
 				</Transition>
 
@@ -817,16 +966,16 @@ const groupedTasksByMilestone = computed(() => {
 				</div>
 
 				<div v-else-if="activeView === 'list'">
-					<div class="border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-800 sm:px-6 lg:px-8">
+					<div class="border-b border-gray-200 bg-white px-4 py-2 sm:px-6 lg:px-8">
 						<div class="flex flex-wrap items-center gap-3">
-							<div class="inline-flex items-center rounded-lg border border-gray-200 p-0.5 dark:border-gray-700">
+							<div class="inline-flex items-center rounded-lg border border-gray-200 p-0.5">
 							<button
 								@click="listMode = 'flat'"
 								:class="[
 									'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs',
 									listMode === 'flat'
-										? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-										: 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
+										? 'bg-blue-50 text-blue-700'
+										: 'text-gray-600 hover:bg-gray-50',
 								]"
 							>
 								<LayoutList class="h-3.5 w-3.5" />
@@ -837,17 +986,18 @@ const groupedTasksByMilestone = computed(() => {
 								:class="[
 									'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs',
 									listMode === 'milestone'
-										? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-										: 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700',
+										? 'bg-blue-50 text-blue-700'
+										: 'text-gray-600 hover:bg-gray-50',
 								]"
 								>
 									<Diamond class="h-3.5 w-3.5" />
 									{{ translate("Group by milestones") }}
 								</button>
 							</div>
-							<div v-if="listMode === 'milestone'" class="text-[11px] text-gray-500 dark:text-gray-400">
+							<div v-if="listMode === 'milestone'" class="text-[11px] text-gray-500">
 								{{ translate("Drag milestones by the handle to reorder them.") }}
 							</div>
+							<button v-if="selectedTaskNames.length" @click="showBulkEdit = true" class="ml-auto rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white">{{ translate("Bulk edit") }} ({{ selectedTaskNames.length }})</button>
 						</div>
 					</div>
 
@@ -855,10 +1005,13 @@ const groupedTasksByMilestone = computed(() => {
 						v-if="listMode === 'flat'"
 						:tasks="flattenedTasksWithFilters"
 						:project-id="projectId"
+						:selected-task-names="selectedTaskNames"
+						@toggle-select="toggleTaskSelection"
+						@toggle-all="toggleAllTaskSelection"
 					/>
 
 					<div v-else-if="!isMobile" class="space-y-4 p-4 sm:p-6">
-						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
 							<TaskTree
 								:tasks="[]"
 								:project-id="projectId"
@@ -875,16 +1028,16 @@ const groupedTasksByMilestone = computed(() => {
 							@dragleave="handleGroupDragLeave"
 							@drop="handleGroupDrop($event, index)"
 							:class="[
-								'overflow-hidden rounded-xl border bg-white dark:bg-gray-800',
+								'overflow-hidden rounded-xl border bg-white',
 								draggingGroupKey === group.key
-									? 'opacity-40 border-gray-200 dark:border-gray-700'
+									? 'opacity-40 border-gray-200'
 									: groupReorderDropIndex === index && draggingGroupKey !== group.key
-										? 'border-purple-400 shadow-md dark:border-purple-500'
-										: 'border-gray-200 dark:border-gray-700',
+										? 'border-purple-400 shadow-md'
+										: 'border-gray-200',
 								]"
 							>
 							<div
-								class="milestone-group-header border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/80"
+								class="milestone-group-header border-b border-gray-200 bg-gray-50 px-4 py-3"
 								:draggable="!group.isUnassigned"
 								@dragstart="!group.isUnassigned && handleGroupDragStart($event, group.key)"
 								@dragend="handleGroupDragEnd"
@@ -893,15 +1046,15 @@ const groupedTasksByMilestone = computed(() => {
 									<div class="flex min-w-0 items-center gap-1.5">
 										<div
 											v-if="!group.isUnassigned"
-											class="milestone-drag-handle flex-shrink-0 cursor-grab p-0.5 text-gray-300 active:cursor-grabbing dark:text-gray-600"
+											class="milestone-drag-handle flex-shrink-0 cursor-grab p-0.5 text-gray-300 active:cursor-grabbing"
 										>
 											<GripVertical class="h-3.5 w-3.5" />
 										</div>
 										<div class="min-w-0">
-										<div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+										<div class="truncate text-sm font-semibold text-gray-900">
 											{{ group.label }}
 										</div>
-										<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+										<div class="mt-0.5 text-xs text-gray-500">
 											<span>{{ group.isUnassigned ? group.tasks.length : group.activeTaskCount }} {{ translate("tasks") }}</span>
 											<span v-if="group.meta" class="ml-2">
 												{{ formatMilestoneDate(group.meta.milestone_date) }}
@@ -911,7 +1064,7 @@ const groupedTasksByMilestone = computed(() => {
 									</div>
 									<div
 										v-if="group.meta"
-										class="rounded-full border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-600 dark:text-gray-300"
+										class="rounded-full border border-gray-200 px-2 py-1 text-xs text-gray-600"
 									>
 										{{ group.meta.completed_tasks || 0 }}/{{ group.meta.total_tasks || 0 }}
 									</div>
@@ -920,9 +1073,12 @@ const groupedTasksByMilestone = computed(() => {
 							<TaskTree
 								:tasks="group.tasks"
 								:project-id="projectId"
+								:selected-task-names="selectedTaskNames"
+								@toggle-select="toggleTaskSelection"
+								@toggle-all="toggleAllTaskSelection"
 								:show-header="false"
 								:show-quick-add="false"
-								:enable-reorder="false"
+								:enable-reorder="true"
 							/>
 						</section>
 					</div>
@@ -931,15 +1087,15 @@ const groupedTasksByMilestone = computed(() => {
 						<section
 							v-for="group in groupedTasksByMilestone"
 							:key="group.key"
-							class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+							class="overflow-hidden rounded-xl border border-gray-200 bg-white"
 						>
-							<div class="border-b border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800/80">
+							<div class="border-b border-gray-200 bg-gray-50 px-3 py-2.5">
 								<div class="flex items-center justify-between gap-2">
 									<div class="min-w-0">
-										<div class="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+										<div class="truncate text-sm font-semibold text-gray-900">
 											{{ group.label }}
 										</div>
-										<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+										<div class="mt-0.5 text-xs text-gray-500">
 											<span>{{ group.isUnassigned ? group.tasks.length : group.activeTaskCount }} {{ translate("tasks") }}</span>
 											<span v-if="group.meta" class="ml-2">
 												{{ formatMilestoneDate(group.meta.milestone_date) }}
@@ -948,7 +1104,7 @@ const groupedTasksByMilestone = computed(() => {
 									</div>
 									<div
 										v-if="group.meta"
-										class="rounded-full border border-gray-200 px-2 py-1 text-[11px] text-gray-600 dark:border-gray-600 dark:text-gray-300"
+										class="rounded-full border border-gray-200 px-2 py-1 text-[11px] text-gray-600"
 									>
 										{{ group.meta.completed_tasks || 0 }}/{{ group.meta.total_tasks || 0 }}
 									</div>
@@ -967,12 +1123,21 @@ const groupedTasksByMilestone = computed(() => {
 					</div>
 				</div>
 
-				<div v-else-if="activeView === 'board'" class="h-full">
-					<KanbanBoard
+				<div v-else-if="activeView === 'board'" class="flex h-full min-w-0">
+					<div class="min-w-0 flex-1">
+						<KanbanBoard
+							:tasks="flattenedTasksWithFilters"
+							:project-id="projectId"
+							:visible-statuses="activeFilters.status"
+							@task-click="handleTaskClick"
+						/>
+					</div>
+					<!-- Phones: the panel would cover the board (as on My Tasks). -->
+					<KanbanAttentionPanel
+						class="hidden md:flex"
 						:tasks="flattenedTasksWithFilters"
-						:project-id="projectId"
-						:visible-statuses="activeFilters.status"
-						@task-click="handleTaskClick"
+						:highlighted-task="highlightedTaskName"
+						@focus-task="focusBoardTask"
 					/>
 				</div>
 
@@ -1001,6 +1166,7 @@ const groupedTasksByMilestone = computed(() => {
 		</div>
 
 		<BackToDeskButton />
+		<BulkTaskEditPanel :open="showBulkEdit" :selected-count="selectedTaskNames.length" :statuses="store.taskStatuses" :priorities="store.taskPriorities" :users="store.availableUsers" :loading="bulkEditLoading" @close="showBulkEdit = false" @apply="applyBulkEdit" />
 
 		<!-- FAB: quick task creation -->
 		<button
@@ -1021,16 +1187,16 @@ const groupedTasksByMilestone = computed(() => {
 			>
 				<div class="absolute inset-0 bg-black/30" @click="closeFab" />
 				<div
-					class="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-2xl"
+					class="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
 					@keydown.esc="closeFab"
 				>
 					<div class="flex items-center justify-between mb-4">
-						<h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+						<h2 class="text-base font-semibold text-gray-900">
 							{{ translate("New Task") }}
 						</h2>
 						<button
 							@click="closeFab"
-							class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-600"
+							class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
 						>
 							<X class="h-4 w-4" />
 						</button>
@@ -1039,7 +1205,7 @@ const groupedTasksByMilestone = computed(() => {
 					<div class="space-y-4">
 						<!-- Subject -->
 						<div>
-							<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+							<label class="block text-xs font-medium text-gray-700 mb-1">
 								{{ translate("Task name") }} *
 							</label>
 							<input
@@ -1049,19 +1215,19 @@ const groupedTasksByMilestone = computed(() => {
 								autofocus
 								@keydown.enter.prevent="submitFab"
 								@keydown.esc="closeFab"
-								class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+								class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 							/>
 						</div>
 
 						<!-- Priority + Milestone row -->
 						<div class="grid grid-cols-2 gap-3">
 							<div>
-								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+								<label class="block text-xs font-medium text-gray-700 mb-1">
 									{{ translate("Priority") }}
 								</label>
 								<select
 									v-model="fabPriority"
-									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+									class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
 								>
 									<option
 										v-for="priority in PRIORITY_VALUES"
@@ -1073,12 +1239,12 @@ const groupedTasksByMilestone = computed(() => {
 								</select>
 							</div>
 							<div>
-								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+								<label class="block text-xs font-medium text-gray-700 mb-1">
 									{{ translate("Milestone") }}
 								</label>
 								<select
 									v-model="fabMilestone"
-									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+									class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
 								>
 									<option value="">{{ translate("None") }}</option>
 									<option
@@ -1095,7 +1261,7 @@ const groupedTasksByMilestone = computed(() => {
 						<!-- Assignee + Due date row -->
 						<div class="grid grid-cols-2 gap-3">
 							<div>
-								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+								<label class="block text-xs font-medium text-gray-700 mb-1">
 									{{ translate("Assignee") }}
 								</label>
 								<UserSelect
@@ -1107,19 +1273,19 @@ const groupedTasksByMilestone = computed(() => {
 								/>
 							</div>
 							<div>
-								<label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+								<label class="block text-xs font-medium text-gray-700 mb-1">
 									{{ translate("Due date") }}
 								</label>
-								<input
+								<DatePickerField
+									id="outliner-fab-due-date"
 									v-model="fabExpEndDate"
-									type="date"
-									class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+									button-class="rounded-lg"
 								/>
 							</div>
 						</div>
 
 						<!-- Error -->
-						<p v-if="fabError" class="text-xs text-red-600 dark:text-red-400">{{ fabError }}</p>
+						<p v-if="fabError" class="text-xs text-red-600">{{ fabError }}</p>
 
 						<!-- Actions -->
 						<div class="flex gap-3 pt-1">
@@ -1132,7 +1298,7 @@ const groupedTasksByMilestone = computed(() => {
 							</button>
 							<button
 								@click="closeFab"
-								class="rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+								class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
 							>
 								{{ translate("Cancel") }}
 							</button>

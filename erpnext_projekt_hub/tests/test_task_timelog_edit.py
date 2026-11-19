@@ -1,8 +1,11 @@
+from unittest.mock import MagicMock, patch
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE
 from erpnext_projekt_hub.api.project_hub import create_timelog, get_task_timelogs, update_timelog
+from erpnext_projekt_hub.overrides.timesheet import HubTimesheet
 
 test_ignore = ["Task", "Timesheet"]
 
@@ -84,3 +87,20 @@ class TestTaskTimelogEdit(FrappeTestCase):
 		frappe.get_doc("Timesheet", self.log["timesheet_name"]).submit()
 
 		self.assertEqual(frappe.db.get_value("Task", self.task.name, "status"), "Pending Review")
+
+	def test_timesheet_override_bypasses_permissions_only_for_linked_records(self):
+		timesheet = MagicMock(spec=HubTimesheet)
+		timesheet.time_logs = [
+			frappe._dict(task="_Test linked task", project="_Test linked project"),
+		]
+		task = MagicMock()
+		project = MagicMock()
+
+		with patch(
+			"erpnext_projekt_hub.overrides.timesheet.frappe.get_doc",
+			side_effect=[task, project],
+		):
+			HubTimesheet.update_task_and_project(timesheet)
+
+		task.save.assert_called_once_with(ignore_permissions=True)
+		project.save.assert_called_once_with(ignore_permissions=True)

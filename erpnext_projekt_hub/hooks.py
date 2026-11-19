@@ -53,6 +53,7 @@ web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
 doctype_js = {
 	"Project": "public/js/project.js",
 	"Timesheet": "public/js/timesheet_timer_override.js",
+	"Task": "public/js/task_completion.js",
 	"Customer Request": ["public/js/request_queue.js", "public/js/customer_request.js"],
 	"Change Request": ["public/js/request_queue.js", "public/js/change_request.js"],
 }
@@ -290,7 +291,12 @@ fixtures = [
 			[
 				"name",
 				"in",
-				["Task-milestone", "Task-reference_link", "Task-hub_is_overdue", "Task-is_blocked"],
+				[
+					"Task-milestone",
+					"Task-reference_link",
+					"Task-hub_is_overdue",
+					"Task-is_blocked",
+				],
 			]
 		],
 	},

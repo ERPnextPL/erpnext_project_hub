@@ -95,6 +95,15 @@ function formFromRequest() {
 	};
 }
 
+function formFromSavedValues(values) {
+	return {
+		analysis: values?.analysis || "",
+		estimated_hours: values?.estimated_hours ?? "",
+		currency: values?.currency || "",
+		estimated_amount: values?.estimated_amount ?? "",
+	};
+}
+
 function sameNumber(a, b) {
 	return (Number(a) || 0) === (Number(b) || 0);
 }
@@ -192,13 +201,18 @@ async function save() {
 			currency: form.value.currency || "",
 			estimated_amount: form.value.estimated_amount ?? "",
 		};
-		const ok = await props.saveAnalysis(props.request, values);
-		if (ok) {
+		const savedValues = await props.saveAnalysis(props.request, values);
+		if (savedValues) {
 			// Edits typed while the save was on its way stay in the form, unsaved.
-			if (sameValues(form.value, values)) syncForm();
-			else baseline.value = formFromRequest();
+			const savedForm = formFromSavedValues(savedValues);
+			if (sameValues(form.value, values)) {
+				baseline.value = savedForm;
+				form.value = savedForm;
+			} else {
+				baseline.value = savedForm;
+			}
 		}
-		return ok;
+		return Boolean(savedValues);
 	} finally {
 		saving.value = false;
 	}
@@ -208,6 +222,7 @@ async function save() {
 // quoted needs the analysis and estimate on the server.
 async function runAction(action) {
 	if (dirty.value && !(await save())) return;
+	if (dirty.value) return;
 	emit("action", action);
 }
 

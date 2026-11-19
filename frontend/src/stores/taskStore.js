@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { ACTIVE_STATUSES, BOARD_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
+import { promptForCompletionAssignee } from "../utils/taskCompletion";
+import { translate } from "../utils/translation";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -89,7 +91,16 @@ export const useTaskStore = defineStore("tasks", () => {
 
 	// State
 	const tasks = ref([]);
+	// Tasks loaded on demand for the board (its "Completed" list) that the
+	// filtered `tasks` list does not hold. Kept apart so the list view is not
+	// affected, but every write below updates them too (see patchBoardExtraTask).
+	const boardExtraTasks = ref([]);
 	const project = ref(null);
+
+	function patchBoardExtraTask(taskName, patch) {
+		const index = boardExtraTasks.value.findIndex((t) => t.name === taskName);
+		if (index !== -1) boardExtraTasks.value[index] = { ...boardExtraTasks.value[index], ...patch };
+	}
 	const loading = ref(false);
 	const selectedTask = ref(null);
 	const expandedTasks = ref(new Set());
@@ -193,6 +204,11 @@ export const useTaskStore = defineStore("tasks", () => {
 			if (data) {
 				tasks.value = data.tasks || [];
 				project.value = data.project || null;
+				// The fresh list now holds some extras, and another project none.
+				const fetched = new Set(tasks.value.map((t) => t.name));
+				boardExtraTasks.value = boardExtraTasks.value.filter(
+					(t) => t.project === projectId && !fetched.has(t.name)
+				);
 				// Expand all by default
 				tasks.value.forEach((t) => {
 					if (t.is_group) expandedTasks.value.add(t.name);
@@ -227,6 +243,11 @@ export const useTaskStore = defineStore("tasks", () => {
 
 async function updateTask(taskName, updates) {
 	try {
+			if (updates.status === "Completed") {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) updates = { ...updates, completed_by: completedBy };
+			}
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_task", {
 				task_name: taskName,
 				...updates,
@@ -260,10 +281,13 @@ async function updateTask(taskName, updates) {
 							.join(", ");
 						const moreCount =
 							incompleteSubtasks.length > 3
-								? ` and ${incompleteSubtasks.length - 3} more`
+								? ` ${translate("and {0} more", [incompleteSubtasks.length - 3])}`
 								: "";
 						frappe.show_alert({
-							message: `Cannot complete task. ${incompleteSubtasks.length} subtask(s) are not completed: ${subtaskNames}${moreCount}`,
+							message: translate(
+								"Cannot complete task. {0} subtask(s) are not completed: {1}",
+								[incompleteSubtasks.length, `${subtaskNames}${moreCount}`]
+							),
 							indicator: "blue",
 						});
 					}
@@ -275,6 +299,7 @@ async function updateTask(taskName, updates) {
 				if (index !== -1) {
 					tasks.value[index] = { ...tasks.value[index], ...data };
 				}
+				patchBoardExtraTask(taskName, data);
 				if (selectedTask.value?.name === taskName) {
 					selectedTask.value = { ...selectedTask.value, ...data };
 				}
@@ -343,6 +368,7 @@ async function deleteTask(taskName) {
 			task_name: taskName,
 		});
 		tasks.value = tasks.value.filter((t) => t.name !== taskName);
+		boardExtraTasks.value = boardExtraTasks.value.filter((t) => t.name !== taskName);
 		// Refresh project to update percent_complete
 		if (project.value) {
 			await refreshProject();
@@ -351,6 +377,32 @@ async function deleteTask(taskName) {
 		console.error("Failed to delete task:", error);
 		throw error;
 	}
+}
+
+/**
+ * Every task of a project, whatever the current filters. `tasks` holds only the
+ * filtered ones, so actions that cascade to subtasks (cancel, delete) read the
+ * full tree from here.
+ */
+async function fetchAllProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		apply_default_status_filter: 0,
+	});
+	return data?.tasks || [];
+}
+
+async function fetchCompletedProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		status: "Completed",
+		apply_default_status_filter: 0,
+	});
+	const completed = (data?.tasks || []).filter((task) => task.status === "Completed");
+	// Keep them in the store (not only in the board) so updates reach them.
+	const listed = new Set(tasks.value.map((t) => t.name));
+	boardExtraTasks.value = completed.filter((task) => !listed.has(task.name));
+	return completed;
 }
 
 async function reorderTask(taskName, newParent, newIdx) {
@@ -412,14 +464,38 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// User assignment functions
 	const availableUsers = ref([]);
+	const usersLoading = ref(false);
+	const usersError = ref(false);
 
 	async function fetchUsers() {
+		if (usersLoading.value) return;
+		usersLoading.value = true;
+		usersError.value = false;
 		try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_users", {});
 			availableUsers.value = data || [];
 		} catch (error) {
 			console.error("Failed to fetch users:", error);
+			usersError.value = true;
+		} finally {
+			usersLoading.value = false;
 		}
+	}
+
+	async function bulkUpdateTaskFields(taskNames, updates) {
+		if (updates.status === "Completed") {
+			const completedByByTask = {};
+			for (const taskName of taskNames) {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) completedByByTask[taskName] = completedBy;
+			}
+			updates = { ...updates, completed_by_by_task: completedByByTask };
+		}
+		return apiCall("erpnext_projekt_hub.api.project_hub.bulk_update_task_fields", {
+			task_names: JSON.stringify(taskNames),
+			updates: JSON.stringify(updates),
+		});
 	}
 
 	async function fetchProjectsSettings() {
@@ -449,6 +525,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 				if (index !== -1) {
 					tasks.value[index]._assign = data._assign;
 				}
+				patchBoardExtraTask(taskName, { _assign: data._assign });
 				// Update selected task if it's the same
 				if (selectedTask.value?.name === taskName) {
 					selectedTask.value._assign = data._assign;
@@ -872,11 +949,14 @@ async function reorderTask(taskName, newParent, newIdx) {
 	return {
 		// State
 		tasks,
+		boardExtraTasks,
 		project,
 		loading,
 		selectedTask,
 		expandedTasks,
 		availableUsers,
+		usersLoading,
+		usersError,
 		allProjects,
 		taskTimelogs,
 		activityTypes,
@@ -905,6 +985,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateProject,
 		deleteTask,
 		reorderTask,
+		fetchAllProjectTasks,
+		fetchCompletedProjectTasks,
 		toggleExpand,
 		expandAll,
 		collapseAll,
@@ -913,6 +995,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		setSorting,
 		// User assignment
 		fetchUsers,
+		bulkUpdateTaskFields,
 		assignTask,
 		fetchProjectUsers,
 		addProjectUser,

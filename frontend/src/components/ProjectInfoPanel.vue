@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { useTaskStore } from "../stores/taskStore";
+import { toOpenableUrl } from "../utils/url";
+import DatePickerField from "./DatePickerField.vue";
 import {
 	Calendar,
 	Clock,
@@ -68,6 +70,7 @@ const isOverdue = computed(() => {
 
 const isExpanded = ref(false);
 
+const documentationLinkUrl = computed(() => toOpenableUrl(editableDocumentationUrl.value));
 const canEdit = computed(() => !!props.project?.is_manager);
 
 const store = useTaskStore();
@@ -159,13 +162,13 @@ async function saveNotes() {
 </script>
 
 <template>
-	<div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+	<div class="bg-white border-b border-gray-200">
 		<div
-			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+			class="px-4 sm:px-6 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
 			@click="toggleExpand"
 		>
 			<div class="flex items-center gap-2 min-w-0">
-				<h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+				<h3 class="text-sm font-semibold text-gray-700">
 					{{ translate("Project Information") }}
 				</h3>
 				<button
@@ -179,11 +182,11 @@ async function saveNotes() {
 			</div>
 			<button
 				type="button"
-				class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+				class="hub-tap p-1 rounded hover:bg-gray-200 transition-colors"
 				@click.stop="toggleExpand"
 			>
-				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-				<ChevronDown v-else class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+				<ChevronUp v-if="isExpanded" class="w-4 h-4 text-gray-500" />
+				<ChevronDown v-else class="w-4 h-4 text-gray-500" />
 			</button>
 		</div>
 
@@ -198,14 +201,11 @@ async function saveNotes() {
 								<div class="text-xs text-gray-500">
 									{{ translate("Planned Start") }}
 								</div>
-								<input
+								<DatePickerField
+									id="project-expected-start"
 									v-model="editableExpectedStart"
-									type="date"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-									@change="
-										saveDateField('expected_start_date', editableExpectedStart)
-									"
 									:disabled="isSaving || !canEdit"
+									@update:model-value="saveDateField('expected_start_date', $event)"
 								/>
 								<div class="text-xs text-gray-400 mt-0.5">
 									{{ formatDate(project.expected_start_date) }}
@@ -222,14 +222,11 @@ async function saveNotes() {
 									class="text-sm font-medium"
 									:class="isOverdue ? 'text-red-600' : 'text-gray-900'"
 								>
-									<input
+									<DatePickerField
+										id="project-expected-end"
 										v-model="editableExpectedEnd"
-										type="date"
-										class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-										@change="
-											saveDateField('expected_end_date', editableExpectedEnd)
-										"
 										:disabled="isSaving || !canEdit"
+										@update:model-value="saveDateField('expected_end_date', $event)"
 									/>
 									<div class="text-xs text-gray-400 mt-0.5">
 										{{ formatDate(project.expected_end_date) }}
@@ -315,7 +312,7 @@ async function saveNotes() {
 								v-if="project.customer_image"
 								:src="project.customer_image"
 								:alt="project.customer_name"
-								class="w-8 h-8 rounded-md object-contain border border-gray-100 dark:border-gray-700 bg-white flex-shrink-0 mt-0.5"
+								class="w-8 h-8 rounded-md object-contain border border-gray-100 bg-white flex-shrink-0 mt-0.5"
 							/>
 							<User v-else class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
 							<div class="flex-1 min-w-0">
@@ -325,13 +322,13 @@ async function saveNotes() {
 									:href="`/app/customer/${encodeURIComponent(project.customer)}`"
 									target="_blank"
 									rel="noopener noreferrer"
-									class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
+									class="text-sm font-medium text-blue-600 hover:underline truncate block"
 									:title="project.customer_name || project.customer"
 									@click.stop
 								>
 									{{ project.customer_name || project.customer }}
 								</a>
-								<div v-else class="text-sm font-medium text-gray-400 dark:text-gray-500">
+								<div v-else class="text-sm font-medium text-gray-400">
 									{{ translate("Not assigned") }}
 								</div>
 							</div>
@@ -345,14 +342,14 @@ async function saveNotes() {
 								<div class="text-xs text-gray-500">{{ translate("Client Contact") }}</div>
 								<div
 									v-if="project.customer_contact_name"
-									class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+									class="text-sm font-medium text-gray-900 truncate"
 								>
 									{{ project.customer_contact_name }}
 								</div>
 								<a
 									v-if="project.customer_contact_email"
 									:href="`mailto:${project.customer_contact_email}`"
-									class="text-xs text-blue-600 dark:text-blue-400 hover:underline block truncate"
+									class="text-xs text-blue-600 hover:underline block truncate"
 									@click.stop
 								>
 									{{ project.customer_contact_email }}
@@ -360,7 +357,7 @@ async function saveNotes() {
 								<a
 									v-if="project.customer_contact_phone"
 									:href="`tel:${project.customer_contact_phone}`"
-									class="text-xs text-gray-500 dark:text-gray-400 hover:underline block"
+									class="text-xs text-gray-500 hover:underline block"
 									@click.stop
 								>
 									{{ project.customer_contact_phone }}
@@ -373,14 +370,27 @@ async function saveNotes() {
 								<div class="text-xs text-gray-500">
 									{{ translate("Documentation URL") }}
 								</div>
-								<input
-									v-model="editableDocumentationUrl"
-									type="url"
-									class="mt-1 w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-									:placeholder="translate('https://docs.example.com')"
-									@blur="saveDocumentationUrl"
-									:disabled="isSaving || !canEdit"
-								/>
+								<div class="mt-1 flex items-center gap-2">
+									<input
+										v-model="editableDocumentationUrl"
+										type="url"
+										class="min-w-0 flex-1 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+										:placeholder="translate('https://docs.example.com')"
+										@blur="saveDocumentationUrl"
+										:disabled="isSaving || !canEdit"
+									/>
+									<a
+										v-if="documentationLinkUrl"
+										:href="documentationLinkUrl"
+										target="_blank"
+										rel="noopener noreferrer"
+										:title="translate('Open link')"
+										class="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50"
+									>
+										{{ translate("Open link") }}
+										<span aria-hidden="true">↗</span>
+									</a>
+								</div>
 							</div>
 						</div>
 					</div>

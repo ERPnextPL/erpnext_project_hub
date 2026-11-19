@@ -1,8 +1,9 @@
 import frappe
+from frappe.desk.form.assign_to import add as add_assignment
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import flt
 
-from erpnext_projekt_hub.api.project_hub import delete_task
+from erpnext_projekt_hub.api.project_hub import delete_task, reorder_task
 from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import (
 	ensure_task_custom_field,
 )
@@ -27,6 +28,64 @@ def set_status(task, status):
 	task.status = status
 	task.save(ignore_permissions=True)
 	return task
+
+
+class TestTaskCompletionAttribution(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_single_assignee_is_recorded_and_todo_is_closed(self):
+		task = create_task("_Test Task - completion attribution")
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": ["Administrator"]})
+
+		set_status(task, "Completed")
+
+		task.reload()
+		self.assertEqual(task.completed_by, "Administrator")
+		self.assertEqual(
+			frappe.db.get_value(
+				"ToDo",
+				{
+					"reference_type": "Task",
+					"reference_name": task.name,
+					"allocated_to": "Administrator",
+				},
+				"status",
+			),
+			"Closed",
+		)
+
+	def test_completed_by_cannot_be_changed_after_completion(self):
+		task = create_task("_Test Task - immutable completion attribution")
+		task.status = "Completed"
+		task.save(ignore_permissions=True)
+
+		task.completed_by = "Guest"
+		with self.assertRaises(frappe.ValidationError):
+			task.save(ignore_permissions=True)
+
+		task.reload()
+		self.assertEqual(task.completed_by, "Administrator")
+
+	def test_non_assignee_must_select_a_task_assignee(self):
+		from frappe.core.doctype.user_permission.test_user_permission import create_user
+
+		assignee = create_user("task_completion_assignee@example.com", "System Manager")
+		task = create_task("_Test Task - selected completion attribution")
+		add_assignment({"doctype": "Task", "name": task.name, "assign_to": ["Administrator", assignee.name]})
+
+		frappe.set_user("Guest")
+		task.status = "Completed"
+		with self.assertRaises(frappe.ValidationError):
+			task.save(ignore_permissions=True)
+
+		task.reload()
+		task.completed_by = assignee.name
+		task.status = "Completed"
+		task.save(ignore_permissions=True)
+
+		task.reload()
+		self.assertEqual(task.completed_by, assignee.name)
 
 
 class TestSubtaskDoesNotDriveParentStatus(FrappeTestCase):
@@ -73,6 +132,29 @@ class TestSubtaskDoesNotDriveParentStatus(FrappeTestCase):
 
 		parent.reload()
 		self.assertEqual(parent.status, "Open")
+
+
+class TestTaskReordering(FrappeTestCase):
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_moving_down_keeps_the_same_parent_and_order(self):
+		parent = create_task("_Test Reorder Parent", is_group=1)
+		first = create_task("_Test Reorder First", parent=parent.name)
+		moving = create_task("_Test Reorder Moving", parent=parent.name)
+		last = create_task("_Test Reorder Last", parent=parent.name)
+		for index, task in enumerate((first, moving, last)):
+			frappe.db.set_value("Task", task.name, "idx", index, update_modified=False)
+
+		reorder_task(moving.name, parent.name, 2)
+
+		ordered = frappe.get_all(
+			"Task",
+			filters={"parent_task": parent.name},
+			fields=["name", "idx"],
+			order_by="idx",
+		)
+		self.assertEqual([row.name for row in ordered], [first.name, last.name, moving.name])
 
 
 class TestParentProgressRollup(FrappeTestCase):

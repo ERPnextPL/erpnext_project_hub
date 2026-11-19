@@ -59,7 +59,7 @@ async function handleFiles(event) {
 			<button
 				type="button"
 				:disabled="uploading"
-				class="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+				class="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-900 disabled:opacity-50"
 				@click="fileInputRef?.click()"
 			>
 				<RefreshCw v-if="uploading" class="h-3.5 w-3.5 animate-spin" />
@@ -75,13 +75,13 @@ async function handleFiles(event) {
 					:href="file.file_url"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="truncate text-blue-700 hover:underline dark:text-blue-300"
+					class="truncate text-blue-700 hover:underline"
 					:title="file.file_name"
 				>
 					{{ file.file_name || file.file_url }}
 				</a>
 			</li>
 		</ul>
-		<p v-if="errorMessage" class="mt-1 text-xs text-red-600 dark:text-red-400">{{ errorMessage }}</p>
+		<p v-if="errorMessage" class="mt-1 text-xs text-red-600">{{ errorMessage }}</p>
 	</div>
 </template>

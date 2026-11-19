@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted, computed, nextTick } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { TASK_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
 import QuickAddTask from "./QuickAddTask.vue";
+import DatePickerField from "./DatePickerField.vue";
 import UserSelect from "./UserSelect.vue";
 import TimeLogModal from "./TimeLogModal.vue?v=20241220-2030";
 import dayjs from "dayjs";
@@ -32,9 +33,12 @@ import {
 	Image,
 	Upload,
 	Lock,
+	Unlink,
+	Link2,
 } from "lucide-vue-next";
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
+import { toOpenableUrl } from "../utils/url";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -42,6 +46,8 @@ const translate = (text) => {
 		? realWindow.__(text)
 		: text;
 };
+
+const referenceLinkUrl = computed(() => toOpenableUrl(editableTask.value?.reference_link));
 
 const isTouchDevice = computed(() => {
 	return Boolean(realWindow?.matchMedia?.("(hover: none)").matches);
@@ -178,7 +184,22 @@ const isFullscreen = ref(false);
 watch(
 	() => props.task,
 	(newTask) => {
+		const sameTask = Boolean(descriptionSession) && newTask?.name === descriptionSession.task;
+		const keepDescriptionDraft = isEditingDescription.value && sameTask;
+		const draftDescription = editableTask.value.description;
+		if (descriptionSession && !sameTask) {
+			// Switched to another task while editing: persist the draft of the previous one
+			// (editableTask still holds it here) and end that editing session.
+			flushDescriptionAutosave();
+			endDescriptionSession();
+		}
 		editableTask.value = normalizeTaskForEdit(newTask);
+		if (keepDescriptionDraft) {
+			// The task object was refreshed (e.g. after an autosave or another field update);
+			// keep the user's in-progress description instead of wiping it.
+			editableTask.value.description = draftDescription;
+			return;
+		}
 		attachmentsFetched.value = false;
 		attachments.value = [];
 		commentsFetched.value = false;
@@ -405,20 +426,115 @@ async function handleProjectChange() {
 	}
 }
 
+// --- Description autosave ---------------------------------------------------
+// The draft is saved automatically (debounced while typing, immediately on blur,
+// when switching tasks and when the panel closes), so clicking elsewhere never
+// loses text that has already been typed.
+const DESCRIPTION_AUTOSAVE_DELAY = 1000;
+let descriptionAutosaveTimer = null;
+// One editing session per "Edit" click: { task, original, lastSaved }.
+// Save state lives on the session, so a late response for task A can never
+// affect the save state of task B, and a pending timer can never write into
+// a session other than the one it was scheduled for.
+let descriptionSession = null;
+let descriptionSaveChain = Promise.resolve();
+
+function clearDescriptionAutosaveTimer() {
+	if (descriptionAutosaveTimer) {
+		clearTimeout(descriptionAutosaveTimer);
+		descriptionAutosaveTimer = null;
+	}
+}
+
+function endDescriptionSession() {
+	clearDescriptionAutosaveTimer();
+	descriptionSession = null;
+}
+
+function persistDescription(session, value) {
+	const text = value || "";
+	descriptionSaveChain = descriptionSaveChain.then(async () => {
+		if (!session?.task || text === session.lastSaved) return;
+		isSaving.value = true;
+		try {
+			await store.updateTask(session.task, { description: text });
+			session.lastSaved = text;
+			showAutosaveFeedback();
+		} catch (error) {
+			if (realWindow?.frappe) {
+				realWindow.frappe.show_alert({
+					message: translate("Failed to update field"),
+					indicator: "red",
+				});
+			}
+		} finally {
+			isSaving.value = false;
+		}
+	});
+	return descriptionSaveChain;
+}
+
+function flushDescriptionAutosave() {
+	clearDescriptionAutosaveTimer();
+	const session = descriptionSession;
+	// Only save text that belongs to the session's task.
+	if (!session || editableTask.value.name !== session.task) return descriptionSaveChain;
+	return persistDescription(session, editableTask.value.description);
+}
+
+function hasUnsavedDescription() {
+	return (
+		Boolean(descriptionSession) &&
+		editableTask.value.name === descriptionSession.task &&
+		(editableTask.value.description || "") !== descriptionSession.lastSaved
+	);
+}
+
+watch(
+	() => editableTask.value.description,
+	() => {
+		const session = descriptionSession;
+		if (!isEditingDescription.value || !session) return;
+		clearDescriptionAutosaveTimer();
+		descriptionAutosaveTimer = setTimeout(() => {
+			descriptionAutosaveTimer = null;
+			if (descriptionSession === session) flushDescriptionAutosave();
+		}, DESCRIPTION_AUTOSAVE_DELAY);
+	}
+);
+
+function handleBeforeUnload(event) {
+	if (!hasUnsavedDescription()) return;
+	flushDescriptionAutosave();
+	event.preventDefault();
+	event.returnValue = "";
+}
+
 function startDescriptionEdit() {
+	const original = editableTask.value.description || "";
+	descriptionSession = { task: props.task.name, original, lastSaved: original };
 	isEditingDescription.value = true;
 	showMarkdownPreview.value = true;
 }
 
-function cancelDescriptionEdit() {
-	editableTask.value.description = props.task.description || "";
+async function cancelDescriptionEdit() {
+	const session = descriptionSession;
+	// End the session before touching the text so the change below cannot
+	// schedule another autosave.
+	endDescriptionSession();
 	isEditingDescription.value = false;
 	showMarkdownPreview.value = false;
+	if (!session) return;
+	editableTask.value.description = session.original;
+	// Autosave may already have stored part of the draft — restore the original.
+	await persistDescription(session, session.original);
 }
 
 async function saveDescription() {
-	await saveField("description", editableTask.value.description);
+	const pending = flushDescriptionAutosave();
+	endDescriptionSession();
 	isEditingDescription.value = false;
+	await pending;
 }
 
 function getPastedImageFiles(event) {
@@ -475,7 +591,7 @@ async function handleDescriptionPaste(event) {
 
 		if (markdownItems.length) {
 			insertDescriptionMarkdown(markdownItems.join("\n"), event.target);
-			await saveField("description", editableTask.value.description);
+			await flushDescriptionAutosave();
 			await fetchAttachments();
 		}
 
@@ -714,6 +830,14 @@ async function handleStatusSelection(option) {
 
 	try {
 		const data = await store.updateTask(props.task.name, updates);
+		if (!data) {
+			editableTask.value.status = props.task.status;
+			if (updates.completed_on) {
+				editableTask.value.completed_on = props.task.completed_on || "";
+			}
+			statusMenuOpen.value = false;
+			return;
+		}
 		if (data) {
 			Object.assign(editableTask.value, normalizeTaskForEdit(data));
 		}
@@ -1080,13 +1204,170 @@ watch(
 	}
 );
 
+// Tasks of this task's project. In the project view they are the project
+// store's tasks; opened from My Tasks that store holds another project (or
+// none), so the project's tasks are loaded here for the parent picker.
+const loadedProjectTasks = ref([]);
+const usesProjectStore = computed(() => store.project?.name === props.task.project);
+const projectTasks = computed(() =>
+	usesProjectStore.value ? store.tasks : loadedProjectTasks.value
+);
+
+async function loadProjectTasks() {
+	loadedProjectTasks.value = [];
+	if (usesProjectStore.value || !props.task.project || !realWindow?.frappe?.xcall) return;
+	const project = props.task.project;
+	try {
+		const data = await realWindow.frappe.xcall(
+			"erpnext_projekt_hub.api.project_hub.get_project_tasks",
+			{ project }
+		);
+		if (props.task.project === project) loadedProjectTasks.value = data?.tasks || [];
+	} catch (error) {
+		console.error("Failed to load project tasks:", error);
+	}
+}
+
+watch(() => [props.task.project, usesProjectStore.value], loadProjectTasks, { immediate: true });
+
+// Parent set by attach/detach in this panel, until the caller's task catches up.
+// undefined: follow props.task; null: detached; { name, subject }: attached.
+const parentOverride = ref(undefined);
+watch(
+	() => [props.task.name, props.task.parent_task],
+	() => {
+		parentOverride.value = undefined;
+	}
+);
+
+const parentTaskInfo = computed(() => {
+	if (parentOverride.value !== undefined) return parentOverride.value;
+	const parentName = props.task.parent_task;
+	if (!parentName) return null;
+	const found = projectTasks.value.find((t) => t.name === parentName);
+	return {
+		name: parentName,
+		subject: props.task.parent_subject || found?.subject || parentName,
+	};
+});
+const isUnlinkingParent = ref(false);
+const isLinkingParent = ref(false);
+const selectedParentName = ref("");
+
+// Tasks that can become the parent: same project, open, not the task itself or its descendants
+const parentCandidates = computed(() => {
+	const currentName = props.task.name;
+	const blocked = new Set([currentName]);
+	let grew = true;
+	while (grew) {
+		grew = false;
+		for (const t of projectTasks.value) {
+			if (t.parent_task && blocked.has(t.parent_task) && !blocked.has(t.name)) {
+				blocked.add(t.name);
+				grew = true;
+			}
+		}
+	}
+	return projectTasks.value
+		.filter(
+			(t) =>
+				t.project === props.task.project &&
+				!blocked.has(t.name) &&
+				t.status !== "Completed" &&
+				t.status !== "Cancelled"
+		)
+		.sort((a, b) => (a.subject || "").localeCompare(b.subject || ""));
+});
+
+async function linkToParent() {
+	const parentName = selectedParentName.value;
+	if (!parentName || isLinkingParent.value) return;
+	isLinkingParent.value = true;
+	// The selection may change while saving: apply the result only to this task.
+	const taskName = props.task.name;
+	const taskSnapshot = { ...props.task };
+	try {
+		const childCount = projectTasks.value.filter((t) => t.parent_task === parentName).length;
+		const parent = projectTasks.value.find((t) => t.name === parentName);
+		await store.reorderTask(taskName, parentName, childCount);
+		const stillSelected = props.task.name === taskName;
+		if (stillSelected) {
+			parentOverride.value = { name: parentName, subject: parent?.subject || parentName };
+		}
+		const updated =
+			stillSelected && usesProjectStore.value && store.tasks.find((t) => t.name === taskName);
+		if (updated) {
+			store.selectTask({
+				...taskSnapshot,
+				...updated,
+				parent_task: parentName,
+				parent_subject: parent?.subject || parentName,
+			});
+		}
+		selectedParentName.value = "";
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Task attached to parent"),
+			indicator: "green",
+		});
+	} catch (error) {
+		console.error("Failed to attach task to parent:", error);
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Could not attach task to parent"),
+			indicator: "red",
+		});
+	} finally {
+		isLinkingParent.value = false;
+	}
+}
+
+async function unlinkFromParent() {
+	const parent = parentTaskInfo.value;
+	if (!parent || isUnlinkingParent.value) return;
+	const message = translate("Detach this task from parent task {0}? It will become a top-level task.").replace(
+		"{0}",
+		parent.subject
+	);
+	if (!realWindow?.confirm(message)) return;
+
+	isUnlinkingParent.value = true;
+	// The selection may change while saving: apply the result only to this task.
+	const taskName = props.task.name;
+	const taskSnapshot = { ...props.task };
+	try {
+		const topLevelCount = projectTasks.value.filter(
+			(t) => !t.parent_task && t.project === taskSnapshot.project && t.name !== taskName
+		).length;
+		await store.reorderTask(taskName, null, topLevelCount);
+		const stillSelected = props.task.name === taskName;
+		if (stillSelected) parentOverride.value = null;
+		const updated =
+			stillSelected && usesProjectStore.value && store.tasks.find((t) => t.name === taskName);
+		if (updated) {
+			store.selectTask({ ...taskSnapshot, ...updated, parent_task: null, parent_subject: null });
+		}
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Task detached from parent"),
+			indicator: "green",
+		});
+	} catch (error) {
+		console.error("Failed to detach task from parent:", error);
+		realWindow?.frappe?.show_alert?.({
+			message: translate("Could not detach task from parent"),
+			indicator: "red",
+		});
+	} finally {
+		isUnlinkingParent.value = false;
+	}
+}
+
 async function navigateToParent() {
-	if (!props.task.parent_task) return;
-	const found = store.tasks.find((t) => t.name === props.task.parent_task);
+	const parentName = parentTaskInfo.value?.name;
+	if (!parentName) return;
+	const found = usesProjectStore.value && store.tasks.find((t) => t.name === parentName);
 	if (found) {
 		store.selectTask(found);
 	} else {
-		const detail = await store.fetchTaskDetail(props.task.parent_task);
+		const detail = await store.fetchTaskDetail(parentName);
 		if (detail) store.selectTask(detail);
 	}
 }
@@ -1112,6 +1393,7 @@ onMounted(() => {
 	store.fetchAllProjects();
 	document.addEventListener("click", handleDocumentClick);
 	document.addEventListener("keydown", handleGlobalKeydown);
+	window.addEventListener("beforeunload", handleBeforeUnload);
 	if (sectionStates.value.timeLog) {
 		ensureTimeLogsLoaded();
 	}
@@ -1123,6 +1405,11 @@ onMounted(() => {
 	onUnmounted(() => {
 		document.removeEventListener("click", handleDocumentClick);
 		document.removeEventListener("keydown", handleGlobalKeydown);
+		window.removeEventListener("beforeunload", handleBeforeUnload);
+		if (descriptionSession) {
+			flushDescriptionAutosave();
+			endDescriptionSession();
+		}
 		if (autosaveTimer) {
 			clearTimeout(autosaveTimer);
 		}
@@ -1603,14 +1890,14 @@ async function deleteAttachment(fileName) {
 				<div class="flex items-start justify-between gap-4">
 					<div class="min-w-0 flex-1">
 						<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-							<template v-if="task.parent_task">
+							<template v-if="parentTaskInfo">
 								<button
 									type="button"
 									class="inline-flex items-center gap-1 rounded px-1 py-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
 									@click="navigateToParent"
-									:title="task.parent_task"
+									:title="parentTaskInfo.name"
 								>
-									{{ task.parent_subject || task.parent_task }}
+									{{ parentTaskInfo?.subject }}
 								</button>
 								<ChevronRight class="w-3 h-3 text-gray-400 shrink-0" />
 							</template>
@@ -1887,7 +2174,7 @@ async function deleteAttachment(fileName) {
 												<button
 													type="button"
 													@click.stop="deleteAttachment(file.name)"
-													class="absolute right-0.5 top-0.5 rounded-full bg-white/90 p-0.5 text-gray-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+													class="hub-tap absolute right-0.5 top-0.5 rounded-full bg-white/90 p-0.5 text-gray-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
 													:title="translate('Delete attachment')"
 												>
 													<Trash2 class="h-2.5 w-2.5" />
@@ -1981,6 +2268,7 @@ async function deleteAttachment(fileName) {
 										class="w-full rounded-xl border border-gray-300 bg-white text-sm focus:border-blue-500 focus:ring-blue-500"
 										:placeholder="translate('Add description...')"
 										@paste="handleDescriptionPaste"
+										@blur="flushDescriptionAutosave"
 									/>
 									<div
 										v-if="showMarkdownPreview"
@@ -2077,7 +2365,7 @@ async function deleteAttachment(fileName) {
 											:class="['mt-0.5 h-4 w-4 flex-shrink-0', child.status === 'Completed' ? 'text-green-500' : 'text-gray-400']"
 										/>
 										<div class="min-w-0 flex-1">
-											<div :class="child.status === 'Completed' ? 'text-gray-400 line-through' : 'text-gray-800'" class="text-sm font-medium">
+							<div :class="['text-sm font-medium', ['Completed', 'Cancelled'].includes(child.status) ? 'text-gray-400 line-through' : 'text-gray-800']">
 												{{ child.subject }}
 											</div>
 											<div class="mt-1 text-xs text-gray-500">
@@ -2088,7 +2376,7 @@ async function deleteAttachment(fileName) {
 											<ExternalLink class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
 											<button
 												@click.stop="deleteSubtask(child.name)"
-												class="mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
+												class="hub-tap mt-0.5 h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all"
 												:title="translate('Delete subtask')"
 											>
 												<Trash2 class="h-3.5 w-3.5" />
@@ -2201,6 +2489,58 @@ async function deleteAttachment(fileName) {
 								<ChevronDown :class="['h-4 w-4 text-gray-400 transition-transform', sectionStates.context ? 'rotate-180' : '']" />
 							</button>
 							<div v-if="sectionStates.context" class="space-y-4 p-4">
+								<div v-if="!parentTaskInfo">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Parent task") }}
+									</div>
+									<div class="flex items-center gap-2">
+										<select
+											v-model="selectedParentName"
+											class="min-w-0 flex-1 rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											:disabled="isLinkingParent"
+										>
+											<option value="">{{ translate("No parent task") }}</option>
+											<option v-for="candidate in parentCandidates" :key="candidate.name" :value="candidate.name">
+												{{ candidate.subject }} ({{ candidate.name }})
+											</option>
+										</select>
+										<button
+											type="button"
+											class="inline-flex shrink-0 items-center gap-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+											:disabled="!selectedParentName || isLinkingParent"
+											@click="linkToParent"
+										>
+											<Link2 class="h-4 w-4" />
+											{{ translate("Attach") }}
+										</button>
+									</div>
+								</div>
+								<div v-if="parentTaskInfo">
+									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+										{{ translate("Parent task") }}
+									</div>
+									<div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+										<button
+											type="button"
+											class="min-w-0 flex-1 text-left text-sm font-medium text-blue-600 hover:underline"
+											:title="parentTaskInfo.name"
+											@click="navigateToParent"
+										>
+											<span class="block truncate">{{ parentTaskInfo.subject }}</span>
+											<span class="block text-xs font-normal text-gray-500">{{ parentTaskInfo.name }}</span>
+										</button>
+										<button
+											type="button"
+											class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+											:disabled="isUnlinkingParent"
+											:title="translate('Detach from parent task')"
+											@click="unlinkFromParent"
+										>
+											<Unlink class="h-3.5 w-3.5" />
+											{{ translate("Detach") }}
+										</button>
+									</div>
+								</div>
 								<div>
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Project") }}
@@ -2242,13 +2582,26 @@ async function deleteAttachment(fileName) {
 									<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Reference link") }}
 									</div>
-									<input
-										v-model="editableTask.reference_link"
-										type="url"
-										@blur="saveField('reference_link', editableTask.reference_link)"
-										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
-										:placeholder="translate('GitHub branch, documentation, or another URL')"
-									/>
+									<div class="flex items-center gap-2">
+										<input
+											v-model="editableTask.reference_link"
+											type="url"
+											@blur="saveField('reference_link', editableTask.reference_link)"
+											class="min-w-0 flex-1 rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											:placeholder="translate('GitHub branch, documentation, or another URL')"
+										/>
+										<a
+											v-if="referenceLinkUrl"
+											:href="referenceLinkUrl"
+											target="_blank"
+											rel="noopener noreferrer"
+											:title="translate('Open link')"
+											class="inline-flex shrink-0 items-center gap-1 rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+										>
+											{{ translate("Open link") }}
+											<span aria-hidden="true">↗</span>
+										</a>
+									</div>
 								</div>
 							</div>
 						</section>
@@ -2265,12 +2618,12 @@ async function deleteAttachment(fileName) {
 										{{ translate("Due date") }}
 									</div>
 									<div class="relative" :class="shortcutHighlight === 'due' ? 'ring-2 ring-blue-400 rounded-xl' : ''">
-										<input
+										<DatePickerField
 											ref="dueInputRef"
+											id="task-detail-due-date"
 											v-model="editableTask.exp_end_date"
-											type="date"
-											@blur="handleActualDateBlur('exp_end_date')"
-											class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											button-class="rounded-xl"
+											@update:model-value="handleActualDateBlur('exp_end_date')"
 										/>
 										<button
 											ref="dueLabelRef"
@@ -2306,11 +2659,11 @@ async function deleteAttachment(fileName) {
 										<div class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
 											{{ translate("Start") }}
 										</div>
-										<input
+										<DatePickerField
+											id="task-detail-start-date"
 											v-model="editableTask.exp_start_date"
-											type="date"
-											@blur="handleActualDateBlur('exp_start_date')"
-											class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+											button-class="rounded-xl"
+											@update:model-value="handleActualDateBlur('exp_start_date')"
 										/>
 									</div>
 									<div>
@@ -2332,12 +2685,16 @@ async function deleteAttachment(fileName) {
 									<div class="text-xs font-medium uppercase tracking-wide text-gray-500">
 										{{ translate("Completed on") }}
 									</div>
-									<input
+									<DatePickerField
+										id="task-detail-completed-date"
 										v-model="editableTask.completed_on"
-										type="date"
-										@blur="saveField('completed_on', editableTask.completed_on)"
-										class="w-full rounded-xl border border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500"
+										button-class="rounded-xl"
+										@update:model-value="saveField('completed_on', editableTask.completed_on)"
 									/>
+									<div v-if="editableTask.completed_by" class="text-xs text-gray-600">
+										{{ translate("Completed by") }}:
+										{{ editableTask.completed_by_name || editableTask.completed_by }}
+									</div>
 								</div>
 								<div v-if="dateValidationError" class="text-xs text-red-600">
 									{{ dateValidationError }}
@@ -2400,7 +2757,7 @@ async function deleteAttachment(fileName) {
 													<span class="font-semibold text-gray-900">{{ log.hours }} hrs</span>
 													<span class="text-xs text-gray-500">{{ log.activity_type }}</span>
 												</div>
-												<p v-if="log.description" class="mb-1 text-xs text-gray-600">
+												<p v-if="log.description" class="mb-1 text-xs text-gray-600 [overflow-wrap:anywhere]">
 													{{ log.description }}
 												</p>
 												<div class="flex items-center gap-2 text-xs text-gray-500">
@@ -2418,14 +2775,14 @@ async function deleteAttachment(fileName) {
 											<button
 												v-if="log.can_edit"
 												@click="openEditTimelog(log)"
-												class="rounded-md p-1 text-gray-400 hover:bg-blue-100 hover:text-blue-600"
+												class="hub-tap rounded-md p-1 text-gray-400 hover:bg-blue-100 hover:text-blue-600"
 												:title="translate('Edit time log')"
 											>
 												<Pencil class="h-3.5 w-3.5" />
 											</button>
 											<button
 												@click="handleDeleteTimelog(log.timelog_name)"
-												class="rounded-md p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
+												class="hub-tap rounded-md p-1 text-gray-400 hover:bg-red-100 hover:text-red-600"
 												:title="translate('Delete time log')"
 											>
 												<Trash2 class="h-3.5 w-3.5" />

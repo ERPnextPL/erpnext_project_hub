@@ -36,7 +36,7 @@ export function useProjectRequests(projectId) {
 		}
 		if (!projectName) {
 			loading.value = false;
-			return;
+			return false;
 		}
 
 		loading.value = true;
@@ -45,19 +45,21 @@ export function useProjectRequests(projectId) {
 			const result = await apiGet("erpnext_projekt_hub.api.project_hub.get_project_requests", {
 				project: projectName,
 			});
-			if (currentRequest !== requestId) return;
+			if (currentRequest !== requestId) return false;
 			customerRequests.value = result?.customer_requests || [];
 			changeRequests.value = result?.change_requests || [];
 			project.value = result?.project || null;
 			lastLoadedAt.value = new Date();
 			available.value = true;
+			return true;
 		} catch (err) {
-			if (currentRequest !== requestId) return;
+			if (currentRequest !== requestId) return false;
 			console.error("Failed to fetch project requests:", err);
 			if (err?.status === 403) {
 				available.value = false;
 			}
 			error.value = translate("Project requests failed to load");
+			return false;
 		} finally {
 			if (currentRequest === requestId) {
 				loading.value = false;

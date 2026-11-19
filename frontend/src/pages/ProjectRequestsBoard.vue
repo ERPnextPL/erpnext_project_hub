@@ -275,7 +275,7 @@ async function applyAction(request, action, nextState) {
 		const confirmed = await askConfirmation({
 			title: translate("Approve the change request?"),
 			message: translate(
-				"Approving creates the task \"{0}\" in the project with the approved hours and scope, and cannot be undone. Approve once the customer has signed the order.",
+				"Approving creates the task \"{0}\" in the project with the approved hours and scope, assigned to the selected implementer. This cannot be undone; approve once the customer has signed the order.",
 				[request.subject]
 			),
 			confirmLabel: translate("Approve"),
@@ -561,7 +561,7 @@ onUnmounted(() => {
 					:no-estimate-label="isChangeView ? 'No approved estimate' : 'No estimate'"
 					@open="openRequest"
 					@move="moveRequest"
-					@take="takeRequest"
+					@take="takeRequest($event, isChangeView ? 'Change Request' : 'Customer Request')"
 					@convert="convertRequest"
 					@add="openCreateModal"
 				/>

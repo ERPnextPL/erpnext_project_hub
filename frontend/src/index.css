@@ -12,8 +12,139 @@ html.dark {
 }
 
 html.dark body {
-	background: #0f172a;
-	color: #e5e7eb;
+	background: rgb(var(--hub-bg-white));
+	color: rgb(var(--hub-fg-gray-900));
+}
+
+/*
+ * Frappe's website shell around the SPA (Standard Navbar / Footer of
+ * templates/web.html) is styled by the site's Bootstrap theme, which has no dark
+ * variant. This stylesheet only loads on /project-hub, so it is safe to darken
+ * that chrome here.
+ */
+html.dark .navbar,
+html.dark .web-footer,
+html.dark .page-footer {
+	background-color: rgb(var(--hub-bg-white)) !important;
+	border-color: rgb(var(--hub-line-gray-200)) !important;
+	color: rgb(var(--hub-fg-gray-700));
+}
+
+html.dark .navbar .navbar-brand,
+html.dark .navbar .nav-link,
+html.dark .web-footer a,
+html.dark .web-footer .footer-link {
+	color: rgb(var(--hub-fg-gray-700)) !important;
+}
+
+html.dark .navbar .dropdown-menu {
+	background-color: rgb(var(--hub-bg-white));
+	border-color: rgb(var(--hub-line-gray-200));
+}
+
+html.dark .navbar .dropdown-item {
+	color: rgb(var(--hub-fg-gray-700));
+}
+
+html.dark .navbar .dropdown-item:hover,
+html.dark .navbar .dropdown-item:focus {
+	background-color: rgb(var(--hub-bg-gray-100));
+	color: rgb(var(--hub-fg-gray-900));
+}
+
+/*
+ * Colours hard-coded in component <style> blocks and inline styles read these
+ * variables with their light value as fallback, so light mode is unchanged.
+ */
+html.dark {
+	--hub-highlight-bg: rgb(var(--hub-bg-blue-50));
+	--hub-highlight-bg-strong: rgb(var(--hub-bg-blue-100));
+	--hub-highlight-border: rgb(var(--hub-line-blue-500));
+	--hub-highlight-border-strong: rgb(var(--hub-line-blue-600));
+	--hub-drop-ghost-bg: rgb(var(--hub-bg-blue-100));
+	--hub-drop-ghost-border: rgb(var(--hub-line-blue-400));
+	/* Health fills carry white text/icons: deeper shades keep >= 4.5:1 on dark. */
+	--hub-milestone-done: #047857;
+	--hub-milestone-on-track: #1d4ed8;
+	--hub-milestone-at-risk: #b45309;
+	--hub-milestone-overdue: #b91c1c;
+	--hub-milestone-idle-bg: rgb(var(--hub-bg-white));
+	--hub-milestone-muted-bg: rgb(var(--hub-bg-gray-100));
+	--hub-milestone-muted-border: rgb(var(--hub-line-gray-400));
+	--hub-milestone-muted-text: rgb(var(--hub-fg-gray-400));
+	--hub-milestone-muted-line: rgb(var(--hub-line-gray-200));
+}
+
+/*
+ * @tailwindcss/forms gives text inputs, selects, textareas and checkboxes a
+ * hard-coded white background. In dark mode use the palette's surface instead;
+ * :where() keeps the specificity of the plugin's own selectors, and @layer base
+ * keeps it below utilities, so bg-* classes on an input still win.
+ */
+@layer base {
+	:where(html.dark)
+		:is(
+			[type="text"],
+			input:where(:not([type])),
+			[type="email"],
+			[type="url"],
+			[type="password"],
+			[type="number"],
+			[type="date"],
+			[type="datetime-local"],
+			[type="month"],
+			[type="search"],
+			[type="tel"],
+			[type="time"],
+			[type="week"],
+			[multiple],
+			textarea,
+			select,
+			[type="checkbox"],
+			[type="radio"]
+		) {
+		background-color: rgb(var(--hub-bg-white));
+	}
+}
+
+/*
+ * Touch screens (phones, tablets). Desktop layouts are not affected.
+ * - iOS Safari zooms the page into any field whose text is under 16px.
+ * - Tap targets get at least 24px of height (WCAG 2.5.8); one-line text
+ *   buttons and fields were 14-18px high. No global min-width: in a flex row it
+ *   would replace min-width:auto and let text buttons shrink below their text.
+ */
+@media (pointer: coarse) {
+	:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+		font-size: max(16px, 1em) !important;
+	}
+
+	:is(button, a[href], [role="button"], [role="menuitem"], [role="tab"], input:not([type="checkbox"]):not([type="radio"])) {
+		min-height: 24px;
+	}
+
+	/* Task boards: swipe snaps to a list instead of stopping halfway. */
+	.task-board {
+		scroll-snap-type: x mandatory;
+		scroll-padding-inline: 1rem;
+	}
+
+	.task-board > div > section {
+		scroll-snap-align: start;
+	}
+
+	/* No hover on touch: controls revealed on hover are always shown. */
+	.group-hover\:opacity-100 {
+		opacity: 1;
+	}
+
+	/* Icon-only buttons (no text that could be squeezed): full 24x24 target. */
+	.hub-tap {
+		min-width: 24px;
+		min-height: 24px;
+		align-items: center;
+		justify-content: center;
+	}
 }
 
 /* Task tree specific styles */
@@ -22,7 +153,7 @@ html.dark body {
 }
 
 .task-row:hover {
-	@apply bg-gray-50 dark:bg-gray-800;
+	@apply bg-gray-50;
 }
 
 .task-row.dragging {

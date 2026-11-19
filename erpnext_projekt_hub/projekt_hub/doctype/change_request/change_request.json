@@ -9,6 +9,7 @@
  "field_order": [
   "subject",
   "workflow_state",
+  "realization_assignee",
   "analyst",
   "state_changed_on",
   "customer_request",
@@ -45,14 +46,23 @@
    "read_only": 1
   },
   {
-   "description": "Person analyzing the request. Set by \"Take for analysis\"; a manager can pick someone here.",
-   "fieldname": "analyst",
+   "description": "Person responsible for realizing the approved change. Set by \"Take for realization\"; a manager can pick someone here.",
+   "fieldname": "realization_assignee",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Assigned Analyst",
+   "label": "Assigned Implementer",
    "no_copy": 1,
    "options": "User"
+  },
+  {
+   "fieldname": "analyst",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Previous Analyst",
+   "no_copy": 1,
+   "options": "User",
+   "read_only": 1
   },
   {
    "description": "When the request entered its current workflow state.",

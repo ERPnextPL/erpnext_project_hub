@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { BOARD_STATUSES } from "../utils/taskStatus";
 import { PRIORITY_VALUES } from "../utils/priority";
+import { promptForCompletionAssignee } from "../utils/taskCompletion";
 
 // Helper to get CSRF token
 function getCsrfToken() {
@@ -77,6 +78,12 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	const loading = ref(false);
 	const error = ref(null);
 	const total = ref(0);
+	// Number of the user's completed tasks, shown on the board's "Completed"
+	// list whatever the filters are (null until loaded). The cards themselves
+	// come with the "Completed" status filter (see showCompleted).
+	const completedTotal = ref(null);
+	// Statuses never selected by showCompleted.
+	const NOT_SHOWN_WITH_COMPLETED = ["Cancelled", "Template"];
 	const selectedTask = ref(null);
 	const inlineDropdown = ref(null); // { taskName: string, type: 'status' | 'priority' }
 	const viewOptions = ref({
@@ -100,6 +107,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 	const projects = ref([]);
 	const statuses = ref([]);
 	const priorities = ref([]);
+	const users = ref([]);
 
 	// Optimistic update tracking
 	const pendingUpdates = ref(new Map());
@@ -145,7 +153,10 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 				params.sort_order = filters.value.sortOrder;
 			}
 
-			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params);
+			const [data] = await Promise.all([
+				apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", params),
+				fetchCompletedCount(),
+			]);
 
 			if (data) {
 				tasks.value = data.tasks || [];
@@ -173,12 +184,14 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 
 	async function fetchMetadata() {
 		try {
-			const [statusData, priorityData] = await Promise.all([
+			const [statusData, priorityData, userData] = await Promise.all([
 				apiCall("erpnext_projekt_hub.api.project_hub.get_task_statuses", {}),
 				apiCall("erpnext_projekt_hub.api.project_hub.get_task_priorities", {}),
+				apiCall("erpnext_projekt_hub.api.project_hub.get_users", {}),
 			]);
 			statuses.value = statusData || [];
 			priorities.value = priorityData || [];
+			users.value = userData || [];
 		} catch (err) {
 			console.error("Failed to fetch metadata:", err);
 			// Fallback values
@@ -187,7 +200,47 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		}
 	}
 
+	async function fetchCompletedCount() {
+		try {
+			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_my_tasks", {
+				status: "Completed",
+				limit: 1,
+			});
+			completedTotal.value = Number(data?.total ?? 0);
+		} catch (err) {
+			console.error("Failed to count completed tasks:", err);
+			completedTotal.value = null;
+		}
+	}
+
+	// Add "Completed" to the status filter. Without any status filter (only open
+	// tasks listed) select every status except Cancelled and Template instead.
+	function showCompleted() {
+		const selected = filters.value.status;
+		if (selected.includes("Completed")) return;
+		if (selected.length) {
+			filters.value.status = [...selected, "Completed"];
+		} else {
+			const all = statuses.value.length ? statuses.value : BOARD_STATUSES;
+			const next = all.filter((status) => !NOT_SHOWN_WITH_COMPLETED.includes(status));
+			if (!next.includes("Completed")) next.push("Completed");
+			filters.value.status = next;
+		}
+		return fetchTasks();
+	}
+
 	async function quickUpdateTask(taskName, updates) {
+		if (updates.status === "Completed") {
+			const completedBy = await promptForCompletionAssignee(taskName);
+			if (completedBy === null) return null;
+			if (completedBy) updates = { ...updates, completed_by: completedBy };
+		}
+
+		const touchesCompleted =
+			updates.status !== undefined &&
+			(updates.status === "Completed" ||
+				tasks.value.find((t) => t.name === taskName)?.status === "Completed");
+
 		// Optimistic update
 		const taskIndex = tasks.value.findIndex((t) => t.name === taskName);
 		if (taskIndex === -1) return;
@@ -215,6 +268,7 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			}
 
 			pendingUpdates.value.delete(taskName);
+			if (touchesCompleted) fetchCompletedCount();
 			return data;
 		} catch (err) {
 			// Rollback on error
@@ -225,6 +279,22 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 			console.error("Failed to update task:", err);
 			throw err;
 		}
+	}
+
+	async function bulkUpdateTaskFields(taskNames, updates) {
+		if (updates.status === "Completed") {
+			const completedByByTask = {};
+			for (const taskName of taskNames) {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) completedByByTask[taskName] = completedBy;
+			}
+			updates = { ...updates, completed_by_by_task: completedByByTask };
+		}
+		return apiCall("erpnext_projekt_hub.api.project_hub.bulk_update_task_fields", {
+			task_names: JSON.stringify(taskNames),
+			updates: JSON.stringify(updates),
+		});
 	}
 
 	async function createTask(taskData) {
@@ -508,16 +578,21 @@ export const useMyTasksStore = defineStore("myTasks", () => {
 		projects,
 		statuses,
 		priorities,
+		users,
 		taskTimelogs,
 		activityTypes,
 		pendingTimelogKeys,
+		completedTotal,
 		// Computed
 		hasActiveFilters,
 		// Actions
 		fetchTasks,
+		fetchCompletedCount,
+		showCompleted,
 		fetchProjects,
 		fetchMetadata,
 		quickUpdateTask,
+		bulkUpdateTaskFields,
 		createTask,
 		updateTaskFull,
 		getTaskDetail,

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import tabRegistry, { registerTab, getTabs, getNavItems } from '../tabRegistry';
+import tabRegistry, { registerTab, getTabs, getNavItems } from '../../tabRegistry';
 import { Folder } from 'lucide-vue-next';
 
 describe('Tab Registry', () => {
@@ -166,6 +166,25 @@ describe('Tab Registry', () => {
 			expect(navItems[0]).not.toHaveProperty('component');
 			expect(navItems[0]).toHaveProperty('key');
 			expect(navItems[0]).toHaveProperty('to');
+		});
+	});
+
+	describe('Tab visibility', () => {
+		it('should hide tabs whose isVisible returns false and guard their route', () => {
+			const base = { icon: Folder, color: '', bg: '', component: () => {} };
+			registerTab({ ...base, key: 'open', routeName: 'Open', path: '/open', labelKey: 'Open' });
+			registerTab({
+				...base,
+				key: 'locked',
+				routeName: 'Locked',
+				path: '/locked',
+				labelKey: 'Locked',
+				isVisible: () => false,
+			});
+
+			expect(getNavItems().map((i) => i.key)).toEqual(['open']);
+			const locked = tabRegistry.getRoutes().find((r) => r.name === 'Locked');
+			expect(locked.beforeEnter()).toEqual({ path: '/project-hub' });
 		});
 	});
 
