@@ -4,7 +4,7 @@ from frappe.desk.form.assign_to import add as add_assignment
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from erpnext_projekt_hub.request_queue import sync_analysis_assignment, validate_analyst
+from erpnext_projekt_hub.request_queue import sync_request_assignment, validate_assignee
 
 
 class ChangeRequest(Document):
@@ -13,7 +13,7 @@ class ChangeRequest(Document):
 		self.validate_customer_request()
 		self.validate_realization_assignee()
 		self.set_state_changed_on()
-		validate_analyst(self)
+		validate_assignee(self)
 
 	def on_update(self):
 		sync_request_assignment(self)

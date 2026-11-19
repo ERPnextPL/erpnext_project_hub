@@ -1,14 +1,15 @@
 """Assignment queues and attachments shared by Customer Request and Change Request.
 
-A request waiting for analysis is taken by one person. They are recorded in the
-request's `analyst` field, which is what the queue and the UI read, and get a
-ToDo assignment so the request shows in their To Do list. The assignment closes
-once the request leaves analysis; the field keeps who analyzed it. A request sent
-back to analysis (Rejected -> To Analyze) returns to the queue without an analyst.
+A request waiting for work is taken by one person: a Customer Request for analysis,
+a Change Request for realization. They are recorded in the request's assignee field
+(ASSIGNMENT_FIELDS), which is what the queue and the UI read, and get a ToDo
+assignment so the request shows in their To Do list. The assignment closes once the
+request leaves its queue; the field keeps who took it. A request sent back to its
+queue (e.g. Rejected -> To Analyze) returns without an assignee.
 
 Anyone who can read a request may take it, release it and attach files to it:
-analysis is usually done by developers whose role only reads Change Requests.
-Picking someone else as analyst in the form is left to managers.
+the work is usually done by developers whose role only reads Change Requests.
+Picking someone else as the assignee in the form is left to managers.
 """
 
 import frappe
@@ -23,7 +24,7 @@ QUEUE_STATES = {
 	"Customer Request": "To Analyze",
 	"Change Request": "Draft",
 }
-# Roles that may set or change the analyst in the form (assign someone else).
+# Roles that may set or change the assignee in the form (assign someone else).
 ANALYST_MANAGER_ROLES = ("Projects Manager", "Project Manager", "System Manager")
 ASSIGNMENT_FIELDS = {
 	"Customer Request": "analyst",
@@ -41,30 +42,30 @@ def is_in_queue(doc):
 	return doc.workflow_state == QUEUE_STATES[doc.doctype]
 
 
-def validate_analyst(doc):
-	"""Called from validate: who may change the analyst, and the queue on re-entry.
+def validate_assignee(doc):
+	"""Called from validate: who may change the assignee, and the queue on re-entry.
 
 	Take/Release write the field with db_set and never reach validate, so a change
 	seen here comes from the form or the REST API.
 	"""
+	fieldname = ASSIGNMENT_FIELDS[doc.doctype]
+	assignee = doc.get(fieldname) or None
 	previous = doc.get_doc_before_save()
 	# has_value_changed is always True on a new document, and a cleared Link field may
 	# be stored as "" rather than NULL, so compare normalized values explicitly.
-	previous_analyst = (previous.analyst or None) if previous else None
-	if previous_analyst != (doc.analyst or None):
-		if doc.analyst and not frappe.db.get_value("User", doc.analyst, "enabled"):
-			frappe.throw(_("User {0} is disabled.").format(doc.analyst))
+	previous_assignee = (previous.get(fieldname) or None) if previous else None
+	if previous_assignee != assignee:
+		if assignee and not frappe.db.get_value("User", assignee, "enabled"):
+			frappe.throw(_("User {0} is disabled.").format(assignee))
 		frappe.only_for(ANALYST_MANAGER_ROLES)
 
-	analysis_state = ANALYSIS_STATES[doc.doctype]
-	if previous and previous.workflow_state != analysis_state and is_in_analysis(doc):
-		# A new round of analysis starts unassigned, so a former analyst who left
-		# or is away does not keep the request out of the queue.
-		doc.analyst = None
+	queue_state = QUEUE_STATES[doc.doctype]
+	if previous and previous.workflow_state != queue_state and is_in_queue(doc):
+		# A new round starts unassigned, so a former assignee who left or is away
+		# does not keep the request out of the queue.
+		doc.set(fieldname, None)
 
 
-def sync_analysis_assignment(doc):
-	"""Keep the ToDo assignment in step with the analyst field and the workflow state.
 def sync_request_assignment(doc):
 	"""Keep the ToDo assignment in step with the assignee field and workflow state.
 
@@ -81,12 +82,12 @@ def sync_request_assignment(doc):
 			close_all_assignments(doc.doctype, doc.name, ignore_permissions=True)
 		return
 
-	previous_analyst = previous.analyst if previous else None
-	# Only an assignment of the current analysis round is still open.
-	if was_in_analysis and previous_analyst and previous_analyst != doc.analyst:
-		remove_assignment(doc.doctype, doc.name, previous_analyst)
-	if doc.analyst and (doc.analyst != previous_analyst or not was_in_analysis):
-		assign_analyst(doc, doc.analyst)
+	previous_assignee = previous.get(fieldname) if previous else None
+	# Only an assignment of the current queue round is still open.
+	if was_in_queue and previous_assignee and previous_assignee != assignee:
+		remove_assignment(doc.doctype, doc.name, previous_assignee)
+	if assignee and (assignee != previous_assignee or not was_in_queue):
+		assign_request(doc, assignee)
 
 
 def assign_request(doc, user):
