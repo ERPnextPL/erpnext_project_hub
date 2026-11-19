@@ -3,7 +3,7 @@
  * These are the default tabs available in the base version
  */
 import { registerTab } from '../tabRegistry';
-import { Folder, CheckSquare, Timer, ClipboardList } from 'lucide-vue-next';
+import { Folder, CheckSquare, Timer, CalendarRange } from 'lucide-vue-next';
 
 /**
  * Register all core tabs
@@ -48,15 +48,16 @@ export function registerCoreTabs() {
 		order: 30,
 	});
 
+	// Work planning tab: weekly plan of employees' hours on projects
 	registerTab({
-		key: 'requests',
-		routeName: 'ProjectRequests',
-		path: '/project-hub/requests',
-		labelKey: 'Requests',
-		icon: ClipboardList,
-		color: 'text-emerald-600',
-		bg: 'bg-emerald-50',
-		component: () => import('../pages/ProjectRequests.vue'),
-		order: 40,
+		key: 'work-planning',
+		routeName: 'WorkPlanning',
+		path: '/project-hub/work-planning',
+		labelKey: 'Work Planning',
+		icon: CalendarRange,
+		color: 'text-violet-600',
+		bg: 'bg-violet-50',
+		component: () => import('../pages/WorkPlanning.vue'),
+		order: 35,
 	});
 }

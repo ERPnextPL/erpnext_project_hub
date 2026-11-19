@@ -1,7 +1,10 @@
 <script setup>
 import { computed } from "vue";
-import { Calendar, Circle, Clock, AlertCircle, CheckCircle2, User, Flag } from "lucide-vue-next";
+import { Calendar, User, Flag, Lock } from "lucide-vue-next";
 import { translate } from "../utils/translation";
+import { TASK_STATUSES, getStatusBadge } from "../utils/taskStatus";
+import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
+import { useTaskStore } from "../stores/taskStore";
 
 const props = defineProps({
 	task: {
@@ -16,38 +19,9 @@ const props = defineProps({
 
 defineEmits(["click"]);
 
-const statusConfig = {
-	Open: {
-		icon: Circle,
-		class: "bg-blue-100 text-blue-700 border-blue-200",
-		label: translate("Open"),
-	},
-	Working: {
-		icon: Clock,
-		class: "bg-amber-100 text-amber-700 border-amber-200",
-		label: translate("Working"),
-	},
-	"Pending Review": {
-		icon: AlertCircle,
-		class: "bg-purple-100 text-purple-700 border-purple-200",
-		label: translate("Pending Review"),
-	},
-	Completed: {
-		icon: CheckCircle2,
-		class: "bg-green-100 text-green-700 border-green-200",
-		label: translate("Completed"),
-	},
-	Overdue: {
-		icon: AlertCircle,
-		class: "bg-red-100 text-red-700 border-red-200",
-		label: translate("Overdue"),
-	},
-	Cancelled: {
-		icon: Circle,
-		class: "bg-gray-100 text-gray-600 border-gray-200",
-		label: translate("Cancelled"),
-	},
-};
+const statusConfig = Object.fromEntries(
+	TASK_STATUSES.map((status) => [status, getStatusBadge(status)])
+);
 
 const priorityClassMap = {
 	Urgent: "text-red-600",
@@ -63,14 +37,9 @@ const priorityLabelMap = {
 	Low: translate("Low"),
 };
 
-const statusInfo = computed(() => {
-	return (
-		statusConfig[props.task.status] || {
-			icon: Circle,
-			class: "bg-gray-100 text-gray-600 border-gray-200",
-		}
-	);
-});
+const store = useTaskStore();
+
+const statusInfo = computed(() => statusConfig[props.task.status] || getStatusBadge(props.task.status));
 
 const indentStyle = computed(() => {
 	return {
@@ -79,14 +48,8 @@ const indentStyle = computed(() => {
 });
 
 const assigneeLabel = computed(() => {
-	if (!props.task._assign) return null;
-	try {
-		const assigned = JSON.parse(props.task._assign);
-		if (!Array.isArray(assigned) || assigned.length === 0) return null;
-		return assigned[0].split("@")[0].replace(/[._]/g, " ");
-	} catch {
-		return null;
-	}
+	const [first] = parseAssignees(props.task._assign);
+	return first ? nameFromUserId(first) : null;
 });
 
 const formattedDate = computed(() => {
@@ -98,16 +61,16 @@ const formattedDate = computed(() => {
 <template>
 	<button
 		type="button"
-		class="block w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-colors active:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:active:bg-gray-700"
+		class="block w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition-colors active:bg-gray-50"
 		:style="indentStyle"
 		@click="$emit('click', task)"
 	>
 		<div class="flex items-start justify-between gap-3">
 			<div class="min-w-0 flex-1">
-				<div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+				<div class="truncate text-sm font-medium text-gray-900">
 					{{ task.subject }}
 				</div>
-				<div v-if="task.description" class="mt-1 line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
+				<div v-if="task.description" class="mt-1 line-clamp-2 text-xs text-gray-500">
 					{{ task.description }}
 				</div>
 			</div>
@@ -122,7 +85,7 @@ const formattedDate = computed(() => {
 			</span>
 		</div>
 
-		<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
+		<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-gray-500">
 			<span class="inline-flex items-center gap-1">
 				<Calendar class="h-3.5 w-3.5" />
 				{{ formattedDate }}
@@ -130,6 +93,13 @@ const formattedDate = computed(() => {
 			<span v-if="assigneeLabel" class="inline-flex items-center gap-1">
 				<User class="h-3.5 w-3.5" />
 				{{ assigneeLabel }}
+			</span>
+			<span
+				v-if="task.is_blocked"
+				class="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-100 px-2 py-0.5 font-medium text-red-700"
+			>
+				<Lock class="h-3 w-3" />
+				{{ translate("Blocked") }}
 			</span>
 			<span
 				v-if="task.priority"

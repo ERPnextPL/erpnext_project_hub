@@ -3,9 +3,22 @@
 
 {% block title %}Project Outliner{% endblock %}
 
+{% block favicon %}
+<link rel="icon" type="image/svg+xml" href="/assets/erpnext_projekt_hub/frontend/favicon.svg?v=20241220-2030">
+{% endblock %}
+
 {% block head_include %}
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css">
-<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css">
+<script>
+	// Apply the stored theme before first paint (see frontend/src/composables/useDarkMode.js).
+	try {
+		if (localStorage.getItem("project-hub-theme") === "dark") {
+			document.documentElement.classList.add("dark");
+			document.documentElement.setAttribute("data-theme", "dark");
+		}
+	} catch (e) {}
+</script>
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/frappe-ui.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/assets/erpnext_projekt_hub/frontend/assets/index.css?v={{ asset_version }}">
 {% endblock %}
 
 {% block page_content %}
@@ -19,6 +32,18 @@
 	{% for key in boot %}
 	window["{{ key }}"] = {{ boot[key] | tojson }};
 	{% endfor %}
+	// frappe-web.bundle.js already aliased the global translate helper to frappe._,
+	// which only ever reads frappe._messages — empty on portal pages. This app's
+	// dictionary arrives as window.messages, so bridge it across; without this every
+	// translate() call falls through to the untranslated source string.
+	// Never write a dot followed by a double underscore anywhere in this file —
+	// frappe.utils.jinja.render_template rejects such templates outright.
+	if (window.frappe) {
+		window.frappe._messages = Object.assign({}, window.frappe._messages || {}, window.messages || {});
+		// Desk fills frappe.user_roles from its boot; portal pages don't, and
+		// plugin pages (e.g. projekt_hub_pro) gate their views on it.
+		window.frappe.user_roles = window.user_roles || [];
+	}
 </script>
-<script type="module" crossorigin src="/assets/erpnext_projekt_hub/frontend/assets/main.js"></script>
+<script type="module" crossorigin src="/assets/erpnext_projekt_hub/frontend/assets/main.js?v={{ asset_version }}"></script>
 {% endblock %}

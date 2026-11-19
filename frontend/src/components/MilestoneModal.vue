@@ -1,16 +1,25 @@
 <script setup>
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { Diamond, X } from "lucide-vue-next";
 import { getRealWindow, translate } from "../utils/translation";
+import { MILESTONE_STATUSES, getMilestoneStatusLabel } from "../utils/milestone";
+import { PRIORITY_VALUES } from "../utils/priority";
+import { useTaskStore } from "../stores/taskStore";
+import DatePickerField from "./DatePickerField.vue";
 
 const props = defineProps({
 	show: Boolean,
 	milestone: Object,
 	editMode: Boolean,
+	statuses: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 const emit = defineEmits(["save", "close"]);
 const realWindow = getRealWindow();
+const store = useTaskStore();
 
 const formData = ref({
 	milestone_name: "",
@@ -21,12 +30,18 @@ const formData = ref({
 	color: "#3b82f6",
 });
 
-const priorities = ["Low", "Medium", "High", "Urgent"];
-const statuses = ["Open", "In Progress", "Completed", "Cancelled"];
+const priorities = PRIORITY_VALUES;
+const statuses = computed(() =>
+	props.statuses.length
+		? props.statuses
+		: store.milestoneStatuses.length
+			? store.milestoneStatuses
+			: MILESTONE_STATUSES
+);
 
 watch(
 	() => props.show,
-	(newVal) => {
+	async (newVal) => {
 		if (newVal) {
 			if (props.editMode && props.milestone) {
 				formData.value = {
@@ -40,6 +55,7 @@ watch(
 			} else {
 				resetForm();
 			}
+			await store.fetchMilestoneStatuses();
 		}
 	}
 );
@@ -109,7 +125,7 @@ function handleSave() {
 							</div>
 							<button
 								@click="$emit('close')"
-								class="text-gray-400 hover:text-gray-600 transition-colors"
+								class="hub-tap text-gray-400 hover:text-gray-600 transition-colors"
 							>
 								<X class="w-5 h-5" />
 							</button>
@@ -135,10 +151,9 @@ function handleSave() {
 								<label class="block text-sm font-medium text-gray-700 mb-1">
 									{{ translate("Deadline") }}
 								</label>
-								<input
+								<DatePickerField
+									id="milestone-date"
 									v-model="formData.milestone_date"
-									type="date"
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								/>
 							</div>
 
@@ -169,7 +184,7 @@ function handleSave() {
 										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 									>
 										<option v-for="s in statuses" :key="s" :value="s">
-											{{ s }}
+											{{ getMilestoneStatusLabel(s) }}
 										</option>
 									</select>
 								</div>

@@ -83,7 +83,7 @@ watch(showDropdown, (isOpen) => {
 	<div class="column-settings-dropdown relative">
 		<button
 			@click="toggleDropdown"
-			class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+			class="p-1.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700"
 			:title="translate('Column settings')"
 		>
 			<Settings class="w-4 h-4" />
@@ -93,13 +93,13 @@ watch(showDropdown, (isOpen) => {
 			<Transition name="dropdown-fade">
 				<div
 					v-if="showDropdown"
-					class="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-2 min-w-[200px]"
+					class="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[200px]"
 					:style="{
 						left: dropdownPosition.x + 'px',
 						top: dropdownPosition.y + 'px',
 					}"
 				>
-					<div class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+					<div class="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-200">
 						{{ translate('Visible Columns') }}
 					</div>
 
@@ -110,12 +110,12 @@ watch(showDropdown, (isOpen) => {
 							@click="toggleColumn(column.id)"
 							:disabled="column.required && isColumnVisible(column.id)"
 							:aria-disabled="column.required && isColumnVisible(column.id)"
-							class="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
+							class="w-full flex items-center justify-between gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
 						>
 							<span>{{ column.label }}</span>
 							<Check
 								v-if="isColumnVisible(column.id)"
-								class="w-4 h-4 text-blue-600 dark:text-blue-400"
+								class="w-4 h-4 text-blue-600"
 							/>
 						</button>
 					</div>

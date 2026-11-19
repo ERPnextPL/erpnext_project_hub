@@ -34,10 +34,17 @@ const props = defineProps({
 		type: Boolean,
 		default: true,
 	},
+	selectedTaskNames: { type: Array, default: () => [] },
 });
+const emit = defineEmits(["toggle-select", "toggle-all"]);
 
 const store = useTaskStore();
 const draggedTask = ref(null);
+const dragItems = ref([]);
+const dragPointerX = ref(0);
+const dragDropTarget = ref(null);
+const dragDropMode = ref(null);
+const dragDropInsertAfter = ref(false);
 const addingSubtaskTo = ref(null); // Track which task we're adding a subtask to
 const showTimeLogModal = ref(false);
 const selectedTaskForTimeLog = ref(null);
@@ -49,11 +56,11 @@ const activeContextMenuTaskName = ref(null);
 const COLUMNS_STORAGE_KEY = 'project-hub-visible-columns';
 
 const COLUMN_WIDTHS = {
-	task: "minmax(0, 2fr)",
-	status: "minmax(0, 1fr)",
+	task: "minmax(0, 2.5fr)",
+	status: "minmax(0, 0.6fr)",
 	assignee: "minmax(0, 1fr)",
 	due_date: "minmax(0, 1fr)",
-	expected_time: "minmax(0, 0.9fr)",
+	expected_time: "minmax(0, 0.5fr)",
 	priority: "minmax(0, 0.7fr)",
 	actions: "2.75rem",
 };
@@ -176,6 +183,14 @@ const gridTemplateColumns = computed(() => {
 	return cols.join(" ");
 });
 
+const visibleTaskNames = computed(() => sortedTasks.value.map((task) => task.name));
+const allVisibleSelected = computed(() => visibleTaskNames.value.length > 0 && visibleTaskNames.value.every((name) => props.selectedTaskNames.includes(name)));
+const someVisibleSelected = computed(() => visibleTaskNames.value.some((name) => props.selectedTaskNames.includes(name)) && !allVisibleSelected.value);
+
+function toggleAllVisible() {
+	emit("toggle-all", { names: visibleTaskNames.value, selected: !allVisibleSelected.value });
+}
+
 let resizeObserver = null;
 
 onMounted(() => {
@@ -206,24 +221,150 @@ function focusBottomQuickAdd() {
 }
 
 function handleDragStart(evt) {
-	draggedTask.value = evt.item.__vue__?.task || null;
+	draggedTask.value = dragItems.value[evt.oldIndex] || null;
+	dragPointerX.value = evt.originalEvent?.clientX || 0;
+	dragDropTarget.value = null;
+	dragDropMode.value = null;
 }
 
-function handleDragEnd(evt) {
+function handleDragOver(evt) {
+	dragPointerX.value = evt.clientX;
+}
+
+function handleDragMove(evt) {
+	const target = evt.relatedContext?.element;
+	if (!target || target.name === draggedTask.value?.name) {
+		dragDropTarget.value = null;
+		dragDropMode.value = null;
+		return true;
+	}
+
+	dragDropTarget.value = target;
+	const row = Array.from(taskTreeRef.value?.querySelectorAll(".task-row") || []).find(
+		(element) => element.dataset.taskName === target.name
+	);
+	const clientY = evt.originalEvent?.clientY;
+	if (!row || typeof clientY !== "number") {
+		dragDropMode.value = "child";
+		return true;
+	}
+
+	const rect = row.getBoundingClientRect();
+	const edge = Math.max(12, rect.height * 0.25);
+	dragDropMode.value =
+		clientY <= rect.top + edge || clientY >= rect.bottom - edge ? "reorder" : "child";
+	dragDropInsertAfter.value = clientY >= rect.top + rect.height / 2;
+	return true;
+}
+
+function getDropTarget(newIndex, oldIndex) {
+	const movingDown = newIndex > oldIndex;
+	const nextTask = dragItems.value[newIndex + 1];
+	const previousTask = dragItems.value[newIndex - 1];
+	return {
+		task: movingDown ? nextTask || previousTask : previousTask || nextTask,
+		insertAfter: !nextTask,
+	};
+}
+
+function getDropParent(dropTarget) {
+	if (!dropTarget?.task) return null;
+	if (dragDropMode.value === "child") return dropTarget.task.name;
+	if (dragDropMode.value === "reorder") return dropTarget.task.parent_task || null;
+
+	const containerLeft = taskTreeRef.value?.getBoundingClientRect().left || 0;
+	const indentLevel = dropTarget.task.level || 0;
+	const childIndentStart = containerLeft + 48 + indentLevel * 24;
+	if (dragPointerX.value >= childIndentStart && dropTarget.task.name !== draggedTask.value?.name) {
+		return dropTarget.task.name;
+	}
+
+	return dropTarget.task.parent_task || null;
+}
+
+function isDescendant(taskName, possibleAncestor) {
+	let current = store.tasks.find((task) => task.name === taskName);
+	const visited = new Set();
+
+	while (current?.parent_task && !visited.has(current.parent_task)) {
+		if (current.parent_task === possibleAncestor) return true;
+		visited.add(current.parent_task);
+		current = store.tasks.find((task) => task.name === current.parent_task);
+	}
+
+	return false;
+}
+
+function getDropIndex(dropTarget, newParent) {
+	const siblings = store.tasks
+		.filter((task) => task.parent_task === newParent && task.name !== draggedTask.value.name)
+		.sort((a, b) => (a.idx || 0) - (b.idx || 0));
+
+	if (!dropTarget?.task) {
+		return siblings.length;
+	}
+
+	if (newParent === dropTarget.task.name) {
+		return siblings.length;
+	}
+
+	const targetPosition = siblings.findIndex((task) => task.name === dropTarget.task.name);
+	if (targetPosition < 0) return siblings.length;
+	return targetPosition + (dropTarget.insertAfter ? 1 : 0);
+}
+
+async function handleDragEnd(evt) {
 	if (!draggedTask.value) return;
 
 	const newIndex = evt.newIndex;
 	const oldIndex = evt.oldIndex;
+	const dragged = draggedTask.value;
 
-	if (newIndex !== oldIndex) {
-		// Calculate new parent and idx based on position
-		const targetTask = props.tasks[newIndex];
-		const newParent = targetTask?.parent_task || null;
+	// Drop rejected or nothing to save: put the rows back as they were, since
+	// vuedraggable has already reordered dragItems.
+	const cancelDrop = () => {
+		draggedTask.value = null;
+		dragDropTarget.value = null;
+		dragDropMode.value = null;
+		dragItems.value = [...sortedTasks.value];
+	};
 
-		store.reorderTask(draggedTask.value.name, newParent, newIndex);
+	// Same position without a target row: nothing changed. With a target row
+	// (dropped onto another task) the parent may still change.
+	if (newIndex === oldIndex && !dragDropTarget.value) {
+		cancelDrop();
+		return;
 	}
 
-	draggedTask.value = null;
+	const dropTarget = dragDropTarget.value
+		? { task: dragDropTarget.value, insertAfter: dragDropInsertAfter.value }
+		: getDropTarget(newIndex, oldIndex);
+	const newParent = getDropParent(dropTarget);
+	if (newParent === dragged.name || isDescendant(newParent, dragged.name)) {
+		cancelDrop();
+		return;
+	}
+	if (newIndex === oldIndex && (newParent || null) === (dragged.parent_task || null)) {
+		cancelDrop();
+		return;
+	}
+
+	const newIdx = getDropIndex(dropTarget, newParent);
+	try {
+		await store.reorderTask(dragged.name, newParent, newIdx);
+	} catch (error) {
+		if (!error.alerted && window.frappe) {
+			frappe.show_alert({
+				message: translate("Failed to move task"),
+				indicator: "red",
+			});
+		}
+	} finally {
+		draggedTask.value = null;
+		dragDropTarget.value = null;
+		dragDropMode.value = null;
+		dragItems.value = [...sortedTasks.value];
+	}
 }
 
 const highlightedTasks = ref(new Set());
@@ -418,6 +559,14 @@ const sortedTasks = computed(() => {
 
 	return tasksCopy;
 });
+
+watch(
+	sortedTasks,
+	(tasks) => {
+		if (!draggedTask.value) dragItems.value = [...tasks];
+	},
+	{ immediate: true }
+);
 </script>
 
 <template>
@@ -425,20 +574,21 @@ const sortedTasks = computed(() => {
 		<!-- Table header -->
 		<div
 			v-if="showHeader"
-			class="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10"
+			class="sticky top-0 bg-gray-50 border-b border-gray-200 z-10"
 		>
 			<div
-				class="grid gap-2 px-4 py-2 items-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+				class="grid gap-2 px-4 py-2 items-center text-xs font-medium text-gray-500 uppercase tracking-wider"
 				:style="{ gridTemplateColumns: gridTemplateColumns }"
 			>
 				<button
 					v-for="column in visibleColumnConfigs"
 					:key="column.id"
 					@click="column.sortable ? handleSort(column.id) : null"
-					class="text-left hover:text-gray-700 dark:hover:text-gray-300 transition-colors flex items-center gap-1"
+					class="text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 					:class="column.id === 'task' ? 'min-w-0' : ''"
 					:style="column.id === 'task' ? { width: '100%' } : {}"
 				>
+					<input v-if="column.id === 'task'" type="checkbox" :checked="allVisibleSelected" :indeterminate="someVisibleSelected" class="mr-1" @click.stop @change="toggleAllVisible" />
 					{{ column.label }}
 					<component v-if="getSortIcon(column.id)" :is="getSortIcon(column.id)" class="w-3 h-3" />
 				</button>
@@ -453,13 +603,14 @@ const sortedTasks = computed(() => {
 		</div>
 
 		<!-- Task rows -->
-		<div v-if="showBody" class="divide-y divide-gray-100 dark:divide-gray-800">
+		<div v-if="showBody" class="divide-y divide-gray-100" @dragover="handleDragOver">
 			<draggable
-				:list="sortedTasks"
+				:list="dragItems"
 				item-key="name"
 				handle=".drag-handle"
 				ghost-class="opacity-50"
 				:disabled="!!store.sortBy || !enableReorder"
+				:move="handleDragMove"
 				@start="handleDragStart"
 				@end="handleDragEnd"
 			>
@@ -472,6 +623,7 @@ const sortedTasks = computed(() => {
 							:visible-columns="effectiveVisibleColumns"
 							:grid-template="gridTemplateColumns"
 							:active-context-menu-task-name="activeContextMenuTaskName"
+							:selected="props.selectedTaskNames.includes(task.name)"
 							@update="handleTaskUpdate"
 							@click="handleTaskClick"
 							@add-subtask="handleAddSubtask"
@@ -479,11 +631,12 @@ const sortedTasks = computed(() => {
 							@add-task="handleAddTask"
 							@contextmenu-open="handleContextMenuOpen"
 							@contextmenu-close="handleContextMenuClose"
+							@toggle-select="emit('toggle-select', task.name, $event)"
 						/>
 						<!-- Inline subtask input -->
 						<div
 							v-if="addingSubtaskTo === task.name"
-							class="bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-400 dark:border-blue-500/60"
+							class="bg-blue-50 border-l-2 border-blue-400"
 						>
 							<QuickAddTask
 								:project-id="projectId"
@@ -502,7 +655,7 @@ const sortedTasks = computed(() => {
 		<!-- Quick add at bottom -->
 		<div
 			v-if="showQuickAdd && showBody"
-			class="task-tree-bottom-quickadd border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+			class="task-tree-bottom-quickadd border-t border-gray-200 bg-white"
 		>
 			<QuickAddTask
 				:project-id="projectId"

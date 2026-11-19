@@ -1,5 +1,7 @@
 frappe.ui.form.on("Customer Request", {
 	refresh(frm) {
+		erpnext_projekt_hub.request_queue.setup(frm, "To Analyze");
+
 		if (
 			frm.doc.docstatus === 0 &&
 			frm.doc.workflow_state === "Accepted" &&

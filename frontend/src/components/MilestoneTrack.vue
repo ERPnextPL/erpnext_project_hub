@@ -1,0 +1,118 @@
+<script setup>
+import { computed } from "vue";
+import { Check, AlertTriangle, X as XIcon } from "lucide-vue-next";
+import { useTaskStore } from "../stores/taskStore";
+import { translate } from "../utils/translation";
+
+const props = defineProps({
+	milestones: { type: Array, default: () => [] },
+});
+
+const store = useTaskStore();
+
+const HEALTH = {
+	completed: { bg: "var(--hub-milestone-done, #10b981)", border: "var(--hub-milestone-done, #10b981)", text: "#fff", line: "var(--hub-milestone-done, #10b981)" },
+	on_track: { bg: "var(--hub-milestone-on-track, #3b82f6)", border: "var(--hub-milestone-on-track, #3b82f6)", text: "#fff", line: "var(--hub-milestone-on-track, #3b82f6)" },
+	at_risk: { bg: "var(--hub-milestone-at-risk, #f59e0b)", border: "var(--hub-milestone-at-risk, #f59e0b)", text: "#fff", line: "var(--hub-milestone-at-risk, #f59e0b)" },
+	overdue: { bg: "var(--hub-milestone-overdue, #ef4444)", border: "var(--hub-milestone-overdue, #ef4444)", text: "#fff", line: "var(--hub-milestone-overdue, #ef4444)" },
+	// Neutral states follow the theme (variables set for html.dark in index.css).
+	no_deadline: {
+		bg: "var(--hub-milestone-idle-bg, #ffffff)",
+		border: "var(--hub-milestone-muted-border, #9ca3af)",
+		text: "var(--hub-milestone-muted-text, #9ca3af)",
+		line: "var(--hub-milestone-muted-line, #e5e7eb)",
+	},
+	cancelled: {
+		bg: "var(--hub-milestone-muted-bg, #f3f4f6)",
+		border: "var(--hub-milestone-muted-border, #d1d5db)",
+		text: "var(--hub-milestone-muted-text, #9ca3af)",
+		line: "var(--hub-milestone-muted-line, #e5e7eb)",
+	},
+};
+
+function nodeStyle(ms) {
+	const c = HEALTH[ms.health] || HEALTH.no_deadline;
+	return { backgroundColor: c.bg, borderColor: c.border, color: c.text };
+}
+
+function lineStyle(ms) {
+	const c = HEALTH[ms.health] || HEALTH.no_deadline;
+	return { backgroundColor: c.line };
+}
+
+function formatDate(str) {
+	if (!str) return null;
+	const [y, m, d] = str.split("-").map(Number);
+	return new Date(y, m - 1, d).toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
+}
+
+function isSelected(name) {
+	return store.activeMilestoneFilter.includes(name);
+}
+
+function toggle(name) {
+	store.setMilestoneFilter(name);
+}
+
+const HEALTH_LABELS = {
+	completed:   () => translate("Completed"),
+	on_track:    () => translate("On Track"),
+	at_risk:     () => translate("At Risk"),
+	overdue:     () => translate("Overdue"),
+	no_deadline: () => translate("No Deadline"),
+	cancelled:   () => translate("Cancelled"),
+};
+
+function healthLabel(h) {
+	return (HEALTH_LABELS[h] || HEALTH_LABELS.no_deadline)();
+}
+</script>
+
+<template>
+	<div
+		v-if="milestones.length"
+		class="overscroll-x-contain overflow-x-auto scroll-smooth border-b border-gray-200 bg-white snap-x snap-mandatory"
+		:aria-label="translate('Project milestones')"
+	>
+		<div class="flex min-w-max items-start px-4 py-3 sm:px-6 lg:px-8" role="list">
+			<template v-for="(ms, i) in milestones" :key="ms.name">
+				<!-- Node -->
+				<div class="flex snap-start flex-col items-center" style="width: 96px" role="listitem">
+					<button
+						class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border-2 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+						:class="isSelected(ms.name) ? 'ring-2 ring-offset-2 ring-blue-400 scale-110' : 'hover:scale-110'"
+						:style="nodeStyle(ms)"
+						:title="`${ms.milestone_name || ms.name} · ${healthLabel(ms.health)} · ${ms.progress || 0}%`"
+						:aria-label="`${ms.milestone_name || ms.name}: ${healthLabel(ms.health)}, ${ms.progress || 0}%`"
+						:aria-pressed="isSelected(ms.name)"
+						@click="toggle(ms.name)"
+					>
+						<Check v-if="ms.health === 'completed'" class="h-3.5 w-3.5" stroke-width="3" />
+						<XIcon v-else-if="ms.health === 'cancelled'" class="h-3.5 w-3.5" stroke-width="3" />
+						<AlertTriangle v-else-if="ms.health === 'overdue' || ms.health === 'at_risk'" class="h-3 w-3" stroke-width="2.5" />
+						<span v-else class="text-[9px] font-bold leading-none">{{ ms.progress || 0 }}%</span>
+					</button>
+
+					<p
+						class="mt-1.5 max-w-[92px] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] font-medium leading-tight"
+						:class="isSelected(ms.name) ? 'text-blue-600' : 'text-gray-700'"
+						:title="ms.milestone_name || ms.name"
+					>
+						{{ ms.milestone_name || ms.name }}
+					</p>
+					<p v-if="ms.milestone_date" class="mt-0.5 text-[10px] text-gray-400">
+						{{ formatDate(ms.milestone_date) }}
+					</p>
+				</div>
+
+				<!-- Connector line (not after last) -->
+				<div
+					v-if="i < milestones.length - 1"
+					class="mt-[17px] h-0.5 flex-shrink-0"
+					style="width: 24px"
+					:style="lineStyle(ms)"
+				></div>
+			</template>
+		</div>
+	</div>
+</template>

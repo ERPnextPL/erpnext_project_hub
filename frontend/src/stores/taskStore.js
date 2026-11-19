@@ -1,5 +1,9 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import { ACTIVE_STATUSES, BOARD_STATUSES } from "../utils/taskStatus";
+import { PRIORITY_VALUES } from "../utils/priority";
+import { promptForCompletionAssignee } from "../utils/taskCompletion";
+import { translate } from "../utils/translation";
 
 // Helper to get CSRF token - Frappe sets frappe.csrf_token in base template
 function getCsrfToken() {
@@ -64,17 +68,20 @@ async function apiCall(method, params = {}) {
 
 	if (!response.ok) {
 		const errorMsg = data.exception || data._server_messages || "API Error";
+		const error = new Error(errorMsg);
 		if (window.frappe) {
 			frappe.show_alert({ message: errorMsg, indicator: "red" });
+			// Callers can tell an already-reported failure from a silent one.
+			error.alerted = true;
 		}
-		throw new Error(errorMsg);
+		throw error;
 	}
 	return data.message;
 }
 
 export const useTaskStore = defineStore("tasks", () => {
 	const defaultFilters = {
-		status: ["Open", "Working", "Pending Review", "Overdue"],
+		status: [...ACTIVE_STATUSES],
 		priority: [],
 		assignee: null,
 		dueToday: false,
@@ -84,7 +91,16 @@ export const useTaskStore = defineStore("tasks", () => {
 
 	// State
 	const tasks = ref([]);
+	// Tasks loaded on demand for the board (its "Completed" list) that the
+	// filtered `tasks` list does not hold. Kept apart so the list view is not
+	// affected, but every write below updates them too (see patchBoardExtraTask).
+	const boardExtraTasks = ref([]);
 	const project = ref(null);
+
+	function patchBoardExtraTask(taskName, patch) {
+		const index = boardExtraTasks.value.findIndex((t) => t.name === taskName);
+		if (index !== -1) boardExtraTasks.value[index] = { ...boardExtraTasks.value[index], ...patch };
+	}
 	const loading = ref(false);
 	const selectedTask = ref(null);
 	const expandedTasks = ref(new Set());
@@ -188,6 +204,11 @@ export const useTaskStore = defineStore("tasks", () => {
 			if (data) {
 				tasks.value = data.tasks || [];
 				project.value = data.project || null;
+				// The fresh list now holds some extras, and another project none.
+				const fetched = new Set(tasks.value.map((t) => t.name));
+				boardExtraTasks.value = boardExtraTasks.value.filter(
+					(t) => t.project === projectId && !fetched.has(t.name)
+				);
 				// Expand all by default
 				tasks.value.forEach((t) => {
 					if (t.is_group) expandedTasks.value.add(t.name);
@@ -222,6 +243,11 @@ export const useTaskStore = defineStore("tasks", () => {
 
 async function updateTask(taskName, updates) {
 	try {
+			if (updates.status === "Completed") {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) updates = { ...updates, completed_by: completedBy };
+			}
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_task", {
 				task_name: taskName,
 				...updates,
@@ -255,27 +281,34 @@ async function updateTask(taskName, updates) {
 							.join(", ");
 						const moreCount =
 							incompleteSubtasks.length > 3
-								? ` and ${incompleteSubtasks.length - 3} more`
+								? ` ${translate("and {0} more", [incompleteSubtasks.length - 3])}`
 								: "";
 						frappe.show_alert({
-							message: `Cannot complete task. ${incompleteSubtasks.length} subtask(s) are not completed: ${subtaskNames}${moreCount}`,
+							message: translate(
+								"Cannot complete task. {0} subtask(s) are not completed: {1}",
+								[incompleteSubtasks.length, `${subtaskNames}${moreCount}`]
+							),
 							indicator: "blue",
 						});
 					}
 				}
 
+				// Capture milestone before local state update (data response doesn't include it)
+				const taskMilestoneBefore = index !== -1 ? tasks.value[index]?.milestone : null;
+
 				if (index !== -1) {
 					tasks.value[index] = { ...tasks.value[index], ...data };
 				}
+				patchBoardExtraTask(taskName, data);
 				if (selectedTask.value?.name === taskName) {
 					selectedTask.value = { ...selectedTask.value, ...data };
 				}
 				// Refresh project data if status changed (affects percent_complete)
 				if (updates.status && data.status === updates.status && project.value) {
 					await refreshProject();
-					// Also refresh milestones if task has milestone assigned
-					const task = tasks.value[index];
-					if (task && task.milestone) {
+					// Refresh milestones when task has a milestone or when project has milestones —
+					// cancelled/completed tasks affect milestone progress stored in DB
+					if (taskMilestoneBefore || milestones.value.length > 0) {
 						await fetchMilestones(project.value.name);
 					}
 				}
@@ -335,6 +368,7 @@ async function deleteTask(taskName) {
 			task_name: taskName,
 		});
 		tasks.value = tasks.value.filter((t) => t.name !== taskName);
+		boardExtraTasks.value = boardExtraTasks.value.filter((t) => t.name !== taskName);
 		// Refresh project to update percent_complete
 		if (project.value) {
 			await refreshProject();
@@ -343,6 +377,32 @@ async function deleteTask(taskName) {
 		console.error("Failed to delete task:", error);
 		throw error;
 	}
+}
+
+/**
+ * Every task of a project, whatever the current filters. `tasks` holds only the
+ * filtered ones, so actions that cascade to subtasks (cancel, delete) read the
+ * full tree from here.
+ */
+async function fetchAllProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		apply_default_status_filter: 0,
+	});
+	return data?.tasks || [];
+}
+
+async function fetchCompletedProjectTasks(projectId) {
+	const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_project_tasks", {
+		project: projectId,
+		status: "Completed",
+		apply_default_status_filter: 0,
+	});
+	const completed = (data?.tasks || []).filter((task) => task.status === "Completed");
+	// Keep them in the store (not only in the board) so updates reach them.
+	const listed = new Set(tasks.value.map((t) => t.name));
+	boardExtraTasks.value = completed.filter((task) => !listed.has(task.name));
+	return completed;
 }
 
 async function reorderTask(taskName, newParent, newIdx) {
@@ -404,14 +464,38 @@ async function reorderTask(taskName, newParent, newIdx) {
 
 	// User assignment functions
 	const availableUsers = ref([]);
+	const usersLoading = ref(false);
+	const usersError = ref(false);
 
 	async function fetchUsers() {
+		if (usersLoading.value) return;
+		usersLoading.value = true;
+		usersError.value = false;
 		try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.get_users", {});
 			availableUsers.value = data || [];
 		} catch (error) {
 			console.error("Failed to fetch users:", error);
+			usersError.value = true;
+		} finally {
+			usersLoading.value = false;
 		}
+	}
+
+	async function bulkUpdateTaskFields(taskNames, updates) {
+		if (updates.status === "Completed") {
+			const completedByByTask = {};
+			for (const taskName of taskNames) {
+				const completedBy = await promptForCompletionAssignee(taskName);
+				if (completedBy === null) return null;
+				if (completedBy) completedByByTask[taskName] = completedBy;
+			}
+			updates = { ...updates, completed_by_by_task: completedByByTask };
+		}
+		return apiCall("erpnext_projekt_hub.api.project_hub.bulk_update_task_fields", {
+			task_names: JSON.stringify(taskNames),
+			updates: JSON.stringify(updates),
+		});
 	}
 
 	async function fetchProjectsSettings() {
@@ -441,6 +525,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 				if (index !== -1) {
 					tasks.value[index]._assign = data._assign;
 				}
+				patchBoardExtraTask(taskName, { _assign: data._assign });
 				// Update selected task if it's the same
 				if (selectedTask.value?.name === taskName) {
 					selectedTask.value._assign = data._assign;
@@ -496,6 +581,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	// Time log functions
 	const taskTimelogs = ref({});
 	const activityTypes = ref([]);
+	const quickDescriptions = ref([]);
 	const pendingTimelogKeys = ref(new Set());
 	const taskStatuses = ref([]);
 	const taskPriorities = ref([]);
@@ -504,6 +590,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 	const NO_MILESTONE_FILTER = "__none__";
 	const milestones = ref([]);
 	const activeMilestoneFilter = ref([]);
+	const milestoneStatuses = ref([]);
 
 	async function fetchActivityTypes() {
 		try {
@@ -530,6 +617,21 @@ async function reorderTask(taskName, newParent, newIdx) {
 		}
 	}
 
+	async function fetchQuickDescriptions() {
+		try {
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.get_quick_time_log_descriptions",
+				{}
+			);
+			quickDescriptions.value = data || [];
+			return data;
+		} catch (error) {
+			console.error("Failed to fetch quick time log descriptions:", error);
+			quickDescriptions.value = [];
+			return quickDescriptions.value;
+		}
+	}
+
 	async function fetchTaskStatuses() {
 		try {
 			const data = await apiCall(
@@ -540,15 +642,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 			return data;
 		} catch (error) {
 			console.error("Failed to fetch task statuses:", error);
-			// Fallback to default statuses if API fails
-			taskStatuses.value = [
-				"Open",
-				"Working",
-				"Pending Review",
-				"Completed",
-				"Overdue",
-				"Cancelled",
-			];
+			// Fallback to the canonical list if the API call fails
+			taskStatuses.value = [...BOARD_STATUSES];
 			return taskStatuses.value;
 		}
 	}
@@ -564,7 +659,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		} catch (error) {
 			console.error("Failed to fetch task priorities:", error);
 			// Fallback to default priorities if API fails
-			taskPriorities.value = ["Low", "Medium", "High", "Urgent"];
+			taskPriorities.value = [...PRIORITY_VALUES];
 			return taskPriorities.value;
 		}
 	}
@@ -616,12 +711,16 @@ async function reorderTask(taskName, newParent, newIdx) {
 		}
 	}
 
-	async function updateTimelog(timelogName, updates) {
+	async function updateTimelog(timelogName, updates, taskName) {
 		try {
 			const data = await apiCall("erpnext_projekt_hub.api.project_hub.update_timelog", {
 				timelog_name: timelogName,
 				...updates,
 			});
+			// Refresh timelogs for this task
+			if (taskName) {
+				await fetchTaskTimelogs(taskName);
+			}
 			return data;
 		} catch (error) {
 			console.error("Failed to update timelog:", error);
@@ -648,6 +747,20 @@ async function reorderTask(taskName, newParent, newIdx) {
 	// ==========================================================================
 	// MILESTONE FUNCTIONS
 	// ==========================================================================
+
+	async function fetchMilestoneStatuses() {
+		try {
+			const data = await apiCall(
+				"erpnext_projekt_hub.api.project_hub.get_milestone_statuses",
+				{}
+			);
+			milestoneStatuses.value = data || [];
+			return data;
+		} catch (error) {
+			console.error("Failed to fetch milestone statuses:", error);
+			return milestoneStatuses.value;
+		}
+	}
 
 	async function fetchMilestones(projectName) {
 		try {
@@ -836,20 +949,25 @@ async function reorderTask(taskName, newParent, newIdx) {
 	return {
 		// State
 		tasks,
+		boardExtraTasks,
 		project,
 		loading,
 		selectedTask,
 		expandedTasks,
 		availableUsers,
+		usersLoading,
+		usersError,
 		allProjects,
 		taskTimelogs,
 		activityTypes,
+		quickDescriptions,
 		pendingTimelogKeys,
 		taskStatuses,
 		taskPriorities,
 		milestones,
 		activeMilestoneFilter,
 		NO_MILESTONE_FILTER,
+		milestoneStatuses,
 		projectTeamRefreshTrigger,
 		projectsSettings,
 		sortBy,
@@ -867,6 +985,8 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateProject,
 		deleteTask,
 		reorderTask,
+		fetchAllProjectTasks,
+		fetchCompletedProjectTasks,
 		toggleExpand,
 		expandAll,
 		collapseAll,
@@ -875,6 +995,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		setSorting,
 		// User assignment
 		fetchUsers,
+		bulkUpdateTaskFields,
 		assignTask,
 		fetchProjectUsers,
 		addProjectUser,
@@ -884,6 +1005,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		fetchProjectsSettings,
 		// Metadata
 		fetchActivityTypes,
+		fetchQuickDescriptions,
 		fetchTaskStatuses,
 		fetchTaskPriorities,
 		// Time logs
@@ -892,6 +1014,7 @@ async function reorderTask(taskName, newParent, newIdx) {
 		updateTimelog,
 		deleteTimelog,
 		// Milestones
+		fetchMilestoneStatuses,
 		fetchMilestones,
 		createMilestone,
 		updateMilestone,

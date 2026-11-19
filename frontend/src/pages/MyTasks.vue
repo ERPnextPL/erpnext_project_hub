@@ -1,10 +1,11 @@
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, watch, computed, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import { useMyTasksStore } from "../stores/myTasksStore";
 import { useTaskDeepLink } from "../composables/useTaskDeepLink";
 import { useDebounceFn } from "@vueuse/core";
+import { readFilters, writeFilters } from "../utils/urlFilters";
 import {
 	CheckSquare,
 	Search,
@@ -14,13 +15,17 @@ import {
 	AlertCircle,
 	LayoutList,
 	LayoutGrid,
+	Folder,
+	Edit3,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import MyTaskFilters from "../components/mytasks/MyTaskFilters.vue";
 import MyTaskList from "../components/mytasks/MyTaskList.vue";
+import MyTaskBoard from "../components/mytasks/MyTaskBoard.vue";
 import TaskDetailPanel from "../components/TaskDetailPanel.vue";
 import TimeLogModal from "../components/TimeLogModal.vue";
+import BulkTaskEditPanel from "../components/BulkTaskEditPanel.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -33,9 +38,87 @@ const translate = (text) => {
 		: text;
 };
 
+// Filter defaults - must mirror the shape of `filters` in myTasksStore.
+const FILTER_DEFAULTS = {
+	status: [],
+	priority: [],
+	project: null,
+	dueFilter: null,
+	search: "",
+	sortBy: "default",
+	sortOrder: "asc",
+};
+
+const DUE_FILTER_VALUES = ["today", "week", "overdue", "all"];
+const SORT_BY_VALUES = ["default", "due_date", "priority", "modified", "subject", "project", "status"];
+
 const showFilters = ref(false);
 const searchInput = ref("");
-const viewMode = ref("list"); // 'list' or 'kanban' (TODO)
+const filtersHydrated = ref(false);
+const suppressInitialSync = ref(false);
+// Board is the default view; the last choice is remembered per browser, so anyone
+// who prefers the list simply switches once and keeps it as their default.
+const VIEW_MODE_KEY = "projectHub.myTasks.viewMode";
+function loadViewMode() {
+	try {
+		const saved = localStorage.getItem(VIEW_MODE_KEY);
+		return saved === "list" || saved === "board" ? saved : "board";
+	} catch {
+		return "board";
+	}
+}
+const viewMode = ref(loadViewMode()); // 'board' or 'list'
+watch(viewMode, (value) => {
+	try {
+		localStorage.setItem(VIEW_MODE_KEY, value);
+	} catch {
+		/* storage unavailable */
+	}
+});
+const selectedTaskNames = ref([]);
+const lastSelectedTaskName = ref(null);
+const showBulkEdit = ref(false);
+const bulkEditLoading = ref(false);
+
+function toggleTaskSelection(taskName, event) {
+	const visibleNames = store.tasks.map((task) => task.name);
+	if (event?.shiftKey && lastSelectedTaskName.value) {
+		const start = visibleNames.indexOf(lastSelectedTaskName.value);
+		const end = visibleNames.indexOf(taskName);
+		if (start !== -1 && end !== -1) {
+			const range = visibleNames.slice(Math.min(start, end), Math.max(start, end) + 1);
+			selectedTaskNames.value = [...new Set([...selectedTaskNames.value, ...range])];
+			return;
+		}
+	}
+	selectedTaskNames.value = selectedTaskNames.value.includes(taskName)
+		? selectedTaskNames.value.filter((name) => name !== taskName)
+		: [...selectedTaskNames.value, taskName];
+	lastSelectedTaskName.value = taskName;
+}
+
+function toggleAllTaskSelection({ names, selected }) {
+	selectedTaskNames.value = selected
+		? [...new Set([...selectedTaskNames.value, ...names])]
+		: selectedTaskNames.value.filter((name) => !names.includes(name));
+}
+
+async function applyBulkEdit(updates) {
+	if (["Completed", "Cancelled"].includes(updates.status) && realWindow?.frappe?.confirm) {
+		const confirmed = await new Promise((resolve) => frappe.confirm(translate("Apply this status to all selected tasks?"), () => resolve(true), () => resolve(false)));
+		if (!confirmed) return;
+	}
+	bulkEditLoading.value = true;
+	try {
+		const result = await store.bulkUpdateTaskFields(selectedTaskNames.value, updates);
+		if (!result) return;
+		showBulkEdit.value = false;
+		selectedTaskNames.value = [];
+		await store.fetchTasks();
+	} finally {
+		bulkEditLoading.value = false;
+	}
+}
 
 // Time log modal state
 const showTimeLogModal = ref(false);
@@ -48,11 +131,40 @@ const debouncedSearch = useDebounceFn((value) => {
 }, 300);
 
 watch(searchInput, (value) => {
+	if (!filtersHydrated.value || suppressInitialSync.value) return;
 	debouncedSearch(value);
 });
 
+// Mirror every filter change into the URL so a refresh - or a shared link -
+// restores the same view.
+const debouncedWriteFilters = useDebounceFn((value) => {
+	writeFilters(router, route, value, FILTER_DEFAULTS);
+}, 300);
+
+watch(
+	() => store.filters,
+	(value) => {
+		if (!filtersHydrated.value || suppressInitialSync.value) return;
+		debouncedWriteFilters(value);
+	},
+	{ deep: true }
+);
+
 onMounted(async () => {
 	await Promise.all([store.fetchMetadata(), store.fetchProjects()]);
+	const restoredFilters = readFilters(route, FILTER_DEFAULTS, {
+		status: (value) => value.filter((status) => store.statuses.includes(status)),
+		priority: (value) => value.filter((priority) => store.priorities.includes(priority)),
+		dueFilter: (value) => (DUE_FILTER_VALUES.includes(value) ? value : null),
+		sortBy: (value) => (SORT_BY_VALUES.includes(value) ? value : "default"),
+		sortOrder: (value) => (value === "desc" ? "desc" : "asc"),
+	});
+	suppressInitialSync.value = true;
+	store.filters = { ...store.filters, ...restoredFilters };
+	searchInput.value = restoredFilters.search;
+	filtersHydrated.value = true;
+	await nextTick();
+	suppressInitialSync.value = false;
 	await store.fetchTasks();
 });
 
@@ -140,6 +252,7 @@ useTaskDeepLink({
 		<div class="bg-white border-b border-gray-200 sticky top-16 z-10">
 			<div class="w-full px-4 sm:px-6 lg:px-8 py-3">
 				<div class="flex flex-col sm:flex-row sm:items-center gap-3">
+						<button v-if="selectedTaskNames.length" @click="showBulkEdit = true" class="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white"><Edit3 class="h-4 w-4" />{{ translate("Bulk edit") }} ({{ selectedTaskNames.length }})</button>
 					<!-- Search -->
 					<div class="relative flex-1 max-w-md">
 						<Search
@@ -164,6 +277,27 @@ useTaskDeepLink({
 						</button>
 					</div>
 
+					<!-- Project filter -->
+					<div v-if="store.projects.length > 0" class="relative min-w-[160px] max-w-[220px]">
+						<Folder class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+						<select
+							:value="store.filters.project || ''"
+							@change="(e) => { store.setFilter('project', e.target.value || null); store.fetchTasks(); }"
+							:aria-label="translate('Filter by project')"
+							:class="[
+								'w-full pl-9 pr-4 py-2 text-sm border rounded-lg appearance-none cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white',
+								store.filters.project ? 'border-blue-300 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700'
+							]"
+						>
+							<option value="">{{ translate('All projects') }}</option>
+							<option
+								v-for="project in store.projects"
+								:key="project.name"
+								:value="project.name"
+							>{{ project.project_name }} ({{ project.task_count }})</option>
+						</select>
+					</div>
+
 						<div class="flex items-center gap-2">
 							<!-- Filter toggle -->
 							<button
@@ -183,12 +317,29 @@ useTaskDeepLink({
 								></span>
 							</button>
 
-							<!-- View mode toggle (TODO: Kanban) -->
+							<!-- View mode toggle -->
 							<div
-								class="hidden sm:flex items-center border border-gray-300 rounded-lg overflow-hidden"
+								class="flex items-center border border-gray-300 rounded-lg overflow-hidden"
+								role="group"
+								:aria-label="translate('View')"
 							>
 								<button
+									@click="viewMode = 'board'"
+									:aria-pressed="viewMode === 'board'"
+									:class="[
+										'p-2 transition-colors',
+										viewMode === 'board'
+											? 'bg-gray-100 text-gray-900'
+											: 'text-gray-500 hover:bg-gray-50',
+									]"
+									:title="translate('Board view')"
+									:aria-label="translate('Board view')"
+								>
+									<LayoutGrid class="w-4 h-4" />
+								</button>
+								<button
 									@click="viewMode = 'list'"
+									:aria-pressed="viewMode === 'list'"
 									:class="[
 										'p-2 transition-colors',
 										viewMode === 'list'
@@ -196,21 +347,9 @@ useTaskDeepLink({
 											: 'text-gray-500 hover:bg-gray-50',
 									]"
 									:title="translate('List view')"
+									:aria-label="translate('List view')"
 								>
 									<LayoutList class="w-4 h-4" />
-								</button>
-								<button
-									@click="viewMode = 'kanban'"
-									:class="[
-										'p-2 transition-colors',
-										viewMode === 'kanban'
-											? 'bg-gray-100 text-gray-900'
-											: 'text-gray-500 hover:bg-gray-50',
-									]"
-									:title="translate('Kanban view (coming soon)')"
-									disabled
-								>
-									<LayoutGrid class="w-4 h-4 opacity-50" />
 								</button>
 							</div>
 
@@ -307,8 +446,11 @@ useTaskDeepLink({
 					</div>
 			</div>
 
-				<!-- Task list -->
-				<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" />
+			<!-- Board view -->
+			<MyTaskBoard v-else-if="viewMode === 'board'" @log-time="openTimeLogModal" />
+
+			<!-- Task list -->
+			<MyTaskList v-else :on-open-time-log-modal="openTimeLogModal" :selected-task-names="selectedTaskNames" @toggle-select="toggleTaskSelection" @toggle-all="toggleAllTaskSelection" />
 			</main>
 
 			<!-- Task Detail Panel -->
@@ -331,6 +473,7 @@ useTaskDeepLink({
 			@close="showTimeLogModal = false"
 			@save="handleTimeLogSave"
 		/>
+		<BulkTaskEditPanel :open="showBulkEdit" :selected-count="selectedTaskNames.length" :statuses="store.statuses" :priorities="store.priorities" :users="store.users" :loading="bulkEditLoading" @close="showBulkEdit = false" @apply="applyBulkEdit" />
 
 		<BackToDeskButton />
 	</div>

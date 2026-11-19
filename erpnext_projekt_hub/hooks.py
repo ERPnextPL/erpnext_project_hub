@@ -1,3 +1,5 @@
+import frappe
+
 app_name = "erpnext_projekt_hub"
 app_title = "Projekt HUB"
 app_publisher = "Krzysztof"
@@ -19,6 +21,7 @@ add_to_apps_screen = [
 		"logo": "/assets/erpnext_projekt_hub/frontend/favicon.svg",
 		"title": "Projekt HUB",
 		"route": "/project-hub",
+		"has_permission": "erpnext_projekt_hub.access.has_project_hub_access",
 	}
 ]
 
@@ -50,7 +53,9 @@ web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
 doctype_js = {
 	"Project": "public/js/project.js",
 	"Timesheet": "public/js/timesheet_timer_override.js",
-	"Customer Request": "public/js/customer_request.js",
+	"Task": "public/js/task_completion.js",
+	"Customer Request": ["public/js/request_queue.js", "public/js/customer_request.js"],
+	"Change Request": ["public/js/request_queue.js", "public/js/change_request.js"],
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -129,21 +134,33 @@ after_uninstall = "erpnext_projekt_hub.uninstall.after_uninstall"
 # -----------
 # Permissions evaluated in scripted ways
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+permission_query_conditions = {
+	"Work Plan Entry": "erpnext_projekt_hub.projekt_hub.doctype.work_plan_entry.work_plan_entry.get_permission_query_conditions",
+}
+
+has_permission = {
+	"Work Plan Entry": "erpnext_projekt_hub.projekt_hub.doctype.work_plan_entry.work_plan_entry.has_permission",
+}
 
 # DocType Class
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
+# HubTask keeps a missed due date from overwriting the task status, and
+# HubTimesheet stops time log approval from rewriting it. Frappe v16
+# can mix it into ERPNext's controller; v15 has no extend_doctype_class hook, so
+# there the class has to be replaced.
+if int(frappe.__version__.split(".")[0]) >= 16:
+	extend_doctype_class = {
+		"Task": ["erpnext_projekt_hub.overrides.task.HubTask"],
+		"Timesheet": ["erpnext_projekt_hub.overrides.timesheet.HubTimesheet"],
+	}
+else:
+	# nosemgrep: frappe-semgrep-rules.rules.override-doctype-class
+	override_doctype_class = {
+		"Task": "erpnext_projekt_hub.overrides.task.HubTask",
+		"Timesheet": "erpnext_projekt_hub.overrides.timesheet.HubTimesheet",
+	}
 
 # Document Events
 # ---------------
@@ -151,11 +168,17 @@ after_uninstall = "erpnext_projekt_hub.uninstall.after_uninstall"
 
 doc_events = {
 	"Task": {
+		"validate": "erpnext_projekt_hub.overrides.task.set_overdue_flag",
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
 	},
 	"Notification Log": {
 		"before_insert": "erpnext_projekt_hub.events.notification_log_events.before_insert",
+	"ToDo": {
+		"before_insert": [
+			"erpnext_projekt_hub.events.todo_events.set_task_assignment_description",
+			"erpnext_projekt_hub.events.todo_events.set_task_assignment_date",
+		],
 	},
 }
 
@@ -264,14 +287,31 @@ before_tests = "erpnext_projekt_hub.install.before_tests"
 # Fixtures
 # --------
 fixtures = [
-	{"dt": "Custom Field", "filters": [["name", "in", ["Task-milestone"]]]},
+	{
+		"dt": "Custom Field",
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"Task-milestone",
+					"Task-reference_link",
+					"Task-hub_is_overdue",
+					"Task-is_blocked",
+				],
+			]
+		],
+	},
 	{
 		"dt": "Workspace Link",
-		"filters": [["parent", "=", "Projects"], ["label", "in", ["Project Hub", "Project Milestone"]]],
+		"filters": [["parent", "=", "Projects"], ["label", "=", "Project Milestone"]],
 	},
 	{
 		"dt": "Workspace Shortcut",
 		"filters": [["parent", "=", "Projects"], ["link_to", "=", "Project Milestone"]],
 	},
-	{"dt": "Workspace Shortcut", "filters": [["parent", "=", "Projects"], ["link_to", "=", "/project-hub"]]},
+	{
+		"dt": "Workspace Shortcut",
+		"filters": [["parent", "=", "Projects"], ["type", "=", "URL"], ["url", "=", "/project-hub"]],
+	},
 ]

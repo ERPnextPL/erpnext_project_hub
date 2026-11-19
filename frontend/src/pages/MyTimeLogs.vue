@@ -17,12 +17,16 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	CheckCircle,
+	Plus,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
 import { useMyTimeLogsStore } from "../stores/myTimeLogsStore";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
+import DatePickerField from "../components/DatePickerField.vue";
+import TimeLogModal from "../components/TimeLogModal.vue";
+import TimeLogTaskPicker from "../components/mytimelogs/TimeLogTaskPicker.vue";
 
 const store = useMyTimeLogsStore();
 const taskStore = useTaskStore();
@@ -31,6 +35,34 @@ const realWindow = getRealWindow();
 const showFilters = ref(false);
 const searchInput = ref("");
 const editModalOpen = ref(false);
+
+// "Add time" (FAB): pick a task, then the same time entry modal as on tasks.
+const taskPickerOpen = ref(false);
+const timeLogTask = ref(null);
+
+function openAddTime() {
+	timeLogTask.value = null;
+	taskPickerOpen.value = true;
+}
+
+function onTaskPicked(task) {
+	taskPickerOpen.value = false;
+	timeLogTask.value = task;
+}
+
+async function handleAddTimeSave(timelogData, reenableForm) {
+	try {
+		await store.createTimelog(timelogData);
+		timeLogTask.value = null;
+		showAlert(translate("Time entry saved"), "green");
+		await store.fetchLogs();
+	} catch (error) {
+		// apiCall already shows the server's message; keep the form for a retry.
+		console.error("Failed to save time entry:", error);
+		showAlert(translate("Failed to save time entry"), "red");
+		reenableForm?.();
+	}
+}
 const savingEdit = ref(false);
 const editForm = ref({
 	timelog_name: "",
@@ -63,6 +95,9 @@ function getLocalDateString(date) {
 const viewMode = ref("list"); // 'list' | 'calendar' | 'week'
 const sortBy = ref("date");
 const sortOrder = ref("desc");
+
+// Week view - selected day
+const selectedDayStr = ref(null);
 
 // Calendar navigation
 const currentCalendarDate = ref(new Date());
@@ -417,7 +452,17 @@ function navigateWeek(direction) {
 	const newDate = new Date(currentWeekStart.value);
 	newDate.setDate(newDate.getDate() + direction * 7);
 	currentWeekStart.value = newDate;
+	selectedDayStr.value = null;
 }
+
+function toggleDaySelection(dateStr) {
+	selectedDayStr.value = selectedDayStr.value === dateStr ? null : dateStr;
+}
+
+const selectedDayData = computed(() => {
+	if (!selectedDayStr.value) return null;
+	return weekDays.value.find((d) => d.dateStr === selectedDayStr.value) || null;
+});
 
 function goToToday() {
 	if (viewMode.value === "calendar") {
@@ -820,7 +865,7 @@ async function handleDeleteLog(log) {
 							</select>
 							<button
 								@click="toggleSort(sortBy)"
-								class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+								class="hub-tap absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
 							>
 								<ArrowUpDown class="w-4 h-4" />
 							</button>
@@ -871,25 +916,13 @@ async function handleDeleteLog(log) {
 								<label class="text-xs font-medium text-gray-500">
 									{{ translate("Start date") }}
 								</label>
-								<input
-									type="date"
-									:value="store.filters.startDate"
-									@change="updateFilter('startDate', $event.target.value)"
-									placeholder="dd.mm.rrrr (08.01.2026)"
-									class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-								/>
+								<DatePickerField id="timelogs-filter-start" :model-value="store.filters.startDate" @update:model-value="updateFilter('startDate', $event)" />
 							</div>
 							<div>
 								<label class="text-xs font-medium text-gray-500">
 									{{ translate("End date") }}
 								</label>
-								<input
-									type="date"
-									:value="store.filters.endDate"
-									@change="updateFilter('endDate', $event.target.value)"
-									placeholder="dd.mm.rrrr (08.01.2026)"
-									class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-								/>
+								<DatePickerField id="timelogs-filter-end" :model-value="store.filters.endDate" @update:model-value="updateFilter('endDate', $event)" />
 							</div>
 							<div>
 								<label class="text-xs font-medium text-gray-500">
@@ -991,7 +1024,7 @@ async function handleDeleteLog(log) {
 					{{ chip.label }}
 					<button
 						type="button"
-						class="flex rounded-full hover:bg-amber-100"
+						class="hub-tap flex rounded-full hover:bg-amber-100"
 						@click="removeFilter(chip.key)"
 					>
 						<X class="w-3 h-3" />
@@ -1206,7 +1239,7 @@ async function handleDeleteLog(log) {
 									</span>
 								</div>
 								<div class="text-xs text-gray-500 mt-1">
-									{{ day.data.logs.length }} {{ translate("entries") }}
+									{{ day.data.logs.length }}<span class="hidden sm:inline"> {{ translate("entries") }}</span>
 								</div>
 							</div>
 						</div>
@@ -1250,11 +1283,14 @@ async function handleDeleteLog(log) {
 						<div
 							v-for="day in weekDays"
 							:key="day.dateStr"
+							@click="toggleDaySelection(day.dateStr)"
 							:class="[
-								'bg-white border-2 rounded-xl p-3 transition-all',
-								isToday(day.date)
-									? 'border-amber-500 shadow-lg'
-									: 'border-gray-200',
+								'bg-white border-2 rounded-xl p-3 transition-all cursor-pointer',
+								selectedDayStr === day.dateStr
+									? 'border-blue-500 ring-2 ring-blue-200 shadow-md'
+									: isToday(day.date)
+									? 'border-amber-500 shadow-lg hover:border-amber-400'
+									: 'border-gray-200 hover:border-gray-300 hover:shadow-sm',
 							]"
 						>
 							<!-- Day header -->
@@ -1364,6 +1400,99 @@ async function handleDeleteLog(log) {
 							</div>
 						</div>
 					</div>
+
+					<!-- Selected day records -->
+					<Transition name="slide-fade">
+						<div v-if="selectedDayData" class="mt-4 border border-blue-200 rounded-xl overflow-hidden">
+							<div class="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-200">
+								<div class="flex items-center gap-2">
+									<CalendarDays class="w-4 h-4 text-blue-600" />
+									<span class="text-sm font-semibold text-blue-900">
+										{{
+											new Intl.DateTimeFormat(userLocale, {
+												weekday: "long",
+												day: "numeric",
+												month: "long",
+											}).format(selectedDayData.date)
+										}}
+									</span>
+									<span class="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+										{{ selectedDayData.data.logs.length }} {{ translate("entries") }}
+									</span>
+								</div>
+								<button
+									@click="selectedDayStr = null"
+									class="p-1 text-blue-500 hover:text-blue-700 rounded"
+								>
+									<X class="w-4 h-4" />
+								</button>
+							</div>
+
+							<div v-if="selectedDayData.data.logs.length === 0" class="px-4 py-8 text-center text-sm text-gray-500 bg-white">
+								{{ translate("No time entries for this day") }}
+							</div>
+
+							<div v-else class="divide-y divide-gray-100 bg-white">
+								<div
+									v-for="log in selectedDayData.data.logs"
+									:key="log.timelog_name"
+									class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50"
+								>
+									<div class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-xs font-semibold text-gray-700 flex-shrink-0 mt-0.5">
+										{{ getProjectInitial(log) }}
+									</div>
+									<div class="flex-1 min-w-0">
+										<p class="text-sm font-medium text-gray-900 truncate">
+											{{ log.task_subject || log.task || translate("No task") }}
+										</p>
+										<p class="text-xs text-gray-500 truncate">
+											{{ log.project_name || log.project || translate("No project") }}
+											<span v-if="log.activity_type"> · {{ log.activity_type }}</span>
+										</p>
+										<p v-if="log.description" class="text-xs text-gray-400 mt-0.5 line-clamp-2 [overflow-wrap:anywhere]">
+											{{ log.description }}
+										</p>
+									</div>
+									<div class="flex flex-col items-end gap-1 flex-shrink-0">
+										<span class="text-sm font-bold text-gray-900">
+											{{ formatHours(log.hours) }}h
+										</span>
+										<span
+											class="px-2 py-0.5 text-xs font-medium rounded-full"
+											:class="getStatusBadgeClass(log.status)"
+										>
+											{{ translate(log.status || "Unknown") }}
+										</span>
+									</div>
+									<div class="flex items-center gap-1 flex-shrink-0 ml-1">
+										<button
+											v-if="isDraftLog(log)"
+											@click.stop="openEditModal(log)"
+											class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+											:title="translate('Edit')"
+										>
+											<Pencil class="w-3.5 h-3.5" />
+										</button>
+										<button
+											v-if="isDraftLog(log)"
+											@click.stop="handleDeleteLog(log)"
+											class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+											:title="translate('Delete')"
+										>
+											<Trash2 class="w-3.5 h-3.5" />
+										</button>
+									</div>
+								</div>
+							</div>
+
+							<div class="px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+								<span class="text-xs text-gray-500">{{ translate("Total") }}</span>
+								<span class="text-sm font-bold text-gray-900">
+									{{ formatHours(selectedDayData.data.totalHours) }}h
+								</span>
+							</div>
+						</div>
+					</Transition>
 
 					<!-- Week summary -->
 					<div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1542,6 +1671,33 @@ async function handleDeleteLog(log) {
 		</Transition>
 
 		<BackToDeskButton />
+
+		<!-- FAB: add a time entry (same as the "Add task" button of the project view) -->
+		<button
+			type="button"
+			class="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-blue-300"
+			:title="translate('Add time')"
+			:aria-label="translate('Add time')"
+			@click="openAddTime"
+		>
+			<Plus class="h-6 w-6" />
+		</button>
+
+		<TimeLogTaskPicker
+			v-if="taskPickerOpen"
+			:recent-logs="store.timelogs"
+			:fetch-tasks="store.fetchAssignableTasks"
+			@select="onTaskPicked"
+			@close="taskPickerOpen = false"
+		/>
+
+		<TimeLogModal
+			v-if="timeLogTask"
+			:task="timeLogTask"
+			:show="!!timeLogTask"
+			@close="timeLogTask = null"
+			@save="handleAddTimeSave"
+		/>
 	</div>
 </template>
 

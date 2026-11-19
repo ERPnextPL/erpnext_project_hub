@@ -5,6 +5,7 @@ import MyTaskRowDesktop from "./MyTaskRowDesktop.vue";
 import MyTaskCardMobile from "./MyTaskCardMobile.vue";
 import { useWindowSize } from "@vueuse/core";
 import { ArrowUp, ArrowDown } from "lucide-vue-next";
+import { BOARD_STATUSES, getStatusLabel } from "../../utils/taskStatus";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -22,17 +23,14 @@ const props = defineProps({
 		type: Function,
 		required: true,
 	},
+	selectedTaskNames: { type: Array, default: () => [] },
 });
+const emit = defineEmits(["toggle-select", "toggle-all"]);
 
-const statusOrder = ["Overdue", "Open", "Working", "Pending Review", "Completed", "Cancelled"];
-const statusLabels = {
-	Overdue: translate("Overdue"),
-	Open: translate("Open"),
-	Working: translate("Working"),
-	"Pending Review": translate("Pending Review"),
-	Completed: translate("Completed"),
-	Cancelled: translate("Cancelled"),
-};
+const statusOrder = BOARD_STATUSES;
+const statusLabels = Object.fromEntries(
+	statusOrder.map((status) => [status, getStatusLabel(status)])
+);
 
 const tasksByName = computed(() => {
 	const m = new Map();
@@ -114,6 +112,14 @@ const sections = computed(() => {
 		.map((s) => ({ key: s, label: statusLabels[s] || s, tasks: groups.get(s) || [] }));
 });
 
+const visibleTaskNames = computed(() => (store.tasks || []).map((task) => task.name));
+const allVisibleSelected = computed(() => visibleTaskNames.value.length > 0 && visibleTaskNames.value.every((name) => props.selectedTaskNames.includes(name)));
+const someVisibleSelected = computed(() => visibleTaskNames.value.some((name) => props.selectedTaskNames.includes(name)) && !allVisibleSelected.value);
+
+function toggleAllVisible() {
+	emit("toggle-all", { names: visibleTaskNames.value, selected: !allVisibleSelected.value });
+}
+
 function getSortIcon(column) {
 	if (store.filters.sortBy !== column) return null;
 	return store.filters.sortOrder === "asc" ? ArrowUp : ArrowDown;
@@ -137,6 +143,7 @@ function handleSort(column) {
 					@click="handleSort('subject')"
 					class="col-span-4 text-left hover:text-gray-700 transition-colors flex items-center gap-1"
 				>
+					<input type="checkbox" :checked="allVisibleSelected" :indeterminate="someVisibleSelected" class="mr-1" @click.stop @change="toggleAllVisible" />
 					{{ translate("Task") }}
 					<component
 						v-if="getSortIcon('subject')"
@@ -230,7 +237,9 @@ function handleSort(column) {
 								:is-expanded="
 									store.viewOptions?.showHierarchy && isExpanded(item.task.name)
 								"
+								:selected="props.selectedTaskNames.includes(item.task.name)"
 								@toggle-expand="store.toggleExpandParent"
+								@toggle-select="emit('toggle-select', item.task.name, $event)"
 								@open-time-log-modal="props.onOpenTimeLogModal"
 							/>
 						</template>
@@ -242,6 +251,8 @@ function handleSort(column) {
 							v-for="task in section.tasks"
 							:key="task.name"
 							:task="task"
+							:selected="props.selectedTaskNames.includes(task.name)"
+							@toggle-select="emit('toggle-select', task.name, $event)"
 						/>
 					</template>
 				</template>

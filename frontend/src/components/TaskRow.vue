@@ -1,18 +1,29 @@
+<script>
+import { ref as moduleRef } from "vue";
+
+// Only one row's status dropdown may be open at a time across the whole list
+const openStatusMenuTask = moduleRef(null);
+const openPriorityMenuTask = moduleRef(null);
+</script>
+
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { useTaskStore } from "../stores/taskStore";
 import { getRealWindow, translate } from "../utils/translation";
 import { stripHtmlToText } from "../utils/plainText";
 import { renderMarkdown } from "../utils/markdown";
+import { BOARD_STATUSES, getStatusSolid, isTaskActive } from "../utils/taskStatus";
+import BlockedToggle from "./atoms/BlockedToggle.vue";
+import { getTaskMilestone } from "../utils/milestone";
+import { cancelTaskWithSubtasks } from "../utils/taskHierarchy";
+import { nameFromUserId, parseAssignees } from "../utils/taskAssignees";
+import DatePickerPopover from "./DatePickerPopover.vue";
 import {
 	GripVertical,
 	ChevronRight,
 	ChevronDown,
 	X,
-	Circle,
-	CheckCircle2,
 	Clock,
-	AlertCircle,
 	User,
 	Calendar,
 	MoreHorizontal,
@@ -21,6 +32,9 @@ import {
 	Plus,
 	Diamond,
 	FileText,
+	Flag,
+	Lock,
+	Unlock,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -48,6 +62,7 @@ const props = defineProps({
 		type: String,
 		default: null,
 	},
+	selected: Boolean,
 });
 
 const emit = defineEmits([
@@ -58,6 +73,7 @@ const emit = defineEmits([
 	"add-task",
 	"contextmenu-open",
 	"contextmenu-close",
+	"toggle-select",
 ]);
 
 const store = useTaskStore();
@@ -85,6 +101,8 @@ const isTouchDevice = () => {
 
 // Context menu
 const contextMenuPosition = ref({ x: 0, y: 0 });
+const contextMenuRef = ref(null);
+const contextMenuAnchor = ref({ x: 0, y: 0 });
 const showContextMenu = computed(() => props.activeContextMenuTaskName === props.task.name);
 
 // User assignment dropdown
@@ -98,35 +116,19 @@ const hasChildren = computed(() => {
 const isExpanded = computed(() => store.expandedTasks.has(props.task.name));
 
 const canAddSubtask = computed(() => {
-	return props.task.status !== "Completed" && props.task.status !== "Cancelled";
+	return isTaskActive(props.task.status);
 });
 
-const assignedUsers = computed(() => {
-	if (!props.task._assign) return [];
-	try {
-		const assigns = JSON.parse(props.task._assign);
-		return Array.isArray(assigns) ? assigns : [];
-	} catch {
-		return [];
-	}
-});
+const assignedUsers = computed(() => parseAssignees(props.task._assign));
 
 const firstAssignee = computed(() => {
 	if (assignedUsers.value.length === 0) return null;
 	const email = assignedUsers.value[0];
-	// Extract name from email (before @)
-	const name = email.split("@")[0];
-	return {
-		email,
-		displayName: name.charAt(0).toUpperCase() + name.slice(1).replace(/[._]/g, " "),
-	};
+	return { email, displayName: nameFromUserId(email) };
 });
 
-const milestoneColor = computed(() => {
-	if (!props.task.milestone) return null;
-	const milestone = store.milestones.find((m) => m.name === props.task.milestone);
-	return milestone?.color || "#3b82f6"; // Default blue if no color set
-});
+const taskMilestone = computed(() => getTaskMilestone(props.task, store.milestones));
+const milestoneColor = computed(() => taskMilestone.value?.color || null);
 
 // Load metadata on mount
 onMounted(() => {
@@ -138,62 +140,79 @@ onMounted(() => {
 	}
 });
 
-// Status configuration with icons and classes
-const statusIconMap = {
-	Open: { icon: Circle, class: "status-open" },
-	Working: { icon: Clock, class: "status-working" },
-	"Pending Review": { icon: AlertCircle, class: "status-working" },
-	Completed: { icon: CheckCircle2, class: "status-completed" },
-	Overdue: { icon: AlertCircle, class: "status-overdue" },
-	Cancelled: { icon: Circle, class: "status-cancelled" },
-};
+// Same options and styling as the status dropdown in My Tasks
+const statusConfig = Object.fromEntries(
+	BOARD_STATUSES.map((status) => [status, getStatusSolid(status)])
+);
 
-const statusLabelMap = {
-	Open: "Open",
-	Working: "Working",
-	"Pending Review": "Review",
-	Completed: "Done",
-	Overdue: "Overdue",
-	Cancelled: "Cancelled",
-};
-
-const statusConfig = computed(() => {
-	const config = {};
-	store.taskStatuses.forEach((status) => {
-		const iconConfig = statusIconMap[status] || { icon: Circle, class: "status-open" };
-		config[status] = {
-			icon: iconConfig.icon,
-			class: iconConfig.class,
-			label: statusLabelMap[status] || status,
-		};
-	});
-	return config;
+const currentStatus = computed(() => {
+	return statusConfig[props.task.status] || statusConfig["Open"];
 });
 
+// Status dropdown - teleported to body because the task list sits in overflow-hidden containers
+const showStatusDropdown = computed(() => openStatusMenuTask.value === props.task.name);
+const statusDropdownPosition = ref({ x: 0, y: 0 });
+
 const priorityClassMap = {
-	Urgent: "priority-urgent",
-	High: "priority-high",
-	Medium: "priority-medium",
-	Low: "priority-low",
+	Urgent: "text-red-600",
+	High: "text-orange-600",
+	Medium: "text-amber-600",
+	Low: "text-slate-600",
 };
 
-const priorityLabelMap = {
-	Urgent: "!!!",
-	High: "!!",
-	Medium: "!",
-	Low: "-",
+const priorityBackgroundMap = {
+	Urgent: "bg-red-100 border border-red-200",
+	High: "bg-orange-100 border border-orange-200",
+	Medium: "bg-amber-100 border border-amber-200",
+	Low: "bg-slate-100 border border-slate-200",
 };
 
 const priorityConfig = computed(() => {
 	const config = {};
 	store.taskPriorities.forEach((priority) => {
 		config[priority] = {
-			class: priorityClassMap[priority] || "priority-medium",
-			label: priorityLabelMap[priority] || priority.charAt(0),
+			class: priorityClassMap[priority] || priorityClassMap.Medium,
+			bg: priorityBackgroundMap[priority] || priorityBackgroundMap.Medium,
+			label: translate(priority),
 		};
 	});
 	return config;
 });
+
+const currentPriority = computed(() => {
+	return priorityConfig.value[props.task.priority] || {
+		class: priorityClassMap.Medium,
+		bg: priorityBackgroundMap.Medium,
+		label: translate("Medium"),
+	};
+});
+
+// Priority dropdown - same teleported fixed-position pattern as the status dropdown
+const showPriorityDropdown = computed(() => openPriorityMenuTask.value === props.task.name);
+const priorityDropdownPosition = ref({ x: 0, y: 0 });
+
+function togglePriorityDropdown(event) {
+	if (showPriorityDropdown.value) {
+		closePriorityDropdown();
+		return;
+	}
+	openStatusMenuTask.value = null;
+	const rect = event.currentTarget.getBoundingClientRect();
+	priorityDropdownPosition.value = { x: rect.left, y: rect.bottom + 4 };
+	openPriorityMenuTask.value = props.task.name;
+}
+
+function closePriorityDropdown() {
+	if (showPriorityDropdown.value) {
+		openPriorityMenuTask.value = null;
+	}
+}
+
+function updatePriority(newPriority) {
+	closePriorityDropdown();
+	if (newPriority === props.task.priority) return;
+	emit("update", props.task.name, { priority: newPriority });
+}
 
 function toggleExpand() {
 	store.toggleExpand(props.task.name);
@@ -214,20 +233,6 @@ function startEditing(field, currentValue) {
 	});
 }
 
-function openDatePicker(currentValue) {
-	editingField.value = "exp_end_date";
-	editValue.value = currentValue || "";
-	nextTick(() => {
-		const el = inputRef.value?.$el || inputRef.value;
-		el?.focus?.();
-		if (typeof el?.showPicker === "function") {
-			el.showPicker();
-		} else {
-			el?.click?.();
-		}
-	});
-}
-
 function finishEditing() {
 	if (editingField.value && editValue.value !== props.task[editingField.value]) {
 		emit("update", props.task.name, { [editingField.value]: editValue.value });
@@ -241,6 +246,12 @@ function cancelEditing() {
 	editValue.value = "";
 }
 
+function handleDueDateChange(dateStr) {
+	if (dateStr !== (props.task.exp_end_date || "")) {
+		emit("update", props.task.name, { exp_end_date: dateStr });
+	}
+}
+
 function handleKeydown(e) {
 	if (e.key === "Enter") {
 		finishEditing();
@@ -249,94 +260,41 @@ function handleKeydown(e) {
 	}
 }
 
-async function cycleStatus() {
-	// Filter out non-workflow statuses like Overdue (Cancelled is included but has special handling)
-	const excludedStatuses = ["Overdue", "Template"];
-	const cyclableStatuses = store.taskStatuses.filter((s) => !excludedStatuses.includes(s));
-
-	if (cyclableStatuses.length === 0) return;
-
-	if (props.task.status === "Completed") {
-		const targetStatus = cyclableStatuses.includes("Working")
-			? "Working"
-			: cyclableStatuses[0];
-		emit("update", props.task.name, { status: targetStatus });
+function toggleStatusDropdown(event) {
+	if (showStatusDropdown.value) {
+		closeStatusDropdown();
 		return;
 	}
-
-	const currentIndex = cyclableStatuses.indexOf(props.task.status);
-
-	// If current status is not in cycle (e.g. it was Overdue), reset to first status (usually Open)
-	if (currentIndex === -1) {
-		emit("update", props.task.name, { status: cyclableStatuses[0] });
-		return;
-	}
-
-	const nextIndex = (currentIndex + 1) % cyclableStatuses.length;
-	const nextStatus = cyclableStatuses[nextIndex];
-
-	// Special handling for Cancelled status
-	if (nextStatus === "Cancelled") {
-		// Check if task has any subtasks
-		const subtasks = store.tasks.filter((t) => t.parent_task === props.task.name);
-		if (subtasks.length > 0) {
-			await handleCancelWithSubtasks();
-			return;
-		}
-	}
-
-	emit("update", props.task.name, { status: nextStatus });
+	openPriorityMenuTask.value = null;
+	const rect = event.currentTarget.getBoundingClientRect();
+	statusDropdownPosition.value = { x: rect.left, y: rect.bottom + 4 };
+	openStatusMenuTask.value = props.task.name;
 }
 
-async function handleCancelWithSubtasks() {
-	// Count all subtasks recursively
-	const countSubtasks = (taskName) => {
-		let count = 0;
-		store.tasks.forEach((task) => {
-			if (task.parent_task === taskName) {
-				count++;
-				count += countSubtasks(task.name);
-			}
-		});
-		return count;
-	};
-
-	const subtaskCount = countSubtasks(props.task.name);
-
-	// Ask for confirmation
-	const confirmed = confirm(
-		translate(
-			`This task has {subtaskCount} subtasks.\n\n` +
-				`Cancelling this task will also cancel all subtasks.\n\n` +
-				`Do you want to continue?`,
-			{ subtaskCount }
-		)
-	);
-
-	if (!confirmed) return;
-
-	// Cancel the main task
-	emit("update", props.task.name, { status: "Cancelled" });
-
-	// Cancel all subtasks recursively
-	const cancelSubtasks = async (taskName) => {
-		const subtasks = store.tasks.filter((task) => task.parent_task === taskName);
-		for (const subtask of subtasks) {
-			await store.updateTask(subtask.name, { status: "Cancelled" });
-			// Recursively cancel children
-			await cancelSubtasks(subtask.name);
-		}
-	};
-
-	await cancelSubtasks(props.task.name);
-
-	// Show success message
-	if (realWindow?.frappe) {
-		realWindow.frappe.show_alert({
-			message: translate("Task and {subtaskCount} subtasks cancelled", { subtaskCount }),
-			indicator: "orange",
-		});
+function closeStatusDropdown() {
+	if (showStatusDropdown.value) {
+		openStatusMenuTask.value = null;
 	}
+}
+
+async function updateStatus(newStatus) {
+	closeStatusDropdown();
+	if (newStatus === props.task.status) return;
+
+	if (newStatus === "Cancelled" && hasChildren.value) {
+		// The list holds only filtered tasks: cascade over the project's full tree.
+		const allTasks = await store.fetchAllProjectTasks(props.task.project);
+		await cancelTaskWithSubtasks(allTasks, props.task, (name, updates) =>
+			name === props.task.name ? emit("update", name, updates) : store.updateTask(name, updates),
+		{
+			translate,
+			notify: (message, indicator) =>
+				realWindow?.frappe?.show_alert({ message, indicator }),
+		});
+		return;
+	}
+
+	emit("update", props.task.name, { status: newStatus });
 }
 
 function showUserAssignDropdown(e) {
@@ -380,8 +338,24 @@ function showMenu(e) {
 		return;
 	}
 	e.preventDefault();
+	contextMenuAnchor.value = { x: e.clientX, y: e.clientY };
 	contextMenuPosition.value = { x: e.clientX, y: e.clientY };
 	emit("contextmenu-open", props.task.name);
+	nextTick(positionContextMenu);
+}
+
+function positionContextMenu() {
+	const menu = contextMenuRef.value;
+	if (!menu) return;
+
+	const margin = 8;
+	const rect = menu.getBoundingClientRect();
+	const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+	const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+	contextMenuPosition.value = {
+		x: Math.min(Math.max(margin, contextMenuAnchor.value.x), maxX),
+		y: Math.min(Math.max(margin, contextMenuAnchor.value.y), maxY),
+	};
 }
 
 async function deleteTask() {
@@ -411,6 +385,15 @@ function addTask() {
 
 function logTime() {
 	emit("log-time", props.task);
+	emit("contextmenu-close");
+}
+
+function setBlocked(blocked) {
+	emit("update", props.task.name, { is_blocked: blocked ? 1 : 0 });
+}
+
+function toggleBlockedFromMenu() {
+	setBlocked(!props.task.is_blocked);
 	emit("contextmenu-close");
 }
 
@@ -475,27 +458,51 @@ function handleGlobalClick(event) {
 	if (showDescriptionPreview.value && !event.target.closest(".description-preview-trigger")) {
 		showDescriptionPreview.value = false;
 	}
+	if (showStatusDropdown.value && !event.target.closest(".task-status-menu")) {
+		closeStatusDropdown();
+	}
+	if (showPriorityDropdown.value && !event.target.closest(".task-priority-menu")) {
+		closePriorityDropdown();
+	}
 }
+
+watch(showContextMenu, (isOpen) => {
+	if (isOpen) nextTick(positionContextMenu);
+});
 
 onMounted(() => {
 	document.addEventListener("click", handleGlobalClick);
+	// The menu is fixed-positioned, so close it instead of letting it drift on scroll
+	document.addEventListener("scroll", closeStatusDropdown, true);
+	document.addEventListener("scroll", closePriorityDropdown, true);
+	realWindow?.addEventListener?.("resize", closeStatusDropdown);
+	realWindow?.addEventListener?.("resize", closePriorityDropdown);
+	realWindow?.addEventListener?.("resize", positionContextMenu);
 });
 
 onUnmounted(() => {
 	document.removeEventListener("click", handleGlobalClick);
+	document.removeEventListener("scroll", closeStatusDropdown, true);
+	document.removeEventListener("scroll", closePriorityDropdown, true);
+	realWindow?.removeEventListener?.("resize", closeStatusDropdown);
+	realWindow?.removeEventListener?.("resize", closePriorityDropdown);
+	realWindow?.removeEventListener?.("resize", positionContextMenu);
+	closeStatusDropdown();
+	closePriorityDropdown();
 });
 </script>
 
 <template>
 	<div
-		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900 dark:text-gray-100"
+		:data-task-name="task.name"
+		class="task-row grid gap-2 px-4 py-2 items-center min-w-0 w-full cursor-pointer group border-l-2 transition-all context-menu-wrapper text-gray-900"
 		:class="[
 			highlighted ? 'highlight-pulse' : '',
 			level === 0
-				? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 border-transparent'
+				? 'bg-white hover:bg-gray-50 border-transparent'
 				: level === 1
-				? 'bg-gray-50/50 dark:bg-gray-800/80 hover:bg-gray-100/50 dark:hover:bg-gray-700/80 border-blue-200/40 dark:border-blue-500/30'
-				: 'bg-gray-100/30 dark:bg-gray-800/60 hover:bg-gray-100/60 dark:hover:bg-gray-700/60 border-blue-300/30 dark:border-blue-500/30',
+				? 'bg-gray-50/50 hover:bg-gray-100/50 border-blue-200/40'
+				: 'bg-gray-100/30 hover:bg-gray-100/60 border-blue-300/30',
 		]"
 		:style="{ gridTemplateColumns: gridTemplate }"
 		@click="handleRowClick"
@@ -504,6 +511,7 @@ onUnmounted(() => {
 		<template v-for="columnId in visibleColumns" :key="columnId">
 			<!-- Task name with indent -->
 			<div v-if="columnId === 'task'" class="flex items-center gap-1 min-w-0 overflow-hidden">
+				<input type="checkbox" :checked="props.selected" class="h-4 w-4 flex-shrink-0" @click.stop @change="emit('toggle-select', $event)" />
 			<!-- Drag handle -->
 			<div
 				class="drag-handle opacity-0 group-hover:opacity-100 cursor-grab p-1 -ml-2"
@@ -515,7 +523,7 @@ onUnmounted(() => {
 			<!-- Indent spacer with tree lines -->
 			<div v-for="i in level" :key="i" class="w-6 flex-shrink-0 relative">
 				<!-- Vertical line -->
-				<div class="absolute left-3 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-600"></div>
+				<div class="absolute left-3 top-0 bottom-0 w-px bg-gray-200"></div>
 			</div>
 
 			<!-- Expand/collapse toggle or connector -->
@@ -524,19 +532,19 @@ onUnmounted(() => {
 				:class="level > 0 ? 'w-6' : 'w-5'"
 			>
 				<!-- Horizontal connector line for subtasks -->
-				<div v-if="level > 0" class="absolute left-0 top-1/2 w-3 h-px bg-gray-200 dark:bg-gray-600"></div>
+				<div v-if="level > 0" class="absolute left-0 top-1/2 w-3 h-px bg-gray-200"></div>
 
 				<button
 					v-if="hasChildren"
 					@click.stop="toggleExpand"
-					class="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0 bg-white dark:bg-gray-900 relative z-10"
+					class="p-0.5 rounded hover:bg-gray-200 flex-shrink-0 bg-white relative z-10"
 				>
-					<ChevronDown v-if="isExpanded" class="w-4 h-4 text-gray-500 dark:text-gray-300" />
-					<ChevronRight v-else class="w-4 h-4 text-gray-500 dark:text-gray-300" />
+					<ChevronDown v-if="isExpanded" class="w-4 h-4 text-gray-500" />
+					<ChevronRight v-else class="w-4 h-4 text-gray-500" />
 				</button>
 				<div
 					v-else-if="level > 0"
-					class="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-500 relative z-10"
+					class="w-2 h-2 rounded-full bg-gray-300 relative z-10"
 				></div>
 			</div>
 
@@ -578,13 +586,6 @@ onUnmounted(() => {
 					</Transition>
 				</div>
 
-				<!-- Milestone indicator (always visible if assigned) -->
-				<Diamond
-					v-if="task.milestone"
-					class="w-3 h-3 flex-shrink-0"
-					:style="{ color: milestoneColor }"
-					:title="translate('Milestone: ') + task.milestone"
-				/>
 
 				<div class="flex-1 min-w-0">
 					<input
@@ -597,14 +598,15 @@ onUnmounted(() => {
 						@keydown="handleKeydown"
 						@click.stop
 					/>
-					<span
-						v-else
-						@dblclick.stop="startEditing('subject', task.subject)"
-						class="text-sm text-gray-900 truncate block w-full"
-						:class="{ 'font-medium': task.is_group }"
-					>
-						{{ task.subject }}
-					</span>
+					<div v-else class="flex min-w-0 items-center gap-1.5">
+						<span
+							@dblclick.stop="startEditing('subject', task.subject)"
+							class="text-sm text-gray-900 truncate min-w-0"
+							:class="{ 'font-medium': task.is_group }"
+						>
+							{{ task.subject }}
+						</span>
+					</div>
 
 					<div
 						v-if="taskDescription"
@@ -637,17 +639,49 @@ onUnmounted(() => {
 			</div>
 
 		<!-- Status -->
-		<div v-else-if="columnId === 'status'" class="min-w-0">
+		<div v-else-if="columnId === 'status'" class="min-w-0 flex items-center gap-1">
 			<button
-				@click.stop="cycleStatus"
+				@click.stop="toggleStatusDropdown"
 				:class="[
-					'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-					statusConfig[task.status]?.class || 'status-open',
+					'task-status-toggle inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors',
+					currentStatus.bg,
+					currentStatus.class,
 				]"
 			>
-				<component :is="statusConfig[task.status]?.icon || Circle" class="w-3 h-3" />
-				{{ statusConfig[task.status]?.label || task.status }}
+				<component :is="currentStatus.icon" class="w-3 h-3" />
+				{{ currentStatus.label }}
+				<ChevronDown class="w-3 h-3" />
 			</button>
+
+			<BlockedToggle :blocked="task.is_blocked" @toggle="setBlocked" />
+
+			<!-- Status dropdown -->
+			<Teleport to="body">
+				<Transition name="fade">
+					<div
+						v-if="showStatusDropdown"
+						class="task-status-menu fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]"
+						:style="{
+							left: statusDropdownPosition.x + 'px',
+							top: statusDropdownPosition.y + 'px',
+						}"
+						@click.stop
+					>
+						<button
+							v-for="(config, status) in statusConfig"
+							:key="status"
+							@click="updateStatus(status)"
+							:class="[
+								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left text-gray-700 hover:bg-gray-50',
+								task.status === status && 'bg-gray-50',
+							]"
+						>
+							<component :is="config.icon" :class="['w-4 h-4', config.class]" />
+							{{ config.label }}
+						</button>
+					</div>
+				</Transition>
+			</Teleport>
 		</div>
 
 		<!-- Assignee -->
@@ -728,36 +762,42 @@ onUnmounted(() => {
 
 		<!-- Due date -->
 		<div v-else-if="columnId === 'due_date'" class="min-w-0">
-			<div class="relative inline-flex items-center">
-				<button
-					v-if="task.exp_end_date"
-					type="button"
-					@click.stop="openDatePicker(task.exp_end_date)"
-					class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-				>
-					<Calendar class="w-4 h-4 text-gray-400" />
-					<span>{{ task.exp_end_date }}</span>
-				</button>
-				<button
-					v-else
-					type="button"
-					@click.stop="openDatePicker('')"
-					class="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
-				>
-					<Calendar class="w-4 h-4" />
-				</button>
-				<input
-					ref="inputRef"
-					v-model="editValue"
-					type="date"
-					class="absolute left-0 top-0 h-0 w-0 opacity-0 pointer-events-none"
-					tabindex="-1"
-					@change="finishEditing"
-					@keydown="handleKeydown"
-					@blur="cancelEditing"
-					aria-label="Edit due date"
-				/>
-			</div>
+			<DatePickerPopover
+				:id="`project-task-${task.name}`"
+				:model-value="task.exp_end_date || ''"
+				@update:model-value="handleDueDateChange"
+			>
+				<template #trigger="{ open }">
+					<button
+						v-if="task.exp_end_date"
+						type="button"
+						class="task-date-trigger flex cursor-pointer items-center gap-1 text-sm"
+						:class="
+							task.is_overdue
+								? 'text-red-600 font-medium hover:text-red-700'
+								: 'text-gray-600 hover:text-gray-900'
+						"
+						@click.stop="open"
+					>
+						<Calendar :class="['w-4 h-4', task.is_overdue ? 'text-red-500' : 'text-gray-400']" />
+						<span>{{ task.exp_end_date }}</span>
+						<span
+							v-if="task.is_overdue"
+							class="ml-1 inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+						>
+							{{ translate("Overdue") }}
+						</span>
+					</button>
+					<button
+						v-else
+						type="button"
+						class="task-date-trigger cursor-pointer rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+						@click.stop="open"
+					>
+						<Calendar class="w-4 h-4" />
+					</button>
+				</template>
+			</DatePickerPopover>
 		</div>
 
 		<!-- Expected time -->
@@ -768,13 +808,55 @@ onUnmounted(() => {
 
 		<!-- Priority -->
 		<div v-else-if="columnId === 'priority'" class="min-w-0 flex items-center">
-			<span
+			<button
 				v-if="task.priority"
-				:class="['text-sm font-bold', priorityConfig[task.priority]?.class]"
+				@click.stop="togglePriorityDropdown"
+				:class="[
+					'inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+					currentPriority.bg,
+					currentPriority.class,
+				]"
+				:title="currentPriority.label"
 			>
-				{{ priorityConfig[task.priority]?.label }}
-			</span>
-			<span v-else class="text-sm text-gray-400">—</span>
+				<Flag class="w-3.5 h-3.5" />
+				<span class="truncate">{{ currentPriority.label }}</span>
+			</button>
+			<button
+				v-else
+				@click.stop="togglePriorityDropdown"
+				class="text-sm text-gray-400 hover:text-gray-600 px-2"
+			>
+				—
+			</button>
+
+			<!-- Priority dropdown -->
+			<Teleport to="body">
+				<Transition name="fade">
+					<div
+						v-if="showPriorityDropdown"
+						class="task-priority-menu fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]"
+						:style="{
+							left: priorityDropdownPosition.x + 'px',
+							top: priorityDropdownPosition.y + 'px',
+						}"
+						@click.stop
+					>
+						<button
+							v-for="(config, priority) in priorityConfig"
+							:key="priority"
+							@click="updatePriority(priority)"
+							:class="[
+								'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-gray-50',
+								config.class,
+								task.priority === priority && 'bg-gray-50',
+							]"
+						>
+							<Flag class="w-3.5 h-3.5" />
+							{{ config.label }}
+						</button>
+					</div>
+				</Transition>
+			</Teleport>
 		</div>
 		</template>
 
@@ -782,7 +864,7 @@ onUnmounted(() => {
 		<div class="min-w-0 flex items-center justify-end">
 			<button
 				@click.stop="showMenu"
-				class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200"
+				class="hub-tap opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200"
 				:title="translate('More actions')"
 			>
 				<MoreHorizontal class="w-4 h-4 text-gray-500" />
@@ -793,7 +875,8 @@ onUnmounted(() => {
 		<Teleport to="body">
 			<div
 				v-if="showContextMenu"
-				class="fixed bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
+				ref="contextMenuRef"
+				class="fixed max-h-[calc(100vh-16px)] max-w-[calc(100vw-16px)] overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]"
 				:style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
 			>
 				<button
@@ -810,6 +893,13 @@ onUnmounted(() => {
 				>
 					<Plus class="w-4 h-4" />
 					{{ translate("Add subtask") }}
+				</button>
+				<button
+					@click="toggleBlockedFromMenu"
+					class="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+				>
+					<component :is="task.is_blocked ? Unlock : Lock" class="w-4 h-4" />
+					{{ task.is_blocked ? translate("Unblock") : translate("Mark as blocked") }}
 				</button>
 				<button
 					@click="openInDesk"
@@ -873,12 +963,12 @@ onUnmounted(() => {
 @keyframes pulse-highlight {
 	0%,
 	100% {
-		background-color: rgb(239 246 255); /* blue-50 */
-		border-left-color: rgb(59 130 246); /* blue-500 */
+		background-color: var(--hub-highlight-bg, rgb(239 246 255)); /* blue-50 */
+		border-left-color: var(--hub-highlight-border, rgb(59 130 246)); /* blue-500 */
 	}
 	50% {
-		background-color: rgb(219 234 254); /* blue-100 */
-		border-left-color: rgb(37 99 235); /* blue-600 */
+		background-color: var(--hub-highlight-bg-strong, rgb(219 234 254)); /* blue-100 */
+		border-left-color: var(--hub-highlight-border-strong, rgb(37 99 235)); /* blue-600 */
 	}
 }
 
