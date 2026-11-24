@@ -88,6 +88,25 @@ class TestTaskTimelogEdit(FrappeTestCase):
 
 		self.assertEqual(frappe.db.get_value("Task", self.task.name, "status"), "Pending Review")
 
+	def test_each_time_log_gets_its_own_timesheet(self):
+		"""Approval submits a whole Timesheet, so entries must not share one."""
+		second = create_timelog(
+			task=self.task.name,
+			hours=2,
+			activity_type="_Test Timelog Edit",
+			description="Second entry",
+			from_time="2026-10-01 10:00:00",
+			to_time="2026-10-01 12:00:00",
+		)
+
+		self.assertNotEqual(second["timesheet_name"], self.log["timesheet_name"])
+		for log in (self.log, second):
+			timesheet = frappe.get_doc("Timesheet", log["timesheet_name"])
+			self.assertEqual([row.name for row in timesheet.time_logs], [log["timelog_name"]])
+
+		frappe.get_doc("Timesheet", second["timesheet_name"]).submit()
+		self.assertEqual(frappe.db.get_value("Timesheet", self.log["timesheet_name"], "docstatus"), 0)
+
 	def test_timesheet_override_bypasses_permissions_only_for_linked_records(self):
 		timesheet = MagicMock(spec=HubTimesheet)
 		timesheet.time_logs = [
