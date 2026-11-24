@@ -3,6 +3,12 @@
 frappe.provide("erpnext_projekt_hub.request_queue");
 
 erpnext_projekt_hub.request_queue.setup = function (frm, queue_state) {
+	// Only active desk users can be picked as the assignee.
+	for (const field of ["analyst", "realization_assignee"]) {
+		if (frm.fields_dict[field]) {
+			frm.set_query(field, () => ({ filters: { enabled: 1, user_type: "System User" } }));
+		}
+	}
 	if (frm.is_new()) {
 		return;
 	}
@@ -67,7 +73,21 @@ function setup_read_only_attachments(frm) {
 		new frappe.ui.FileUploader({
 			folder: "Home/Attachments",
 			on_success(file_doc) {
-				call_queue(frm, "attach_file", { doctype: frm.doctype, file_name: file_doc.name });
+				frappe
+					.xcall("erpnext_projekt_hub.request_queue.attach_file", {
+						doctype: frm.doctype,
+						name: frm.docname,
+						file_name: file_doc.name,
+					})
+					.then(
+						// Only a failed attach leaves an orphan; a failed reload keeps the file.
+						() => frm.reload_doc(),
+						() =>
+							frappe.xcall("frappe.client.delete", {
+								doctype: "File",
+								name: file_doc.name,
+							})
+					);
 			},
 		});
 	});

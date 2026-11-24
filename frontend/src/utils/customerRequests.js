@@ -64,11 +64,17 @@ export async function uploadRequestAttachment(doctype, name, file) {
 		body: formData,
 	});
 	const uploaded = await parseResponse(response);
-	return apiPost("erpnext_projekt_hub.request_queue.attach_file", {
-		doctype,
-		name,
-		file_name: uploaded.name,
-	});
+	try {
+		return await apiPost("erpnext_projekt_hub.request_queue.attach_file", {
+			doctype,
+			name,
+			file_name: uploaded.name,
+		});
+	} catch (err) {
+		// Do not leave the uploaded file behind, unattached, in Home/Attachments.
+		await apiPost("frappe.client.delete", { doctype: "File", name: uploaded.name }).catch(() => {});
+		throw err;
+	}
 }
 
 export function decodeApiError(error, fallback) {
