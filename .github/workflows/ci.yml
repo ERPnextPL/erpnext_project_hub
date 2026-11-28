@@ -91,6 +91,10 @@ jobs:
 
       - name: Setup
         run: |
+          # The runner's MariaDB client requires TLS by default, but the service
+          # container has none. Disable it for every client call, including the ones
+          # bench makes during new-site.
+          printf '[client]\nskip-ssl\n' > ~/.my.cnf
           python -m pip install --upgrade pip
           python -m pip install frappe-bench
           bench init --skip-redis-config-generation --skip-assets --frappe-branch version-16 --python "$(which python)" ~/frappe-bench
