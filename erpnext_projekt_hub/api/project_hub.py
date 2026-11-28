@@ -1962,7 +1962,7 @@ def remove_project_user(project: str, user: str):
 
 @frappe.whitelist()
 def get_task_timelogs(task_name: str):
-	"""Get time logs for a task: all of them for the project's manager, otherwise only the user's own."""
+	"""Get time logs for a task: all for the project's manager and admins, otherwise only the user's own."""
 	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
@@ -2005,10 +2005,16 @@ def get_task_timelogs(task_name: str):
 			or (not log.employee and log.owner == session_user)
 		)
 
-	# Other people's hours are visible only to the manager of the task's project
+	# Other people's hours are visible only to the manager named on the task's
+	# project, and to Administrator / System Manager
 	project = frappe.db.get_value("Task", task_name, "project")
-	project_doc = frappe.get_cached_doc("Project", project) if project else None
-	if not _is_project_manager_user(project_doc):
+	project_manager = frappe.db.get_value("Project", project, "project_manager") if project else None
+	sees_all = (
+		session_user == "Administrator"
+		or bool({"Administrator", "System Manager"} & set(frappe.get_roles(session_user)))
+		or bool(project_manager and project_manager == session_user)
+	)
+	if not sees_all:
 		timelogs = [log for log in timelogs if is_own(log)]
 
 	# Show the employee assigned on the timesheet, not whoever created it

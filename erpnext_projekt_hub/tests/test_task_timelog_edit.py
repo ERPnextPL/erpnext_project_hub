@@ -102,6 +102,23 @@ class TestTaskTimelogEdit(FrappeTestCase):
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.can_edit, 0)
 
+	def test_projects_manager_role_does_not_see_other_users_entries(self):
+		other_user = self._other_user()
+		frappe.get_doc("User", other_user).add_roles("Projects Manager")
+		self._task_in_project()
+
+		frappe.set_user(other_user)
+		self.assertEqual(get_task_timelogs(self.task.name)["timelogs"], [])
+
+	def test_system_manager_sees_other_users_entries(self):
+		other_user = self._other_user()
+		frappe.get_doc("User", other_user).add_roles("System Manager")
+		self._task_in_project()
+
+		frappe.set_user(other_user)
+		log = get_log(self.task.name, self.log["timelog_name"])
+		self.assertEqual(log.can_edit, 0)
+
 	def test_submitting_timesheet_keeps_task_status(self):
 		frappe.db.set_value("Task", self.task.name, "status", "Pending Review")
 
