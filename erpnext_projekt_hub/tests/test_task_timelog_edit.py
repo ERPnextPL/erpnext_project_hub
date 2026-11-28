@@ -6,6 +6,7 @@ from frappe.tests.utils import FrappeTestCase
 from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE
 from erpnext_projekt_hub.api.project_hub import create_timelog, get_task_timelogs, update_timelog
 from erpnext_projekt_hub.overrides.timesheet import HubTimesheet
+from erpnext_projekt_hub.tests.test_work_planning import make_employee
 
 test_ignore = ["Task", "Timesheet"]
 
@@ -122,6 +123,29 @@ class TestTaskTimelogEdit(FrappeTestCase):
 		frappe.set_user(other_user)
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.can_edit, 0)
+
+	def test_entry_of_users_employee_is_visible_and_editable(self):
+		other_user = self._other_user()
+		employee = make_employee(other_user)
+		frappe.db.set_value("Timesheet", self.log["timesheet_name"], "employee", employee)
+		self._task_in_project()
+
+		frappe.set_user(other_user)
+		log = get_log(self.task.name, self.log["timelog_name"])
+		self.assertEqual(log.can_edit, 1)
+
+	def test_task_without_project_hides_other_users_entries(self):
+		other_user = self._other_user()
+
+		frappe.set_user(other_user)
+		self.assertEqual(get_task_timelogs(self.task.name)["timelogs"], [])
+
+	def test_system_manager_sees_entries_on_task_without_project(self):
+		other_user = self._other_user()
+		frappe.get_doc("User", other_user).add_roles("System Manager")
+
+		frappe.set_user(other_user)
+		get_log(self.task.name, self.log["timelog_name"])
 
 	def test_submitting_timesheet_keeps_task_status(self):
 		frappe.db.set_value("Task", self.task.name, "status", "Pending Review")
