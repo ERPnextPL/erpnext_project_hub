@@ -88,6 +88,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y mariadb-client
+          # The client (11.8) requires TLS by default; the mariadb:10.6 service has none.
+          # bench new-site also runs the client, so turn TLS off for every client call.
+          printf '[client]\nskip-ssl\n' | sudo tee /etc/mysql/mariadb.conf.d/99-ci-skip-ssl.cnf
 
       - name: Setup
         run: |
