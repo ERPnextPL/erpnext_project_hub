@@ -84,6 +84,7 @@ class TestTaskTimelogEdit(FrappeTestCase):
 			{
 				"doctype": "Project",
 				"project_name": "_Test Timelog Visibility",
+				"company": frappe.db.get_value("Company", {}, "name"),
 				"project_manager": project_manager,
 			}
 		).insert(ignore_permissions=True)
