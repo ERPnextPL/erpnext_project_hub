@@ -9,7 +9,8 @@ The approval stage lives in ``workflow_state`` (workflow "Timesheet Approval"):
 	                                    Rejected
 
 Approvers never approve or reject their own hours; System Manager (and Administrator)
-have full rights, their own hours included.
+have full rights, their own hours included. Timesheet Managers decide on anybody else's
+hours, Projects Managers and Project Managers only when they are asked to (get_approvers).
 
 The standard ``status`` field keeps tracking billing (Submitted, Billed, Payslip, ...).
 Approving submits the timesheet, so only approved hours reach costs, invoices and payroll.
@@ -489,10 +490,16 @@ def can_review(user: str | None = None) -> bool:
 
 
 def can_review_timesheet(doc, user: str | None = None) -> bool:
-	"""True when the user is an authorized reviewer for this timesheet."""
+	"""True when the user may decide on this timesheet.
+
+	System Managers decide on any timesheet and Timesheet Managers on any but their own.
+	The other approver roles decide only when they are one of its approvers.
+	"""
 	user = user or frappe.session.user
 	if is_admin(user):
 		return True
+	if _has_any_role((TIMESHEET_MANAGER,), user):
+		return not is_own_timesheet(doc, user)
 	return can_review(user) and user in get_approvers(doc)
 
 

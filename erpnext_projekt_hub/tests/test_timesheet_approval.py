@@ -527,10 +527,48 @@ class TestTimesheetApproval(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			doc.save()
 
-	def test_project_manager_role_approves(self):
+	def test_only_the_assigned_project_manager_approves(self):
 		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+		with self.assertRaises(frappe.PermissionError):
+			act(PROJECT_MANAGER, self.timesheet, approval.APPROVE)
+		self.assertEqual(self.state().workflow_state, approval.PENDING)
+
+		frappe.set_user("Administrator")
+		frappe.db.set_value("Project", self.task.project, "project_manager", PROJECT_MANAGER)
 		act(PROJECT_MANAGER, self.timesheet, approval.APPROVE)
 		self.assertEqual(self.state().workflow_state, approval.APPROVED)
+
+	# Timesheet Manager: everybody else's hours
+	# -----------------------------------------
+
+	def test_timesheet_manager_approves_a_project_with_its_own_manager(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+
+		frappe.set_user(MANAGER)
+		queue = get_timesheets_to_approve(project=self.task.project)
+		self.assertIn(self.timesheet, [item["name"] for item in queue["items"]])
+		approve_timesheet_for_project_manager(self.timesheet)
+
+		self.assertEqual(self.state().workflow_state, approval.APPROVED)
+		self.assertEqual(frappe.db.get_value("Timesheet", self.timesheet, "reviewed_by"), MANAGER)
+
+	def test_timesheet_manager_rejects_a_project_with_its_own_manager(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+
+		frappe.set_user(MANAGER)
+		approval.reject_timesheet(self.timesheet, "Wrong task")
+
+		self.assertEqual(self.state().workflow_state, approval.REJECTED)
+
+	def test_timesheet_manager_does_not_decide_on_own_hours(self):
+		own = self.log_own_hours(MANAGER)
+
+		frappe.set_user(MANAGER)
+		queue = get_timesheets_to_approve(project=self.task.project)
+		self.assertNotIn(own, [item["name"] for item in queue["items"]])
+		with self.assertRaises(frappe.PermissionError):
+			approve_timesheet_for_project_manager(own)
+		self.assertEqual(frappe.db.get_value("Timesheet", own, "workflow_state"), approval.PENDING)
 
 	# System Manager: full rights
 	# ---------------------------
