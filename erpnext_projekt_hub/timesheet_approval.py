@@ -3,10 +3,13 @@
 The approval stage lives in ``workflow_state`` (workflow "Timesheet Approval"):
 
 	Draft --Send for Approval--> Pending Approval --Approve--> Approved --Cancel--> Cancelled
-	                                     |  ^
-	                                Reject  Resubmit
-	                                     v  |
-	                                   Rejected
+	  ^                               |   |  ^
+	  +-------- Withdraw -------------+ Reject  Resubmit
+	            (author only)             v  |
+	                                    Rejected
+
+Approvers never approve or reject their own hours; System Manager (and Administrator)
+have full rights, their own hours included.
 
 The standard ``status`` field keeps tracking billing (Submitted, Billed, Payslip, ...).
 Approving submits the timesheet, so only approved hours reach costs, invoices and payroll.
@@ -44,40 +47,56 @@ SEND_FOR_APPROVAL = "Send for Approval"
 APPROVE = "Approve"
 REJECT = "Reject"
 RESUBMIT = "Resubmit"
+WITHDRAW = "Withdraw"
 CANCEL = "Cancel"
 
 TIMESHEET_MANAGER = "Timesheet Manager"
-APPROVER_ROLES = (TIMESHEET_MANAGER, "Projects Manager")
-CANCEL_ROLES = (TIMESHEET_MANAGER,)
+PROJECT_MANAGER = "Project Manager"  # kierownik projektu, see setup_customer_change_requests
+# Approve and reject the hours of others, never their own.
+APPROVER_ROLES = (TIMESHEET_MANAGER, "Projects Manager", PROJECT_MANAGER)
+# Full rights: see everything, approve (their own hours too), reject and cancel.
+# Administrator has every role, so it counts as one of these.
+ADMIN_ROLES = ("System Manager",)
+REVIEWER_ROLES = (*APPROVER_ROLES, *ADMIN_ROLES)
+CANCEL_ROLES = (TIMESHEET_MANAGER, *ADMIN_ROLES)
 # Roles that log their own hours. "Employee Self Service" comes with HRMS and may be missing.
 EMPLOYEE_ROLES = ("Employee", "Employee Self Service", "Projects User")
 # Submitting is the approval itself, so these roles lose Submit on Timesheet.
 ROLES_WITHOUT_SUBMIT = ("Employee Self Service", "Projects User", "HR User")
 
+FULL_RIGHTS = (
+	"read",
+	"write",
+	"create",
+	"delete",
+	"submit",
+	"cancel",
+	"amend",
+	"report",
+	"export",
+	"print",
+	"email",
+	"share",
+)
+APPROVER_RIGHTS = ("read", "write", "create", "submit", "report", "export", "print", "email", "share")
 APPROVER_PERMISSIONS = {
-	TIMESHEET_MANAGER: (
-		"read",
-		"write",
-		"create",
-		"delete",
-		"submit",
-		"cancel",
-		"amend",
-		"report",
-		"export",
-		"print",
-		"email",
-		"share",
-	),
-	"Projects Manager": ("read", "write", "create", "submit", "report", "export", "print", "email", "share"),
+	TIMESHEET_MANAGER: FULL_RIGHTS,
+	"Projects Manager": APPROVER_RIGHTS,
+	PROJECT_MANAGER: APPROVER_RIGHTS,
+	# Standard ERPNext gives System Manager no access to timesheets at all.
+	"System Manager": FULL_RIGHTS,
 }
 # Saving a timesheet recalculates its tasks and projects, so ERPNext requires the person
 # approving or rejecting it to be allowed to pick them; approvers also need to open them.
-# Standard ERPNext gives Projects Manager no Task access and Timesheet Manager is new.
+# Standard ERPNext gives Projects Manager and System Manager no Task access.
 RELATED_READ_ACCESS = {
-	"Task": APPROVER_ROLES,
-	"Project": APPROVER_ROLES,
+	"Task": REVIEWER_ROLES,
+	"Project": REVIEWER_ROLES,
 }
+
+# Workflow transition condition: only the person whose hours they are may withdraw them.
+# ERPNext keeps Timesheet.user set to the employee's user (else the creator).
+AUTHOR_CONDITION = "frappe.session.user == (doc.user or doc.owner)"
 
 # Workflow State records are shared by every workflow. These three colours are part of the
 # process (list and form indicators), the others are only created when missing.
@@ -168,10 +187,11 @@ def setup():
 
 
 def ensure_roles():
-	if not frappe.db.exists("Role", TIMESHEET_MANAGER):
-		frappe.get_doc({"doctype": "Role", "role_name": TIMESHEET_MANAGER, "desk_access": 1}).insert(
-			ignore_permissions=True
-		)
+	for role in (TIMESHEET_MANAGER, PROJECT_MANAGER):
+		if not frappe.db.exists("Role", role):
+			frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(
+				ignore_permissions=True
+			)
 
 
 def ensure_workflow_states_and_actions():
@@ -183,7 +203,7 @@ def ensure_workflow_states_and_actions():
 		elif state in STATE_STYLES and frappe.db.get_value("Workflow State", state, "style") != style:
 			frappe.db.set_value("Workflow State", state, "style", style)
 
-	for action in (SEND_FOR_APPROVAL, APPROVE, REJECT, RESUBMIT, CANCEL):
+	for action in (SEND_FOR_APPROVAL, APPROVE, REJECT, RESUBMIT, WITHDRAW, CANCEL):
 		if not frappe.db.exists("Workflow Action Master", action):
 			frappe.get_doc({"doctype": "Workflow Action Master", "workflow_action_name": action}).insert(
 				ignore_permissions=True
@@ -193,26 +213,35 @@ def ensure_workflow_states_and_actions():
 def ensure_workflow():
 	employee_roles = _existing_roles(EMPLOYEE_ROLES)
 	approver_roles = _existing_roles(APPROVER_ROLES)
+	admin_roles = _existing_roles(ADMIN_ROLES)
 	cancel_roles = _existing_roles(CANCEL_ROLES)
-	authors = _unique(employee_roles + approver_roles)
+	reviewers = _unique(approver_roles + admin_roles)
+	authors = _unique(employee_roles + reviewers)
 
-	# One row per role that may edit the document in that state. Pending Approval is
-	# "optional" so that drafts do not create Workflow Actions for every employee;
-	# the approvers get theirs when a timesheet starts waiting for them.
+	# One row per role that may edit the document in that state. Workflow Actions (the
+	# approvers' inbox) are created only for transitions into a non-optional state, so
+	# only Approve creates them: drafts and withdrawals do not reach every employee.
 	states = [
-		(DRAFT, "0", authors, {}),
-		(PENDING, "0", approver_roles, {"is_optional_state": 1}),
+		(DRAFT, "0", authors, {"is_optional_state": 1}),
+		(PENDING, "0", reviewers, {"is_optional_state": 1}),
 		(REJECTED, "0", authors, {"is_optional_state": 1}),
 		# The list and form show the billing status (Billed, Payslip, ...) of approved timesheets.
 		(APPROVED, "1", cancel_roles, {"avoid_status_override": 1}),
 		(CANCELLED, "2", cancel_roles, {"is_optional_state": 1}),
 	]
+	no_self_approval = {"allow_self_approval": 0}
+	author_only = {"condition": AUTHOR_CONDITION}
+	# Frappe applies the last row matching the user's roles, so the admin rows come last:
+	# a System Manager who is also an approver may approve their own hours.
 	transitions = [
-		(DRAFT, SEND_FOR_APPROVAL, PENDING, authors),
-		(PENDING, APPROVE, APPROVED, approver_roles),
-		(PENDING, REJECT, REJECTED, approver_roles),
-		(REJECTED, RESUBMIT, PENDING, authors),
-		(APPROVED, CANCEL, CANCELLED, cancel_roles),
+		(DRAFT, SEND_FOR_APPROVAL, PENDING, authors, {}),
+		(PENDING, APPROVE, APPROVED, approver_roles, no_self_approval),
+		(PENDING, APPROVE, APPROVED, admin_roles, {}),
+		(PENDING, REJECT, REJECTED, approver_roles, no_self_approval),
+		(PENDING, REJECT, REJECTED, admin_roles, {}),
+		(PENDING, WITHDRAW, DRAFT, authors, author_only),
+		(REJECTED, RESUBMIT, PENDING, authors, {}),
+		(APPROVED, CANCEL, CANCELLED, cancel_roles, {}),
 	]
 
 	if frappe.db.exists("Workflow", WORKFLOW_NAME):
@@ -244,8 +273,10 @@ def ensure_workflow():
 				"next_state": next_state,
 				"allowed": role,
 				"allow_self_approval": 1,
+				"condition": None,
+				**extra,
 			}
-			for state, action, next_state, roles in transitions
+			for state, action, next_state, roles, extra in transitions
 			for role in roles
 		],
 	)
@@ -362,23 +393,34 @@ def validate(doc, method=None):
 	new_state = doc.get(STATE_FIELD)
 
 	if old_state == new_state:
-		if new_state == PENDING and not can_review():
+		if new_state == PENDING and not may_edit_pending(doc):
 			frappe.throw(
 				_(
 					"This timesheet is waiting for approval, so its hours cannot be changed. "
-					"If something needs correcting, ask the approver to reject it."
+					"To correct them, withdraw it from approval (Actions → Withdraw) and send it again."
 				),
 				title=_("Waiting for approval"),
 			)
 		return
 
-	if new_state == PENDING:
+	if new_state == DRAFT and old_state == PENDING:
+		# withdrawn by its author before anyone reviewed it
+		doc.approval_requested_on = None
+	elif new_state == PENDING:
 		doc.approval_requested_on = now_datetime()
 		# The decision on the previous version no longer applies; the timeline keeps it.
 		doc.reviewed_by = None
 		doc.reviewed_on = None
 		doc.rejection_reason = None
 	elif new_state in (APPROVED, REJECTED):
+		# Frappe stops the creator (allow_self_approval); this also covers hours that
+		# someone else entered for the approver's own Employee record.
+		if is_own_timesheet(doc) and not is_admin():
+			frappe.throw(
+				_("You cannot approve or reject your own hours. Another approver has to review them."),
+				frappe.PermissionError,
+				title=_("Not allowed"),
+			)
 		if new_state == REJECTED and not cstr(doc.rejection_reason).strip():
 			frappe.throw(
 				_("Please enter the reason for rejection, so the employee knows what to correct."),
@@ -397,7 +439,7 @@ def before_submit(doc, method=None):
 		frappe.throw(
 			_(
 				"A timesheet is submitted by approving it. Send it for approval; "
-				"a Timesheet Manager or Projects Manager then approves it."
+				"a Timesheet Manager, Projects Manager or Project Manager then approves it."
 			),
 			title=_("Approval required"),
 		)
@@ -409,7 +451,7 @@ def before_cancel(doc, method=None):
 
 	if not _has_any_role(CANCEL_ROLES):
 		frappe.throw(
-			_("Only a Timesheet Manager can cancel an approved timesheet."),
+			_("Only a Timesheet Manager or System Manager can cancel an approved timesheet."),
 			frappe.PermissionError,
 			title=_("Not allowed"),
 		)
@@ -434,8 +476,26 @@ def on_change(doc, method=None):
 
 
 def can_review(user: str | None = None) -> bool:
-	"""True when the user may approve and reject timesheets."""
-	return _has_any_role(APPROVER_ROLES, user)
+	"""True when the user may approve and reject timesheets (of others, unless admin)."""
+	return _has_any_role(REVIEWER_ROLES, user)
+
+
+def is_admin(user: str | None = None) -> bool:
+	"""Administrator and System Manager: full rights, their own hours included."""
+	return _has_any_role(ADMIN_ROLES, user)
+
+
+def is_own_timesheet(doc, user: str | None = None) -> bool:
+	"""True when the timesheet holds the user's own hours, or the user created it."""
+	user = user or frappe.session.user
+	return user in (get_employee_user(doc), doc.owner)
+
+
+def may_edit_pending(doc, user: str | None = None) -> bool:
+	"""Hours waiting for approval stay as sent; only a reviewer (not their author) corrects them."""
+	if is_admin(user):
+		return True
+	return can_review(user) and not is_own_timesheet(doc, user)
 
 
 def _has_any_role(roles, user: str | None = None) -> bool:
@@ -470,6 +530,12 @@ def reject_timesheet(timesheet: str, reason: str):
 	doc.check_permission("read")
 	if doc.get(STATE_FIELD) != PENDING:
 		frappe.throw(_("Only a timesheet waiting for approval can be rejected."))
+	if is_own_timesheet(doc) and not is_admin():
+		frappe.throw(
+			_("You cannot approve or reject your own hours. Another approver has to review them."),
+			frappe.PermissionError,
+			title=_("Not allowed"),
+		)
 	if not any(transition.action == REJECT for transition in get_transitions(doc)):
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
@@ -537,9 +603,10 @@ def get_employee_user(doc) -> str | None:
 
 def get_approvers(doc) -> list[str]:
 	"""Who should approve: the project manager(s), else the employee's supervisor,
-	else every Timesheet Manager, else every Projects Manager.
+	else every Timesheet Manager, Projects Manager, Project Manager, and as a last
+	resort every System Manager (the first of these roles that has anyone).
 
-	Only enabled users who may actually approve are returned, never the employee.
+	Only enabled users who may approve these hours are returned, never their employee.
 	"""
 	employee_user = get_employee_user(doc)
 
@@ -566,7 +633,7 @@ def get_approvers(doc) -> list[str]:
 	if approvers:
 		return approvers
 
-	for role in APPROVER_ROLES:
+	for role in REVIEWER_ROLES:
 		approvers = [user for user in _users_with_role(role) if user != employee_user]
 		if approvers:
 			return approvers

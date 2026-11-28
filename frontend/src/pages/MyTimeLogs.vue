@@ -21,6 +21,7 @@ import {
 	Send,
 	Hourglass,
 	XCircle,
+	Undo2,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -499,6 +500,36 @@ function isToday(date) {
 function toggleToSendOnly() {
 	const next = store.filters.status === "To Send" ? "" : "To Send";
 	updateFilter("status", next);
+}
+
+const withdrawingTimesheet = ref("");
+
+// Back to draft before anyone reviewed it; the whole timesheet goes back, not one entry.
+async function handleWithdraw(log) {
+	if (!isPendingLog(log) || withdrawingTimesheet.value) return;
+	const entries = store.timelogs.filter((item) => item.timesheet_name === log.timesheet_name).length;
+	const question = translate(
+		"Withdraw this timesheet from approval? Its {0} entries go back to draft so you can correct them, then send them again.",
+		[entries]
+	);
+	if (!confirm(question)) return;
+
+	withdrawingTimesheet.value = log.timesheet_name;
+	try {
+		const result = await store.withdrawFromApproval([log.timesheet_name]);
+		if (result?.withdrawn?.length) {
+			showAlert(translate("Withdrawn from approval. You can correct the hours now."), "green");
+		}
+		(result?.failed || []).forEach((failure) => {
+			showAlert(`${failure.timesheet}: ${failure.message}`, "red");
+		});
+		await store.fetchLogs();
+	} catch (error) {
+		console.error("Failed to withdraw from approval:", error);
+		showAlert(translate("Failed to withdraw from approval"), "red");
+	} finally {
+		withdrawingTimesheet.value = "";
+	}
 }
 
 async function handleSendForApproval() {
@@ -1240,10 +1271,25 @@ async function handleDeleteLog(log) {
 										{{ log.rejection_reason || translate("No reason given") }}
 									</p>
 								</div>
-								<p v-else-if="isPendingLog(log)" class="flex items-center gap-1.5 text-xs text-orange-800">
-									<Hourglass class="h-3.5 w-3.5" />
-									{{ translate("Waiting for approval. The entry is locked until the approver decides.") }}
-								</p>
+								<div
+									v-else-if="isPendingLog(log)"
+									class="flex flex-wrap items-center justify-between gap-2"
+								>
+									<p class="flex items-center gap-1.5 text-xs text-orange-800">
+										<Hourglass class="h-3.5 w-3.5 shrink-0" />
+										{{ translate("Waiting for approval. The entry is locked until the approver decides.") }}
+									</p>
+									<button
+										type="button"
+										:disabled="withdrawingTimesheet === log.timesheet_name"
+										class="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-orange-800 border border-orange-200 rounded-lg hover:bg-orange-50 disabled:opacity-50"
+										:title="translate('Take the timesheet back to draft to correct it')"
+										@click="handleWithdraw(log)"
+									>
+										<Undo2 class="w-4 h-4" />
+										{{ translate("Withdraw") }}
+									</button>
+								</div>
 
 								<div class="flex flex-wrap gap-2">
 									<button

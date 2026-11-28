@@ -2401,7 +2401,7 @@ def _check_not_waiting_for_approval(timesheet):
 		frappe.throw(
 			_(
 				"This time entry is waiting for approval and cannot be changed. "
-				"If something needs correcting, ask the approver to reject it."
+				"To correct it, withdraw its timesheet from approval and send it again."
 			),
 			title=_("Waiting for approval"),
 		)
@@ -2435,39 +2435,54 @@ def send_timesheets_for_approval(timesheets: str | list[str]):
 	Each timesheet is sent on its own: one that fails (e.g. overlapping hours) is
 	reported back and does not stop the others.
 	"""
+	result = _apply_to_own_timesheets(
+		timesheets,
+		{
+			timesheet_approval.DRAFT: timesheet_approval.SEND_FOR_APPROVAL,
+			timesheet_approval.REJECTED: timesheet_approval.RESUBMIT,
+		},
+	)
+	return {"sent": result["done"], "failed": result["failed"]}
+
+
+@frappe.whitelist(methods=["POST"])
+def withdraw_timesheets_from_approval(timesheets: str | list[str]):
+	"""Take the current user's timesheets back from approval to draft, before anyone reviews them."""
+	result = _apply_to_own_timesheets(timesheets, {timesheet_approval.PENDING: timesheet_approval.WITHDRAW})
+	return {"withdrawn": result["done"], "failed": result["failed"]}
+
+
+def _apply_to_own_timesheets(timesheets, action_by_state: dict[str, str]) -> dict:
+	"""Apply the workflow action matching each timesheet's state, one timesheet at a time."""
 	require_project_hub_access()
 	names = frappe.parse_json(timesheets) if isinstance(timesheets, str) else timesheets
 	if not isinstance(names, list) or not names:
-		frappe.throw(_("Choose the timesheets to send for approval"))
+		frappe.throw(_("Choose the timesheets"))
 	if not timesheet_approval.is_enabled():
 		frappe.throw(_("Timesheet approval is not set up on this site"))
 
 	from frappe.model.workflow import apply_workflow
 
-	actions = {
-		timesheet_approval.DRAFT: timesheet_approval.SEND_FOR_APPROVAL,
-		timesheet_approval.REJECTED: timesheet_approval.RESUBMIT,
-	}
-	sent, failed = [], []
+	done, failed = [], []
 	for name in dict.fromkeys(names):
-		savepoint = f"send_for_approval_{len(sent) + len(failed)}"
+		savepoint = f"timesheet_approval_{len(done) + len(failed)}"
 		frappe.db.savepoint(savepoint)
 		try:
 			timesheet = frappe.get_doc("Timesheet", name)
 			if not _is_own_timesheet(timesheet):
-				frappe.throw(_("You can only send your own timesheets for approval"))
-			action = actions.get(timesheet.workflow_state) if timesheet.docstatus == 0 else None
+				frappe.throw(_("You can only send or withdraw your own timesheets"))
+			action = action_by_state.get(timesheet.workflow_state) if timesheet.docstatus == 0 else None
 			if not action:
 				frappe.throw(_("Timesheet {0} is already {1}").format(name, _(timesheet.workflow_state)))
 			apply_workflow(timesheet, action)
-			sent.append(name)
+			done.append(name)
 		except (frappe.ValidationError, frappe.PermissionError) as error:
 			frappe.db.rollback(save_point=savepoint)
 			failed.append({"timesheet": name, "message": frappe.utils.strip_html(cstr(error))})
 
 	# Failures are returned to the caller, not shown as one popup per timesheet.
 	frappe.clear_messages()
-	return {"sent": sent, "failed": failed}
+	return {"done": done, "failed": failed}
 
 
 @frappe.whitelist()

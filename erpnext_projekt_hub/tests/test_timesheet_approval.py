@@ -12,6 +12,7 @@ from erpnext_projekt_hub.api.project_hub import (
 	get_task_timelogs,
 	send_timesheets_for_approval,
 	update_timelog,
+	withdraw_timesheets_from_approval,
 )
 
 test_ignore = ["Task", "Timesheet", "Project"]
@@ -19,6 +20,8 @@ test_ignore = ["Task", "Timesheet", "Project"]
 EMPLOYEE = "_test_ts_employee@example.com"
 APPROVER = "_test_ts_approver@example.com"  # Projects Manager
 MANAGER = "_test_ts_manager@example.com"  # Timesheet Manager
+PROJECT_MANAGER = "_test_ts_project_manager@example.com"  # Project Manager (kierownik projektu)
+SYSADMIN = "_test_ts_sysadmin@example.com"  # System Manager only
 SENDMAIL = "erpnext_projekt_hub.timesheet_approval.frappe.sendmail"
 HAS_EMAIL_ACCOUNT = "erpnext_projekt_hub.timesheet_approval._has_outgoing_email_account"
 
@@ -49,6 +52,8 @@ class TestTimesheetApproval(FrappeTestCase):
 		ensure_user(EMPLOYEE, "Employee", "Projects User")
 		ensure_user(APPROVER, "Approver", "Projects Manager")
 		ensure_user(MANAGER, "Manager", approval.TIMESHEET_MANAGER)
+		ensure_user(PROJECT_MANAGER, "Project Lead", approval.PROJECT_MANAGER)
+		ensure_user(SYSADMIN, "Admin", "System Manager")
 		if not frappe.db.exists("Activity Type", "_Test Approval"):
 			frappe.get_doc({"doctype": "Activity Type", "activity_type": "_Test Approval"}).insert()
 
@@ -326,6 +331,133 @@ class TestTimesheetApproval(FrappeTestCase):
 		self.assertEqual(self.state().workflow_state, approval.APPROVED)
 		self.assertEqual(frappe.db.get_value("Timesheet", draft, "workflow_state"), approval.DRAFT)
 
+	# Withdraw
+	# --------
+
+	def test_author_withdraws_before_review_and_can_correct(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+
+		act(EMPLOYEE, self.timesheet, approval.WITHDRAW)
+
+		doc = frappe.get_doc("Timesheet", self.timesheet)
+		self.assertEqual((doc.workflow_state, doc.docstatus), (approval.DRAFT, 0))
+		self.assertFalse(doc.approval_requested_on)
+		frappe.set_user(EMPLOYEE)
+		update_timelog(self.log["timelog_name"], hours=1, to_time="2026-10-05 09:00:00")
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+		self.assertEqual(self.state().workflow_state, approval.PENDING)
+
+	def test_only_the_author_can_withdraw(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+		for user in (APPROVER, SYSADMIN):
+			with self.assertRaises(WorkflowTransitionError, msg=user):
+				act(user, self.timesheet, approval.WITHDRAW)
+		self.assertEqual(self.state().workflow_state, approval.PENDING)
+
+	def test_withdraw_from_project_hub(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+		frappe.set_user(EMPLOYEE)
+
+		result = withdraw_timesheets_from_approval([self.timesheet])
+
+		self.assertEqual(result, {"withdrawn": [self.timesheet], "failed": []})
+		self.assertEqual(self.state().workflow_state, approval.DRAFT)
+		# a draft cannot be withdrawn again
+		again = withdraw_timesheets_from_approval([self.timesheet])
+		self.assertEqual(again["withdrawn"], [])
+		self.assertEqual(again["failed"][0]["timesheet"], self.timesheet)
+
+	def test_reviewed_timesheet_cannot_be_withdrawn(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+		act(APPROVER, self.timesheet, approval.APPROVE)
+		with self.assertRaises(WorkflowTransitionError):
+			act(EMPLOYEE, self.timesheet, approval.WITHDRAW)
+
+	# No self-approval
+	# ----------------
+
+	def log_own_hours(self, user):
+		frappe.set_user(user)
+		name = self.log_hours("2026-10-06 08:00:00", "2026-10-06 10:00:00")["timesheet_name"]
+		act(user, name, approval.SEND_FOR_APPROVAL)
+		return name
+
+	def test_approver_cannot_approve_or_reject_own_hours(self):
+		own = self.log_own_hours(APPROVER)
+
+		frappe.set_user(APPROVER)
+		with self.assertRaises(frappe.ValidationError):
+			apply_workflow(frappe.get_doc("Timesheet", own), approval.APPROVE)
+		with self.assertRaises(frappe.PermissionError):
+			approval.reject_timesheet(own, "Not mine to judge")
+		self.assertEqual(frappe.db.get_value("Timesheet", own, "workflow_state"), approval.PENDING)
+
+		# another approver reviews them
+		act(MANAGER, own, approval.APPROVE)
+		self.assertEqual(frappe.db.get_value("Timesheet", own, "workflow_state"), approval.APPROVED)
+
+	def test_hours_entered_for_the_approver_by_someone_else_are_still_theirs(self):
+		frappe.set_user("Administrator")
+		employee = frappe.get_doc(
+			{
+				"doctype": "Employee",
+				"first_name": "Approver",
+				"gender": "Male",
+				"date_of_birth": "1990-01-01",
+				"date_of_joining": "2020-01-01",
+				"company": frappe.db.get_value("Company", {}, "name"),
+				"user_id": APPROVER,
+			}
+		).insert()
+		doc = frappe.get_doc(
+			{
+				"doctype": "Timesheet",
+				"employee": employee.name,
+				"time_logs": [
+					{
+						"activity_type": "_Test Approval",
+						"hours": 1,
+						"from_time": "2026-10-07 08:00:00",
+						"to_time": "2026-10-07 09:00:00",
+					}
+				],
+			}
+		).insert()
+		apply_workflow(doc, approval.SEND_FOR_APPROVAL)
+
+		with self.assertRaises(frappe.PermissionError):
+			act(APPROVER, doc.name, approval.APPROVE)
+
+	def test_approver_cannot_edit_own_pending_hours(self):
+		own = self.log_own_hours(APPROVER)
+		frappe.set_user(APPROVER)
+		doc = frappe.get_doc("Timesheet", own)
+		doc.time_logs[0].description = "Changed after sending"
+		with self.assertRaises(frappe.ValidationError):
+			doc.save()
+
+	def test_project_manager_role_approves(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+		act(PROJECT_MANAGER, self.timesheet, approval.APPROVE)
+		self.assertEqual(self.state().workflow_state, approval.APPROVED)
+
+	# System Manager: full rights
+	# ---------------------------
+
+	def test_system_manager_sees_approves_and_cancels(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+
+		frappe.set_user(SYSADMIN)
+		self.assertIn(self.timesheet, frappe.get_list("Timesheet", pluck="name"))
+		act(SYSADMIN, self.timesheet, approval.APPROVE)
+		act(SYSADMIN, self.timesheet, approval.CANCEL)
+		self.assertEqual(self.state().workflow_state, approval.CANCELLED)
+
+	def test_system_manager_approves_own_hours(self):
+		own = self.log_own_hours(SYSADMIN)
+		act(SYSADMIN, own, approval.APPROVE)
+		self.assertEqual(frappe.db.get_value("Timesheet", own, "workflow_state"), approval.APPROVED)
+
 	def test_submit_permission_comes_from_the_workflow(self):
 		def can_submit(role):
 			return frappe.db.get_value(
@@ -334,5 +466,10 @@ class TestTimesheetApproval(FrappeTestCase):
 
 		for role in ("Projects User", "HR User"):
 			self.assertFalse(can_submit(role), role)
-		self.assertTrue(can_submit("Projects Manager"))
-		self.assertTrue(can_submit(approval.TIMESHEET_MANAGER))
+		for role in (
+			"Projects Manager",
+			approval.PROJECT_MANAGER,
+			approval.TIMESHEET_MANAGER,
+			"System Manager",
+		):
+			self.assertTrue(can_submit(role), role)

@@ -9,7 +9,9 @@
 	const APPROVED = "Approved";
 	const REJECTED = "Rejected";
 	const REJECT = "Reject";
-	const APPROVER_ROLES = ["Timesheet Manager", "Projects Manager"];
+	// Approve and reject the hours of others; admins have full rights, their own hours too.
+	const APPROVER_ROLES = ["Timesheet Manager", "Projects Manager", "Project Manager"];
+	const ADMIN_ROLES = ["System Manager"];
 
 	function uses_approval_workflow(frm) {
 		frappe.workflow.get_state_fieldname(frm.doctype);
@@ -34,7 +36,12 @@
 		if (frm.is_new() || !uses_approval_workflow(frm)) return;
 
 		const doc = frm.doc;
-		const is_approver = frappe.user.has_role(APPROVER_ROLES);
+		const user = frappe.session.user;
+		const is_admin = user === "Administrator" || frappe.user.has_role(ADMIN_ROLES);
+		// Timesheet.user is the employee's user (ERPNext keeps it set), else the creator.
+		const is_author = user === (doc.user || doc.owner);
+		const is_own = is_author || user === doc.owner;
+		const reviews_this = is_admin || (frappe.user.has_role(APPROVER_ROLES) && !is_own);
 
 		if (doc.workflow_state === DRAFT) {
 			frm.set_intro(
@@ -46,19 +53,31 @@
 			);
 		} else if (doc.workflow_state === PENDING) {
 			const since = when(doc.approval_requested_on);
-			frm.set_intro(
-				is_approver
-					? __("Waiting for approval since {0}. Check the hours, then {1} or {2}.", [
-							since,
-							action_hint("Approve"),
-							`<b>${__(REJECT)}</b>`,
-					  ])
-					: __(
-							"Sent for approval on {0}. The hours are locked until the approver decides.",
-							[since]
-					  ),
-				"orange"
-			);
+			let message;
+			if (reviews_this) {
+				message = __("Waiting for approval since {0}. Check the hours, then {1} or {2}.", [
+					since,
+					action_hint("Approve"),
+					`<b>${__(REJECT)}</b>`,
+				]);
+			} else {
+				message = __(
+					"Sent for approval on {0}. The hours are locked until the approver decides.",
+					[since]
+				);
+				if (is_author) {
+					message += ` ${__("To correct them first, {0}.", [action_hint("Withdraw")])}`;
+				}
+				if (is_own && frappe.user.has_role(APPROVER_ROLES)) {
+					// Approvers may edit pending timesheets of others, not their own (the
+					// server refuses it too); "Withdraw" stays in the Actions menu.
+					frm.disable_form();
+					message += `<div class="mt-2">${__(
+						"You do not approve your own hours; another approver reviews them."
+					)}</div>`;
+				}
+			}
+			frm.set_intro(message, "orange");
 		} else if (doc.workflow_state === REJECTED) {
 			const reason = frappe.utils
 				.escape_html(doc.rejection_reason || "")

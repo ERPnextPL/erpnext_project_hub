@@ -10,7 +10,12 @@
 	const PENDING = "Pending Approval";
 	const REJECTED = "Rejected";
 	const APPROVED = "Approved";
-	const APPROVER_ROLES = ["Timesheet Manager", "Projects Manager"];
+	const APPROVER_ROLES = [
+		"Timesheet Manager",
+		"Projects Manager",
+		"Project Manager",
+		"System Manager",
+	];
 
 	const erpnext_settings = frappe.listview_settings["Timesheet"] || {};
 	const billing_indicator = erpnext_settings.get_indicator;

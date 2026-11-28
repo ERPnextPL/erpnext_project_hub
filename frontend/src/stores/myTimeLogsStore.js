@@ -175,6 +175,13 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 		});
 	}
 
+	// Take timesheets waiting for approval back to draft; returns { withdrawn, failed }.
+	async function withdrawFromApproval(timesheetNames) {
+		return apiCall("erpnext_projekt_hub.api.project_hub.withdraw_timesheets_from_approval", {
+			timesheets: JSON.stringify(timesheetNames),
+		});
+	}
+
 	async function deleteTimelog(timelogName) {
 		try {
 			await apiCall("erpnext_projekt_hub.api.project_hub.delete_timelog", {
@@ -204,6 +211,7 @@ export const useMyTimeLogsStore = defineStore("myTimeLogs", () => {
 		createTimelog,
 		fetchAssignableTasks,
 		sendForApproval,
+		withdrawFromApproval,
 		deleteTimelog,
 	};
 });
