@@ -2589,7 +2589,7 @@ def send_timelog_for_approval(timelog_name: str):
 
 
 def _split_timelog(timesheet, timelog_name):
-	"""Move one draft/rejected row into its own Timesheet."""
+	"""Move one draft/rejected row into its own Timesheet, keeping its name."""
 	row = next((row for row in timesheet.time_logs if row.name == timelog_name), None)
 	if not row:
 		frappe.throw(_("Time log {0} not found in its Timesheet").format(timelog_name))
@@ -2610,13 +2610,17 @@ def _split_timelog(timesheet, timelog_name):
 			new_timesheet.set(fieldname, timesheet.get(fieldname))
 
 	row_data = row.as_dict()
-	for fieldname in ("name", "parent", "parenttype", "parentfield", "idx", "docstatus"):
+	for fieldname in ("parent", "parenttype", "parentfield", "idx", "docstatus"):
 		row_data.pop(fieldname, None)
 	new_timesheet.append("time_logs", row_data)
-	new_timesheet.insert()
 
+	# Remove the row before inserting its copy: while the original is stored, ERPNext's
+	# overlap check rejects the copy. A failed insert rolls the removal back with the
+	# request.
 	timesheet.remove(row)
 	timesheet.save()
+	# The row keeps its name, so the time log id the caller holds stays valid.
+	new_timesheet.insert(set_child_names=False)
 	return new_timesheet
 
 

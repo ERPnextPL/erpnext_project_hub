@@ -284,6 +284,41 @@ class TestTimesheetApproval(FrappeTestCase):
 			self.timesheet,
 		)
 
+	def test_split_passes_the_overlap_checks(self):
+		"""Overlap checks are ERPNext's default: the moved row must not meet its own original."""
+		for field in ("ignore_user_time_overlap", "ignore_employee_time_overlap"):
+			previous = frappe.db.get_single_value("Projects Settings", field)
+			self.addCleanup(frappe.db.set_single_value, "Projects Settings", field, previous)
+			frappe.db.set_single_value("Projects Settings", field, 0)
+
+		frappe.set_user(EMPLOYEE)
+		first = self.log_hours("2027-03-01 08:00:00", "2027-03-01 10:00:00")
+		timesheet = frappe.get_doc("Timesheet", first["timesheet_name"])
+		timesheet.append(
+			"time_logs",
+			{
+				"activity_type": "_Test Approval",
+				"hours": 1,
+				"from_time": "2027-03-01 10:00:00",
+				"to_time": "2027-03-01 11:00:00",
+				"task": self.task.name,
+				"project": self.task.project,
+			},
+		)
+		timesheet.save()
+		second_log_name = timesheet.time_logs[-1].name
+
+		result = send_timelog_for_approval(second_log_name)
+
+		new_name = result["sent"][0]
+		self.assertNotEqual(new_name, timesheet.name)
+		self.assertEqual(result["timelog"], second_log_name)
+		self.assertEqual(frappe.db.get_value("Timesheet Detail", second_log_name, "parent"), new_name)
+		self.assertEqual(
+			frappe.db.get_all("Timesheet Detail", {"parent": timesheet.name}, pluck="name"),
+			[first["timelog_name"]],
+		)
+
 	def test_cannot_send_someone_elses_timesheet(self):
 		frappe.set_user(APPROVER)
 		result = send_timesheets_for_approval([self.timesheet])

@@ -37,3 +37,4 @@
 35. `frappe.sendmail` throws without an outgoing e-mail account and its message stays on screen → check `EmailAccount.find_outgoing` first, keep the desk notification independent of the e-mail, and restore the message log after a swallowed failure.
 36. A workflow transition's `condition` is evaluated as whoever triggers the change, also when Frappe builds the next approvers' Workflow Actions → per-user conditions (author only) go only on transitions into optional states, never on the ones that fill the approvers' inbox.
 37. Frappe's `allow_self_approval` compares the user with the document's creator only → for "not your own hours" also compare with the employee's user on the server, and put the full-rights (System Manager) transition rows last: Frappe applies the last row matching the user's roles.
+38. The live page's `.hidden` is `display: none !important` (Bootstrap), so `hidden md:block` never shows → hide with the opposite variant (`max-md:hidden`).

@@ -156,7 +156,7 @@ onMounted(() => store.fetchQueue());
 					</div>
 					<div class="min-w-0">
 						<h1 class="truncate text-lg font-semibold text-slate-900">{{ translate("Time approval") }}</h1>
-						<p class="hidden text-xs text-slate-500 sm:block">{{ translate("Review your project's pending hours") }}</p>
+						<p class="truncate text-xs text-slate-500 max-sm:hidden">{{ translate("Review your project's pending hours") }}</p>
 					</div>
 				</div>
 				<div class="flex items-center gap-2">
@@ -244,7 +244,7 @@ onMounted(() => store.fetchQueue());
 						<span class="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">{{ group.items.length }}</span>
 					</div>
 				</div>
-				<div class="hidden overflow-x-auto md:block">
+				<div class="overflow-x-auto max-md:hidden">
 					<table class="w-full text-left text-sm">
 						<thead class="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
 							<tr>
