@@ -10,6 +10,7 @@ from erpnext_projekt_hub.api.project_hub import (
 	create_timelog,
 	get_my_timelogs,
 	get_task_timelogs,
+	send_timelog_for_approval,
 	send_timesheets_for_approval,
 	update_timelog,
 	withdraw_timesheets_from_approval,
@@ -230,6 +231,43 @@ class TestTimesheetApproval(FrappeTestCase):
 		again = send_timesheets_for_approval([draft])
 		self.assertEqual(again["sent"], [])
 		self.assertEqual(again["failed"][0]["timesheet"], draft)
+
+	def test_send_one_time_log_from_a_shared_timesheet(self):
+		timesheet = frappe.get_doc("Timesheet", self.timesheet)
+		timesheet.append(
+			"time_logs",
+			{
+				"activity_type": "_Test Approval",
+				"hours": 1,
+				"from_time": "2026-10-05 10:00:00",
+				"to_time": "2026-10-05 11:00:00",
+				"task": self.task.name,
+				"project": self.task.project,
+			},
+		)
+		timesheet.save()
+		second_log_name = timesheet.time_logs[-1].name
+
+		frappe.set_user(EMPLOYEE)
+		result = send_timelog_for_approval(self.log["timelog_name"])
+
+		self.assertEqual(result["timelog"], self.log["timelog_name"])
+		self.assertEqual(
+			frappe.db.get_value("Timesheet", result["sent"][0], "workflow_state"),
+			approval.PENDING,
+		)
+		self.assertEqual(
+			frappe.db.get_value("Timesheet Detail", self.log["timelog_name"], "parent"),
+			result["sent"][0],
+		)
+		self.assertEqual(
+			frappe.db.get_value("Timesheet", self.timesheet, "workflow_state"),
+			approval.DRAFT,
+		)
+		self.assertEqual(
+			frappe.db.get_value("Timesheet Detail", second_log_name, "parent"),
+			self.timesheet,
+		)
 
 	def test_cannot_send_someone_elses_timesheet(self):
 		frappe.set_user(APPROVER)

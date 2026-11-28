@@ -2446,6 +2446,71 @@ def send_timesheets_for_approval(timesheets: str | list[str]):
 
 
 @frappe.whitelist(methods=["POST"])
+def send_timelog_for_approval(timelog_name: str):
+	"""Send one time log for approval, separating it from a shared timesheet first."""
+	require_project_hub_access()
+	if not timelog_name:
+		frappe.throw(_("Time log is required"))
+
+	parent = frappe.db.get_value("Timesheet Detail", timelog_name, "parent")
+	if not parent:
+		frappe.throw(_("Time log {0} not found").format(timelog_name), frappe.DoesNotExistError)
+
+	timesheet = frappe.get_doc("Timesheet", parent)
+	if not _is_own_timesheet(timesheet):
+		frappe.throw(_("You can only send your own time logs for approval"))
+	if timesheet.docstatus != 0:
+		frappe.throw(_("This time log is already submitted or cancelled"))
+	if timesheet.workflow_state not in (timesheet_approval.DRAFT, timesheet_approval.REJECTED):
+		frappe.throw(_("This time log is not ready to be sent for approval"))
+
+	if len(timesheet.time_logs) > 1:
+		timesheet = _split_timelog(timesheet, timelog_name)
+
+	from frappe.model.workflow import apply_workflow
+
+	action = (
+		timesheet_approval.RESUBMIT
+		if timesheet.workflow_state == timesheet_approval.REJECTED
+		else timesheet_approval.SEND_FOR_APPROVAL
+	)
+	apply_workflow(timesheet, action)
+	return {"sent": [timesheet.name], "timelog": timelog_name}
+
+
+def _split_timelog(timesheet, timelog_name):
+	"""Move one draft/rejected row into its own Timesheet."""
+	row = next((row for row in timesheet.time_logs if row.name == timelog_name), None)
+	if not row:
+		frappe.throw(_("Time log {0} not found in its Timesheet").format(timelog_name))
+
+	new_timesheet = frappe.new_doc("Timesheet")
+	for fieldname in (
+		"naming_series",
+		"employee",
+		"company",
+		"customer",
+		"currency",
+		"exchange_rate",
+		"parent_project",
+		"department",
+		"note",
+	):
+		if new_timesheet.meta.has_field(fieldname):
+			new_timesheet.set(fieldname, timesheet.get(fieldname))
+
+	row_data = row.as_dict()
+	for fieldname in ("name", "parent", "parenttype", "parentfield", "idx", "docstatus"):
+		row_data.pop(fieldname, None)
+	new_timesheet.append("time_logs", row_data)
+	new_timesheet.insert()
+
+	timesheet.remove(row)
+	timesheet.save()
+	return new_timesheet
+
+
+@frappe.whitelist(methods=["POST"])
 def withdraw_timesheets_from_approval(timesheets: str | list[str]):
 	"""Take the current user's timesheets back from approval to draft, before anyone reviews them."""
 	result = _apply_to_own_timesheets(timesheets, {timesheet_approval.PENDING: timesheet_approval.WITHDRAW})

@@ -186,6 +186,7 @@ const approval = computed(() => summarizeApproval(store.timelogs));
 const toSend = computed(() => timesheetsToSend(store.timelogs));
 const rejectedNotices = computed(() => rejectedTimesheets(store.timelogs));
 const sendingForApproval = ref(false);
+const sendingTimelog = ref("");
 
 function percentageOf(hours) {
 	if (totalHours.value === 0) return 0;
@@ -556,6 +557,29 @@ async function handleSendForApproval() {
 		showAlert(translate("Failed to send hours for approval"), "red");
 	} finally {
 		sendingForApproval.value = false;
+	}
+}
+
+async function handleSendTimelogForApproval(log) {
+	if (!isEditableLog(log) || sendingTimelog.value) return;
+	const question = translate(
+		"Send {0} h for approval? Until the approver decides, this entry cannot be changed.",
+		[formatHours(log.hours)]
+	);
+	if (!confirm(question)) return;
+
+	sendingTimelog.value = log.timelog_name;
+	try {
+		const result = await store.sendTimelogForApproval(log.timelog_name);
+		if (result?.sent?.length) {
+			showAlert(translate("Time entry sent for approval"), "green");
+		}
+		await store.fetchLogs();
+	} catch (error) {
+		console.error("Failed to send time entry for approval:", error);
+		showAlert(translate("Failed to send time entry for approval"), "red");
+	} finally {
+		sendingTimelog.value = "";
 	}
 }
 
@@ -1292,6 +1316,16 @@ async function handleDeleteLog(log) {
 								</div>
 
 								<div class="flex flex-wrap gap-2">
+					<button
+						v-if="isEditableLog(log)"
+						type="button"
+						:disabled="sendingTimelog === log.timelog_name"
+						@click="handleSendTimelogForApproval(log)"
+						class="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+					>
+						<Send class="w-4 h-4" />
+						{{ sendingTimelog === log.timelog_name ? translate("Sending...") : translate("Send for approval") }}
+					</button>
 									<button
 										v-if="isEditableLog(log)"
 										type="button"
