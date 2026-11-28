@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import frappe
+from frappe import _
 from frappe.model.workflow import WorkflowTransitionError, apply_workflow
 from frappe.tests.utils import FrappeTestCase
 
@@ -125,7 +126,9 @@ class TestTimesheetApproval(FrappeTestCase):
 		self.assertEqual(item["entries"][0]["task"], self.task.name)
 
 		approve_timesheet_for_project_manager(self.timesheet)
-		state = frappe.db.get_value("Timesheet", self.timesheet, ["workflow_state", "docstatus"], as_dict=True)
+		state = frappe.db.get_value(
+			"Timesheet", self.timesheet, ["workflow_state", "docstatus"], as_dict=True
+		)
 		self.assertEqual((state.workflow_state, state.docstatus), (approval.APPROVED, 1))
 
 	def test_employee_cannot_approve(self):
@@ -390,7 +393,7 @@ class TestTimesheetApproval(FrappeTestCase):
 		frappe.clear_messages()
 
 		def broken(*args, **kwargs):
-			frappe.throw("Mail server down")
+			frappe.throw(_("Mail server down"))
 
 		with patch(HAS_EMAIL_ACCOUNT, return_value=True), patch(SENDMAIL, side_effect=broken):
 			apply_workflow(frappe.get_doc("Timesheet", self.timesheet), approval.APPROVE)

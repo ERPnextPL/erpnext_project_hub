@@ -2177,9 +2177,7 @@ def get_timesheets_to_approve(
 			project_label = (
 				frappe.db.get_value("Project", project_name, "project_name") if project_name else None
 			)
-			task_subject = (
-				frappe.db.get_value("Task", time_log.task, "subject") if time_log.task else None
-			)
+			task_subject = frappe.db.get_value("Task", time_log.task, "subject") if time_log.task else None
 			if project_name and project_name not in {item["name"] for item in projects}:
 				projects.append({"name": project_name, "label": project_label or project_name})
 			search_parts.extend(
@@ -2206,7 +2204,9 @@ def get_timesheets_to_approve(
 		if needle and needle not in " ".join(cstr(part) for part in search_parts if part).lower():
 			continue
 
-		employee_name = doc.employee_name or frappe.utils.get_fullname(timesheet_approval.get_employee_user(doc))
+		employee_name = doc.employee_name or frappe.utils.get_fullname(
+			timesheet_approval.get_employee_user(doc)
+		)
 		items.append(
 			{
 				"name": doc.name,

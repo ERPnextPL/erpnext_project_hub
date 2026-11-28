@@ -417,7 +417,9 @@ def validate(doc, method=None):
 		# someone else entered for the approver's own Employee record.
 		if not can_review_timesheet(doc):
 			frappe.throw(
-				_("Only the assigned project manager or an authorized timesheet reviewer can decide on these hours."),
+				_(
+					"Only the assigned project manager or an authorized timesheet reviewer can decide on these hours."
+				),
 				frappe.PermissionError,
 				title=_("Not allowed"),
 			)
@@ -546,7 +548,9 @@ def reject_timesheet(timesheet: str, reason: str):
 		frappe.throw(_("Only a timesheet waiting for approval can be rejected."))
 	if not can_review_timesheet(doc):
 		frappe.throw(
-			_("Only the assigned project manager or an authorized timesheet reviewer can decide on these hours."),
+			_(
+				"Only the assigned project manager or an authorized timesheet reviewer can decide on these hours."
+			),
 			frappe.PermissionError,
 			title=_("Not allowed"),
 		)
@@ -700,11 +704,11 @@ def _render_notification(doc, state):
 	if state == REJECTED:
 		rows.append((_("Rejection Reason"), escape_html(doc.rejection_reason).replace("\n", "<br>")))
 
-	table = "".join(
-		f'<tr><td style="padding:4px 16px 4px 0;color:#6b7280;">{label}</td>'
-		f'<td style="padding:4px 0;"><strong>{value}</strong></td></tr>'
-		for label, value in rows
+	row_html = (
+		'<tr><td style="padding:4px 16px 4px 0;color:#6b7280;">{0}</td>'
+		'<td style="padding:4px 0;"><strong>{1}</strong></td></tr>'
 	)
+	table = "".join(row_html.format(label, value) for label, value in rows)
 	links = [f'<a href="{get_url_to_form(DOCTYPE, doc.name)}">{_("Open the timesheet")}</a>']
 	if state != PENDING:
 		links.append(
