@@ -28,6 +28,7 @@ def after_install():
 	ensure_projekt_hub_role()
 	_ensure_project_custom_fields()
 	_ensure_request_workflows()
+	_ensure_timesheet_approval()
 	update_site_config("projekt_hub_pro_enabled", 1)
 
 
@@ -44,6 +45,13 @@ def _ensure_request_workflows():
 	from erpnext_projekt_hub.patches.post_model_sync.setup_customer_change_requests import execute
 
 	execute()
+
+
+def _ensure_timesheet_approval():
+	# The patch that sets up the approval workflow is skipped on fresh installs.
+	from erpnext_projekt_hub.timesheet_approval import setup
+
+	setup()
 
 
 def _ensure_test_roots():

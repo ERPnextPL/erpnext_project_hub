@@ -39,6 +39,7 @@ import {
 import { TextEditor } from "frappe-ui";
 import { renderMarkdown } from "../utils/markdown";
 import { toOpenableUrl } from "../utils/url";
+import { getApprovalBadge, getToneClasses, isRejectedLog } from "../utils/timesheetApproval";
 
 const realWindow = typeof globalThis !== "undefined" ? globalThis.window : undefined;
 const translate = (text) => {
@@ -2765,12 +2766,20 @@ async function deleteAttachment(fileName) {
 													<span>•</span>
 													<span>{{ formatDate(log.from_time) }}</span>
 												</div>
+												<p
+													v-if="isRejectedLog(log) && log.rejection_reason"
+													class="mt-1 text-xs text-red-700 [overflow-wrap:anywhere]"
+												>
+													{{ translate("Rejection Reason") }}: {{ log.rejection_reason }}
+												</p>
 											</div>
+											<!-- Approval stage of the entry's timesheet; plain drafts need no badge -->
 											<span
-												v-if="!log.can_edit && log.docstatus === 1"
-												class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+												v-if="getApprovalBadge(log).label !== 'Draft'"
+												class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+												:class="getToneClasses(getApprovalBadge(log).tone)"
 											>
-												{{ translate(log.status || "Submitted") }}
+												{{ translate(getApprovalBadge(log).label) }}
 											</span>
 											<button
 												v-if="log.can_edit"

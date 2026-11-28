@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import frappe
+from frappe.model.workflow import apply_workflow
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE
@@ -12,6 +13,12 @@ test_ignore = ["Task", "Timesheet"]
 
 def create_task(subject):
 	return frappe.get_doc({"doctype": "Task", "subject": subject}).insert(ignore_permissions=True)
+
+
+def approve(timesheet_name):
+	"""Submit through the approval workflow, the only way a timesheet gets submitted."""
+	apply_workflow(frappe.get_doc("Timesheet", timesheet_name), "Send for Approval")
+	apply_workflow(frappe.get_doc("Timesheet", timesheet_name), "Approve")
 
 
 def get_log(task_name, timelog_name):
@@ -62,7 +69,7 @@ class TestTaskTimelogEdit(FrappeTestCase):
 		self.assertEqual(log.description, "Corrected entry")
 
 	def test_submitted_entry_is_locked(self):
-		frappe.get_doc("Timesheet", self.log["timesheet_name"]).submit()
+		approve(self.log["timesheet_name"])
 
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.can_edit, 0)
@@ -84,7 +91,7 @@ class TestTaskTimelogEdit(FrappeTestCase):
 	def test_submitting_timesheet_keeps_task_status(self):
 		frappe.db.set_value("Task", self.task.name, "status", "Pending Review")
 
-		frappe.get_doc("Timesheet", self.log["timesheet_name"]).submit()
+		approve(self.log["timesheet_name"])
 
 		self.assertEqual(frappe.db.get_value("Task", self.task.name, "status"), "Pending Review")
 
@@ -104,7 +111,7 @@ class TestTaskTimelogEdit(FrappeTestCase):
 			timesheet = frappe.get_doc("Timesheet", log["timesheet_name"])
 			self.assertEqual([row.name for row in timesheet.time_logs], [log["timelog_name"]])
 
-		frappe.get_doc("Timesheet", second["timesheet_name"]).submit()
+		approve(second["timesheet_name"])
 		self.assertEqual(frappe.db.get_value("Timesheet", self.log["timesheet_name"], "docstatus"), 0)
 
 	def test_timesheet_override_bypasses_permissions_only_for_linked_records(self):

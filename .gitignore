@@ -10,3 +10,4 @@ __pycache__
 .pro-enabled
 erpnext_projekt_hub/public/frontend/
 frappe-semgrep-rules/
+dump.rdb

@@ -7,9 +7,9 @@ from math import isfinite
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, today
+from frappe.utils import cint, cstr, flt, today
 
-from erpnext_projekt_hub import request_queue
+from erpnext_projekt_hub import request_queue, timesheet_approval
 from erpnext_projekt_hub.access import (
 	PROJEKT_HUB_ROLE,
 	get_projekt_hub_user_names,
@@ -1977,6 +1977,8 @@ def get_task_timelogs(task_name: str):
 			ts.employee_name,
 			ts.status,
 			ts.docstatus,
+			ts.workflow_state,
+			ts.rejection_reason,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -2002,10 +2004,11 @@ def get_task_timelogs(task_name: str):
 	# Show the employee assigned on the timesheet, not whoever created it
 	for log in timelogs:
 		# Same rules as update_timelog: only own entries on a draft timesheet
+		# that is not waiting for approval
 		is_own = (session_employee and log.employee == session_employee) or (
 			not log.employee and log.owner == session_user
 		)
-		log["can_edit"] = 1 if log.docstatus == 0 and is_own else 0
+		log["can_edit"] = 1 if _is_editable_timesheet_state(log) and is_own else 0
 
 		if log.employee:
 			log["user_full_name"] = log.employee_name
@@ -2046,8 +2049,9 @@ def get_my_timelogs(
 		values: list[str] = [user]
 
 	if status:
-		conditions.append("ts.status = %s")
-		values.append(status)
+		condition, status_values = _approval_status_condition(status)
+		conditions.append(condition)
+		values.extend(status_values)
 	if project:
 		conditions.append("tsd.project = %s")
 		values.append(project)
@@ -2075,6 +2079,11 @@ def get_my_timelogs(
 			ts.name as timesheet_name,
 			ts.status,
 			ts.docstatus,
+			ts.workflow_state,
+			ts.rejection_reason,
+			ts.reviewed_by,
+			reviewer.full_name as reviewed_by_name,
+			ts.reviewed_on,
 			ts.owner,
 			ts.employee,
 			ts.employee_name,
@@ -2096,6 +2105,7 @@ def get_my_timelogs(
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		LEFT JOIN `tabTask` task ON tsd.task = task.name
 		LEFT JOIN `tabProject` proj ON tsd.project = proj.name
+		LEFT JOIN `tabUser` reviewer ON ts.reviewed_by = reviewer.name
 		WHERE """
 		+ condition_sql
 		+ """
@@ -2105,6 +2115,146 @@ def get_my_timelogs(
 	timelogs = frappe.db.sql(query, values, as_dict=1)
 
 	return {"timelogs": timelogs, "total": len(timelogs)}
+
+
+@frappe.whitelist()
+def get_timesheets_to_approve(
+	project: str | None = None,
+	employee: str | None = None,
+	start_date: str | None = None,
+	end_date: str | None = None,
+	search: str | None = None,
+	limit: int | str = 200,
+):
+	"""Return the current user's pending timesheets, grouped for approval UX."""
+	require_project_hub_access()
+	if not timesheet_approval.can_review():
+		return {"items": [], "total": 0, "total_hours": 0, "projects": [], "employees": []}
+
+	try:
+		page_length = min(max(int(limit or 200), 1), 200)
+	except (TypeError, ValueError):
+		page_length = 200
+
+	filters = [["workflow_state", "=", timesheet_approval.PENDING], ["docstatus", "=", 0]]
+	if employee:
+		filters.append(["employee", "=", employee])
+	if start_date:
+		filters.append(["end_date", ">=", start_date])
+	if end_date:
+		filters.append(["start_date", "<=", end_date])
+
+	timesheets = frappe.get_list(
+		"Timesheet",
+		filters=filters,
+		fields=[
+			"name",
+			"employee",
+			"employee_name",
+			"start_date",
+			"end_date",
+			"total_hours",
+			"approval_requested_on",
+			"parent_project",
+			"creation",
+		],
+		order_by="approval_requested_on desc, modified desc",
+		page_length=page_length,
+	)
+
+	items = []
+	needle = cstr(search).strip().lower() if search else ""
+	for row in timesheets:
+		doc = frappe.get_doc("Timesheet", row.name)
+		if not timesheet_approval.can_review_timesheet(doc):
+			continue
+
+		projects = []
+		entries = []
+		search_parts = [doc.name, doc.employee_name, doc.employee, doc.parent_project]
+		for time_log in doc.time_logs:
+			project_name = time_log.project or doc.parent_project
+			project_label = (
+				frappe.db.get_value("Project", project_name, "project_name") if project_name else None
+			)
+			task_subject = frappe.db.get_value("Task", time_log.task, "subject") if time_log.task else None
+			if project_name and project_name not in {item["name"] for item in projects}:
+				projects.append({"name": project_name, "label": project_label or project_name})
+			search_parts.extend(
+				[project_name, project_label, time_log.task, task_subject, time_log.description]
+			)
+			entries.append(
+				{
+					"name": time_log.name,
+					"task": time_log.task,
+					"task_subject": task_subject or time_log.task,
+					"project": project_name,
+					"project_name": project_label or project_name,
+					"activity_type": time_log.activity_type,
+					"hours": time_log.hours,
+					"from_time": time_log.from_time,
+					"to_time": time_log.to_time,
+					"description": time_log.description,
+					"is_billable": time_log.is_billable,
+				}
+			)
+
+		if project and project not in {item["name"] for item in projects}:
+			continue
+		if needle and needle not in " ".join(cstr(part) for part in search_parts if part).lower():
+			continue
+
+		employee_name = doc.employee_name or frappe.utils.get_fullname(
+			timesheet_approval.get_employee_user(doc)
+		)
+		items.append(
+			{
+				"name": doc.name,
+				"employee": doc.employee,
+				"employee_name": employee_name,
+				"start_date": doc.start_date,
+				"end_date": doc.end_date,
+				"total_hours": doc.total_hours,
+				"approval_requested_on": doc.approval_requested_on,
+				"projects": projects,
+				"entries": entries,
+			}
+		)
+
+	project_options = {project["name"]: project for item in items for project in item["projects"]}
+	employee_options = {
+		item["employee"]: {"name": item["employee"], "label": item["employee_name"] or item["employee"]}
+		for item in items
+		if item["employee"]
+	}
+	return {
+		"items": items,
+		"total": len(items),
+		"total_hours": sum(flt(item["total_hours"]) for item in items),
+		"projects": list(project_options.values()),
+		"employees": list(employee_options.values()),
+		"has_more": len(timesheets) == page_length,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def approve_timesheet_for_project_manager(timesheet: str):
+	"""Approve a pending timesheet for the assigned project manager."""
+	require_project_hub_access()
+	if not timesheet:
+		frappe.throw(_("Timesheet is required"))
+
+	doc = frappe.get_doc("Timesheet", timesheet)
+	doc.check_permission("read")
+	if doc.workflow_state != timesheet_approval.PENDING or doc.docstatus != 0:
+		frappe.throw(_("Only a timesheet waiting for approval can be approved."))
+	if not timesheet_approval.can_review_timesheet(doc):
+		frappe.throw(_("You are not the assigned reviewer for this timesheet."), frappe.PermissionError)
+
+	from frappe.model.workflow import apply_workflow
+
+	doc = apply_workflow(doc, timesheet_approval.APPROVE)
+	return {"name": doc.name, "workflow_state": doc.workflow_state, "total_hours": doc.total_hours}
 
 
 @frappe.whitelist()
@@ -2223,6 +2373,7 @@ def update_timelog(
 		frappe.throw(_("Cannot update time logs from a submitted timesheet. Please cancel it first."))
 	elif timesheet.docstatus == 2:
 		frappe.throw(_("Cannot modify a cancelled timesheet"))
+	_check_not_waiting_for_approval(timesheet)
 
 	# Update fields
 	if hours is not None:
@@ -2284,6 +2435,7 @@ def delete_timelog(timelog_name: str):
 		frappe.throw(_("Cannot delete time logs from a submitted timesheet. Please cancel it first."))
 	elif timesheet.docstatus == 2:
 		frappe.throw(_("Cannot modify a cancelled timesheet"))
+	_check_not_waiting_for_approval(timesheet)
 
 	# Check for linked documents before attempting deletion
 	linked_docs = frappe.get_all(
@@ -2343,6 +2495,173 @@ def _is_own_timesheet(timesheet) -> bool:
 	if not timesheet.employee and timesheet.owner == user:
 		return True
 	return False
+
+
+def _is_editable_timesheet_state(timesheet) -> bool:
+	"""Hours can change on a draft timesheet unless it waits for approval."""
+	if timesheet.get("docstatus") != 0:
+		return False
+	return (
+		timesheet.get("workflow_state") != timesheet_approval.PENDING or not timesheet_approval.is_enabled()
+	)
+
+
+def _check_not_waiting_for_approval(timesheet):
+	if timesheet.get("workflow_state") == timesheet_approval.PENDING and timesheet_approval.is_enabled():
+		frappe.throw(
+			_(
+				"This time entry is waiting for approval and cannot be changed. "
+				"To correct it, withdraw its timesheet from approval and send it again."
+			),
+			title=_("Waiting for approval"),
+		)
+
+
+# My Time status filter: approval stages on top of the billing statuses of
+# Timesheet.status. "To Send" is everything the employee still has to send.
+APPROVAL_STATUS_FILTERS = {
+	"To Send": (
+		"ts.docstatus = 0 AND COALESCE(ts.workflow_state, '') IN ('', %s, %s)",
+		["Draft", "Rejected"],
+	),
+	"Draft": ("ts.docstatus = 0 AND COALESCE(ts.workflow_state, '') IN ('', %s)", ["Draft"]),
+	"Pending Approval": ("ts.docstatus = 0 AND ts.workflow_state = %s", ["Pending Approval"]),
+	"Rejected": ("ts.docstatus = 0 AND ts.workflow_state = %s", ["Rejected"]),
+	"Approved": ("ts.docstatus = 1", []),
+}
+
+
+def _approval_status_condition(status: str) -> tuple[str, list]:
+	if status in APPROVAL_STATUS_FILTERS:
+		condition, values = APPROVAL_STATUS_FILTERS[status]
+		return condition, list(values)
+	return "ts.status = %s", [status]
+
+
+@frappe.whitelist(methods=["POST"])
+def send_timesheets_for_approval(timesheets: str | list[str]):
+	"""Send the current user's draft and rejected timesheets for approval.
+
+	Each timesheet is sent on its own: one that fails (e.g. overlapping hours) is
+	reported back and does not stop the others.
+	"""
+	result = _apply_to_own_timesheets(
+		timesheets,
+		{
+			timesheet_approval.DRAFT: timesheet_approval.SEND_FOR_APPROVAL,
+			timesheet_approval.REJECTED: timesheet_approval.RESUBMIT,
+		},
+	)
+	return {"sent": result["done"], "failed": result["failed"]}
+
+
+@frappe.whitelist(methods=["POST"])
+def send_timelog_for_approval(timelog_name: str):
+	"""Send one time log for approval, separating it from a shared timesheet first."""
+	require_project_hub_access()
+	if not timelog_name:
+		frappe.throw(_("Time log is required"))
+
+	parent = frappe.db.get_value("Timesheet Detail", timelog_name, "parent")
+	if not parent:
+		frappe.throw(_("Time log {0} not found").format(timelog_name), frappe.DoesNotExistError)
+
+	timesheet = frappe.get_doc("Timesheet", parent)
+	if not _is_own_timesheet(timesheet):
+		frappe.throw(_("You can only send your own time logs for approval"))
+	if timesheet.docstatus != 0:
+		frappe.throw(_("This time log is already submitted or cancelled"))
+	if timesheet.workflow_state not in (timesheet_approval.DRAFT, timesheet_approval.REJECTED):
+		frappe.throw(_("This time log is not ready to be sent for approval"))
+
+	if len(timesheet.time_logs) > 1:
+		timesheet = _split_timelog(timesheet, timelog_name)
+
+	from frappe.model.workflow import apply_workflow
+
+	action = (
+		timesheet_approval.RESUBMIT
+		if timesheet.workflow_state == timesheet_approval.REJECTED
+		else timesheet_approval.SEND_FOR_APPROVAL
+	)
+	apply_workflow(timesheet, action)
+	return {"sent": [timesheet.name], "timelog": timelog_name}
+
+
+def _split_timelog(timesheet, timelog_name):
+	"""Move one draft/rejected row into its own Timesheet, keeping its name."""
+	row = next((row for row in timesheet.time_logs if row.name == timelog_name), None)
+	if not row:
+		frappe.throw(_("Time log {0} not found in its Timesheet").format(timelog_name))
+
+	new_timesheet = frappe.new_doc("Timesheet")
+	for fieldname in (
+		"naming_series",
+		"employee",
+		"company",
+		"customer",
+		"currency",
+		"exchange_rate",
+		"parent_project",
+		"department",
+		"note",
+	):
+		if new_timesheet.meta.has_field(fieldname):
+			new_timesheet.set(fieldname, timesheet.get(fieldname))
+
+	row_data = row.as_dict()
+	for fieldname in ("parent", "parenttype", "parentfield", "idx", "docstatus"):
+		row_data.pop(fieldname, None)
+	new_timesheet.append("time_logs", row_data)
+
+	# Remove the row before inserting its copy: while the original is stored, ERPNext's
+	# overlap check rejects the copy. A failed insert rolls the removal back with the
+	# request.
+	timesheet.remove(row)
+	timesheet.save()
+	# The row keeps its name, so the time log id the caller holds stays valid.
+	new_timesheet.insert(set_child_names=False)
+	return new_timesheet
+
+
+@frappe.whitelist(methods=["POST"])
+def withdraw_timesheets_from_approval(timesheets: str | list[str]):
+	"""Take the current user's timesheets back from approval to draft, before anyone reviews them."""
+	result = _apply_to_own_timesheets(timesheets, {timesheet_approval.PENDING: timesheet_approval.WITHDRAW})
+	return {"withdrawn": result["done"], "failed": result["failed"]}
+
+
+def _apply_to_own_timesheets(timesheets, action_by_state: dict[str, str]) -> dict:
+	"""Apply the workflow action matching each timesheet's state, one timesheet at a time."""
+	require_project_hub_access()
+	names = frappe.parse_json(timesheets) if isinstance(timesheets, str) else timesheets
+	if not isinstance(names, list) or not names:
+		frappe.throw(_("Choose the timesheets"))
+	if not timesheet_approval.is_enabled():
+		frappe.throw(_("Timesheet approval is not set up on this site"))
+
+	from frappe.model.workflow import apply_workflow
+
+	done, failed = [], []
+	for name in dict.fromkeys(names):
+		savepoint = f"timesheet_approval_{len(done) + len(failed)}"
+		frappe.db.savepoint(savepoint)
+		try:
+			timesheet = frappe.get_doc("Timesheet", name)
+			if not _is_own_timesheet(timesheet):
+				frappe.throw(_("You can only send or withdraw your own timesheets"))
+			action = action_by_state.get(timesheet.workflow_state) if timesheet.docstatus == 0 else None
+			if not action:
+				frappe.throw(_("Timesheet {0} is already {1}").format(name, _(timesheet.workflow_state)))
+			apply_workflow(timesheet, action)
+			done.append(name)
+		except (frappe.ValidationError, frappe.PermissionError) as error:
+			frappe.db.rollback(save_point=savepoint)
+			failed.append({"timesheet": name, "message": frappe.utils.strip_html(cstr(error))})
+
+	# Failures are returned to the caller, not shown as one popup per timesheet.
+	frappe.clear_messages()
+	return {"done": done, "failed": failed}
 
 
 @frappe.whitelist()
