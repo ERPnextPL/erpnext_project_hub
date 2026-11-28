@@ -1962,7 +1962,7 @@ def remove_project_user(project: str, user: str):
 
 @frappe.whitelist()
 def get_task_timelogs(task_name: str):
-	"""Get all time logs for a specific task."""
+	"""Get time logs for a task: all for the project's manager and admins, otherwise only the user's own."""
 	require_project_hub_access()
 	if not task_name:
 		frappe.throw(_("Task name is required"))
@@ -1999,13 +1999,25 @@ def get_task_timelogs(task_name: str):
 	session_user = frappe.session.user
 	session_employee = get_employee_for_user(session_user)
 
+	def is_own(log):
+		return _is_own_record(log, session_user, session_employee)
+
+	# Other people's hours are visible only to the manager named on the task's
+	# project, and to Administrator / System Manager
+	project = frappe.db.get_value("Task", task_name, "project")
+	project_manager = frappe.db.get_value("Project", project, "project_manager") if project else None
+	sees_all = (
+		session_user == "Administrator"
+		or bool({"Administrator", "System Manager"} & set(frappe.get_roles(session_user)))
+		or bool(project_manager and project_manager == session_user)
+	)
+	if not sees_all:
+		timelogs = [log for log in timelogs if is_own(log)]
+
 	# Show the employee assigned on the timesheet, not whoever created it
 	for log in timelogs:
 		# Same rules as update_timelog: only own entries on a draft timesheet
-		is_own = (session_employee and log.employee == session_employee) or (
-			not log.employee and log.owner == session_user
-		)
-		log["can_edit"] = 1 if log.docstatus == 0 and is_own else 0
+		log["can_edit"] = 1 if log.docstatus == 0 and is_own(log) else 0
 
 		if log.employee:
 			log["user_full_name"] = log.employee_name
@@ -2363,14 +2375,17 @@ def get_employee_for_user(user: str):
 	return employee
 
 
+def _is_own_record(record, user: str, employee: str | None) -> bool:
+	"""A timesheet (or a time log row carrying its employee/owner) belongs to the user
+	when its employee is the user's Employee, or it has no employee and the user created it."""
+	if employee and record.employee == employee:
+		return True
+	return bool(not record.employee and record.owner == user)
+
+
 def _is_own_timesheet(timesheet) -> bool:
 	user = frappe.session.user
-	employee = get_employee_for_user(user)
-	if employee and timesheet.employee == employee:
-		return True
-	if not timesheet.employee and timesheet.owner == user:
-		return True
-	return False
+	return _is_own_record(timesheet, user, get_employee_for_user(user))
 
 
 @frappe.whitelist()

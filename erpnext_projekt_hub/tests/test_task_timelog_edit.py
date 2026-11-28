@@ -6,6 +6,7 @@ from frappe.tests.utils import FrappeTestCase
 from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE
 from erpnext_projekt_hub.api.project_hub import create_timelog, get_task_timelogs, update_timelog
 from erpnext_projekt_hub.overrides.timesheet import HubTimesheet
+from erpnext_projekt_hub.tests.test_work_planning import make_employee
 
 test_ignore = ["Task", "Timesheet"]
 
@@ -69,17 +70,83 @@ class TestTaskTimelogEdit(FrappeTestCase):
 		with self.assertRaises(frappe.ValidationError):
 			update_timelog(self.log["timelog_name"], hours=3)
 
-	def test_other_users_entry_is_not_editable(self):
+	def _other_user(self):
 		other_user = "_test_timelog_edit_other@example.com"
 		if not frappe.db.exists("User", other_user):
 			frappe.get_doc(
 				{"doctype": "User", "email": other_user, "first_name": "Other", "send_welcome_email": 0}
 			).insert(ignore_permissions=True)
 		frappe.get_doc("User", other_user).add_roles("Projects User", PROJEKT_HUB_ROLE)
+		return other_user
+
+	def _task_in_project(self, project_manager=None):
+		project = frappe.get_doc(
+			{
+				"doctype": "Project",
+				"project_name": "_Test Timelog Visibility",
+				"company": frappe.db.get_value("Company", {}, "name"),
+				"project_manager": project_manager,
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.set_value("Task", self.task.name, "project", project.name)
+		return project
+
+	def test_other_users_entry_is_hidden(self):
+		other_user = self._other_user()
+		self._task_in_project()
+
+		frappe.set_user(other_user)
+		result = get_task_timelogs(self.task.name)
+		self.assertEqual(result["timelogs"], [])
+		self.assertEqual(result["total_hours"], 0)
+
+	def test_project_manager_sees_other_users_entries(self):
+		other_user = self._other_user()
+		self._task_in_project(project_manager=other_user)
 
 		frappe.set_user(other_user)
 		log = get_log(self.task.name, self.log["timelog_name"])
 		self.assertEqual(log.can_edit, 0)
+
+	def test_projects_manager_role_does_not_see_other_users_entries(self):
+		other_user = self._other_user()
+		frappe.get_doc("User", other_user).add_roles("Projects Manager")
+		self._task_in_project()
+
+		frappe.set_user(other_user)
+		self.assertEqual(get_task_timelogs(self.task.name)["timelogs"], [])
+
+	def test_system_manager_sees_other_users_entries(self):
+		other_user = self._other_user()
+		frappe.get_doc("User", other_user).add_roles("System Manager")
+		self._task_in_project()
+
+		frappe.set_user(other_user)
+		log = get_log(self.task.name, self.log["timelog_name"])
+		self.assertEqual(log.can_edit, 0)
+
+	def test_entry_of_users_employee_is_visible_and_editable(self):
+		other_user = self._other_user()
+		employee = make_employee(other_user)
+		frappe.db.set_value("Timesheet", self.log["timesheet_name"], "employee", employee)
+		self._task_in_project()
+
+		frappe.set_user(other_user)
+		log = get_log(self.task.name, self.log["timelog_name"])
+		self.assertEqual(log.can_edit, 1)
+
+	def test_task_without_project_hides_other_users_entries(self):
+		other_user = self._other_user()
+
+		frappe.set_user(other_user)
+		self.assertEqual(get_task_timelogs(self.task.name)["timelogs"], [])
+
+	def test_system_manager_sees_entries_on_task_without_project(self):
+		other_user = self._other_user()
+		frappe.get_doc("User", other_user).add_roles("System Manager")
+
+		frappe.set_user(other_user)
+		get_log(self.task.name, self.log["timelog_name"])
 
 	def test_submitting_timesheet_keeps_task_status(self):
 		frappe.db.set_value("Task", self.task.name, "status", "Pending Review")
