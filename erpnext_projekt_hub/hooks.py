@@ -52,12 +52,12 @@ web_include_css = "/assets/erpnext_projekt_hub/css/erpnext_projekt_hub.css"
 # include js in doctype views
 doctype_js = {
 	"Project": "public/js/project.js",
-	"Timesheet": "public/js/timesheet_timer_override.js",
+	"Timesheet": ["public/js/timesheet_timer_override.js", "public/js/timesheet_approval.js"],
 	"Task": "public/js/task_completion.js",
 	"Customer Request": ["public/js/request_queue.js", "public/js/customer_request.js"],
 	"Change Request": ["public/js/request_queue.js", "public/js/change_request.js"],
 }
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {"Timesheet": "public/js/timesheet_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -171,6 +171,13 @@ doc_events = {
 		"validate": "erpnext_projekt_hub.overrides.task.set_overdue_flag",
 		"on_update": "erpnext_projekt_hub.events.task_events.on_task_update",
 		"on_trash": "erpnext_projekt_hub.events.task_events.on_task_trash",
+	},
+	# Approval workflow: edit lock while waiting, submit/cancel only through it, notifications.
+	"Timesheet": {
+		"validate": "erpnext_projekt_hub.timesheet_approval.validate",
+		"before_submit": "erpnext_projekt_hub.timesheet_approval.before_submit",
+		"before_cancel": "erpnext_projekt_hub.timesheet_approval.before_cancel",
+		"on_change": "erpnext_projekt_hub.timesheet_approval.on_change",
 	},
 	"ToDo": {
 		"before_insert": [

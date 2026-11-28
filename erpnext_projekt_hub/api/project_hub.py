@@ -7,9 +7,9 @@ from math import isfinite
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, today
+from frappe.utils import cint, cstr, flt, today
 
-from erpnext_projekt_hub import request_queue
+from erpnext_projekt_hub import request_queue, timesheet_approval
 from erpnext_projekt_hub.access import (
 	PROJEKT_HUB_ROLE,
 	get_projekt_hub_user_names,
@@ -1977,6 +1977,8 @@ def get_task_timelogs(task_name: str):
 			ts.employee_name,
 			ts.status,
 			ts.docstatus,
+			ts.workflow_state,
+			ts.rejection_reason,
 			tsd.name as timelog_name,
 			tsd.activity_type,
 			tsd.hours,
@@ -2002,10 +2004,11 @@ def get_task_timelogs(task_name: str):
 	# Show the employee assigned on the timesheet, not whoever created it
 	for log in timelogs:
 		# Same rules as update_timelog: only own entries on a draft timesheet
+		# that is not waiting for approval
 		is_own = (session_employee and log.employee == session_employee) or (
 			not log.employee and log.owner == session_user
 		)
-		log["can_edit"] = 1 if log.docstatus == 0 and is_own else 0
+		log["can_edit"] = 1 if _is_editable_timesheet_state(log) and is_own else 0
 
 		if log.employee:
 			log["user_full_name"] = log.employee_name
@@ -2046,8 +2049,9 @@ def get_my_timelogs(
 		values: list[str] = [user]
 
 	if status:
-		conditions.append("ts.status = %s")
-		values.append(status)
+		condition, status_values = _approval_status_condition(status)
+		conditions.append(condition)
+		values.extend(status_values)
 	if project:
 		conditions.append("tsd.project = %s")
 		values.append(project)
@@ -2075,6 +2079,11 @@ def get_my_timelogs(
 			ts.name as timesheet_name,
 			ts.status,
 			ts.docstatus,
+			ts.workflow_state,
+			ts.rejection_reason,
+			ts.reviewed_by,
+			reviewer.full_name as reviewed_by_name,
+			ts.reviewed_on,
 			ts.owner,
 			ts.employee,
 			ts.employee_name,
@@ -2096,6 +2105,7 @@ def get_my_timelogs(
 		INNER JOIN `tabTimesheet` ts ON tsd.parent = ts.name
 		LEFT JOIN `tabTask` task ON tsd.task = task.name
 		LEFT JOIN `tabProject` proj ON tsd.project = proj.name
+		LEFT JOIN `tabUser` reviewer ON ts.reviewed_by = reviewer.name
 		WHERE """
 		+ condition_sql
 		+ """
@@ -2144,16 +2154,18 @@ def create_timelog(
 	# Try to find an existing draft timesheet for today that is compatible
 	# with this task's project. A Timesheet's "parent_project" (if set)
 	# locks every row to that same project, so a draft opened for a
-	# different project must not be reused here.
+	# different project must not be reused here. Timesheets sent for
+	# approval or rejected are left alone: new hours start a new draft.
+	draft_filters = {
+		"owner": user,
+		"docstatus": 0,  # Draft
+		"start_date": ["<=", today],
+		"end_date": [">=", today],
+	}
+	if timesheet_approval.is_enabled():
+		draft_filters["workflow_state"] = timesheet_approval.DRAFT
 	candidate_timesheets = frappe.get_all(
-		"Timesheet",
-		filters={
-			"owner": user,
-			"docstatus": 0,  # Draft
-			"start_date": ["<=", today],
-			"end_date": [">=", today],
-		},
-		fields=["name", "parent_project"],
+		"Timesheet", filters=draft_filters, fields=["name", "parent_project"]
 	)
 	existing_timesheet_name = next(
 		(
@@ -2251,6 +2263,7 @@ def update_timelog(
 		frappe.throw(_("Cannot update time logs from a submitted timesheet. Please cancel it first."))
 	elif timesheet.docstatus == 2:
 		frappe.throw(_("Cannot modify a cancelled timesheet"))
+	_check_not_waiting_for_approval(timesheet)
 
 	# Update fields
 	if hours is not None:
@@ -2312,6 +2325,7 @@ def delete_timelog(timelog_name: str):
 		frappe.throw(_("Cannot delete time logs from a submitted timesheet. Please cancel it first."))
 	elif timesheet.docstatus == 2:
 		frappe.throw(_("Cannot modify a cancelled timesheet"))
+	_check_not_waiting_for_approval(timesheet)
 
 	# Check for linked documents before attempting deletion
 	linked_docs = frappe.get_all(
@@ -2371,6 +2385,89 @@ def _is_own_timesheet(timesheet) -> bool:
 	if not timesheet.employee and timesheet.owner == user:
 		return True
 	return False
+
+
+def _is_editable_timesheet_state(timesheet) -> bool:
+	"""Hours can change on a draft timesheet unless it waits for approval."""
+	if timesheet.get("docstatus") != 0:
+		return False
+	return (
+		timesheet.get("workflow_state") != timesheet_approval.PENDING or not timesheet_approval.is_enabled()
+	)
+
+
+def _check_not_waiting_for_approval(timesheet):
+	if timesheet.get("workflow_state") == timesheet_approval.PENDING and timesheet_approval.is_enabled():
+		frappe.throw(
+			_(
+				"This time entry is waiting for approval and cannot be changed. "
+				"If something needs correcting, ask the approver to reject it."
+			),
+			title=_("Waiting for approval"),
+		)
+
+
+# My Time status filter: approval stages on top of the billing statuses of
+# Timesheet.status. "To Send" is everything the employee still has to send.
+APPROVAL_STATUS_FILTERS = {
+	"To Send": (
+		"ts.docstatus = 0 AND COALESCE(ts.workflow_state, '') IN ('', %s, %s)",
+		["Draft", "Rejected"],
+	),
+	"Draft": ("ts.docstatus = 0 AND COALESCE(ts.workflow_state, '') IN ('', %s)", ["Draft"]),
+	"Pending Approval": ("ts.docstatus = 0 AND ts.workflow_state = %s", ["Pending Approval"]),
+	"Rejected": ("ts.docstatus = 0 AND ts.workflow_state = %s", ["Rejected"]),
+	"Approved": ("ts.docstatus = 1", []),
+}
+
+
+def _approval_status_condition(status: str) -> tuple[str, list]:
+	if status in APPROVAL_STATUS_FILTERS:
+		condition, values = APPROVAL_STATUS_FILTERS[status]
+		return condition, list(values)
+	return "ts.status = %s", [status]
+
+
+@frappe.whitelist(methods=["POST"])
+def send_timesheets_for_approval(timesheets: str | list[str]):
+	"""Send the current user's draft and rejected timesheets for approval.
+
+	Each timesheet is sent on its own: one that fails (e.g. overlapping hours) is
+	reported back and does not stop the others.
+	"""
+	require_project_hub_access()
+	names = frappe.parse_json(timesheets) if isinstance(timesheets, str) else timesheets
+	if not isinstance(names, list) or not names:
+		frappe.throw(_("Choose the timesheets to send for approval"))
+	if not timesheet_approval.is_enabled():
+		frappe.throw(_("Timesheet approval is not set up on this site"))
+
+	from frappe.model.workflow import apply_workflow
+
+	actions = {
+		timesheet_approval.DRAFT: timesheet_approval.SEND_FOR_APPROVAL,
+		timesheet_approval.REJECTED: timesheet_approval.RESUBMIT,
+	}
+	sent, failed = [], []
+	for name in dict.fromkeys(names):
+		savepoint = f"send_for_approval_{len(sent) + len(failed)}"
+		frappe.db.savepoint(savepoint)
+		try:
+			timesheet = frappe.get_doc("Timesheet", name)
+			if not _is_own_timesheet(timesheet):
+				frappe.throw(_("You can only send your own timesheets for approval"))
+			action = actions.get(timesheet.workflow_state) if timesheet.docstatus == 0 else None
+			if not action:
+				frappe.throw(_("Timesheet {0} is already {1}").format(name, _(timesheet.workflow_state)))
+			apply_workflow(timesheet, action)
+			sent.append(name)
+		except (frappe.ValidationError, frappe.PermissionError) as error:
+			frappe.db.rollback(save_point=savepoint)
+			failed.append({"timesheet": name, "message": frappe.utils.strip_html(cstr(error))})
+
+	# Failures are returned to the caller, not shown as one popup per timesheet.
+	frappe.clear_messages()
+	return {"sent": sent, "failed": failed}
 
 
 @frappe.whitelist()

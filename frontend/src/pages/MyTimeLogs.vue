@@ -18,6 +18,9 @@ import {
 	ChevronRight,
 	CheckCircle,
 	Plus,
+	Send,
+	Hourglass,
+	XCircle,
 } from "lucide-vue-next";
 import OutlinerNav from "../components/OutlinerNav.vue";
 import BackToDeskButton from "../components/BackToDeskButton.vue";
@@ -27,6 +30,17 @@ import { getRealWindow, translate } from "../utils/translation";
 import DatePickerField from "../components/DatePickerField.vue";
 import TimeLogModal from "../components/TimeLogModal.vue";
 import TimeLogTaskPicker from "../components/mytimelogs/TimeLogTaskPicker.vue";
+import {
+	getApprovalBadge,
+	getToneClasses,
+	isApprovedLog,
+	isEditableLog,
+	isPendingLog,
+	isRejectedLog,
+	rejectedTimesheets,
+	summarizeApproval,
+	timesheetsToSend,
+} from "../utils/timesheetApproval";
 
 const store = useMyTimeLogsStore();
 const taskStore = useTaskStore();
@@ -127,7 +141,8 @@ const hoursFormatter = computed(
 	() => new Intl.NumberFormat(userLocale.value, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 );
 
-const statusOptions = ["Draft", "Submitted", "Billed"];
+// "To Send" = drafts and rejected entries, see APPROVAL_STATUS_FILTERS in api/project_hub.py
+const statusOptions = ["To Send", "Draft", "Pending Approval", "Rejected", "Approved", "Billed"];
 
 const projectOptions = computed(() => {
 	const map = new Map();
@@ -165,29 +180,20 @@ const totalHours = computed(() =>
 	store.timelogs.reduce((sum, log) => sum + (parseFloat(log.hours) || 0), 0)
 );
 
-const draftHours = computed(() =>
-	store.timelogs
-		.filter((log) => isDraftLog(log))
-		.reduce((sum, log) => sum + (parseFloat(log.hours) || 0), 0)
-);
+// Hours per approval stage: to send (draft or rejected), pending, approved
+const approval = computed(() => summarizeApproval(store.timelogs));
+const toSend = computed(() => timesheetsToSend(store.timelogs));
+const rejectedNotices = computed(() => rejectedTimesheets(store.timelogs));
+const sendingForApproval = ref(false);
 
-const draftCount = computed(() => store.timelogs.filter((log) => isDraftLog(log)).length);
-
-const submittedHours = computed(() =>
-	store.timelogs
-		.filter((log) => log.status === "Submitted" || log.docstatus === 1)
-		.reduce((sum, log) => sum + (parseFloat(log.hours) || 0), 0)
-);
-
-const draftPercentage = computed(() => {
+function percentageOf(hours) {
 	if (totalHours.value === 0) return 0;
-	return (draftHours.value / totalHours.value) * 100;
-});
+	return (hours / totalHours.value) * 100;
+}
 
-const submittedPercentage = computed(() => {
-	if (totalHours.value === 0) return 0;
-	return (submittedHours.value / totalHours.value) * 100;
-});
+const approvedPercentage = computed(() => percentageOf(approval.value.approvedHours));
+const pendingPercentage = computed(() => percentageOf(approval.value.pendingHours));
+const toSendPercentage = computed(() => percentageOf(approval.value.toSendHours));
 
 // Sorted and filtered timelogs
 const sortedTimelogs = computed(() => {
@@ -201,7 +207,7 @@ const sortedTimelogs = computed(() => {
 				compareValue = new Date(a.from_time || a.creation) - new Date(b.from_time || b.creation);
 				break;
 			case "status":
-				compareValue = (a.status || "").localeCompare(b.status || "");
+				compareValue = getApprovalBadge(a).label.localeCompare(getApprovalBadge(b).label);
 				break;
 			case "project":
 				compareValue = (a.project_name || a.project || "").localeCompare(b.project_name || b.project || "");
@@ -219,6 +225,10 @@ const sortedTimelogs = computed(() => {
 	return logs;
 });
 
+function emptyDayData() {
+	return { logs: [], totalHours: 0, draftHours: 0, pendingHours: 0, approvedHours: 0 };
+}
+
 // Calendar view data - group logs by date
 const calendarData = computed(() => {
 	const data = {};
@@ -228,22 +238,19 @@ const calendarData = computed(() => {
 		if (!date) return;
 
 		if (!data[date]) {
-			data[date] = {
-				logs: [],
-				totalHours: 0,
-				draftHours: 0,
-				submittedHours: 0,
-			};
+			data[date] = emptyDayData();
 		}
 
 		data[date].logs.push(log);
 		const hours = parseFloat(log.hours) || 0;
 		data[date].totalHours += hours;
 
-		if (isDraftLog(log)) {
+		if (isEditableLog(log)) {
 			data[date].draftHours += hours;
-		} else if (log.status === "Submitted") {
-			data[date].submittedHours += hours;
+		} else if (isPendingLog(log)) {
+			data[date].pendingHours += hours;
+		} else if (isApprovedLog(log)) {
+			data[date].approvedHours += hours;
 		}
 	});
 
@@ -263,12 +270,7 @@ const weekDays = computed(() => {
 		days.push({
 			date: date,
 			dateStr: dateStr,
-			data: calendarData.value[dateStr] || {
-				logs: [],
-				totalHours: 0,
-				draftHours: 0,
-				submittedHours: 0,
-			},
+			data: calendarData.value[dateStr] || emptyDayData(),
 		});
 	}
 
@@ -300,12 +302,7 @@ const calendarMonth = computed(() => {
 			date: new Date(currentDate),
 			dateStr,
 			isCurrentMonth,
-			data: calendarData.value[dateStr] || {
-				logs: [],
-				totalHours: 0,
-				draftHours: 0,
-				submittedHours: 0,
-			},
+			data: calendarData.value[dateStr] || emptyDayData(),
 		});
 
 		if (currentWeek.length === 7) {
@@ -499,13 +496,36 @@ function isToday(date) {
 	);
 }
 
-function toggleDraftsOnly() {
-	const next = store.filters.status === "Draft" ? "" : "Draft";
+function toggleToSendOnly() {
+	const next = store.filters.status === "To Send" ? "" : "To Send";
 	updateFilter("status", next);
 }
 
-function isDraftLog(log) {
-	return log?.status === "Draft" || log?.docstatus === 0;
+async function handleSendForApproval() {
+	const { timesheets, hours } = toSend.value;
+	if (!timesheets.length || sendingForApproval.value) return;
+	const question = translate(
+		"Send {0} h for approval? Until the approver decides, these hours cannot be changed.",
+		[formatHours(hours)]
+	);
+	if (!confirm(question)) return;
+
+	sendingForApproval.value = true;
+	try {
+		const result = await store.sendForApproval(timesheets);
+		if (result?.sent?.length) {
+			showAlert(translate("Hours sent for approval"), "green");
+		}
+		(result?.failed || []).forEach((failure) => {
+			showAlert(`${failure.timesheet}: ${failure.message}`, "red");
+		});
+		await store.fetchLogs();
+	} catch (error) {
+		console.error("Failed to send hours for approval:", error);
+		showAlert(translate("Failed to send hours for approval"), "red");
+	} finally {
+		sendingForApproval.value = false;
+	}
 }
 
 function formatDateTime(value) {
@@ -561,11 +581,12 @@ function getProjectInitial(log) {
 	return label.trim() ? label.trim().charAt(0).toUpperCase() : "P";
 }
 
-function getStatusBadgeClass(status) {
-	if (status === "Submitted") return "bg-emerald-100 text-emerald-800";
-	if (status === "Draft") return "bg-amber-100 text-amber-800";
-	if (status === "Billed") return "bg-blue-100 text-blue-800";
-	return "bg-gray-100 text-gray-700";
+function getStatusBadgeClass(log) {
+	return getToneClasses(getApprovalBadge(log).tone);
+}
+
+function getStatusLabel(log) {
+	return translate(getApprovalBadge(log).label);
 }
 
 function toLocalInput(value) {
@@ -585,8 +606,15 @@ function toFrappeDateTime(value) {
 }
 
 function openEditModal(log) {
-	if (!isDraftLog(log)) {
-		showAlert(translate("Only draft time entries can be updated"), "orange");
+	if (!isEditableLog(log)) {
+		showAlert(
+			translate(
+				isPendingLog(log)
+					? "This time entry is waiting for approval and cannot be changed."
+					: "Only draft time entries can be updated"
+			),
+			"orange"
+		);
 		return;
 	}
 	editForm.value = {
@@ -664,7 +692,7 @@ async function handleEditSave() {
 }
 
 async function handleDeleteLog(log) {
-	if (!isDraftLog(log)) return;
+	if (!isEditableLog(log)) return;
 	if (!confirm(translate("Are you sure you want to delete this draft time entry?"))) return;
 
 	try {
@@ -703,7 +731,7 @@ async function handleDeleteLog(log) {
 		<div class="bg-white border-b border-gray-200 sticky top-16 z-10">
 			<div class="w-full px-4 sm:px-6 lg:px-8 py-3">
 				<!-- Summary Cards Row -->
-				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
 					<!-- Total Hours Card -->
 					<div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-3 shadow-sm">
 						<div class="flex items-center justify-between">
@@ -722,36 +750,67 @@ async function handleDeleteLog(log) {
 						</div>
 					</div>
 
-					<!-- Draft Hours Card -->
+					<!-- To Send Card: drafts and rejected entries, with the send action -->
 					<div class="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-3 shadow-sm">
 						<div class="flex items-center justify-between">
 							<div>
 								<p class="text-xs font-medium text-amber-700 uppercase tracking-wide">
-									{{ translate("Draft hours") }}
+									{{ translate("To send") }}
 								</p>
 								<p class="mt-1 text-3xl font-bold text-amber-900">
-									{{ formatHours(draftHours) }}
+									{{ formatHours(approval.toSendHours) }}
 								</p>
-								<p class="text-xs text-amber-600 mt-0.5">
-									{{ draftCount }} {{ translate("drafts") }}
+								<p class="text-xs text-amber-700 mt-0.5">
+									{{ approval.toSendCount }} {{ translate("entries") }}
+									<span v-if="approval.rejectedCount" class="font-semibold text-red-700">
+										· {{ approval.rejectedCount }} {{ translate("rejected") }}
+									</span>
 								</p>
 							</div>
 							<Pencil class="w-10 h-10 text-amber-600 opacity-60" />
 						</div>
+						<button
+							v-if="toSend.timesheets.length"
+							type="button"
+							:disabled="sendingForApproval"
+							class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+							@click="handleSendForApproval"
+						>
+							<Send class="h-3.5 w-3.5" />
+							{{ sendingForApproval ? translate("Sending...") : translate("Send for approval") }}
+						</button>
 					</div>
 
-					<!-- Submitted Hours Card -->
+					<!-- Pending Approval Card -->
+					<div class="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-3 shadow-sm">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-xs font-medium text-orange-800 uppercase tracking-wide">
+									{{ translate("Pending approval") }}
+								</p>
+								<p class="mt-1 text-3xl font-bold text-orange-900">
+									{{ formatHours(approval.pendingHours) }}
+								</p>
+								<p class="text-xs text-orange-800 mt-0.5">
+									{{ approval.pendingCount }} {{ translate("entries") }}
+								</p>
+							</div>
+							<Hourglass class="w-10 h-10 text-orange-600 opacity-60" />
+						</div>
+					</div>
+
+					<!-- Approved Hours Card -->
 					<div class="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-3 shadow-sm">
 						<div class="flex items-center justify-between">
 							<div>
 								<p class="text-xs font-medium text-emerald-700 uppercase tracking-wide">
-									{{ translate("Submitted hours") }}
+									{{ translate("Approved hours") }}
 								</p>
 								<p class="mt-1 text-3xl font-bold text-emerald-900">
-									{{ formatHours(submittedHours) }}
+									{{ formatHours(approval.approvedHours) }}
 								</p>
 								<p class="text-xs text-emerald-600 mt-0.5">
-									{{ (store.timelogs.length - draftCount) }} {{ translate("submitted") }}
+									{{ approval.approvedCount }} {{ translate("entries") }}
 								</p>
 							</div>
 							<CheckCircle class="w-10 h-10 text-emerald-600 opacity-60" />
@@ -763,28 +822,37 @@ async function handleDeleteLog(log) {
 				<div v-if="totalHours > 0" class="mb-4">
 					<div class="flex items-center justify-between text-xs text-gray-600 mb-1.5">
 						<span>{{ translate("Progress") }}</span>
-						<span>{{ formatHours(submittedHours) }} / {{ formatHours(totalHours) }} {{ translate("hrs submitted") }}</span>
+						<span>{{ formatHours(approval.approvedHours) }} / {{ formatHours(totalHours) }} {{ translate("hrs approved") }}</span>
 					</div>
 					<div class="h-3 bg-gray-200 rounded-full overflow-hidden flex">
 						<div
 							class="bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
-							:style="{ width: `${submittedPercentage}%` }"
-							:title="`${translate('Submitted')}: ${formatHours(submittedHours)} hrs (${submittedPercentage.toFixed(1)}%)`"
+							:style="{ width: `${approvedPercentage}%` }"
+							:title="`${translate('Approved')}: ${formatHours(approval.approvedHours)} hrs (${approvedPercentage.toFixed(1)}%)`"
 						></div>
 						<div
-							class="bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500"
-							:style="{ width: `${draftPercentage}%` }"
-							:title="`${translate('Draft')}: ${formatHours(draftHours)} hrs (${draftPercentage.toFixed(1)}%)`"
+							class="bg-gradient-to-r from-orange-400 to-orange-500 transition-all duration-500"
+							:style="{ width: `${pendingPercentage}%` }"
+							:title="`${translate('Pending approval')}: ${formatHours(approval.pendingHours)} hrs (${pendingPercentage.toFixed(1)}%)`"
+						></div>
+						<div
+							class="bg-gradient-to-r from-amber-300 to-amber-400 transition-all duration-500"
+							:style="{ width: `${toSendPercentage}%` }"
+							:title="`${translate('To send')}: ${formatHours(approval.toSendHours)} hrs (${toSendPercentage.toFixed(1)}%)`"
 						></div>
 					</div>
-					<div class="flex items-center justify-between text-xs mt-1.5">
+					<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs mt-1.5">
 						<span class="flex items-center gap-1 text-emerald-700">
 							<span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-							{{ submittedPercentage.toFixed(1) }}% {{ translate("Submitted") }}
+							{{ approvedPercentage.toFixed(1) }}% {{ translate("Approved") }}
+						</span>
+						<span class="flex items-center gap-1 text-orange-800">
+							<span class="w-3 h-3 rounded-full bg-orange-500"></span>
+							{{ pendingPercentage.toFixed(1) }}% {{ translate("Pending approval") }}
 						</span>
 						<span class="flex items-center gap-1 text-amber-700">
-							<span class="w-3 h-3 rounded-full bg-amber-500"></span>
-							{{ draftPercentage.toFixed(1) }}% {{ translate("Draft") }}
+							<span class="w-3 h-3 rounded-full bg-amber-400"></span>
+							{{ toSendPercentage.toFixed(1) }}% {{ translate("To send") }}
 						</span>
 					</div>
 				</div>
@@ -888,15 +956,15 @@ async function handleDeleteLog(log) {
 							></span>
 						</button>
 						<button
-							@click="toggleDraftsOnly"
+							@click="toggleToSendOnly"
 							:class="[
 								'px-3 py-2 text-sm rounded-lg border transition-colors',
-								store.filters.status === 'Draft'
+								store.filters.status === 'To Send'
 									? 'bg-gray-900 border-gray-900 text-white'
 									: 'border-gray-300 text-gray-700 hover:bg-gray-50',
 							]"
 						>
-							{{ translate("Drafts only") }}
+							{{ translate("To send only") }}
 						</button>
 						<button
 							@click="store.fetchLogs()"
@@ -1041,6 +1109,44 @@ async function handleDeleteLog(log) {
 		</div>
 
 		<div class="w-full px-4 sm:px-6 lg:px-8 py-6">
+			<!-- Rejected hours: what the approver said, before anything else -->
+			<div
+				v-if="rejectedNotices.length"
+				class="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4"
+				role="alert"
+			>
+				<div class="flex items-start gap-3">
+					<XCircle class="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+					<div class="min-w-0 flex-1">
+						<p class="text-sm font-semibold text-red-800">
+							{{ translate("Some of your hours were rejected") }}
+						</p>
+						<p class="mt-0.5 text-sm text-red-700">
+							{{ translate("Correct them, then send them for approval again.") }}
+						</p>
+						<ul class="mt-2 space-y-1">
+							<li
+								v-for="item in rejectedNotices"
+								:key="item.timesheet"
+								class="text-sm text-red-800 [overflow-wrap:anywhere]"
+							>
+								<span class="font-semibold">{{ formatHours(item.hours) }} h</span>
+								<span v-if="item.reviewer"> · {{ item.reviewer }}</span>:
+								{{ item.reason || translate("No reason given") }}
+							</li>
+						</ul>
+						<button
+							v-if="store.filters.status !== 'Rejected'"
+							type="button"
+							class="mt-2 text-xs font-semibold text-red-700 underline hover:text-red-800"
+							@click="updateFilter('status', 'Rejected')"
+						>
+							{{ translate("Show rejected entries") }}
+						</button>
+					</div>
+				</div>
+			</div>
+
 			<!-- LIST VIEW -->
 			<div v-if="viewMode === 'list'" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
 				<div v-if="store.loading" class="py-12 text-center">
@@ -1084,9 +1190,9 @@ async function handleDeleteLog(log) {
 								<div class="flex flex-col items-end gap-1">
 									<span
 										class="px-3 py-1 text-xs font-semibold rounded-full"
-										:class="getStatusBadgeClass(log.status)"
+										:class="getStatusBadgeClass(log)"
 									>
-										{{ translate(log.status || "Unknown") }}
+										{{ getStatusLabel(log) }}
 									</span>
 										<p class="text-xs text-gray-500">{{ formatStartTime(log) }}</p>
 								</div>
@@ -1123,9 +1229,25 @@ async function handleDeleteLog(log) {
 									</button>
 								</div>
 
+								<div
+									v-if="isRejectedLog(log)"
+									class="rounded-lg border border-red-200 bg-red-50 px-3 py-2"
+								>
+									<p class="text-xs font-semibold text-red-800">
+										{{ translate("Rejection Reason") }}<span v-if="log.reviewed_by_name"> · {{ log.reviewed_by_name }}</span>
+									</p>
+									<p class="text-sm text-red-700 whitespace-pre-wrap [overflow-wrap:anywhere]">
+										{{ log.rejection_reason || translate("No reason given") }}
+									</p>
+								</div>
+								<p v-else-if="isPendingLog(log)" class="flex items-center gap-1.5 text-xs text-orange-800">
+									<Hourglass class="h-3.5 w-3.5" />
+									{{ translate("Waiting for approval. The entry is locked until the approver decides.") }}
+								</p>
+
 								<div class="flex flex-wrap gap-2">
 									<button
-										v-if="isDraftLog(log)"
+										v-if="isEditableLog(log)"
 										type="button"
 										@click="openEditModal(log)"
 										class="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -1134,7 +1256,7 @@ async function handleDeleteLog(log) {
 										{{ translate("Edit") }}
 									</button>
 									<button
-										v-if="isDraftLog(log)"
+										v-if="isEditableLog(log)"
 										type="button"
 										@click="handleDeleteLog(log)"
 										class="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
@@ -1221,19 +1343,28 @@ async function handleDeleteLog(log) {
 							<!-- Hours breakdown -->
 							<div v-if="day.data.totalHours > 0" class="space-y-1">
 								<div
-									v-if="day.data.submittedHours > 0"
+									v-if="day.data.approvedHours > 0"
 									class="flex items-center justify-between text-xs"
 								>
-									<span class="text-emerald-600">{{ translate("Submitted") }}</span>
+									<span class="text-emerald-600">{{ translate("Approved") }}</span>
 									<span class="font-medium text-emerald-700">
-										{{ formatHours(day.data.submittedHours) }}h
+										{{ formatHours(day.data.approvedHours) }}h
+									</span>
+								</div>
+								<div
+									v-if="day.data.pendingHours > 0"
+									class="flex items-center justify-between text-xs"
+								>
+									<span class="text-orange-800">{{ translate("Pending") }}</span>
+									<span class="font-medium text-orange-800">
+										{{ formatHours(day.data.pendingHours) }}h
 									</span>
 								</div>
 								<div
 									v-if="day.data.draftHours > 0"
 									class="flex items-center justify-between text-xs"
 								>
-									<span class="text-amber-600">{{ translate("Draft") }}</span>
+									<span class="text-amber-600">{{ translate("To send") }}</span>
 									<span class="font-medium text-amber-700">
 										{{ formatHours(day.data.draftHours) }}h
 									</span>
@@ -1356,12 +1487,21 @@ async function handleDeleteLog(log) {
 							<!-- Hours breakdown -->
 							<div class="space-y-1.5">
 								<div
-									v-if="day.data.submittedHours > 0"
+									v-if="day.data.approvedHours > 0"
 									class="flex items-center gap-2 text-xs"
 								>
 									<CheckCircle class="w-3 h-3 text-emerald-600" />
 									<span class="text-emerald-700 font-medium">
-										{{ formatHours(day.data.submittedHours) }}h {{ translate("submitted") }}
+										{{ formatHours(day.data.approvedHours) }}h {{ translate("approved") }}
+									</span>
+								</div>
+								<div
+									v-if="day.data.pendingHours > 0"
+									class="flex items-center gap-2 text-xs"
+								>
+									<Hourglass class="w-3 h-3 text-orange-600" />
+									<span class="text-orange-800 font-medium">
+										{{ formatHours(day.data.pendingHours) }}h {{ translate("pending") }}
 									</span>
 								</div>
 								<div
@@ -1370,7 +1510,7 @@ async function handleDeleteLog(log) {
 								>
 									<Pencil class="w-3 h-3 text-amber-600" />
 									<span class="text-amber-700 font-medium">
-										{{ formatHours(day.data.draftHours) }}h {{ translate("draft") }}
+										{{ formatHours(day.data.draftHours) }}h {{ translate("to send") }}
 									</span>
 								</div>
 								<div v-if="day.data.logs.length > 0" class="text-xs text-gray-500 pt-1 border-t">
@@ -1459,14 +1599,14 @@ async function handleDeleteLog(log) {
 										</span>
 										<span
 											class="px-2 py-0.5 text-xs font-medium rounded-full"
-											:class="getStatusBadgeClass(log.status)"
+											:class="getStatusBadgeClass(log)"
 										>
-											{{ translate(log.status || "Unknown") }}
+											{{ getStatusLabel(log) }}
 										</span>
 									</div>
 									<div class="flex items-center gap-1 flex-shrink-0 ml-1">
 										<button
-											v-if="isDraftLog(log)"
+											v-if="isEditableLog(log)"
 											@click.stop="openEditModal(log)"
 											class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
 											:title="translate('Edit')"
@@ -1474,7 +1614,7 @@ async function handleDeleteLog(log) {
 											<Pencil class="w-3.5 h-3.5" />
 										</button>
 										<button
-											v-if="isDraftLog(log)"
+											v-if="isEditableLog(log)"
 											@click.stop="handleDeleteLog(log)"
 											class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
 											:title="translate('Delete')"
