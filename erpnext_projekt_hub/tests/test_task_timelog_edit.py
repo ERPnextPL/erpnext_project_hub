@@ -80,7 +80,11 @@ class TestTaskTimelogEdit(FrappeTestCase):
 
 	def _task_in_project(self, project_manager=None):
 		project = frappe.get_doc(
-			{"doctype": "Project", "project_name": "_Test Timelog Visibility", "project_manager": project_manager}
+			{
+				"doctype": "Project",
+				"project_name": "_Test Timelog Visibility",
+				"project_manager": project_manager,
+			}
 		).insert(ignore_permissions=True)
 		frappe.db.set_value("Task", self.task.name, "project", project.name)
 		return project
