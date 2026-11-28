@@ -2269,7 +2269,7 @@ def create_timelog(
 ):
 	"""
 	Create a time log entry for a task.
-	Creates or updates a timesheet for the current user.
+	Each entry is a new Timesheet of its own, so it can be approved or rejected alone.
 	"""
 	require_project_hub_access()
 	if not task or not hours:
@@ -2283,38 +2283,12 @@ def create_timelog(
 	except ValueError:
 		frappe.throw(_("Invalid hours value"))
 
-	# Get or create timesheet for current user
 	user = frappe.session.user
 	today = frappe.utils.today()
 
 	# Get task details
 	task_doc = frappe.get_doc("Task", task)
 	timelog_meta = frappe.get_meta("Timesheet Detail")
-
-	# Try to find an existing draft timesheet for today that is compatible
-	# with this task's project. A Timesheet's "parent_project" (if set)
-	# locks every row to that same project, so a draft opened for a
-	# different project must not be reused here. Timesheets sent for
-	# approval or rejected are left alone: new hours start a new draft.
-	draft_filters = {
-		"owner": user,
-		"docstatus": 0,  # Draft
-		"start_date": ["<=", today],
-		"end_date": [">=", today],
-	}
-	if timesheet_approval.is_enabled():
-		draft_filters["workflow_state"] = timesheet_approval.DRAFT
-	candidate_timesheets = frappe.get_all(
-		"Timesheet", filters=draft_filters, fields=["name", "parent_project"]
-	)
-	existing_timesheet_name = next(
-		(
-			ts.name
-			for ts in candidate_timesheets
-			if not ts.parent_project or ts.parent_project == task_doc.project
-		),
-		None,
-	)
 
 	timelog_row = {
 		"activity_type": activity_type,
@@ -2328,24 +2302,20 @@ def create_timelog(
 	if is_billable is not None and timelog_meta.has_field("is_billable"):
 		timelog_row["is_billable"] = cint(is_billable)
 
-	if existing_timesheet_name:
-		timesheet = frappe.get_doc("Timesheet", existing_timesheet_name)
-		# Add time log detail to existing timesheet
-		timesheet.append("time_logs", timelog_row)
-		timesheet.save()
-	else:
-		# Create new timesheet with time log in one go
-		timesheet = frappe.get_doc(
-			{
-				"doctype": "Timesheet",
-				"employee": get_employee_for_user(user),
-				"parent_project": task_doc.project,
-				"start_date": today,
-				"end_date": today,
-				"time_logs": [timelog_row],
-			}
-		)
-		timesheet.insert()
+	# Every time log gets its own Timesheet: approval submits a whole
+	# Timesheet, so entries sharing one could only be approved or rejected
+	# together.
+	timesheet = frappe.get_doc(
+		{
+			"doctype": "Timesheet",
+			"employee": get_employee_for_user(user),
+			"parent_project": task_doc.project,
+			"start_date": today,
+			"end_date": today,
+			"time_logs": [timelog_row],
+		}
+	)
+	timesheet.insert()
 
 	# Return the created log with user info
 	latest_log = timesheet.time_logs[-1]
