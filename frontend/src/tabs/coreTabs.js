@@ -3,7 +3,7 @@
  * These are the default tabs available in the base version
  */
 import { registerTab } from '../tabRegistry';
-import { Folder, CheckSquare, Timer, CalendarRange } from 'lucide-vue-next';
+import { Folder, CheckSquare, Timer, CalendarRange, ClipboardCheck } from 'lucide-vue-next';
 
 /**
  * Register all core tabs
@@ -59,5 +59,25 @@ export function registerCoreTabs() {
 		bg: 'bg-violet-50',
 		component: () => import('../pages/WorkPlanning.vue'),
 		order: 35,
+	});
+
+	// Timesheet approval queue for project managers and authorized reviewers.
+	registerTab({
+		key: 'timesheet-approval',
+		routeName: 'TimesheetApproval',
+		path: '/project-hub/timesheet-approval',
+		labelKey: 'Time Approval',
+		icon: ClipboardCheck,
+		color: 'text-orange-600',
+		bg: 'bg-orange-50',
+		component: () => import('../pages/TimesheetApproval.vue'),
+		order: 40,
+		isVisible: () =>
+			window.frappe?.user?.has_role?.([
+				'Project Manager',
+				'Projects Manager',
+				'Timesheet Manager',
+				'System Manager',
+			]),
 	});
 }

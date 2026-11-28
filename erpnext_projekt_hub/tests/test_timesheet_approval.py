@@ -7,9 +7,11 @@ from frappe.tests.utils import FrappeTestCase
 from erpnext_projekt_hub import timesheet_approval as approval
 from erpnext_projekt_hub.access import PROJEKT_HUB_ROLE
 from erpnext_projekt_hub.api.project_hub import (
+	approve_timesheet_for_project_manager,
 	create_timelog,
 	get_my_timelogs,
 	get_task_timelogs,
+	get_timesheets_to_approve,
 	send_timelog_for_approval,
 	send_timesheets_for_approval,
 	update_timelog,
@@ -112,6 +114,19 @@ class TestTimesheetApproval(FrappeTestCase):
 		# status keeps tracking billing
 		self.assertEqual(state.status, "Submitted")
 		self.assertEqual(frappe.db.get_value("Timesheet", self.timesheet, "reviewed_by"), APPROVER)
+
+	def test_project_manager_queue_and_approval(self):
+		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)
+
+		frappe.set_user(APPROVER)
+		queue = get_timesheets_to_approve(project=self.task.project)
+		item = next(item for item in queue["items"] if item["name"] == self.timesheet)
+		self.assertEqual(item["employee_name"], "Employee")
+		self.assertEqual(item["entries"][0]["task"], self.task.name)
+
+		approve_timesheet_for_project_manager(self.timesheet)
+		state = frappe.db.get_value("Timesheet", self.timesheet, ["workflow_state", "docstatus"], as_dict=True)
+		self.assertEqual((state.workflow_state, state.docstatus), (approval.APPROVED, 1))
 
 	def test_employee_cannot_approve(self):
 		act(EMPLOYEE, self.timesheet, approval.SEND_FOR_APPROVAL)

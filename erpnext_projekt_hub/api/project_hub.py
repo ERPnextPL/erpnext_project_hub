@@ -2118,6 +2118,146 @@ def get_my_timelogs(
 
 
 @frappe.whitelist()
+def get_timesheets_to_approve(
+	project: str | None = None,
+	employee: str | None = None,
+	start_date: str | None = None,
+	end_date: str | None = None,
+	search: str | None = None,
+	limit: int | str = 200,
+):
+	"""Return the current user's pending timesheets, grouped for approval UX."""
+	require_project_hub_access()
+	if not timesheet_approval.can_review():
+		return {"items": [], "total": 0, "total_hours": 0, "projects": [], "employees": []}
+
+	try:
+		page_length = min(max(int(limit or 200), 1), 200)
+	except (TypeError, ValueError):
+		page_length = 200
+
+	filters = [["workflow_state", "=", timesheet_approval.PENDING], ["docstatus", "=", 0]]
+	if employee:
+		filters.append(["employee", "=", employee])
+	if start_date:
+		filters.append(["end_date", ">=", start_date])
+	if end_date:
+		filters.append(["start_date", "<=", end_date])
+
+	timesheets = frappe.get_list(
+		"Timesheet",
+		filters=filters,
+		fields=[
+			"name",
+			"employee",
+			"employee_name",
+			"start_date",
+			"end_date",
+			"total_hours",
+			"approval_requested_on",
+			"parent_project",
+			"creation",
+		],
+		order_by="approval_requested_on desc, modified desc",
+		page_length=page_length,
+	)
+
+	items = []
+	needle = cstr(search).strip().lower() if search else ""
+	for row in timesheets:
+		doc = frappe.get_doc("Timesheet", row.name)
+		if not timesheet_approval.can_review_timesheet(doc):
+			continue
+
+		projects = []
+		entries = []
+		search_parts = [doc.name, doc.employee_name, doc.employee, doc.parent_project]
+		for time_log in doc.time_logs:
+			project_name = time_log.project or doc.parent_project
+			project_label = (
+				frappe.db.get_value("Project", project_name, "project_name") if project_name else None
+			)
+			task_subject = (
+				frappe.db.get_value("Task", time_log.task, "subject") if time_log.task else None
+			)
+			if project_name and project_name not in {item["name"] for item in projects}:
+				projects.append({"name": project_name, "label": project_label or project_name})
+			search_parts.extend(
+				[project_name, project_label, time_log.task, task_subject, time_log.description]
+			)
+			entries.append(
+				{
+					"name": time_log.name,
+					"task": time_log.task,
+					"task_subject": task_subject or time_log.task,
+					"project": project_name,
+					"project_name": project_label or project_name,
+					"activity_type": time_log.activity_type,
+					"hours": time_log.hours,
+					"from_time": time_log.from_time,
+					"to_time": time_log.to_time,
+					"description": time_log.description,
+					"is_billable": time_log.is_billable,
+				}
+			)
+
+		if project and project not in {item["name"] for item in projects}:
+			continue
+		if needle and needle not in " ".join(cstr(part) for part in search_parts if part).lower():
+			continue
+
+		employee_name = doc.employee_name or frappe.utils.get_fullname(timesheet_approval.get_employee_user(doc))
+		items.append(
+			{
+				"name": doc.name,
+				"employee": doc.employee,
+				"employee_name": employee_name,
+				"start_date": doc.start_date,
+				"end_date": doc.end_date,
+				"total_hours": doc.total_hours,
+				"approval_requested_on": doc.approval_requested_on,
+				"projects": projects,
+				"entries": entries,
+			}
+		)
+
+	project_options = {project["name"]: project for item in items for project in item["projects"]}
+	employee_options = {
+		item["employee"]: {"name": item["employee"], "label": item["employee_name"] or item["employee"]}
+		for item in items
+		if item["employee"]
+	}
+	return {
+		"items": items,
+		"total": len(items),
+		"total_hours": sum(flt(item["total_hours"]) for item in items),
+		"projects": list(project_options.values()),
+		"employees": list(employee_options.values()),
+		"has_more": len(timesheets) == page_length,
+	}
+
+
+@frappe.whitelist(methods=["POST"])
+def approve_timesheet_for_project_manager(timesheet: str):
+	"""Approve a pending timesheet for the assigned project manager."""
+	require_project_hub_access()
+	if not timesheet:
+		frappe.throw(_("Timesheet is required"))
+
+	doc = frappe.get_doc("Timesheet", timesheet)
+	doc.check_permission("read")
+	if doc.workflow_state != timesheet_approval.PENDING or doc.docstatus != 0:
+		frappe.throw(_("Only a timesheet waiting for approval can be approved."))
+	if not timesheet_approval.can_review_timesheet(doc):
+		frappe.throw(_("You are not the assigned reviewer for this timesheet."), frappe.PermissionError)
+
+	from frappe.model.workflow import apply_workflow
+
+	doc = apply_workflow(doc, timesheet_approval.APPROVE)
+	return {"name": doc.name, "workflow_state": doc.workflow_state, "total_hours": doc.total_hours}
+
+
+@frappe.whitelist()
 def create_timelog(
 	task: str,
 	hours: float,

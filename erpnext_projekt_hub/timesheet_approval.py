@@ -415,6 +415,12 @@ def validate(doc, method=None):
 	elif new_state in (APPROVED, REJECTED):
 		# Frappe stops the creator (allow_self_approval); this also covers hours that
 		# someone else entered for the approver's own Employee record.
+		if not can_review_timesheet(doc):
+			frappe.throw(
+				_("Only the assigned project manager or an authorized timesheet reviewer can decide on these hours."),
+				frappe.PermissionError,
+				title=_("Not allowed"),
+			)
 		if is_own_timesheet(doc) and not is_admin():
 			frappe.throw(
 				_("You cannot approve or reject your own hours. Another approver has to review them."),
@@ -480,6 +486,14 @@ def can_review(user: str | None = None) -> bool:
 	return _has_any_role(REVIEWER_ROLES, user)
 
 
+def can_review_timesheet(doc, user: str | None = None) -> bool:
+	"""True when the user is an authorized reviewer for this timesheet."""
+	user = user or frappe.session.user
+	if is_admin(user):
+		return True
+	return can_review(user) and user in get_approvers(doc)
+
+
 def is_admin(user: str | None = None) -> bool:
 	"""Administrator and System Manager: full rights, their own hours included."""
 	return _has_any_role(ADMIN_ROLES, user)
@@ -530,6 +544,12 @@ def reject_timesheet(timesheet: str, reason: str):
 	doc.check_permission("read")
 	if doc.get(STATE_FIELD) != PENDING:
 		frappe.throw(_("Only a timesheet waiting for approval can be rejected."))
+	if not can_review_timesheet(doc):
+		frappe.throw(
+			_("Only the assigned project manager or an authorized timesheet reviewer can decide on these hours."),
+			frappe.PermissionError,
+			title=_("Not allowed"),
+		)
 	if is_own_timesheet(doc) and not is_admin():
 		frappe.throw(
 			_("You cannot approve or reject your own hours. Another approver has to review them."),
